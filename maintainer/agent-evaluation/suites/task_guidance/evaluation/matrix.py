@@ -192,8 +192,26 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
     continuations, and the designated negative control.
     """
 
+    return _plan_stage_subject_cases("handoff-assessment")
+
+
+def plan_content_cases() -> tuple[CellCase, ...]:
+    """One case per presented-plan subject, judged by the declared agent.
+
+    The subjects are the same plan-stage runs the handoff assessment
+    judges — every fresh-agent plan per variant, the same-agent
+    continuations, and the designated negative control — so the
+    presented plan gets a content judgment beside the handoff judgment.
+    """
+
+    return _plan_stage_subject_cases("plan-content-assessment")
+
+
+def _plan_stage_subject_cases(stage: str) -> tuple[CellCase, ...]:
+    """Enumerate every plan-stage subject cell for one assessment stage."""
+
     cases = []
-    for scenario in _scenarios_with("handoff-assessment"):
+    for scenario in _scenarios_with(stage):
         cells = producer_cells(scenario.category)
         has_continuation = "continuation" in CATEGORIES[scenario.category]["stages"]
         for variant in plan_variants(scenario.category):
@@ -209,7 +227,7 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
                         effort=subject_effort,
                         variant=variant,
                         category=scenario.category,
-                        stage="handoff-assessment",
+                        stage=stage,
                     )
                 )
         if has_continuation:
@@ -225,7 +243,7 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
                         effort=subject_effort,
                         variant="generated-task",
                         category=scenario.category,
-                        stage="handoff-assessment",
+                        stage=stage,
                     )
                 )
         has_generated = "generated-plan" in CATEGORIES[scenario.category]["stages"]
@@ -242,7 +260,7 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
                         effort=subject_effort,
                         variant="generated-file",
                         category=scenario.category,
-                        stage="handoff-assessment",
+                        stage=stage,
                     )
                 )
         control = negative_control(scenario.category)
@@ -258,7 +276,7 @@ def handoff_assessment_cases() -> tuple[CellCase, ...]:
                     effort=control["effort"],
                     variant=control["variant"],
                     category=scenario.category,
-                    stage="handoff-assessment",
+                    stage=stage,
                 )
             )
     return tuple(cases)

@@ -1311,6 +1311,107 @@ def test_collect_exports_invalid_samples_beside_valid_evidence(
     assert f"({cell.name}/s1/invalid.md)" in results
 
 
+def test_collect_renders_plan_content_judgment_beside_its_subject(
+    tmp_path: Path,
+) -> None:
+    """A plan-content judgment lives inside the judged plan-stage cell.
+
+    The assessor run sits under ``<cell>/assessment/plan-content/``, the
+    grades render in the judged plan sample's ``assessment.md``, the
+    scenario ``results.md`` plan-stage row carries the coverage, and the
+    matrix gains the plan-content cohort and detail tables.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    requirements: dict[str, dict[str, str]] = {
+        f"PLAN-{index}": {"grade": "conveyed", "finding": ""} for index in range(1, 6)
+    }
+    requirements["GENERIC-1"] = {
+        "grade": "partial",
+        "finding": "the URL-pattern decision is not marked open",
+    }
+    for index in range(2, 9):
+        requirements[f"GENERIC-{index}"] = {"grade": "conveyed", "finding": ""}
+    requirements["GENERIC-9"] = {"grade": "self-contained", "finding": ""}
+    requirements["GENERIC-10"] = {"grade": "proportionate", "finding": ""}
+    assessment = {
+        "stage": "fresh-agent",
+        "variant": "omit",
+        "requirements": requirements,
+        "missed_requirements": [],
+        "coverage": round(14 / 15, 3),
+        "summary": "Synthetic plan-content judgment.",
+    }
+    record = {
+        "schema_version": 1,
+        "scenario_id": HANDOFF_SCENARIO_ID,
+        "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
+        "assessment": assessment,
+        "summary": "Synthetic plan-content judgment.",
+    }
+    record["run_id"] = "synthetic-tg02-plan-content"
+    _write_run(
+        paths["artifact_root"],
+        run_id="synthetic-tg02-plan-content",
+        record_name="task-guidance-plan-content.json",
+        record=record,
+        session=_session(
+            "/tmp/synthetic-task-guidance/synthetic-tg02-plan-content/workspace",
+            prompt="Assess the synthetic tg02 presented plan.",
+            response=json.dumps(assessment, indent=2),
+            compiled="synthetic assessor guidance",
+            run_id="synthetic-tg02-plan-content",
+        ),
+    )
+    frozen["plan_content_records"] = [record]
+    frozen["status"]["plan_contents"] = {"expected": 1, "present": 1, "missing": []}
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    cell = package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max"
+    assessor_run = cell / "assessment" / "plan-content" / "omit" / "s0" / "run.json"
+    assert assessor_run.is_file()
+    subject_note = (cell / "plan-omit" / "s0" / "assessment.md").read_text(
+        encoding="utf-8"
+    )
+    assert "## plan-content assessment" in subject_note
+    assert "Top-grade coverage: **93%**" in subject_note
+    assert "GENERIC-1: **partial**" in subject_note
+    assert "](../../assessment/plan-content/omit/s0/session.md)" in subject_note
+
+    results = (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/results.md").read_text(
+        encoding="utf-8"
+    )
+    plan_rows = [
+        line
+        for line in results.splitlines()
+        if "`plan-omit`" in line and line.startswith("|")
+    ]
+    assert plan_rows and plan_rows[0].rstrip().endswith("| 93% |")
+
+    matrix = (package_dir / "matrix.md").read_text(encoding="utf-8")
+    assert "## Presented-plan content" in matrix
+    assert "| GENERIC-1 | 0% |" in matrix
+    assert "| omit | 1 | 93% |" in matrix
+    assert "## Presented-plan content detail" in matrix
+    assert (
+        f"](scenarios/{HANDOFF_SCENARIO_ID}/{cell.name}/plan-omit/s0/assessment.md)"
+        in matrix
+    )
+    assert (
+        f"scenarios/{HANDOFF_SCENARIO_ID}/assessment/plan-content/results.md" in matrix
+    )
+
+
 def test_collect_renders_quality_judgment_beside_its_subject(
     tmp_path: Path,
 ) -> None:

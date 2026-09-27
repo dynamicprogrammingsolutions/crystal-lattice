@@ -75,5 +75,14 @@
     "retain_plan": "Preserve contract, ownership, compatibility, parallelism, and final integration dependencies.",
     "omit_plan": "Preserve package facts, public questions, ownership boundaries, and crossings without the four-component task partition.",
     "fresh_agent_plan": "A fresh agent recognizes valid component boundaries while keeping each component's work, tests, and docs together."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "The public query contract as the first-class design object: filtering, sorting, pagination, validation, and compatibility in one approved form.", "derived_from": ["QUERY-1"]},
+    {"id": "PLAN-2", "content": "How the FastAPI service implements the contract through production HTTP and real storage behavior.", "derived_from": ["QUERY-2"]},
+    {"id": "PLAN-3", "content": "How the reusable Python client exposes the capability while preserving current calls.", "derived_from": ["QUERY-3"]},
+    {"id": "PLAN-4", "content": "How the CLI exposes the capability so the CLI-to-client-to-service path is proven.", "derived_from": ["QUERY-4"]},
+    {"id": "PLAN-5", "content": "The delivery order — contract settled before the surfaces that consume it — with each independently delivered public surface documented as it lands.", "derived_from": ["QUERY-5"]}
+    ]
   }
 }

@@ -64,6 +64,10 @@
           "agent": "glm",
           "effort": "max"
         },
+        "plan-content-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
         "generated-plan": {}
       }
     },

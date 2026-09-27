@@ -42,5 +42,13 @@
     "retain_plan": "Preserve the selected-state owner, refresh call paths, compatibility constraints, and real crossing.",
     "omit_plan": "Preserve the observed regression, source pointers, state owner, and public response constraints without the proposed shared fetch-path solution.",
     "fresh_agent_plan": "A fresh agent reconstructs one cohesive cross-layer fix and groups CRUD refresh variants."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "Where the selected All/Read/Unread filter lives and how it survives add, update, and delete refreshes.", "derived_from": ["REFRESH-1"]},
+    {"id": "PLAN-2", "content": "The path a mutation refresh takes through the production client transport and the Flask route.", "derived_from": ["REFRESH-2"]},
+    {"id": "PLAN-3", "content": "How the visible active choice, the table results, and the empty state stay consistent with the refreshed response.", "derived_from": ["REFRESH-3"]},
+    {"id": "PLAN-4", "content": "What stays untouched: CRUD success behavior, response shape, and unfiltered behavior.", "derived_from": ["REFRESH-4"]}
+    ]
   }
 }

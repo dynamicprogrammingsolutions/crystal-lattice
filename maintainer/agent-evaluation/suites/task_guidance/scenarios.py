@@ -253,3 +253,34 @@ def validate_target(
         for key in ("retain_plan", "omit_plan", "fresh_agent_plan"):
             if not isinstance(handoff.get(key), str) or not handoff[key].strip():
                 raise ValueError(f"target handoff {key} must be non-empty")
+
+    # The plan content requirements are the committed plan target: what
+    # a plan for this task must convey. Handoff and decomposition
+    # scenarios declare them; other categories may add them later.
+    if expected.category in ("handoff", "decomposition"):
+        plan_target = value.get("plan_target")
+        if not isinstance(plan_target, dict):
+            raise ValueError("target plan_target must be an object")
+        required_content = plan_target.get("required_content")
+        if not isinstance(required_content, list) or not required_content:
+            raise ValueError("plan_target required_content must be a non-empty list")
+        requirement_ids: set[str] = set()
+        for item in required_content:
+            if not isinstance(item, dict):
+                raise ValueError("plan content requirement must be an object")
+            item_id = item.get("id")
+            content = item.get("content")
+            if not isinstance(item_id, str) or not item_id.strip():
+                raise ValueError("plan content requirement id must be non-empty")
+            if item_id in requirement_ids:
+                raise ValueError(f"duplicate plan content requirement: {item_id}")
+            requirement_ids.add(item_id)
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError(f"{item_id} content must be non-empty")
+            derived = item.get("derived_from", [])
+            if not isinstance(derived, list) or any(
+                source not in outcome_ids for source in derived
+            ):
+                raise ValueError(
+                    f"{item_id} derived_from must reference approved outcomes"
+                )

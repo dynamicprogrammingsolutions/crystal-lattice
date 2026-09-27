@@ -19,6 +19,7 @@ from .configuration import (
 )
 from .handoff_semantic import handoff_assessment_subject_identity
 from .scenarios import SCENARIOS
+from .plan_content import aggregate_plan_content
 from .quality import aggregate_quality_dimensions
 from .semantic import (
     QUALITY_DIMENSIONS,
@@ -108,6 +109,12 @@ def consolidate_results(
         cell_identity=continuation_cell_identity,
         labels=labels,
     )
+    plan_contents = select_cell_records(
+        artifact_root,
+        record_name=STAGES["plan-content-assessment"].record,
+        cell_identity=handoff_assessment_subject_identity,
+        labels=labels,
+    )
     provider_cells = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
@@ -174,6 +181,31 @@ def consolidate_results(
         for scenario in _scenarios_with_stage("generated-plan")
         for profile, effort in producer_cells(scenario.category)
     }
+    expected_plan_contents = {
+        *(
+            f"{scenario.scenario_id}:{variant}:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("plan-content-assessment")
+            for variant in plan_variants(scenario.category)
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
+            f"{scenario.scenario_id}:generated-task:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("plan-content-assessment")
+            if "continuation" in CATEGORIES[scenario.category]["stages"]
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
+            f"{scenario.scenario_id}:generated-file:{profile}:{effort}"
+            for scenario in _scenarios_with_stage("plan-content-assessment")
+            if "generated-plan" in CATEGORIES[scenario.category]["stages"]
+            for profile, effort in producer_cells(scenario.category)
+        ),
+        *(
+            f"{control['scenario']}:{control['variant']}:"
+            f"{control['agent']}:{control['effort']}"
+            for control in negative_control_designations()
+        ),
+    }
 
     producer_values = [
         {
@@ -191,6 +223,7 @@ def consolidate_results(
     negative_control_values = _values(negative_controls)
     quality_values = _values(quality)
     generated_plan_values = _values(generated_plans)
+    plan_content_values = _values(plan_contents)
     valid_provider_identities = {
         cell
         for cell, samples in provider_cells.items()
@@ -219,6 +252,7 @@ def consolidate_results(
                 negative_controls,
                 quality,
                 generated_plans,
+                plan_contents,
             )
             for samples in selected.values()
             for record in samples
@@ -243,6 +277,8 @@ def consolidate_results(
         "quality_records": quality_values,
         "generated_plan_records": generated_plan_values,
         "quality_summary": aggregate_quality_dimensions(quality_values),
+        "plan_content_records": plan_content_values,
+        "plan_content_summary": aggregate_plan_content(plan_content_values),
         "provider_blocker_records": provider_blocker_values,
         "status": {
             "producers": _status(
@@ -275,6 +311,7 @@ def consolidate_results(
                 generated_plans,
                 valid_key="valid",
             ),
+            "plan_contents": completeness(expected_plan_contents, plan_contents),
             "provider_blockers": {
                 "present": len(provider_blocker_values),
                 "identities": sorted(
@@ -350,6 +387,14 @@ def render_summary(value: dict[str, Any]) -> str:
         f"{negative_controls['present']} | — | — | "
         f"{len(negative_controls['missing'])} |"
     )
+    # Historical frozen datasets predate the plan-content stage.
+    plan_contents = status.get("plan_contents")
+    if plan_contents is not None:
+        lines.append(
+            f"| Plan-content judgments | {plan_contents['expected']} | "
+            f"{plan_contents['present']} | — | — | "
+            f"{len(plan_contents['missing'])} |"
+        )
     provider_blockers = status["provider_blockers"]
     lines.append(
         f"| Provider setup blockers | — | {provider_blockers['present']} | "

@@ -47,5 +47,16 @@
     "retain_plan": "Preserve the reviewed implementation and verification approach as a Draft plan.",
     "omit_plan": "Preserve outcomes, project facts, source pointers, protected surfaces, and unresolved public decisions without plan steps.",
     "fresh_agent_plan": "A fresh agent can reconstruct the complete generated-output plan without broad site rediscovery."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "The pagination URL design: `/blog/` as page one and the stable later-page URL pattern, with the approval status of that pattern stated — recommended versus decided — rather than silently chosen.", "derived_from": ["ARCHIVE-1"]},
+    {"id": "PLAN-2", "content": "The mechanism keeping every archive page at or under twenty posts while each post appears exactly once across pages.", "derived_from": ["ARCHIVE-2", "ARCHIVE-3"]},
+    {"id": "PLAN-3", "content": "How pagination preserves the newest-first ordering of posts.", "derived_from": ["ARCHIVE-3"]},
+    {"id": "PLAN-4", "content": "Conditional previous/next navigation: what 'its destination exists' means and how the navigation stays accessible.", "derived_from": ["ARCHIVE-4"]},
+    {"id": "PLAN-5", "content": "Why home, tags, feed, sitemap, and individual-post surfaces keep their current behavior — the change stays scoped to the archive.", "derived_from": ["ARCHIVE-5"]},
+    {"id": "PLAN-6", "content": "That the archive output stays statically generated without client-side JavaScript, and how the approach preserves it.", "derived_from": ["ARCHIVE-6"]},
+    {"id": "PLAN-7", "content": "The verification approach names the production Eleventy build over a multi-page fixture as the decisive check of pagination correctness."}
+    ]
   }
 }

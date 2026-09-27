@@ -75,5 +75,15 @@
     "retain_plan": "Preserve the reviewed vertical delivery rationale and dependency graph.",
     "omit_plan": "Preserve approved outcomes, project facts, cross-layer constraints, and public questions without the four-slice implementation direction.",
     "fresh_agent_plan": "A fresh agent reconstructs a small vertical partition and does not expand layers or test types into separate phases."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "The discovery state contract between client and server: what read-status filtering, title/author search, bounded pagination, and total count are exchanged.", "derived_from": ["DISCOVERY-1", "DISCOVERY-2", "DISCOVERY-3"]},
+    {"id": "PLAN-2", "content": "The composability rules and bounds: how search composes with filtering and pagination, and where the bounds are.", "derived_from": ["DISCOVERY-2", "DISCOVERY-3"]},
+    {"id": "PLAN-3", "content": "The URL shareability design: which discovery state encodes in the URL and how it restores across reload and browser navigation.", "derived_from": ["DISCOVERY-4"]},
+    {"id": "PLAN-4", "content": "How CRUD refreshes retain the current discovery view instead of resetting it.", "derived_from": ["DISCOVERY-6"]},
+    {"id": "PLAN-5", "content": "How existing CRUD and unparameterized API behavior remain compatible.", "derived_from": ["DISCOVERY-7"]},
+    {"id": "PLAN-6", "content": "The adoption sequence across the Vue state/rendering, production transport, Flask routing, and data selection crossings — with the state contract settled before the surfaces that consume it."}
+    ]
   }
 }

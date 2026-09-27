@@ -117,4 +117,18 @@ STAGES: dict[str, StageSpec] = {
         executor="run_assessment",
         record="task-guidance-quality.json",
     ),
+    "plan-content-assessment": StageSpec(
+        name="plan-content-assessment",
+        # A minimal stub workspace; the judged material (one presented
+        # plan) arrives embedded in the user message; fresh session,
+        # run by the stage's declared agent. Subjects are the plan-stage
+        # runs: fresh-agent plans per variant, same-agent continuations,
+        # and the designated negative control.
+        workspace="assessment-stub",
+        parent=None,
+        runs_per="scenario (the stage's declared agent)",
+        config=("agent", "effort"),
+        executor="run_assessment",
+        record="task-guidance-plan-content.json",
+    ),
 }

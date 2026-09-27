@@ -140,6 +140,7 @@ NEGATIVE_CONTROL_RECORD = STAGES["negative-control"].record
 SEMANTIC_RECORD = STAGES["task-creation-assessment"].record
 HANDOFF_SEMANTIC_RECORD = STAGES["handoff-assessment"].record
 QUALITY_RECORD = STAGES["task-quality-assessment"].record
+PLAN_CONTENT_RECORD = STAGES["plan-content-assessment"].record
 GENERATED_PLAN_RECORD = STAGES["generated-plan"].record
 
 KIND_TASK_CREATION = "task-creation"
@@ -1109,6 +1110,7 @@ def _discover_runs(
         ("semantic_records", SEMANTIC_RECORD),
         ("handoff_semantic_records", HANDOFF_SEMANTIC_RECORD),
         ("quality_records", QUALITY_RECORD),
+        ("plan_content_records", PLAN_CONTENT_RECORD),
     ):
         records = [
             record for record in frozen.get(group, ()) if isinstance(record, Mapping)
@@ -2264,6 +2266,11 @@ def _collect_assessment(
             "quality_records",
             "Task-file quality assessment",
         ),
+        (
+            "plan-content",
+            "plan_content_records",
+            "Presented-plan content assessment",
+        ),
     ):
         records = [
             record
@@ -2332,7 +2339,7 @@ def _subject_directory(
 
     subject_cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
     sample = _sample_index(subject)
-    if name == "handoff":
+    if name in ("handoff", "plan-content"):
         stage_dir = _handoff_stage_dir(variant=variant, stage=stage)
         if stage_dir is None:
             return None
@@ -2490,11 +2497,19 @@ def _collect_per_subject_assessment(
                         " rediscovery breadth, documentation and testing"
                         " boundaries, and whether the plan is self-contained."
                         if name == "handoff"
-                        else "- Rubric: every dimension is a positive"
-                        " completeness grade (complete/partial/poor;"
-                        " justified/not_applicable/fabricated; fits/forced/"
-                        "missing). Grades carry evidence occurrences; no"
-                        " numeric score is derived."
+                        else (
+                            "- Rubric: every requirement is graded"
+                            " (conveyed/partial/missing; the self-containedness"
+                            " and proportionality requirements use their own"
+                            " scales); non-top grades require a named finding;"
+                            " coverage is the share of top grades."
+                            if name == "plan-content"
+                            else "- Rubric: every dimension is a positive"
+                            " completeness grade (complete/partial/poor;"
+                            " justified/not_applicable/fabricated; fits/forced/"
+                            "missing). Grades carry evidence occurrences; no"
+                            " numeric score is derived."
+                        )
                     )
                 ),
             ),
@@ -2535,6 +2550,18 @@ def _subject_assessment_note(
             value = assessment.get(field)
             if value is not None:
                 lines.append(f"- {field}: {value}")
+    elif name == "plan-content":
+        coverage = assessment.get("coverage")
+        if coverage is not None:
+            lines.append(f"- Top-grade coverage: **{coverage:.0%}**")
+        requirements = assessment.get("requirements") or {}
+        for requirement_id, entry in sorted(requirements.items()):
+            if not isinstance(entry, Mapping):
+                continue
+            lines.append(f"- {requirement_id}: **{entry.get('grade')}**")
+        missed = assessment.get("missed_requirements") or []
+        for item in missed:
+            lines.append(f"- Missed requirement: {item}")
     else:
         overall = assessment.get("overall_success_percentage")
         metrics = assessment.get("quality_metrics") or {}
@@ -2648,11 +2675,19 @@ def _collect_assessment_record(
                         " rediscovery breadth, documentation and testing"
                         " boundaries, and whether the plan is self-contained."
                         if name == "handoff"
-                        else "- Rubric: every dimension is a positive"
-                        " completeness grade (complete/partial/poor;"
-                        " justified/not_applicable/fabricated; fits/forced/"
-                        "missing). Grades carry evidence occurrences; no"
-                        " numeric score is derived."
+                        else (
+                            "- Rubric: every requirement is graded"
+                            " (conveyed/partial/missing; the self-containedness"
+                            " and proportionality requirements use their own"
+                            " scales); non-top grades require a named finding;"
+                            " coverage is the share of top grades."
+                            if name == "plan-content"
+                            else "- Rubric: every dimension is a positive"
+                            " completeness grade (complete/partial/poor;"
+                            " justified/not_applicable/fabricated; fits/forced/"
+                            "missing). Grades carry evidence occurrences; no"
+                            " numeric score is derived."
+                        )
                     )
                 ),
             ),
@@ -2727,6 +2762,15 @@ def _assessment_results_markdown(
             elif kind == "task-quality":
                 lines.extend(
                     _quality_judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            elif kind == "plan-content":
+                lines.extend(
+                    _plan_content_judgment_markdown(
                         assessment,
                         profile=profile,
                         effort=effort,
@@ -2841,6 +2885,44 @@ def _quality_judgment_markdown(
             description = occurrence.get("description")
             if description:
                 lines.append(f"- {dimension}: {description}")
+    return lines
+
+
+def _plan_content_judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
+    heading = (
+        f"### {profile} · {effort} — {assessment.get('variant')}"
+        f" ({assessment.get('stage')})"
+    )
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
+    coverage = assessment.get("coverage")
+    coverage_text = "—" if coverage is None else f"{coverage:.0%}"
+    lines = [
+        heading,
+        "",
+        f"Top-grade coverage: {coverage_text}",
+        "",
+        "| Requirement | Grade | Finding |",
+        "|---|---|---|",
+    ]
+    for requirement_id, entry in sorted((assessment.get("requirements") or {}).items()):
+        if not isinstance(entry, Mapping):
+            continue
+        finding = str(entry.get("finding") or "").replace("|", "\\|")
+        lines.append(f"| {requirement_id} | {entry.get('grade')} | {finding} |")
+    missed = assessment.get("missed_requirements") or []
+    if missed:
+        lines.extend(["", "**Content the requirement layers missed**", ""])
+        lines.extend(f"- {item}" for item in missed)
+    summary = assessment.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        lines.extend(["", summary, ""])
     return lines
 
 
@@ -3084,6 +3166,47 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                     ),
                 }
             )
+    plan_content: list[dict[str, Any]] = []
+    for record in frozen.get("plan_content_records", ()):
+        scenario_id = record.get("scenario_id")
+        subject = record.get("subject") or {}
+        assessment = record.get("assessment") or {}
+        cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
+        sample_index = subject.get("sample_index")
+        stage_dir = _handoff_stage_dir(
+            variant=assessment.get("variant"), stage=assessment.get("stage")
+        )
+        sample_dir = f"s{0 if sample_index is None else sample_index}"
+        run_path = (
+            f"scenarios/{scenario_id}/{cell}/{stage_dir}/{sample_dir}"
+            if stage_dir
+            else f"scenarios/{scenario_id}/{cell}/{sample_dir}"
+        )
+        plan_content.append(
+            {
+                "kind": "plan-content",
+                "scenario_id": scenario_id,
+                "variant": assessment.get("variant"),
+                "stage": assessment.get("stage"),
+                "profile": subject.get("profile"),
+                "reasoning_effort": subject.get("reasoning_effort"),
+                "sample_index": sample_index,
+                "coverage": assessment.get("coverage"),
+                "requirements": {
+                    requirement_id: (entry or {}).get("grade")
+                    for requirement_id, entry in (
+                        assessment.get("requirements") or {}
+                    ).items()
+                },
+                "missed_requirement_count": len(
+                    assessment.get("missed_requirements") or ()
+                ),
+                "run_path": run_path,
+                "results_path": (
+                    f"scenarios/{scenario_id}/assessment/plan-content/results.md"
+                ),
+            }
+        )
     handoff: list[dict[str, Any]] = []
     for record in frozen.get("handoff_semantic_records", ()):
         scenario_id = record.get("scenario_id")
@@ -3135,7 +3258,16 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
             row["reasoning_effort"] or "",
         )
     )
-    return task_creation + handoff + task_quality
+    plan_content.sort(
+        key=lambda row: (
+            row["scenario_id"] or "",
+            row["variant"] or "",
+            row["stage"] or "",
+            row["profile"] or "",
+            row["reasoning_effort"] or "",
+        )
+    )
+    return task_creation + handoff + task_quality + plan_content
 
 
 def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
@@ -3335,7 +3467,128 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
     if quality_rows:
         sections.append(_quality_cohort_section(quality_rows))
         sections.append(_quality_detail_section(quality_rows))
+    plan_content_rows = [row for row in details if row.get("kind") == "plan-content"]
+    if plan_content_rows:
+        sections.append(_plan_content_cohort_section(plan_content_rows))
+        sections.append(_plan_content_detail_section(plan_content_rows))
     return sections
+
+
+def _plan_content_cohort_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Per-requirement top-grade shares by plan variant cohort.
+
+    A requirement whose column shows the same value in every cohort —
+    or 100% everywhere — is a zero-variance candidate: either every
+    plan genuinely conveys it or the rubric cannot distinguish quality
+    through it. The judge-validation gate resolves which.
+    """
+
+    variants = [
+        variant
+        for variant in (
+            "retain",
+            "omit",
+            "incomplete",
+            "generated-task",
+            "generated-file",
+        )
+        if any(row.get("variant") == variant for row in rows)
+    ]
+    requirement_ids = sorted(
+        {
+            requirement_id
+            for row in rows
+            for requirement_id in (row.get("requirements") or {})
+        }
+    )
+
+    def _top_share(cohort: Sequence[Mapping[str, Any]], requirement_id: str) -> str:
+        grades = [(row.get("requirements") or {}).get(requirement_id) for row in cohort]
+        graded = [grade for grade in grades if grade is not None]
+        if not graded:
+            return "—"
+        return f"{100 * sum(1 for grade in graded if grade in ('conveyed', 'self-contained', 'proportionate')) / len(graded):.0f}%"
+
+    def _mean_coverage(cohort: Sequence[Mapping[str, Any]]) -> str:
+        coverages = [
+            row.get("coverage") for row in cohort if row.get("coverage") is not None
+        ]
+        return f"{100 * sum(coverages) / len(coverages):.0f}%" if coverages else "—"
+
+    lines = [
+        "## Presented-plan content",
+        "",
+        "Top-grade share per requirement, by the variant of the task file"
+        " the presenting agent worked from; `n` is the judged plans.",
+        "",
+        "| Requirement |" + "".join(f" {variant} |" for variant in variants),
+        "|---|" + "---:|" * len(variants),
+    ]
+    for requirement_id in requirement_ids:
+        cells = "".join(
+            f" {_top_share([row for row in rows if row.get('variant') == variant], requirement_id)} |"
+            for variant in variants
+        )
+        lines.append(f"| {requirement_id} |{cells}")
+    lines.extend(
+        [
+            "",
+            "| Cohort | n | Mean coverage |",
+            "|---|---:|---:|",
+        ]
+    )
+    for variant in [*variants, "all"]:
+        cohort = [row for row in rows if row.get("variant") == variant]
+        label = "All" if variant == "all" else variant
+        lines.append(f"| {label} | {len(cohort)} | {_mean_coverage(cohort)} |")
+    return "\n".join(lines)
+
+
+def _plan_content_detail_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """One row per plan-content judgment, linked to its subject."""
+
+    has_samples = any(row.get("sample_index") is not None for row in rows)
+    sample_header = " Sample |" if has_samples else ""
+    sample_rule = "---|" if has_samples else ""
+    lines = [
+        "## Presented-plan content detail",
+        "",
+        "One row per judgment; the subject link opens the judged plan's"
+        " grade summary.",
+        "",
+        "| Scenario | Variant | Producer | Coverage | Non-top requirements |"
+        " Missed | Subject | Judgment |" + sample_header,
+        "|---|---|---|---:|---|---:|---|---|" + sample_rule,
+    ]
+    for row in rows:
+        producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+        coverage = row.get("coverage")
+        coverage_text = "—" if coverage is None else f"{coverage:.0%}"
+        requirements = row.get("requirements") or {}
+        non_top = sorted(
+            requirement_id
+            for requirement_id, grade in requirements.items()
+            if grade is not None
+            and grade not in ("conveyed", "self-contained", "proportionate")
+        )
+        non_top_text = ", ".join(non_top) if non_top else "—"
+        missed = row.get("missed_requirement_count")
+        missed_text = "—" if missed is None else str(missed)
+        run_path = row.get("run_path") or ""
+        subject_link = (
+            f"[{run_path.rstrip('/').rsplit('/', 1)[-1]}]"
+            f"({_link(run_path + '/assessment.md', 'matrix.md')})"
+            if run_path
+            else "—"
+        )
+        sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
+        lines.append(
+            f"| `{row.get('scenario_id')}` | {row.get('variant')} | {producer}"
+            f" | {coverage_text} | {non_top_text} | {missed_text}"
+            f" | {subject_link}"
+            f" | [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
+        )
+    return "\n".join(lines)
 
 
 def _quality_top_grades(dimensions: Mapping[str, Any]) -> int:
@@ -3493,8 +3746,9 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
     lines = [
         "## Per-scenario results",
         "",
-        "| Scenario | Numbers | Cells | Task-creation | Handoff | Quality |",
-        "|---|---|---|---|---|---|",
+        "| Scenario | Numbers | Cells | Task-creation | Handoff | Quality"
+        " | Plan content |",
+        "|---|---|---|---|---|---|---|",
     ]
     for scenario_id in sorted(set(cells) | set(assessments)):
         cell_links = " · ".join(
@@ -3514,7 +3768,8 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
             f"| `{scenario_id}` | {numbers_link} | {cell_links or '—'}"
             f" | {assessment_links.get('task-creation', '—')}"
             f" | {assessment_links.get('handoff', '—')}"
-            f" | {assessment_links.get('task-quality', '—')} |"
+            f" | {assessment_links.get('task-quality', '—')}"
+            f" | {assessment_links.get('plan-content', '—')} |"
         )
     return ["\n".join(lines)]
 
@@ -3724,8 +3979,8 @@ def _scenario_results_view(
             "## Plan stages",
             "",
             "| Cell | Stage | Sample | Status | Handoff score | Coverage |"
-            " Broad rediscovery |",
-            "|---|---|---|---|---:|---|---|",
+            " Broad rediscovery | Plan content |",
+            "|---|---|---|---|---:|---|---|---|",
         ]
     )
     for entry in runs:
@@ -3739,6 +3994,9 @@ def _scenario_results_view(
         coverage = (row and row.get("plan_coverage")) or "—"
         rediscovery = row and row.get("broad_rediscovery")
         rediscovery_text = "—" if rediscovery is None else str(rediscovery)
+        content_row = by_run_path.get(("plan-content", entry["path"]))
+        content_coverage = content_row and content_row.get("coverage")
+        content_text = "—" if content_coverage is None else f"{content_coverage:.0%}"
         sample = entry["path"].rsplit("/", 1)[-1]
         stage = entry["path"].split("/")[3]
         cell = entry["path"].split("/")[2]
@@ -3752,7 +4010,8 @@ def _scenario_results_view(
         )
         lines.append(
             f"| [`{cell}`]({cell}/index.md) | `{stage}` | {link}{invalid_note}"
-            f" | {status} | {score_text} | {coverage} | {rediscovery_text} |"
+            f" | {status} | {score_text} | {coverage} | {rediscovery_text}"
+            f" | {content_text} |"
         )
     return GeneratedView(relative_path=page, content="\n".join(lines) + "\n")
 
@@ -3843,6 +4102,7 @@ def _cell_views(
         ("task-creation", "Task-creation semantic results"),
         ("handoff", "Handoff semantic results"),
         ("task-quality", "Task-file quality results"),
+        ("plan-content", "Presented-plan content results"),
     ):
         path = f"scenarios/{scenario_id}/assessment/{name}/results.md"
         if path in records.collected_paths:
