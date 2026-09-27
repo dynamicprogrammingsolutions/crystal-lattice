@@ -68,6 +68,7 @@ markers = [
     "openai: tests requiring OpenAI credentials",
     "openrouter: OpenRouter integration tests",
     "anthropic: tests requiring Anthropic credentials",
+    "zai: tests requiring Z.ai credentials",
     "manual_integration: semiautomated tests requiring a human or saved auth state",
     "terminal_ui: deterministic pseudo-terminal UI tests",
 ]

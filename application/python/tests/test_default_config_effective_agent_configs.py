@@ -512,8 +512,9 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "zai": {
             "provider": "reference_openai_compatible",
-            "base_url": "https://api.z.ai/api/paas/v4",
+            "base_url": "https://api.z.ai/api/coding/paas/v4",
             "request_options": {
+                "reasoning_effort": "max",
                 "thinking": {"type": "enabled", "clear_thinking": False}
             },
         },

@@ -617,13 +617,13 @@
     "zai": {
       "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
-      "base_url": "https://api.z.ai/api/paas/v4",
+      "base_url": "https://api.z.ai/api/coding/paas/v4",
       "endpoint_options": {
         "General": "https://api.z.ai/api/paas/v4",
         "Coding": "https://api.z.ai/api/coding/paas/v4"
       },
       "api_key": "${env:ZAI_API_KEY}",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
       "retry_on_timeout": [0, 5, 30],
       "retry_on_status": {
         "500": [0, 5, 30]
@@ -1074,18 +1074,37 @@
       }
     },
     "zai": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive_visible",
+        "claude_mcp_defaults"
+      ],
       "provider": "zai",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
       "request_options": {
+        "reasoning_effort": "max",
         "thinking": {
           "type": "enabled",
           "clear_thinking": false
         }
       },
       "request_options_ui": {
+        "reasoning_effort": {
+          "type": "select",
+          "options": ["low", "high", "max"],
+          "rich_ui": true
+        },
         "thinking": {
           "clear_thinking": "boolean"
         }
+      },
+      "token_rates": {
+        "input": 1.4,
+        "cached": 0.26,
+        "completion": 4.4
       }
     },
     "openrouter-image": {
