@@ -230,10 +230,23 @@ Approved by the user on September 26, 2026 together with the direction
 ## Follow-up plan
 
 Status: Draft (direction discussed and approved as direction on
-September 26, 2026; execution not yet started; open decisions listed
-below). When execution starts, this section should be promoted into its
-own subtask file with its own requirements checklist unless the user
-prefers executing it here.
+September 26, 2026; open decisions listed below). When execution
+starts, this section should be promoted into its own subtask file with
+its own requirements checklist unless the user prefers executing it
+here.
+
+REQUIRED EXECUTION ORDER (approved September 26, 2026):
+
+1. DONE — promote the current guidance and commit first, so the branch
+   can be merged into develop at any time (executed: commit `4fb5f6a6`,
+   see task 090's promotion note).
+2. A + B refinements (package layout and matrix export), with new
+   tests and test adjustments AFTER the refinements — the refinements
+   land first so everything is easier to review in one pass.
+3. Layer 1 — presented-plan element-expectation calibration (targets +
+   structure profiling over committed packages).
+4. C — assessment semantics rework (re-judge only).
+5. D — two-stage pipeline (own subtask when it starts).
 
 Observed while inspecting
 [the kind-baseline package](../../maintainer/docs/evaluations/task-guidance/results/20260926-task-kind-baseline/matrix.md)

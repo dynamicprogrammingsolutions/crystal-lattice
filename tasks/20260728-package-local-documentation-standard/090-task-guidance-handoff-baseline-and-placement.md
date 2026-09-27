@@ -428,19 +428,34 @@ guidance.
   already supports consumer-backed splits; dependency and ownership wording
   is deferred as small residual findings; plan-preservation wording is
   folded into the focused confirmation below.)
-- [ ] Add the focused generated-task fresh-agent, plan-preservation,
+- [x] Add the focused generated-task fresh-agent, plan-preservation,
   implementation-design, and human-readability assessments. (Expanded
   September 26, 2026 — six real-world task-file gaps need dedicated
   tests/assertions; owned by
-  `120-task-file-quality-coverage.md`.)
-- [ ] Run the focused practical-baseline confirmation and inspect the actual
-  generated task files and reconstructed plans.
-- [ ] Freeze and promote the practical task-mechanics baseline after explicit
+  `120-task-file-quality-coverage.md`. Delivered there: the
+  generated-task fresh-agent stage, the task-quality assessment
+  covering plan-preservation/implementation-design/readability, and
+  the task-kind scenarios — see the
+  [quality coverage](../../maintainer/docs/evaluations/task-guidance/20260926-task-quality-coverage-results.md)
+  and
+  [kind baseline](../../maintainer/docs/evaluations/task-guidance/20260926-task-kind-baseline-results.md)
+  reports.)
+- [x] Run the focused practical-baseline confirmation and inspect the actual
+  generated task files and reconstructed plans. (September 26, 2026:
+  generated-file plans 6/6 valid and judged 91–96 with no broad
+  rediscovery; 28 quality subjects assessed; the two remaining failure
+  modes — conditional-plan wording — are recorded in task 120's
+  follow-up plan as the next candidate's calibration targets.)
+- [x] Freeze and promote the practical task-mechanics baseline after explicit
   approval. (September 26, 2026 status: candidate v3 is ready — a complete,
   fully valid matrix with the strongest task-creation results and no
   ask-and-stop failures; promotion may proceed once the focused
   confirmation and explicit approval land. The remaining gaps are real and
-  are tracked as new tests/assertions, not as promotion blockers.)
+  are tracked as new tests/assertions, not as promotion blockers.
+  PROMOTED September 26, 2026 after explicit user approval:
+  `current/sections/tasks-v7.md` replaced with the v3 section,
+  recompiled (`agents/TASKS-v7.md` updated), and the guidance check
+  passes — commit `4fb5f6a6`.)
 - [ ] Compile and inspect concise task reinforcement and centralized root
   guidance; compile routed extended explanation only if justified.
 - [ ] Run focused placement comparisons.
@@ -672,3 +687,17 @@ guidance.
   6. non-development tasks (documentation, deployment, copywriting, server
      management) are forced through development-shaped sections although
      sections are conditional.
+- September 26, 2026 (PROMOTION): after the focused confirmation evidence
+  (task 120's
+  [quality coverage](../../maintainer/docs/evaluations/task-guidance/20260926-task-quality-coverage-results.md)
+  and
+  [kind baseline](../../maintainer/docs/evaluations/task-guidance/20260926-task-kind-baseline-results.md)
+  reports closed the last open question — generated task files preserve
+  enough context for a fresh agent to plan without broad rediscovery),
+  the user explicitly approved promotion. Executed: v3's tasks-v7
+  section replaced `maintainer/guidance/current/sections/tasks-v7.md`,
+  outputs recompiled (`agents/TASKS-v7.md` updated), and
+  `python -m maintainer.guidance check` passes — commit `4fb5f6a6`.
+  The six remaining gaps and their calibration baselines are recorded
+  in task 120's follow-up plan for the next candidate cycle; placement
+  comparison items below remain open as planned.

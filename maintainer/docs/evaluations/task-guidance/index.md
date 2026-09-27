@@ -51,9 +51,20 @@ per-subject suite. V3 removes the ask-and-stop structure-choice failure and
 records the strongest task-creation results; its matrix is complete after
 a transient provider outage was rerun.
 
+The practical task-mechanics baseline (v3) was **promoted on September 26,
+2026** after the focused confirmation evidence (see the
+[quality coverage](20260926-task-quality-coverage-results.md) and
+[kind baseline](20260926-task-kind-baseline-results.md) reports) and
+explicit approval: the candidate's tasks-v7 section replaced
+`maintainer/guidance/current/sections/tasks-v7.md` and the compiled
+outputs were regenerated (commit `4fb5f6a6`). The six remaining
+task-file quality gaps are recorded as the next candidate cycle's
+calibration targets in
+`tasks/20260728-package-local-documentation-standard/120-task-file-quality-coverage.md`.
+
 [Stage B2 — Guidance-placement confirmation](test-plan.md#stage-b2--guidance-placement-confirmation)
-has not started and remains blocked on approval and focused confirmation of
-the practical task-mechanics baseline.
+has not started and remains blocked on approval; it now builds on the
+promoted v3 baseline.
 
 ## Machine evidence
 

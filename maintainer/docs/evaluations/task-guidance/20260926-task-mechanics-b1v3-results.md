@@ -12,6 +12,16 @@ made one model family ask and stop instead of creating files.
 Source: `maintainer/guidance/candidates/task-mechanics-b1v3/`.
 Package: [results/20260926-task-mechanics-b1v3](results/20260926-task-mechanics-b1v3/).
 
+## Promotion
+
+Promoted to current guidance on September 26, 2026 after explicit
+approval: the candidate's tasks-v7 section replaced
+`maintainer/guidance/current/sections/tasks-v7.md`, compiled outputs
+were regenerated, and the guidance check passes (commit `4fb5f6a6`).
+The focused confirmation evidence that closed the last open question is
+in the [quality coverage](20260926-task-quality-coverage-results.md)
+and [kind baseline](20260926-task-kind-baseline-results.md) reports.
+
 ## Status
 
 All eighteen producer cells completed valid on their first execution — no
