@@ -593,6 +593,73 @@ def top_projects(db_path: Path, *, limit: int = 5) -> List[Dict[str, Any]]:
         conn.close()
 
 
+def _daily_totals(
+    db_path: Path, key_column: str, *, days: int
+) -> Dict[str, Dict[str, float]]:
+    """Return per-day, per-key cost totals over the last ``days`` days.
+
+    Shared implementation behind ``daily_project_totals`` and
+    ``daily_bucket_totals``. Days are local-timezone calendar days (times
+    are stored UTC); the window covers today and the ``days - 1``
+    preceding days and is reset-aware like the report totals. Returns
+    ``{day: {key: cost}}``; days without data are present as empty dicts
+    so callers can zero-fill, and zero-cost cells are omitted.
+    """
+
+    if not isinstance(days, int) or days <= 0:
+        days = 7
+    window_modifier = f"-{days - 1} days"
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        rows = conn.execute(
+            f"""
+            WITH RECURSIVE window_days(d) AS (
+                SELECT date('now', 'localtime', ?)
+                UNION ALL
+                SELECT date(d, '+1 day') FROM window_days
+                WHERE d < date('now', 'localtime')
+            )
+            SELECT date(time, 'localtime'), {key_column},
+                   COALESCE(SUM(COALESCE(actual_cost, estimated_cost, 0.0)), 0.0)
+            FROM cost_requests, window_days
+            WHERE {key_column} IS NOT NULL
+              AND date(time, 'localtime') = window_days.d
+              AND{_RESET_WINDOW_FILTER}
+            GROUP BY date(time, 'localtime'), {key_column}
+            """,
+            (window_modifier,),
+        ).fetchall()
+    finally:
+        conn.close()
+    totals: Dict[str, Dict[str, float]] = {}
+    for day, key, cost in rows:
+        totals.setdefault(day, {})[key] = float(cost)
+    return totals
+
+
+def daily_project_totals(
+    db_path: Path, *, days: int = 7
+) -> Dict[str, Dict[str, float]]:
+    """Return per-day cost totals by working directory over the last days.
+
+    Reset-aware like ``top_projects``; see ``_daily_totals`` for the day
+    semantics and return shape.
+    """
+
+    return _daily_totals(db_path, "working_directory", days=days)
+
+
+def daily_bucket_totals(db_path: Path, *, days: int = 7) -> Dict[str, Dict[str, float]]:
+    """Return per-day cost totals by cost bucket over the last days.
+
+    Reset-aware like ``bucket_report``; see ``_daily_totals`` for the day
+    semantics and return shape.
+    """
+
+    return _daily_totals(db_path, "bucket", days=days)
+
+
 def known_buckets(db_path: Path) -> List[str]:
     """Return the distinct buckets recorded in the store."""
 

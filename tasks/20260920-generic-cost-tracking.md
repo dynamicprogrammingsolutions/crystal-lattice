@@ -823,3 +823,126 @@ The manual ChatGPT suites were not re-run for the correction: the stamp
 changes are additive renames of cost-tracking metadata those suites do not
 assert, and the ChatGPT breakdown path itself is unchanged (covered by
 the openai_responses unit tests).
+## Follow-up plan: 7-day daily cost tables in the report
+
+Status: Approved
+
+### Outcome
+
+The "Show cost report" action gains two 7-day daily breakdown tables:
+
+1. **Last 7 days by project** (always shown when the store has data):
+   one row per day, columns `Day | Total | <top project 1> | <top project 2>
+   | <top project 3> | Rest?`
+   - The project columns are the top 3 projects by cost over the 7-day
+     window; project names resolved via `projects.json` (fallback: raw
+     path), as in the top-projects table.
+   - The optional `Rest` column (aggregating all remaining projects)
+     appears only when more than 3 projects have data in the window.
+   - Shown even when there is only one project (then `Day | Total |
+     <project>`).
+2. **Last 7 days by bucket** (same shape with top buckets in the columns):
+   shown only when more than one bucket has rows in the 7-day window.
+
+Both tables cover today plus the 6 preceding days (7 rows, ascending,
+zero-filled so the shape is stable), using the store's cost preference
+(`actual_cost` over `estimated_cost`).
+
+### Approach
+
+1. Store: two queries returning per-day per-key totals over the 7-day
+   window — `daily_project_totals(db_path)` → (day, working_directory,
+   cost) and `daily_bucket_totals(db_path)` → (day, bucket, cost). Day
+   grouping via SQLite `date(time[, 'localtime'])` per the resolved
+   day-boundary decision; the window filter and (if chosen) the existing
+   `_RESET_WINDOW_FILTER` compose with the day grouping.
+2. App plugin: pivot the query results — build the 7-day date list, pick
+   the top 3 keys by window sum, aggregate the remainder into `Rest`,
+   zero-fill missing day/key cells, and render both markdown tables
+   (project table after the bucket table, bucket daily table next, then
+   the existing top sessions/projects tables).
+3. Tests: store unit tests for both queries (day boundaries, window,
+   filter semantics); app-plugin tests for the pivot (top-3 selection,
+   `Rest` aggregation when >3, zero-fill, always-shown single-project
+   table, bucket table gated on >1 in-window bucket, resolved names).
+4. Docs: extend the report section of the plugin overview.
+
+### Implementation decisions and open questions
+
+- **Reset-aware vs factual days (open question).** Recommendation:
+  reset-aware (same request set as every other number in the report, so
+  the daily tables agree with the report total and the top lists).
+  Alternative: factual calendar history regardless of resets (a pure
+  trend view; its grand total could then exceed the report total).
+- **Day boundary timezone (open question).** Recommendation: local
+  timezone days (`date(time, 'localtime')` in SQLite) so "today" matches
+  the user's day; timestamps are stored UTC. Alternative: UTC days.
+- **Window shape (decision).** Today + the 6 preceding days, ascending,
+  zero-filled; empty days render 0.0 rows to keep the table stable.
+- **Bucket-table gating (decision).** More than one bucket with rows in
+  the 7-day window (a bucket with no in-window data adds no information
+  to a 7-day table; with a single active bucket the table would just
+  duplicate the Total column).
+- **Top-column selection (decision).** Top 3 keys by total cost over the
+  7-day window (not all-time), matching what the table displays.
+
+### Documentation
+
+- `plugins/cost-tracking/docs/development/overview.md`: report section
+  gains the two daily tables, their gating, and the day-boundary rule.
+
+### Task checklist
+
+- [x] Confirm the open questions.
+- [x] Store: `daily_project_totals` / `daily_bucket_totals` + unit tests.
+- [x] App plugin: pivot + rendering + tests (gating, Rest, zero-fill).
+- [x] Lint (ruff/black), pyright, cost-tracking suite.
+- [x] Update docs; record completion notes.
+
+### Requirement verification
+
+- Store boundary: unit tests asserting exact per-day per-key totals,
+  window bounds (today included), day-boundary grouping, and the resolved
+  filter semantics against seeded rows with known timestamps.
+- Report boundary: app-plugin tests asserting the rendered markdown —
+  column set and order (Total first, top 3, Rest only when >3), 7 zero-
+  filled rows, project table always rendered with one project, bucket
+  table rendered only with >1 in-window bucket, resolved project names.
+
+### Additional implementation verification
+
+- Spot check against the real store (3 buckets, several projects) to
+  confirm the rendered tables read correctly with production data.
+
+### Implementation notes (7-day daily tables)
+
+- Open questions resolved by approving the plan with its
+  recommendations: reset-aware window and local-timezone calendar days.
+- The day window is defined by a recursive SQLite CTE
+  (`date('now', 'localtime', '-6 days')` .. today) joined by equality on
+  `date(time, 'localtime')`, so grouping and the window share one
+  day-boundary rule; rows with NULL/invalid timestamps drop out
+  naturally. The zero-fill day list is computed independently in the app
+  plugin via `datetime.now().astimezone()` (both use the C library local
+  time; only an exact-midnight race between the two calls could differ,
+  and extra days in the store result are ignored).
+- `min_keys` gates the bucket table (>1 in-window bucket); a window
+  without data renders neither table, so pre-existing report tests with
+  far-past timestamps are unaffected.
+
+### Completion notes (7-day daily tables)
+
+- Store: `_daily_totals` + `daily_project_totals` / `daily_bucket_totals`
+  (`{day: {key: cost}}`, reset-aware, local days, actual-over-estimated
+  cost preference).
+- Report: "Last 7 days by project" (top 3 resolved project columns +
+  optional Rest when >3 projects, zero-filled rows, always rendered when
+  the window has data) and "Last 7 days by bucket" (top 3 buckets, only
+  with >1 in-window bucket); both also returned as
+  `daily_projects` / `daily_buckets` in the action result.
+- Verification: `pytest plugins/cost-tracking/tests -q` → 70 passed
+  (26 store incl. 3 new daily tests, 16 app-plugin incl. 3 new);
+  ruff clean; black applied; pyright 0 errors.
+- Real-store spot check rendered both tables correctly (top 3 projects
+  crystal/iocharts/pytest-1374 + Rest; 3 bucket columns ranked
+  localhost/chatgpt/z-ai; day totals matched across both tables).

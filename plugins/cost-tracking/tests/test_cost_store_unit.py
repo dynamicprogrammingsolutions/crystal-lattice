@@ -478,3 +478,109 @@ def test_top_sessions_limit(tmp_path: Path) -> None:
     assert len(cost_store.top_sessions(db_path)) == 10
     assert len(cost_store.top_sessions(db_path, limit=3)) == 3
     assert cost_store.top_sessions(db_path)[0]["session_id"] == "s11"
+
+
+def _local_moment(days_ago: int, hour: int = 12):
+    from datetime import datetime, timedelta
+
+    moment = datetime.now().astimezone() - timedelta(days=days_ago)
+    return moment.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+
+def test_daily_project_and_bucket_totals_window(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    today = _local_moment(0)
+    three_days_ago = _local_moment(3)
+    outside = _local_moment(10)
+
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r1",
+        working_directory="/tmp/ws-a",
+        estimated_cost=1.0,
+        time=today.isoformat(),
+    )
+    _record(
+        db_path,
+        bucket="b2",
+        response_id="r2",
+        working_directory="/tmp/ws-b",
+        estimated_cost=2.0,
+        time=today.isoformat(),
+    )
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r3",
+        working_directory="/tmp/ws-a",
+        estimated_cost=4.0,
+        time=three_days_ago.isoformat(),
+    )
+    # Older than the 7-day window: never returned.
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r4",
+        working_directory="/tmp/ws-a",
+        estimated_cost=8.0,
+        time=outside.isoformat(),
+    )
+
+    projects = cost_store.daily_project_totals(db_path)
+    assert projects == {
+        today.date().isoformat(): {"/tmp/ws-a": 1.0, "/tmp/ws-b": 2.0},
+        three_days_ago.date().isoformat(): {"/tmp/ws-a": 4.0},
+    }
+
+    buckets = cost_store.daily_bucket_totals(db_path)
+    assert buckets == {
+        today.date().isoformat(): {"b1": 1.0, "b2": 2.0},
+        three_days_ago.date().isoformat(): {"b1": 4.0},
+    }
+
+
+def test_daily_totals_use_local_calendar_days(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    # Shortly after local midnight: on non-UTC machines its UTC instant
+    # falls on the previous UTC day, so the day key only matches when
+    # the store converts to local days.
+    early_local = _local_moment(0, hour=0).replace(minute=30)
+
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r1",
+        estimated_cost=1.5,
+        time=early_local.isoformat(),
+    )
+
+    projects = cost_store.daily_project_totals(db_path)
+    assert projects == {early_local.date().isoformat(): {"/tmp/ws": 1.5}}
+
+
+def test_daily_totals_reset_aware(tmp_path: Path) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    old = _local_moment(3)
+    reset_at = _local_moment(2)
+    recent = _local_moment(0)
+
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r1",
+        estimated_cost=5.0,
+        time=old.isoformat(),
+    )
+    cost_store.reset_bucket(db_path, bucket="b1", time=reset_at.isoformat())
+    _record(
+        db_path,
+        bucket="b1",
+        response_id="r2",
+        estimated_cost=1.0,
+        time=recent.isoformat(),
+    )
+
+    projects = cost_store.daily_project_totals(db_path)
+    # The pre-reset request on the older day drops out of the window.
+    assert projects == {recent.date().isoformat(): {"/tmp/ws": 1.0}}

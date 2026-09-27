@@ -2,8 +2,10 @@
 
 Exposes session actions backed by the SQLite cost store:
 
-- a cost report showing reset-aware totals per bucket and overall, plus
-  the top sessions and projects by cost over the same reset-aware window;
+- a cost report showing reset-aware totals per bucket and overall, the
+  top sessions and projects by cost over the same reset-aware window,
+  and 7-day daily breakdown tables by project (always) and by bucket
+  (only with more than one active bucket);
 - a reset action that appends a reset marker for one specific bucket.
 
 The store location is resolved the same way the cost tracking extension
@@ -14,10 +16,14 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from . import cost_store
+
+_DAILY_TABLE_DAYS = 7
+_DAILY_TABLE_MAX_KEY_COLUMNS = 3
 
 
 def _format_cost(value: Any) -> str:
@@ -57,6 +63,62 @@ def _project_display_name(working_directory: str) -> str:
         if isinstance(name, str) and name:
             return name
     return working_directory
+
+
+def _recent_local_days(count: int) -> List[str]:
+    """Return the last ``count`` local calendar days, oldest first."""
+
+    today = datetime.now().astimezone().date()
+    return [
+        (today - timedelta(days=offset)).isoformat()
+        for offset in range(count - 1, -1, -1)
+    ]
+
+
+def _daily_breakdown_lines(
+    title: str,
+    totals: Dict[str, Dict[str, float]],
+    *,
+    label_for: Callable[[str], str],
+    min_keys: int = 1,
+) -> List[str]:
+    """Render one 7-day daily breakdown table as markdown lines.
+
+    ``totals`` maps day → {key: cost} (from the cost store's daily
+    queries). The columns are the day, the day's total, up to
+    ``_DAILY_TABLE_MAX_KEY_COLUMNS`` top keys by cost over the window,
+    and an optional ``Rest`` column aggregating the remaining keys. Days
+    without data render zero-filled rows. Returns ``[]`` when fewer than
+    ``min_keys`` keys have data in the window, so callers can gate the
+    table (e.g. the bucket table only appears with more than one
+    bucket).
+    """
+
+    window_sums: Dict[str, float] = {}
+    for by_key in totals.values():
+        for key, cost in by_key.items():
+            window_sums[key] = window_sums.get(key, 0.0) + cost
+    if len(window_sums) < min_keys:
+        return []
+
+    ranked = sorted(window_sums, key=lambda key: (-window_sums[key], key))
+    top = ranked[:_DAILY_TABLE_MAX_KEY_COLUMNS]
+    rest = ranked[_DAILY_TABLE_MAX_KEY_COLUMNS:]
+    headers = ["Day", "Total"] + [label_for(key) for key in top]
+    if rest:
+        headers.append("Rest")
+
+    lines = ["", f"### {title}", ""]
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for day in _recent_local_days(_DAILY_TABLE_DAYS):
+        by_key = totals.get(day, {})
+        cells = [day, f"`{_format_cost(sum(by_key.values()))}`"]
+        cells += [f"`{_format_cost(by_key.get(key, 0.0))}`" for key in top]
+        if rest:
+            cells.append(f"`{_format_cost(sum(by_key.get(key, 0.0) for key in rest))}`")
+        lines.append("| " + " | ".join(cells) + " |")
+    return lines
 
 
 class CostTrackingAppPlugin:
@@ -208,6 +270,8 @@ class CostTrackingAppPlugin:
         report = cost_store.bucket_report(db_path)
         top_sessions = cost_store.top_sessions(db_path)
         top_projects = cost_store.top_projects(db_path)
+        daily_projects = cost_store.daily_project_totals(db_path)
+        daily_buckets = cost_store.daily_bucket_totals(db_path)
 
         lines: List[str] = ["## Cost report", ""]
         lines.append(f"- Total: `{_format_cost(report.get('total_cost'))}`")
@@ -230,6 +294,24 @@ class CostTrackingAppPlugin:
         else:
             lines.append("")
             lines.append("No cost records yet.")
+
+        lines.extend(
+            _daily_breakdown_lines(
+                "Last 7 days by project",
+                daily_projects,
+                label_for=_project_display_name,
+            )
+        )
+        # The bucket table would just repeat the Total column when only
+        # one bucket has data in the window, so it needs more than one.
+        lines.extend(
+            _daily_breakdown_lines(
+                "Last 7 days by bucket",
+                daily_buckets,
+                label_for=lambda bucket: bucket,
+                min_keys=2,
+            )
+        )
 
         if top_sessions:
             lines.append("")
@@ -277,6 +359,8 @@ class CostTrackingAppPlugin:
             "report": report,
             "top_sessions": top_sessions,
             "top_projects": top_projects,
+            "daily_projects": daily_projects,
+            "daily_buckets": daily_buckets,
         }
 
     def _reset_cost_tracking(

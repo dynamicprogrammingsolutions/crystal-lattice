@@ -134,6 +134,18 @@ no rate is configured).
   sessions and top 5 projects by cost over the same reset-aware window
   (working directories resolved to project names via `projects.json` under
   the Crystal data directory, falling back to the raw path).
+- **Last 7 days by project** (always shown when the window has data): one
+  row per local calendar day covering today and the six preceding days,
+  zero-filled; columns are the day total, the top 3 projects by cost over
+  the window (resolved names), and an optional `Rest` column aggregating
+  the remaining projects when more than 3 have data.
+- **Last 7 days by bucket**: same table shape with the top cost buckets
+  in the columns, shown only when more than one bucket has data in the
+  window (with a single active bucket it would just repeat the Total
+  column). Both daily tables use the same reset-aware request set and
+  cost preference (`actual_cost` over `estimated_cost`) as the rest of
+  the report, and are also returned programmatically as
+  `daily_projects` / `daily_buckets` (`{day: {key: cost}}`).
 - **Reset cost tracking**: appends a reset marker for one bucket (form
   dialog with a `bucket` text field). Subsequent report totals for that
   bucket cover only records recorded after the marker; recorded history is

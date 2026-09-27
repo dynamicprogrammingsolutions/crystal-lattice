@@ -270,3 +270,145 @@ def test_project_names_fall_back_to_raw_paths(tmp_path: Path, monkeypatch) -> No
     (tmp_path / "missing").mkdir()
     (tmp_path / "missing" / "projects.json").write_text("not json", encoding="utf-8")
     assert _project_display_name("/tmp/ws") == "/tmp/ws"
+
+
+def _local_moment(days_ago: int, hour: int = 12) -> str:
+    from datetime import datetime, timedelta
+
+    moment = datetime.now().astimezone() - timedelta(days=days_ago)
+    return moment.replace(hour=hour, minute=0, second=0, microsecond=0).isoformat()
+
+
+def _seed_daily(db_path: Path) -> None:
+    """Seed a 5-project, 2-bucket window plus one out-of-window row."""
+
+    rows = [
+        # (days_ago, working_directory, bucket, cost)
+        (0, "/tmp/p1", "b1", 5.0),
+        (0, "/tmp/p2", "b2", 4.0),
+        (0, "/tmp/p3", "b1", 2.0),
+        (2, "/tmp/p1", "b1", 3.0),
+        (2, "/tmp/p4", "b2", 1.0),
+        (2, "/tmp/p5", "b1", 0.5),
+        (10, "/tmp/p1", "b1", 100.0),
+    ]
+    for index, (days_ago, working_directory, bucket, cost) in enumerate(rows):
+        cost_store.record_request_usage(
+            db_path,
+            bucket=bucket,
+            session_id=f"s{index}",
+            working_directory=working_directory,
+            model="m",
+            estimated_cost=cost,
+            response_id=f"r{index}",
+            time=_local_moment(days_ago),
+        )
+
+
+def _table_rows(body: str, section: str) -> list:
+    lines = body.splitlines()
+    start = lines.index(f"### {section}") + 1
+    rows = []
+    for line in lines[start:]:
+        if line.startswith("| "):
+            rows.append(line)
+        elif rows:
+            break
+    return rows
+
+
+def test_show_cost_report_renders_daily_tables(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    _seed_daily(db_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "projects.json").write_text(
+        '{"projects": {"/tmp/p1": {"name": "alpha"}}}', encoding="utf-8"
+    )
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(data_dir))
+    plugin = CostTrackingAppPlugin()
+    app = _FakeApp(_session_config(tmp_path))
+
+    from datetime import datetime, timedelta
+
+    today = datetime.now().astimezone().date().isoformat()
+    two_days_ago = (datetime.now().astimezone().date() - timedelta(days=2)).isoformat()
+    yesterday = (datetime.now().astimezone().date() - timedelta(days=1)).isoformat()
+
+    result = plugin.execute_action(
+        app, "show_cost_report", {"session_id": "session-1"}, None, _state(tmp_path)
+    )
+
+    body = result["display"]["body"]
+    assert "### Last 7 days by project" in body
+    assert "### Last 7 days by bucket" in body
+
+    # Project columns: top 3 by window cost (alpha 8, p2 4, p3 2) plus a
+    # Rest column aggregating p4 and p5.
+    project_rows = _table_rows(body, "Last 7 days by project")
+    assert project_rows[0] == "| Day | Total | alpha | /tmp/p2 | /tmp/p3 | Rest |"
+    assert project_rows[8] == (
+        f"| {today} | `$11.000000` | `$5.000000` | `$4.000000` | "
+        "`$2.000000` | `$0.000000` |"
+    )
+    assert project_rows[6] == (
+        f"| {two_days_ago} | `$4.500000` | `$3.000000` | `$0.000000` | "
+        "`$0.000000` | `$1.500000` |"
+    )
+    # Seven zero-filled day rows.
+    assert len(project_rows) == 9
+    assert f"| {yesterday} | `$0.000000` | `$0.000000` | `$0.000000` | " in body
+
+    # Bucket columns ranked by window cost: b1 (10.5) before b2 (5.0);
+    # only two buckets, so no Rest column.
+    bucket_rows = _table_rows(body, "Last 7 days by bucket")
+    assert bucket_rows[0] == "| Day | Total | b1 | b2 |"
+
+    assert result["daily_projects"][today]["/tmp/p1"] == pytest.approx(5.0)
+
+
+def test_show_cost_report_daily_project_table_always_shown(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    cost_store.record_request_usage(
+        db_path,
+        bucket="b1",
+        session_id="s1",
+        working_directory="/tmp/ws",
+        estimated_cost=1.0,
+        response_id="r1",
+        time=_local_moment(0),
+    )
+    plugin = CostTrackingAppPlugin()
+    app = _FakeApp(_session_config(tmp_path))
+
+    result = plugin.execute_action(
+        app, "show_cost_report", {"session_id": "session-1"}, None, _state(tmp_path)
+    )
+
+    body = result["display"]["body"]
+    # Single project: the table still renders with one project column,
+    # but the single-bucket daily table stays hidden.
+    assert "### Last 7 days by project" in body
+    assert "### Last 7 days by bucket" not in body
+    project_rows = _table_rows(body, "Last 7 days by project")
+    assert project_rows[0] == "| Day | Total | /tmp/ws |"
+    assert "Rest" not in body
+
+
+def test_show_cost_report_skips_daily_tables_without_window_data(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "costs.sqlite3"
+    _seed(db_path)  # Rows from 2026-01-01: far outside the 7-day window.
+    plugin = CostTrackingAppPlugin()
+    app = _FakeApp(_session_config(tmp_path))
+
+    result = plugin.execute_action(
+        app, "show_cost_report", {"session_id": "session-1"}, None, _state(tmp_path)
+    )
+
+    body = result["display"]["body"]
+    assert "Last 7 days by project" not in body
+    assert "Last 7 days by bucket" not in body
