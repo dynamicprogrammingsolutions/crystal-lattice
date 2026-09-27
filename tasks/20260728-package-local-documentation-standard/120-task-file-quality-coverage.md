@@ -268,8 +268,10 @@ REQUIRED EXECUTION ORDER (approved September 26, 2026):
    new tests and test adjustments after the refinements; both current
    packages re-collected under the new layout (see Implementation
    Notes).
-3. Layer 1 — presented-plan element-expectation calibration (targets +
-   structure profiling over committed packages).
+3. Layer 1 — presented-plan CONTENT coverage (corrected September 27,
+   2026): plan content requirements declared in the reviewed targets,
+   judged semantically over the committed plan sessions; no
+   deterministic element assertions.
 4. C — assessment semantics rework (re-judge only).
 5. D — two-stage pipeline (own subtask when it starts).
 
@@ -428,26 +430,22 @@ Approved three-way split by question:
 - The workspace-reading judge (read-only workspace + tools, navigating
   like a reviewer) stays a recorded future option, not planned work.
 
-### Readability elements (decided September 26, 2026)
+### Readability elements (corrected September 27, 2026)
 
-- The guidance must not prescribe which formatting elements to use
-  (tables, bold text, ordered lists, code snippets, directory-tree
-  visualizations are all tools among many).
-- Instead, assessment requests carry TASK-SPECIFIC element
-  expectations, derived like the decomposition target: for example, a
-  plan introducing a new interface should describe it in a code snippet
-  (a protocol shown as Python); planned sequences should appear as
-  ordered lists; enumerable fact sets as tables. The readability
-  assessment then measures whether those expected elements are present
-  and well used — fitting the check to the task instead of a universal
-  shape rule.
-- Where the expectations live: the reviewed target gains a
-  per-scenario element-expectation declaration (analogous to
-  `acceptable_alternatives`), derived from the pinned repo revision and
-  the fixed task itself — the task determines which elements a good
-  plan and task file must contain (a new interface implies a code
-  snippet, a planned sequence implies ordered lists). Expectations are
-  part of the committed target, not of any generated artifact.
+- Formatting elements (tables, bold text, ordered lists, code snippets,
+  directory-tree visualizations) address readability of the TASK FILE,
+  not the assistant message.
+- The guidance and the assessments must NOT prescribe a specific set of
+  elements, and nothing about elements is asserted deterministically.
+- Elements appear only as EXAMPLES inside one semantic readability
+  dimension of the task-file quality assessment — illustrations of how
+  long paragraphs can be avoided, never a checklist. The judge decides
+  whether the sections are readable for a human; the deterministic
+  structure profile stays reported facts.
+- Superseded framing (recorded for continuity): an earlier draft of
+  this section had per-task element expectations measured for presence.
+  Rejected in review — that reintroduces prescribed shapes through the
+  back door.
 
 ### Next calibration (details for continuing without this session)
 
@@ -478,8 +476,10 @@ identity-blind judge; packages `20260926-task-quality-coverage` and
   requirements-only task file is valid; never invent plan detail);
   plan-design completeness restated as decided design, not steps
   (v3's design-visibility rule already moved this); readability
-  guidance naming per-section structure and blessing tables for
-  enumerable facts; kind-appropriate acceptance evidence.
+  guidance naming per-section structure, with formatting elements
+  (tables, ordered lists, code snippets) shown as EXAMPLES of avoiding
+  long paragraphs, never prescribed; kind-appropriate acceptance
+  evidence.
 - DECIDED wording direction (September 26, 2026) — section rename:
   stop prescribing the name `## Execution plan`; use `## Implementation
   plan` as the default, conditionally allowing `## Execution plan` for
@@ -533,16 +533,18 @@ the task file with implementation notes.
 - Existing suite stages already cover steps 1 (partially, fused with
   2), 2, and fresh-agent planning (adjacent to step 3); steps 3 as
   revision-acceptance, 4, and 5 are new coverage.
-- ADJUSTMENT (approved September 26, 2026) — present the plan at
-  implementation start: when implementation begins, the agent first
-  SHOWS the plan for final approval — with a new agent AND with the
-  same agent, and EVEN IF the task file's plan is already `Approved`
-  (showing is always required; re-approval is the formality when the
-  plan was already approved). The presented plan is then ASSERTED: it
-  must include the specific elements most useful for humans (the
-  element expectations direction above — design before steps,
-  interfaces as code snippets, sequences as ordered lists, enumerable
-  facts as tables), which the guidance currently details only lightly.
+- ADJUSTMENT (approved September 26, 2026; content assertion
+  corrected September 27, 2026) — present the plan at implementation
+  start: when implementation begins, the agent first SHOWS the plan for
+  final approval — with a new agent AND with the same agent, and EVEN
+  IF the task file's plan is already `Approved` (showing is always
+  required; re-approval is the formality when the plan was already
+  approved). The presented plan is then ASSERTED ON CONTENT, judged
+  semantically: it must convey the content that matters to humans for
+  that specific task (for example the query contract in tg02, when that
+  is an important part of the plan) — see the plan content requirements
+  below. Formatting elements are NOT asserted here; they are examples
+  inside the task-file readability dimension only.
   Guidance verification (September 26, 2026): the present-again rule
   exists for Draft plans ("If one exists from an earlier session,
   reassess it and present it again") and the presentation format is
@@ -556,28 +558,120 @@ the task file with implementation notes.
   always; duplicate approval not required when already approved.
   Assessment note: among the missing workflow tests, this is one of
   the most important.
-- FITS THE PLANNED WORK NOW (September 26, 2026): the suite already
-  captures presented plans — the handoff plan stages
+- FITS THE PLANNED WORK NOW (corrected September 27, 2026): the
+  suite already captures presented plans — the handoff plan stages
   (`plan-retain`, `plan-omit`, `generated-plan`) and continuations are
   "present the Draft implementation plan" turns with committed
   sessions. Sources: `plan-retain`/`plan-omit` present plans FROM THE
   COMMITTED CANONICAL task files (temporary bridge per Theme D);
   `generated-plan` and `continuation` present plans from
   MODEL-GENERATED files (dynamic arm, cached in the packages). Layer 1
-  needs no new task files and calibrates both arms — including whether
-  the element-expectation set discriminates between them. It is a
-  one-time measurement of already-captured evidence and adds nothing to
-  the committed-fixture layer, which Theme D replaces with generated,
-  target-gated setups at the first opportunity. So the
-  element-expectation assertion can be calibrated IMMEDIATELY on the
-  existing packages without new producer runs: declare per-scenario
-  element expectations in the reviewed targets (Theme C direction),
-  measure presence in the already-captured presented plans
-  (deterministically where possible via the structure profile — code
-  spans, ordered lists, tables; semantically via the readability
-  judge), and record the baseline. The full
-  present-at-implementation-start stage (an executor-side turn with
-  its fixed setup) lands with Theme D/E.
+  needs no new task files, adds nothing to the committed-fixture
+  layer, and calibrates both arms. CORRECTED Layer 1 scope: declare
+  per-scenario PLAN CONTENT REQUIREMENTS in the reviewed targets (the
+  Theme D plan target: the decided-design content a human needs from a
+  plan for that task, derived from the pinned revision and the fixed
+  task), then judge the already-captured presented plans against them
+  SEMANTICALLY — an identity-blind per-subject assessment grading
+  whether each required content item is conveyed, with findings for
+  missing/unclear/wrong content and any human-needed content the
+  requirements missed. No deterministic element measurement anywhere.
+  The full present-at-implementation-start stage (an executor-side
+  turn with its fixed setup) lands with Theme D/E.
+
+### Layer 1 — presented-plan content coverage (plan approved
+### September 27, 2026)
+
+Two requirement layers, both committed authority; one semantic
+assessment; one judge-validation gate before any baseline is trusted.
+
+**Generic requirements** (one suite-level constant, applies to every
+scenario; full text authored in the suite module):
+
+- GENERIC-1 High-impact decisions, each marked decided (brief
+  rationale) or open (explicit approval question with recommendation
+  when one exists) — never buried in steps.
+- GENERIC-2 The result at its public boundary before mechanics:
+  behavior/contract/surface change, so direction and construction are
+  judgeable separately.
+- GENERIC-3 What stays untouched and why; scope deliberately excluded.
+- GENERIC-4 The constraints that ruled out alternatives, and the
+  assumptions relied on with how each could be cheaply confirmed.
+- GENERIC-5 Verification with a decisive boundary: what evidence, at
+  which boundary, proves the outcomes — and what it deliberately does
+  not cover.
+- GENERIC-6 Risks, blast radius, and the way back (rollback, phases
+  that stay shippable, escape hatches).
+- GENERIC-7 The logic of the sequence (dependencies, contract before
+  consumers, risk first) and the milestones where progress becomes
+  verifiable or usable.
+- GENERIC-8 What feedback the plan needs from the reader: approvals
+  wanted, questions needing answers, priorities to confirm.
+- GENERIC-9 Self-containedness: everything needed to evaluate the plan
+  is in the text — facts stated not referenced; links carry, never
+  replace (litmus: delete every link, the plan must still be
+  evaluable); terms introduced at first use; conversation context
+  restated in decided form; snippets illustrate while prose asserts;
+  specifics appear as values. Proportionality guard: duty covers
+  evaluation-relevant facts, not everything.
+- GENERIC-10 Depth follows decisions; mechanics stay summarized:
+  promises with boundaries instead of specifications, strategy over
+  inventory, public surface over internal mechanics. Litmus: would
+  changing this detail change the reader's decision? Over-detail is a
+  finding only when it buries decisions or fakes precision.
+
+**Task-specific requirements** (`plan_target.required_content` in each
+target, ids PLAN-n, `derived_from` outcome ids): tg01 URL design with
+approval status, cap + exactly-once mechanism, ordering, conditional
+navigation, untouched surfaces, static-output constraint, decisive
+build verification; tg02 query contract (semantics/defaults/bounds/
+invalid handling), response compatibility incl. total header, ordering
+guarantee, CRUD compatibility, route-level verification; tg03 where
+the filter lives and survives refreshes, mutation path through
+production transport and route, state/result/empty-state consistency,
+untouched behavior; tg04 client-server discovery state contract,
+composability and bounds, URL share/restore design, refresh retention,
+unparameterized compatibility, contract-first adoption sequence; tg05
+public query contract as first-class object, service via production
+HTTP + real storage, client preserving current calls, CLI proving the
+full path, contract-before-surfaces delivery with per-surface docs;
+tg06 normalized author representation, rendering equivalence rules,
+content/tooling migration approach, retirement condition,
+every-revision-builds constraint shaping phases, explicit phase order.
+
+**Assessment shape:** identity-blind per-subject judge (GLM, local).
+Input: one presented-plan response + generic requirements + the
+scenario's plan content requirements, embedded as rendered text (JSON
+only for the response shape). Grades: per requirement
+conveyed/partial/missing; GENERIC-9 self-contained/partial/
+external-dependency; GENERIC-10 proportionate/over-detailed. Every
+non-top grade requires a finding (where, what, why); a mistakes block
+harvests content gaps beyond the requirement list. Cross-cutting
+rules: an item whose meaning depends on an external resource grades at
+most partial; depth must match impact — verbosity not rewarded,
+brevity that loses nothing not penalized.
+
+**Judge-validation gate (approved strategy, runs before baselines are
+trusted):** generate one natural presented-plan response (any model —
+an already-committed session response is fine), then hand-adjust it to
+match the full requirement set ("perfect" plan). Assess both with the
+same identity-blind judge. Acceptance: the adjusted plan receives a
+good score overall — 100 not required, no plan is perfect on every
+dimension — and NO dimension shows zero variance: any dimension that
+grades always-low or always-high whatever the plan quality (across the
+probe pair at minimum, and across the calibration corpus) is a
+leniency/ceiling defect in the rubric to fix before recording
+baselines. The adjusted probe stays a scratch calibration artifact in
+tmp, never committed guidance evidence.
+
+**Wiring + tests:** prompt module, stage wiring, freeze/collect
+integration (results land in packages under the cell layout), unit
+tests on normalization and wiring. **Cost:** GLM judging only
+(~25–30 plan sessions in the kind-baseline package, both arms), zero
+producer runs. **Deliverables:** generic + task-specific requirements
+committed in the suite, calibration baseline in this file, the
+assessment ready as the plan-fidelity component of Theme C and the
+plan-verification gate of Theme D.
 
 ### Guidance gaps found by applying the task guidance to this file
 
