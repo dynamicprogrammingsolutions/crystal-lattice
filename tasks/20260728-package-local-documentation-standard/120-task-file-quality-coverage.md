@@ -664,6 +664,53 @@ leniency/ceiling defect in the rubric to fix before recording
 baselines. The adjusted probe stays a scratch calibration artifact in
 tmp, never committed guidance evidence.
 
+GATE RESULT (September 27, 2026): PASSED. Probe pair = tg02
+plan-retain glm response (label b1v3-r1) + hand-adjusted
+requirement-matching rewrite; judge glm-5.3-flash:cloud max;
+artifacts `tmp/plan_content_gate.{py,json}`. Natural coverage 87%
+(PLAN-1 partial, GENERIC-6 partial); adjusted coverage 93%; the one
+non-top grade on the adjusted plan (GENERIC-4) came with a CORRECT
+finding — the adjusted plan genuinely omits out-of-range offset
+behavior — so the judge catches real gaps instead of rubber-stamping.
+Pair variance on PLAN-1/GENERIC-4/GENERIC-6; the twelve flat-at-top
+requirements get their variance test across the calibration corpus
+(where the incomplete negative control should grade low).
+
+CALIBRATION BASELINE (September 27, 2026; c1): 22 judgments over
+label b1v3-r1 plan stages (retain 6, omit 6, generated-file 6,
+generated-task 3, incomplete 1; 3 gpt-high continuations skipped —
+invalid upstream), judge glm-5.3-flash:cloud max, frozen dataset
+`task-guidance-plan-content-c1-20260927` (tmp, not committed; packages
+are the committed evidence). One prompt-hardening iteration was
+needed: 3/25 first-pass responses graded GENERIC-9/10 as `conveyed`;
+the prompt now restates the special scales at the response contract
+and the full corpus re-ran clean under one prompt (22 passed,
+0 contract failures).
+
+- Mean top-grade coverage 84% (tg01 85%, tg02 82%, tg03 86%).
+- By variant: retain 79% < generated-file 83% < omit 86% <
+  generated-task 92%; incomplete (n=1) 93% — the negative control
+  still yields a content-rich plan, consistent with earlier handoff
+  findings that agents reconstruct from the repo.
+- Discriminative requirements (top-grade share across all 22):
+  GENERIC-6 risks/way-back 18%, GENERIC-7 sequence logic 23%,
+  GENERIC-5 verification boundary 55%, GENERIC-4 constraints/
+  assumptions 77%, GENERIC-9 self-contained 91%, PLAN-1 73%,
+  PLAN-3 91%.
+- Zero-variance (flat at TOP in this corpus): GENERIC-1/2/3/8/10,
+  PLAN-2/4/5/6/7 — none flat-low. Ceiling candidates for the Theme C
+  re-judge: either genuinely easy for decent plans or leniency; probe
+  with a deliberately steps-only plan before trusting them.
+- GUIDANCE FINDING for the six-gap calibration: retained-plan
+  presentations score LOWEST (79%) and never convey GENERIC-6 (0/6)
+  or GENERIC-7 (0/6) — the canonical plan files carry steps but not
+  risks/way-back or sequence logic. The next guidance candidate's
+  plan template should make risks-and-the-way-back and order-logic
+  first-class plan content.
+- Missed-requirement findings: 0 — the judge found no human-needed
+  content beyond the two requirement layers (weak evidence the layers
+  are complete; possibly judge conservatism — keep harvesting).
+
 **Wiring + tests:** prompt module, stage wiring, freeze/collect
 integration (results land in packages under the cell layout), unit
 tests on normalization and wiring. **Cost:** GLM judging only

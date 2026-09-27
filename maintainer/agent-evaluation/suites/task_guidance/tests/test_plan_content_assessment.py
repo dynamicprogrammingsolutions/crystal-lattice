@@ -123,6 +123,10 @@ def test_prompt_embeds_text_and_requirements_without_identity() -> None:
     assert PLAN_TEXT in prompt
     assert "GENERIC-9" in prompt and "GENERIC-10" in prompt
     assert "PLAN-1" in prompt and "ARCHIVE-1" in prompt
+    # The special scales are restated at the response contract so the
+    # judge cannot default to conveyed/partial/missing for them.
+    assert "Grading GENERIC-9 or" in prompt
+    assert "proportionate/over-detailed" in prompt
     # Rendered text, not JSON maps of the target or subject.
     assert '"plan_target"' not in prompt
     assert '"task_files"' not in prompt

@@ -200,7 +200,11 @@ Return JSON only with this shape:
 }
 
 Every requirement id from both layers must appear exactly once in
-`requirements`.
+`requirements`. Grade scales are strict: every requirement uses
+conveyed/partial/missing EXCEPT GENERIC-9, whose grades are
+self-contained/partial/external-dependency, and GENERIC-10, whose
+grades are proportionate/over-detailed. Grading GENERIC-9 or
+GENERIC-10 as `conveyed` is invalid.
 
 The presented plan:
 
