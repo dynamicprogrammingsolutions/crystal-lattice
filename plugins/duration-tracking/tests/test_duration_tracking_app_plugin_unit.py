@@ -129,6 +129,7 @@ def test_show_duration_report_renders_totals_and_tables(
         "total_ms": 1500,
         "tool_call_count": 1,
         "tool_total_ms": 250,
+        "combined_total_ms": 1750,
     }
     assert [entry["session_id"] for entry in result["top_sessions"]] == ["s2", "s1"]
     assert [entry["working_directory"] for entry in result["top_projects"]] == [
@@ -138,18 +139,19 @@ def test_show_duration_report_renders_totals_and_tables(
 
     body = result["display"]["body"]
     assert "## Duration report" in body
-    assert "- Total duration: `1.5s`" in body
-    assert "- Requests: `2`" in body
-    assert "- Average: `750ms`" in body
-    # Tool duration surfaces as separate overall lines...
-    assert "- Tools: `250ms`" in body
+    assert "- LLM duration: `1.5s`" in body
+    assert "- Tool duration: `250ms`" in body
+    assert "- LLM + tool duration: `1.75s`" in body
+    assert "- LLM calls: `2`" in body
+    assert "- Average LLM call: `750ms`" in body
     assert "- Tool calls: `1`" in body
-    assert "- Tool average: `250ms`" in body
-    assert "### Top sessions" in body
-    assert "### Top projects" in body
-    # ...and as a separate Tools column, never merged into the LLM total.
-    assert "| Project | Session | Total | Requests | Tools |" in body
-    assert "| Project | Total | Requests | Tools |" in body
+    assert "- Average tool call: `250ms`" in body
+    assert "### Top sessions by LLM duration" in body
+    assert "### Top projects by LLM duration" in body
+    assert (
+        "| Project | Session | LLM duration | LLM calls | " "Tool duration | Combined |"
+    ) in body
+    assert ("| Project | LLM duration | LLM calls | Tool duration | Combined |") in body
     # Working directories render as resolved project names.
     assert "other-project" in body
     assert "workspace" in body
@@ -179,7 +181,11 @@ def test_show_duration_report_handles_empty_store(tmp_path: Path) -> None:
         "total_ms": 0,
         "tool_call_count": 0,
         "tool_total_ms": 0,
+        "combined_total_ms": 0,
     }
+    assert "- LLM duration: `0ms`" in result["display"]["body"]
+    assert "- Tool duration: `0ms`" in result["display"]["body"]
+    assert "- LLM + tool duration: `0ms`" in result["display"]["body"]
     assert "No duration records yet." in result["display"]["body"]
 
 

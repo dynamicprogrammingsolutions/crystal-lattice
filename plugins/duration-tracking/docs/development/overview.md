@@ -31,8 +31,12 @@ in place.
   `tool_duration_session_calls`,
   `tool_duration_session_calls_formatted`,
   `tool_duration_session_average`,
-  `tool_duration_session_average_formatted`), and the human time total
-  (`human_time_session_total`, `human_time_session_total_formatted`).
+  `tool_duration_session_average_formatted`), the combined LLM + tool total
+  (`duration_session_combined_total`,
+  `duration_session_combined_total_formatted`), the human time total
+  (`human_time_session_total`, `human_time_session_total_formatted`), and the
+  completed-turn human-time delta (`human_time_turn_delta`,
+  `human_time_turn_delta_formatted`).
 - `DurationTrackingAppPlugin` (application plugin): the session action
   **Show duration report** and the machine-facing
   **`record_human_time_spans`** ingestion action.
@@ -214,8 +218,17 @@ anchor on start or end time, never both.
   spans arriving between requests appear after the next request.
 - The `Human time: …` status-bar element renders
   `metadata.human_time_session_total_formatted`, gated by its own
-  `show_human_time_status_total` config toggle (default on; independent
-  of `show_duration_status_total`).
+  additional-field choice.
+- A final assistant message without tool calls also receives
+  `human_time_turn_delta` + `human_time_turn_delta_formatted`: the difference
+  between its cumulative human-time total and the previous completed
+  assistant turn. Intermediate tool-call assistant messages do not receive
+  the fields. The first turn uses zero as its baseline. If a prior completed
+  turn exists without a usable total, or the cumulative total regresses, the
+  delta is omitted rather than guessed.
+- The delta is an uploaded snapshot. Human spans that remain open or have not
+  reached the plugin when the assistant message finalizes are reflected only
+  by a later request; finalized messages are not rewritten.
 - The report action includes the overall human-time total, the current
   session's human time when available, the top 10 sessions by human time, and
   the top 3 projects. Project totals include all spans and show the
@@ -224,18 +237,30 @@ anchor on start or end time, never both.
   stored session/application totals, and the latest accepted upload. Absolute
   database paths are not displayed.
 
-## Status bar
+## Duration display
 
-The `Total duration: …` element renders
-`metadata.duration_session_total_formatted` and the `Human time: …`
-element renders `metadata.human_time_session_total_formatted` (its own
-`show_human_time_status_total` gate). The `duration_breakdown`
-config select (`none` / `totals` / `averages`) adds `requests:` and
-`average:` elements for the LLM totals plus `tools:`, `tool calls:`, and
-`tool average:` elements for the tool totals; all fields are always
-stored in message metadata and the config only selects which are
-displayed. The `show_duration_status_total` toggle gates the duration
-status-bar elements without affecting recording.
+Three select configuration elements control presentation without changing
+recording:
+
+- `duration_primary` (**Primary duration**): `hidden`, `llm` (default), or
+  `llm_tools`. LLM-only renders `LLM duration: …` from
+  `metadata.duration_session_total_formatted`; combined renders
+  `Duration: …` from
+  `metadata.duration_session_combined_total_formatted`.
+- `duration_additional_fields` (**Additional time fields**): `none`, `tools`,
+  `human` (default), or `tools_human`. Tool time renders as
+  `Tool duration: …`; human time renders as `Human time: …`. Selecting human
+  also contributes the completed-turn `human time: …` message footer.
+- `duration_statistics` (**Duration statistics**): `none` (default), `counts`,
+  or `counts_averages`. Statistics use explicit labels: `LLM calls`,
+  `LLM average`, `Tool calls`, and `Tool average`. Tool statistics appear
+  when tools are included in the primary duration or shown separately.
+
+All raw and formatted fields are stamped regardless of display selection.
+Existing configurations remain compatible: when a new setting is absent,
+`show_duration_status_total`, `show_human_time_status_total`, and
+`duration_breakdown` are interpreted as legacy fallbacks. The old keys are no
+longer contributed as editable UI elements.
 
 ## Summary CSV
 
@@ -250,15 +275,14 @@ in the SQLite store and the report.
 
 ## Report
 
-The **Show duration report** session action renders the overall recorded
-duration, request count, and per-request average, plus the overall tool
-duration, tool call count, and tool average. Its human-time section shows the
-overall total, current-session total, top 10 sessions, top 3 projects,
-session-less project time, and diagnostics. The existing LLM tables continue
-to show top sessions and projects by provider-call duration with a separate
-`Tools` column (project names resolve from `projects.json` under the Crystal
-data directory). Tool duration is never merged into the LLM total. Totals
-cover all recorded requests; there are no reset windows.
+The **Show duration report** session action renders explicitly labeled LLM,
+tool, combined LLM + tool, and human durations; LLM/tool call counts and
+averages remain separate. Its human-time section shows the overall total,
+current-session total, top 10 sessions, top 3 projects, session-less project
+time, and diagnostics. The machine-duration tables use `LLM duration`,
+`Tool duration`, and `Combined` columns and remain ranked by LLM duration
+(project names resolve from `projects.json` under the Crystal data directory).
+Totals cover all recorded calls; there are no reset windows.
 
 ## Tests
 

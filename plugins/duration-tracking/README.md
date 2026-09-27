@@ -8,9 +8,11 @@ each provider call and stamps the duration facts onto the assistant
 owner message. This plugin records one row per measured provider call
 (LLM round) into a
 SQLite store under the Crystal data directory, renders the store-backed
-session total in the chat status bar (aggregated by workspace + session
-id), and exposes a session action for a duration report. Duration is
-factual history: there are no reset windows.
+session totals in the chat status bar (aggregated by workspace + session
+id), and exposes a session action for a duration report. The status display
+has three compact choices for the primary duration (LLM or LLM + tools),
+separate tool/human fields, and counts/averages. Duration is factual history:
+there are no reset windows.
 
 It also tracks **human time**: frontends report user-activity spans
 (`{session_id|null, from, to}` — the frontend computes the durations) in
@@ -26,7 +28,9 @@ behind an opt-in `Time tracking` toggle with a frontend-owned telemetry
 plugin id (default `duration_tracking_app`). See
 `docs/development/overview.md` for the store schema, recording seams,
 the human-time span contract (including the frontend collection notes),
-and configuration.
+configuration, and the completed-turn human-time delta. The delta is stored
+on the final assistant message and compares the cumulative uploaded human
+time with the previous completed turn.
 
 ## Development
 

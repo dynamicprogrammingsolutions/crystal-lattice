@@ -45,6 +45,7 @@ Approved by the user on 2026-09-22 after the three-item review:
 - [x] `tasks/20260922-duration-and-human-time-tracking/050-desktop-human-time-telemetry.md` (completed 2026-09-24; native verification remains in 060)
 - [ ] `tasks/20260922-duration-and-human-time-tracking/060-desktop-xctest-verification.md`
 - [x] `tasks/20260922-duration-and-human-time-tracking/070-session-presence-and-inactivity-semantics.md` (completed 2026-09-25)
+- [x] `tasks/20260922-duration-and-human-time-tracking/080-duration-display-and-turn-human-time.md` (completed 2026-09-27)
 
 ## Supporting details
 

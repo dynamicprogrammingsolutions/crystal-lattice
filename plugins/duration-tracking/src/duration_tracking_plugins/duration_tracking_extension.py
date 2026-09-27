@@ -48,7 +48,12 @@ _SESSION_METADATA_PREFIXES = (
     "duration_session_",
     "tool_duration_session_",
     "human_time_session_",
+    "human_time_turn_",
 )
+
+_PRIMARY_DURATION_MODES = ("hidden", "llm", "llm_tools")
+_ADDITIONAL_TIME_MODES = ("none", "tools", "human", "tools_human")
+_DURATION_STATISTICS_MODES = ("none", "counts", "counts_averages")
 
 
 class DurationTrackingExtension(FeaturePlugin):
@@ -80,8 +85,8 @@ class DurationTrackingExtension(FeaturePlugin):
                 "required": False,
                 "default": True,
                 "description": (
-                    "Show the store-backed session duration total in the "
-                    "chat status bar."
+                    "Legacy fallback for showing the store-backed LLM "
+                    "duration total. Use duration_primary instead."
                 ),
             },
             "duration_breakdown": {
@@ -91,11 +96,40 @@ class DurationTrackingExtension(FeaturePlugin):
                 "label": "Duration breakdown",
                 "options": ["none", "totals", "averages"],
                 "description": (
-                    "Show the session duration breakdown as separate "
-                    "status bar fields: 'none' keeps only the total "
-                    "footer, 'totals' shows the request count, 'averages' "
-                    "shows the request count and per-request average. "
-                    "Both variants are always stored in message metadata."
+                    "Legacy fallback for duration statistics and separate "
+                    "tool fields. Use duration_statistics and "
+                    "duration_additional_fields instead."
+                ),
+            },
+            "duration_primary": {
+                "type": "string",
+                "required": False,
+                "label": "Primary duration",
+                "options": list(_PRIMARY_DURATION_MODES),
+                "description": (
+                    "Choose whether the main status field is hidden, shows "
+                    "LLM duration only, or shows combined LLM and tool duration."
+                ),
+            },
+            "duration_additional_fields": {
+                "type": "string",
+                "required": False,
+                "label": "Additional time fields",
+                "options": list(_ADDITIONAL_TIME_MODES),
+                "description": (
+                    "Choose whether tool duration, human time, both, or "
+                    "neither are shown separately. Human time also enables "
+                    "the completed-turn human-time message footer."
+                ),
+            },
+            "duration_statistics": {
+                "type": "string",
+                "required": False,
+                "label": "Duration statistics",
+                "options": list(_DURATION_STATISTICS_MODES),
+                "description": (
+                    "Choose whether visible machine-duration categories show "
+                    "call counts and averages."
                 ),
             },
             "track_duration_tracking_summary_csv": {
@@ -131,111 +165,187 @@ class DurationTrackingExtension(FeaturePlugin):
             "condition": {"path": data_path, "exists": True},
         }
 
+    @staticmethod
+    def _message_footer_element(data_path: str, template: str) -> Dict[str, Any]:
+        return {
+            "ui_type": "message_footer",
+            "data": data_path,
+            "template": template,
+            "condition": {"path": data_path, "exists": True},
+        }
+
+    @staticmethod
+    def _additional_mode(*, tools: bool, human: bool) -> str:
+        if tools and human:
+            return "tools_human"
+        if tools:
+            return "tools"
+        if human:
+            return "human"
+        return "none"
+
+    @classmethod
+    def _display_modes(cls, config: Optional[Dict[str, Any]]) -> Tuple[str, str, str]:
+        cfg = config if isinstance(config, dict) else {}
+
+        primary = cfg.get("duration_primary")
+        if primary not in _PRIMARY_DURATION_MODES:
+            primary = (
+                "hidden" if cfg.get("show_duration_status_total") is False else "llm"
+            )
+
+        legacy_breakdown = cfg.get("duration_breakdown")
+        if legacy_breakdown not in ("none", "totals", "averages"):
+            legacy_breakdown = "none"
+
+        additional = cfg.get("duration_additional_fields")
+        if additional not in _ADDITIONAL_TIME_MODES:
+            legacy_tools = primary != "hidden" and legacy_breakdown in (
+                "totals",
+                "averages",
+            )
+            legacy_human = cfg.get("show_human_time_status_total") is not False
+            additional = cls._additional_mode(tools=legacy_tools, human=legacy_human)
+
+        statistics = cfg.get("duration_statistics")
+        if statistics not in _DURATION_STATISTICS_MODES:
+            if primary == "hidden":
+                statistics = "none"
+            elif legacy_breakdown == "totals":
+                statistics = "counts"
+            elif legacy_breakdown == "averages":
+                statistics = "counts_averages"
+            else:
+                statistics = "none"
+
+        return primary, additional, statistics
+
     def get_ui_elements(
         self,
         config: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         _ = context
-        mode = config.get("duration_breakdown") if isinstance(config, dict) else None
-        if mode not in ("none", "totals", "averages"):
-            mode = "none"
+        primary, additional, statistics = self._display_modes(config)
 
-        # The config element is always contributed (like the cost plugin's
-        # breakdown setting) so the choice stays editable in the UI even
-        # when the status bar elements are gated off.
         elements: List[Dict[str, Any]] = [
             {
                 "ui_type": "config",
                 "type": "select",
-                "key": "duration_breakdown",
-                "label": "Duration breakdown",
+                "key": "duration_primary",
+                "label": "Primary duration",
                 "description": (
-                    "Show the session duration breakdown as separate status "
-                    "bar fields."
+                    "Choose the meaning of the main session duration field."
+                ),
+                "options": [
+                    {"value": "hidden", "label": "Hidden"},
+                    {"value": "llm", "label": "LLM only"},
+                    {"value": "llm_tools", "label": "LLM + tools"},
+                ],
+                "default": primary,
+            },
+            {
+                "ui_type": "config",
+                "type": "select",
+                "key": "duration_additional_fields",
+                "label": "Additional time fields",
+                "description": (
+                    "Show tool duration, human time, both, or neither "
+                    "as additional fields."
                 ),
                 "options": [
                     {"value": "none", "label": "None"},
-                    {"value": "totals", "label": "Totals"},
-                    {"value": "averages", "label": "Averages"},
+                    {"value": "tools", "label": "Tools"},
+                    {"value": "human", "label": "Human"},
+                    {"value": "tools_human", "label": "Tools + human"},
                 ],
-                "default": mode,
-            }
+                "default": additional,
+            },
+            {
+                "ui_type": "config",
+                "type": "select",
+                "key": "duration_statistics",
+                "label": "Duration statistics",
+                "description": "Show call counts and optional averages.",
+                "options": [
+                    {"value": "none", "label": "None"},
+                    {"value": "counts", "label": "Counts"},
+                    {
+                        "value": "counts_averages",
+                        "label": "Counts + averages",
+                    },
+                ],
+                "default": statistics,
+            },
         ]
 
-        if (
-            isinstance(config, dict)
-            and config.get("show_duration_status_total") is False
-        ):
-            elements_before_human: List[Dict[str, Any]] = []
-        else:
-            elements_before_human = [
-                self._status_bar_element(
-                    "metadata.duration_session_total_formatted",
-                    "Total duration: {{data}}",
-                )
-            ]
-            elements.extend(elements_before_human)
-
-        # Human time has its own gate so the fields toggle independently.
-        if (
-            isinstance(config, dict)
-            and config.get("show_human_time_status_total") is False
-        ):
-            pass
-        else:
+        if primary == "llm":
             elements.append(
                 self._status_bar_element(
-                    "metadata.human_time_session_total_formatted",
-                    "Human time: {{data}}",
+                    "metadata.duration_session_total_formatted",
+                    "LLM duration: {{data}}",
+                )
+            )
+        elif primary == "llm_tools":
+            elements.append(
+                self._status_bar_element(
+                    "metadata.duration_session_combined_total_formatted",
+                    "Duration: {{data}}",
                 )
             )
 
-        if elements_before_human:
-            if mode == "totals":
+        show_tools = additional in ("tools", "tools_human")
+        show_human = additional in ("human", "tools_human")
+        if show_tools:
+            elements.append(
+                self._status_bar_element(
+                    "metadata.tool_duration_session_total_formatted",
+                    "Tool duration: {{data}}",
+                )
+            )
+        if show_human:
+            elements.extend(
+                (
+                    self._status_bar_element(
+                        "metadata.human_time_session_total_formatted",
+                        "Human time: {{data}}",
+                    ),
+                    self._message_footer_element(
+                        "metadata.human_time_turn_delta_formatted",
+                        "human time: {{data}}",
+                    ),
+                )
+            )
+
+        if statistics != "none":
+            if primary != "hidden":
                 elements.append(
                     self._status_bar_element(
                         "metadata.duration_session_requests_formatted",
-                        "requests: {{data}}",
+                        "LLM calls: {{data}}",
                     )
                 )
-                elements.extend(
-                    (
-                        self._status_bar_element(
-                            "metadata.tool_duration_session_total_formatted",
-                            "tools: {{data}}",
-                        ),
-                        self._status_bar_element(
-                            "metadata.tool_duration_session_calls_formatted",
-                            "tool calls: {{data}}",
-                        ),
-                    )
-                )
-            elif mode == "averages":
-                elements.extend(
-                    (
-                        self._status_bar_element(
-                            "metadata.duration_session_requests_formatted",
-                            "requests: {{data}}",
-                        ),
+                if statistics == "counts_averages":
+                    elements.append(
                         self._status_bar_element(
                             "metadata.duration_session_average_formatted",
-                            "average: {{data}}",
-                        ),
-                        self._status_bar_element(
-                            "metadata.tool_duration_session_total_formatted",
-                            "tools: {{data}}",
-                        ),
-                        self._status_bar_element(
-                            "metadata.tool_duration_session_calls_formatted",
-                            "tool calls: {{data}}",
-                        ),
-                        self._status_bar_element(
-                            "metadata.tool_duration_session_average_formatted",
-                            "tool average: {{data}}",
-                        ),
+                            "LLM average: {{data}}",
+                        )
+                    )
+            if show_tools or primary == "llm_tools":
+                elements.append(
+                    self._status_bar_element(
+                        "metadata.tool_duration_session_calls_formatted",
+                        "Tool calls: {{data}}",
                     )
                 )
+                if statistics == "counts_averages":
+                    elements.append(
+                        self._status_bar_element(
+                            "metadata.tool_duration_session_average_formatted",
+                            "Tool average: {{data}}",
+                        )
+                    )
         return elements
 
     # ------------------------------------------------------------------
@@ -264,24 +374,33 @@ class DurationTrackingExtension(FeaturePlugin):
         ):
             return final_messages, native_messages, state
 
-        source = self._find_duration_metadata(
-            [item for item in final_messages if isinstance(item, dict)]
-        )
-        if source is None:
+        owner_idx = self._find_duration_owner_index(final_messages)
+        if owner_idx is None:
+            return final_messages, native_messages, state
+        owner = final_messages[owner_idx]
+        if not isinstance(owner, dict):
+            return final_messages, native_messages, state
+        source = owner.get("_metadata")
+        if not isinstance(source, dict):
             return final_messages, native_messages, state
 
         totals_md = self._record_and_build_metadata(source, state)
         if not totals_md:
             return final_messages, native_messages, state
+        turn_md = self._human_time_turn_metadata(
+            owner,
+            final_messages=final_messages,
+            native_messages=native_messages,
+            totals_md=totals_md,
+        )
 
-        new_finals: List[Dict[str, Any]] = [
-            (
-                self._attach_internal_md(item, totals_md)
-                if isinstance(item, dict)
-                else item
-            )
-            for item in final_messages
-        ]
+        new_finals: List[Dict[str, Any]] = []
+        for idx, item in enumerate(final_messages):
+            if not isinstance(item, dict):
+                new_finals.append(item)
+                continue
+            extra = totals_md if idx != owner_idx else {**totals_md, **turn_md}
+            new_finals.append(self._attach_internal_md(item, extra))
 
         new_native = list(native_messages)
         if len(new_native) >= len(new_finals):
@@ -289,8 +408,11 @@ class DurationTrackingExtension(FeaturePlugin):
             for rel_idx in range(len(new_finals)):
                 native_item = new_native[start + rel_idx]
                 if isinstance(native_item, dict):
+                    extra = (
+                        totals_md if rel_idx != owner_idx else {**totals_md, **turn_md}
+                    )
                     new_native[start + rel_idx] = self._attach_internal_md(
-                        native_item, totals_md
+                        native_item, extra
                     )
 
         return new_finals, new_native, state
@@ -454,14 +576,84 @@ class DurationTrackingExtension(FeaturePlugin):
         return True
 
     @classmethod
-    def _find_duration_metadata(
-        cls, items: List[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
-        for item in reversed(items):
+    def _find_duration_owner_index(cls, items: List[Dict[str, Any]]) -> Optional[int]:
+        for idx in range(len(items) - 1, -1, -1):
+            item = items[idx]
+            if not isinstance(item, dict) or item.get("role") != "assistant":
+                continue
             internal = item.get("_metadata")
             if isinstance(internal, dict) and cls._is_duration_record_source(internal):
-                return internal
+                return idx
         return None
+
+    @staticmethod
+    def _has_tool_calls(message: Dict[str, Any]) -> bool:
+        tool_calls = message.get("tool_calls")
+        if isinstance(tool_calls, list) and tool_calls:
+            return True
+        internal = message.get("_metadata")
+        if isinstance(internal, dict):
+            tool_calls = internal.get("tool_calls")
+            if isinstance(tool_calls, list) and tool_calls:
+                return True
+        return False
+
+    @staticmethod
+    def _human_total(message: Dict[str, Any]) -> Optional[int]:
+        internal = message.get("_metadata")
+        if not isinstance(internal, dict):
+            return None
+        value = internal.get("human_time_session_total")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return max(0, int(value))
+
+    @classmethod
+    def _human_time_turn_metadata(
+        cls,
+        owner: Dict[str, Any],
+        *,
+        final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        totals_md: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if owner.get("role") != "assistant" or cls._has_tool_calls(owner):
+            return {}
+
+        current_value = totals_md.get("human_time_session_total")
+        if isinstance(current_value, bool) or not isinstance(
+            current_value, (int, float)
+        ):
+            return {}
+        current_total = max(0, int(current_value))
+
+        history_offset = len(native_messages)
+        if native_messages and len(final_messages) <= len(native_messages):
+            history_offset = len(native_messages) - len(final_messages)
+        history = native_messages[:history_offset]
+
+        previous_total: Optional[int] = None
+        found_previous_final = False
+        for message in reversed(history):
+            if not isinstance(message, dict):
+                continue
+            if message.get("role") != "assistant" or cls._has_tool_calls(message):
+                continue
+            found_previous_final = True
+            previous_total = cls._human_total(message)
+            break
+
+        if found_previous_final and previous_total is None:
+            return {}
+        baseline = previous_total if previous_total is not None else 0
+        if current_total < baseline:
+            return {}
+
+        delta = current_total - baseline
+        return {
+            "human_time_turn_delta": delta,
+            "human_time_turn_delta_formatted": _format_duration_ms(delta),
+        }
 
     def _record_and_build_metadata(
         self, internal: Dict[str, Any], state: Dict[str, Any]
@@ -568,6 +760,11 @@ class DurationTrackingExtension(FeaturePlugin):
             metadata["tool_duration_session_average_formatted"] = _format_duration_ms(
                 int(tool_average)
             )
+        combined_total_ms = total_ms + tool_total_ms
+        metadata["duration_session_combined_total"] = combined_total_ms
+        metadata["duration_session_combined_total_formatted"] = _format_duration_ms(
+            combined_total_ms
+        )
 
         # Human time totals read the same store (subtask 030). Best-effort
         # in its own boundary: a failure skips only these fields.

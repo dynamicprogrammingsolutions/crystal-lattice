@@ -206,29 +206,34 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             db_path, limit=3
         )
 
+        llm_total_ms = int(report.get("total_ms") or 0)
+        tool_total_ms = int(report.get("tool_total_ms") or 0)
+        combined_total_ms = llm_total_ms + tool_total_ms
+        report = {**report, "combined_total_ms": combined_total_ms}
+
         lines: List[str] = ["## Duration report", ""]
+        lines.append(f"- LLM duration: `{_format_duration_ms(llm_total_ms)}`")
+        lines.append(f"- Tool duration: `{_format_duration_ms(tool_total_ms)}`")
         lines.append(
-            f"- Total duration: `{_format_duration_ms(int(report.get('total_ms') or 0))}`"
+            f"- LLM + tool duration: `{_format_duration_ms(combined_total_ms)}`"
         )
         lines.append(
             "- Total human time: "
             f"`{_format_duration_ms(int(human_time_summary.get('total_ms') or 0))}`"
         )
-        lines.append(f"- Requests: `{int(report.get('request_count') or 0):,}`")
         request_count = int(report.get("request_count") or 0)
+        lines.append(f"- LLM calls: `{request_count:,}`")
         if request_count > 0:
-            average = int(report.get("total_ms") or 0) / request_count
-            lines.append(f"- Average: `{_format_duration_ms(int(average))}`")
+            average = llm_total_ms / request_count
+            lines.append(f"- Average LLM call: `{_format_duration_ms(int(average))}`")
 
-        # Tool duration surfaces as separate lines, never merged into the
-        # LLM total.
         tool_call_count = int(report.get("tool_call_count") or 0)
-        tool_total_ms = int(report.get("tool_total_ms") or 0)
+        lines.append(f"- Tool calls: `{tool_call_count:,}`")
         if tool_call_count > 0:
-            lines.append(f"- Tools: `{_format_duration_ms(tool_total_ms)}`")
-            lines.append(f"- Tool calls: `{tool_call_count:,}`")
             tool_average = tool_total_ms / tool_call_count
-            lines.append(f"- Tool average: `{_format_duration_ms(int(tool_average))}`")
+            lines.append(
+                f"- Average tool call: `{_format_duration_ms(int(tool_average))}`"
+            )
 
         # Human time (subtasks 030/035): show the current session's total and
         # compact collection diagnostics. Best-effort: a store failure never
@@ -388,31 +393,42 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
 
         if request_count > 0:
             lines.append("")
-            lines.append("### Top sessions")
+            lines.append("### Top sessions by LLM duration")
             lines.append("")
-            lines.append("| Project | Session | Total | Requests | Tools |")
-            lines.append("| --- | --- | --- | --- | --- |")
+            lines.append(
+                "| Project | Session | LLM duration | LLM calls | "
+                "Tool duration | Combined |"
+            )
+            lines.append("| --- | --- | --- | --- | --- | --- |")
             for entry in top_sessions:
+                entry_llm_ms = int(entry.get("total_ms") or 0)
+                entry_tool_ms = int(entry.get("tool_total_ms") or 0)
                 lines.append(
                     f"| {_project_display_name(entry.get('working_directory') or '')} "
                     f"| `{entry.get('session_id', '')}` "
-                    f"| `{_format_duration_ms(int(entry.get('total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(entry_llm_ms)}` "
                     f"| `{int(entry.get('request_count') or 0):,}` "
-                    f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` |"
+                    f"| `{_format_duration_ms(entry_tool_ms)}` "
+                    f"| `{_format_duration_ms(entry_llm_ms + entry_tool_ms)}` |"
                 )
 
             if top_projects:
                 lines.append("")
-                lines.append("### Top projects")
+                lines.append("### Top projects by LLM duration")
                 lines.append("")
-                lines.append("| Project | Total | Requests | Tools |")
-                lines.append("| --- | --- | --- | --- |")
+                lines.append(
+                    "| Project | LLM duration | LLM calls | Tool duration | Combined |"
+                )
+                lines.append("| --- | --- | --- | --- | --- |")
                 for entry in top_projects:
+                    entry_llm_ms = int(entry.get("total_ms") or 0)
+                    entry_tool_ms = int(entry.get("tool_total_ms") or 0)
                     lines.append(
                         f"| {_project_display_name(entry.get('working_directory') or '')} "
-                        f"| `{_format_duration_ms(int(entry.get('total_ms') or 0))}` "
+                        f"| `{_format_duration_ms(entry_llm_ms)}` "
                         f"| `{int(entry.get('request_count') or 0):,}` "
-                        f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` |"
+                        f"| `{_format_duration_ms(entry_tool_ms)}` "
+                        f"| `{_format_duration_ms(entry_llm_ms + entry_tool_ms)}` |"
                     )
         else:
             lines.append("")
@@ -420,8 +436,8 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
 
         lines.append("")
         lines.append(
-            "Duration totals cover all recorded requests; there are no "
-            "reset windows."
+            "LLM and tool duration totals cover all recorded calls; there "
+            "are no reset windows."
         )
 
         return {

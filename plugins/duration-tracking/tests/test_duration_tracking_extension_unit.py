@@ -643,11 +643,14 @@ def test_finalize_stamps_tool_totals_alongside_llm_totals(tmp_path: Path) -> Non
     assert internal["tool_duration_session_calls_formatted"] == "1"
     assert internal["tool_duration_session_average"] == pytest.approx(250.0)
     assert internal["tool_duration_session_average_formatted"] == "250ms"
+    assert internal["duration_session_combined_total"] == 1450
+    assert internal["duration_session_combined_total_formatted"] == "1.45s"
 
     # The native tail carries the same dual totals.
     tail_internal = _internal(new_native[-1])
     assert tail_internal["tool_duration_session_total"] == 250
     assert tail_internal["duration_session_total"] == 1200
+    assert tail_internal["duration_session_combined_total"] == 1450
 
 
 def test_finalize_stamps_zero_tool_totals_for_tool_less_sessions(
@@ -667,6 +670,8 @@ def test_finalize_stamps_zero_tool_totals_for_tool_less_sessions(
     assert internal["tool_duration_session_total"] == 0
     assert internal["tool_duration_session_total_formatted"] == "0ms"
     assert internal["tool_duration_session_calls"] == 0
+    assert internal["duration_session_combined_total"] == 1200
+    assert internal["duration_session_combined_total_formatted"] == "1.2s"
     assert "tool_duration_session_calls_formatted" not in internal
     assert "tool_duration_session_average" not in internal
 
@@ -720,6 +725,8 @@ def test_from_native_messages_promotes_only_session_keys(tmp_path: Path) -> None
                 "duration_session_total": 1200,
                 "tool_duration_session_total": 250,
                 "tool_duration_session_calls": 1,
+                "duration_session_combined_total": 1450,
+                "duration_session_combined_total_formatted": "1.45s",
             },
         },
     ]
@@ -737,6 +744,8 @@ def test_from_native_messages_promotes_only_session_keys(tmp_path: Path) -> None
     assert metadata["duration_session_total"] == 1200
     assert metadata["tool_duration_session_total"] == 250
     assert metadata["tool_duration_session_calls"] == 1
+    assert metadata["duration_session_combined_total"] == 1450
+    assert metadata["duration_session_combined_total_formatted"] == "1.45s"
     # Per-message duration stamps are owned by the duration feature; the
     # tracker promotes only its session-total keys.
     assert "duration_ms" not in metadata
@@ -796,6 +805,9 @@ def test_finalize_stamps_human_time_totals_alongside_duration_totals(
     # the same store.
     assert internal["human_time_session_total"] == 5 * 60 * 1000
     assert internal["human_time_session_total_formatted"] == "5m"
+    # With no previous completed turn, the first turn uses zero as baseline.
+    assert internal["human_time_turn_delta"] == 5 * 60 * 1000
+    assert internal["human_time_turn_delta_formatted"] == "5m"
 
 
 def test_finalize_stamps_zero_human_time_without_spans(tmp_path: Path) -> None:
@@ -809,6 +821,8 @@ def test_finalize_stamps_zero_human_time_without_spans(tmp_path: Path) -> None:
     internal = _internal(new_finals[0])
     assert internal["human_time_session_total"] == 0
     assert internal["human_time_session_total_formatted"] == "0ms"
+    assert internal["human_time_turn_delta"] == 0
+    assert internal["human_time_turn_delta_formatted"] == "0ms"
 
 
 def test_finalize_human_time_store_failure_skips_only_human_fields(
@@ -843,6 +857,8 @@ def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None
                 "duration_session_total": 1200,
                 "human_time_session_total": 300000,
                 "human_time_session_total_formatted": "5m",
+                "human_time_turn_delta": 120000,
+                "human_time_turn_delta_formatted": "2m",
             },
         },
     ]
@@ -859,5 +875,196 @@ def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None
     metadata = projected[0]["metadata"]
     assert metadata["human_time_session_total"] == 300000
     assert metadata["human_time_session_total_formatted"] == "5m"
+    assert metadata["human_time_turn_delta"] == 120000
+    assert metadata["human_time_turn_delta_formatted"] == "2m"
     # Per-message duration stamps stay internal.
     assert "duration_ms" not in metadata
+
+
+def test_finalize_stamps_human_time_delta_from_previous_completed_turn(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-1",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:00:00Z",
+                "to": "2026-09-25T08:05:00Z",
+            }
+        ],
+    )
+    feature = DurationTrackingExtension()
+    first_finals = [_assistant_final()]
+    first_new, _, _ = _finalize(
+        feature,
+        first_finals,
+        _native_history(first_finals),
+        _state(db_path, request_id="req-1"),
+    )
+
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-2",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:05:00Z",
+                "to": "2026-09-25T08:08:00Z",
+            }
+        ],
+    )
+    second_final = _assistant_final(
+        started_at="2026-01-01T00:01:00+00:00",
+        finished_at="2026-01-01T00:01:01.200000+00:00",
+    )
+    native = [
+        {"role": "user", "content": "first"},
+        first_new[0],
+        {"role": "user", "content": "second"},
+        second_final,
+    ]
+
+    second_new, second_native, _ = _finalize(
+        feature,
+        [second_final],
+        native,
+        _state(db_path, request_id="req-2"),
+    )
+
+    assert _internal(second_new[0])["human_time_session_total"] == 8 * 60 * 1000
+    assert _internal(second_new[0])["human_time_turn_delta"] == 3 * 60 * 1000
+    assert _internal(second_new[0])["human_time_turn_delta_formatted"] == "3m"
+    assert _internal(second_native[-1])["human_time_turn_delta"] == 3 * 60 * 1000
+
+
+def test_finalize_omits_human_delta_on_intermediate_tool_call_message(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-1",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:00:00Z",
+                "to": "2026-09-25T08:01:00Z",
+            }
+        ],
+    )
+    feature = DurationTrackingExtension()
+    tool_call_final = _assistant_final(tool_calls=[{"id": "call-1"}])
+
+    new_finals, _, _ = _finalize(
+        feature,
+        [tool_call_final],
+        _native_history([tool_call_final]),
+        _state(db_path),
+    )
+
+    internal = _internal(new_finals[0])
+    assert internal["human_time_session_total"] == 60 * 1000
+    assert "human_time_turn_delta" not in internal
+
+
+def test_finalize_tool_loop_final_skips_current_intermediate_for_human_delta(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    previous_final = _assistant_final()
+    previous_final["_metadata"]["human_time_session_total"] = 60 * 1000
+    intermediate = _assistant_final(
+        started_at="2026-01-01T00:01:00+00:00",
+        finished_at="2026-01-01T00:01:01.200000+00:00",
+        tool_calls=[{"id": "call-1"}],
+        human_time_session_total=90 * 1000,
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human-req-1",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:00:00Z",
+                "to": "2026-09-25T08:02:00Z",
+            }
+        ],
+    )
+    current_final = _assistant_final(
+        started_at="2026-01-01T00:02:00+00:00",
+        finished_at="2026-01-01T00:02:01.200000+00:00",
+    )
+    native = [
+        {"role": "user", "content": "first"},
+        previous_final,
+        {"role": "user", "content": "second"},
+        intermediate,
+        {"role": "tool", "content": "result"},
+        current_final,
+    ]
+
+    new_finals, _, _ = _finalize(
+        feature,
+        [current_final],
+        native,
+        _state(db_path, request_id="req-2"),
+    )
+
+    assert _internal(new_finals[0])["human_time_turn_delta"] == 60 * 1000
+
+
+def test_finalize_omits_human_delta_when_previous_final_lacks_total(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    current_final = _assistant_final()
+    native = [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "old final", "_metadata": {}},
+        {"role": "user", "content": "second"},
+        current_final,
+    ]
+
+    new_finals, _, _ = _finalize(
+        feature,
+        [current_final],
+        native,
+        _state(db_path),
+    )
+
+    assert "human_time_turn_delta" not in _internal(new_finals[0])
+
+
+def test_finalize_omits_human_delta_when_total_regresses(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    current_final = _assistant_final()
+    native = [
+        {"role": "user", "content": "first"},
+        {
+            "role": "assistant",
+            "content": "prior final",
+            "_metadata": {"human_time_session_total": 60 * 1000},
+        },
+        {"role": "user", "content": "second"},
+        current_final,
+    ]
+
+    new_finals, _, _ = _finalize(
+        feature,
+        [current_final],
+        native,
+        _state(db_path),
+    )
+
+    assert _internal(new_finals[0])["human_time_session_total"] == 0
+    assert "human_time_turn_delta" not in _internal(new_finals[0])

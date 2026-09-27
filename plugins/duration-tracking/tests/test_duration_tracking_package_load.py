@@ -52,9 +52,28 @@ def test_tracking_feature_shape() -> None:
         "duration_tracking_db_path",
         "show_duration_status_total",
         "duration_breakdown",
+        "duration_primary",
+        "duration_additional_fields",
+        "duration_statistics",
         "track_duration_tracking_summary_csv",
         "duration_tracking_summary_csv_path",
     }
     breakdown = schema["duration_breakdown"]
     assert breakdown["options"] == ["none", "totals", "averages"]
     assert breakdown["default"] == "none"
+    assert schema["duration_primary"]["options"] == [
+        "hidden",
+        "llm",
+        "llm_tools",
+    ]
+    assert schema["duration_additional_fields"]["options"] == [
+        "none",
+        "tools",
+        "human",
+        "tools_human",
+    ]
+    assert schema["duration_statistics"]["options"] == [
+        "none",
+        "counts",
+        "counts_averages",
+    ]

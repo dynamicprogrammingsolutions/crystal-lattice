@@ -210,6 +210,7 @@ def test_request_records_row_and_projects_session_totals(tmp_path: Path) -> None
     assert assistant_md.get("duration_session_requests") == 1
     assert assistant_md.get("duration_session_requests_formatted") == "1"
     assert isinstance(assistant_md.get("duration_session_average"), float)
+    assert assistant_md.get("duration_session_combined_total") == rows[0]["duration_ms"]
 
     # The totals survive a save + reload (native-history round-trip).
     loaded = app.load_session(session.session_id)
@@ -294,6 +295,9 @@ def test_tool_calling_request_records_llm_and_tool_rows(tmp_path: Path) -> None:
     assert assistant_md.get("duration_session_total") == rows[0]["duration_ms"]
     assert assistant_md.get("tool_duration_session_total") == tool_md["duration_ms"]
     assert assistant_md.get("tool_duration_session_calls") == 1
+    assert assistant_md.get("duration_session_combined_total") == (
+        rows[0]["duration_ms"] + tool_md["duration_ms"]
+    )
     assert (
         assistant_md.get("tool_duration_session_total_formatted")
         == tool_md["duration_formatted"]
@@ -352,6 +356,9 @@ def test_tool_loop_records_every_llm_round(tmp_path: Path) -> None:
         "turn_duration_ms", 0
     )
     assert assistant_md.get("tool_duration_session_calls") == 1
+    assert "human_time_turn_delta" not in (assistants[0].metadata or {})
+    assert assistant_md.get("human_time_turn_delta") == 0
+    assert assistant_md.get("human_time_turn_delta_formatted") == "0ms"
 
 
 def test_multiple_tool_calls_record_one_row_each(tmp_path: Path) -> None:
@@ -588,6 +595,28 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
     assistant_md = _assistant_messages(session)[-1].metadata or {}
     assert assistant_md.get("human_time_session_total") == 5 * 60 * 1000
     assert assistant_md.get("human_time_session_total_formatted") == "5m"
+    assert assistant_md.get("human_time_turn_delta") == 5 * 60 * 1000
+    assert assistant_md.get("human_time_turn_delta_formatted") == "5m"
+
+    app.execute_application_action(
+        "duration_tracking_app",
+        "record_human_time_spans",
+        {
+            "request_id": "frontend-req-2",
+            "spans": [
+                {
+                    "session_id": session.session_id,
+                    "from": "2026-09-25T08:05:00Z",
+                    "to": "2026-09-25T08:08:00Z",
+                }
+            ],
+        },
+    )
+    session = _run_request(app, core, session, base_config)
+    second_md = _assistant_messages(session)[-1].metadata or {}
+    assert second_md.get("human_time_session_total") == 8 * 60 * 1000
+    assert second_md.get("human_time_turn_delta") == 3 * 60 * 1000
+    assert second_md.get("human_time_turn_delta_formatted") == "3m"
 
     # And the report action includes overall and per-session human time.
     report = app.execute_application_action(
@@ -595,6 +624,6 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
         "show_duration_report",
         {"session_id": session.session_id},
     )
-    assert "- Total human time: `5m`" in report["display"]["body"]
-    assert "- Current session human time: `5m`" in report["display"]["body"]
-    assert report["human_time"] == {"span_count": 1, "total_ms": 5 * 60 * 1000}
+    assert "- Total human time: `8m`" in report["display"]["body"]
+    assert "- Current session human time: `8m`" in report["display"]["body"]
+    assert report["human_time"] == {"span_count": 1, "total_ms": 8 * 60 * 1000}
