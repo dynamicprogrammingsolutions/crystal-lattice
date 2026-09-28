@@ -141,6 +141,8 @@ SEMANTIC_RECORD = STAGES["task-creation-assessment"].record
 HANDOFF_SEMANTIC_RECORD = STAGES["handoff-assessment"].record
 QUALITY_RECORD = STAGES["task-quality-assessment"].record
 PLAN_CONTENT_RECORD = STAGES["plan-content-assessment"].record
+FILE_FIDELITY_RECORD = STAGES["file-fidelity-assessment"].record
+FILE_READABILITY_RECORD = STAGES["file-readability-assessment"].record
 GENERATED_PLAN_RECORD = STAGES["generated-plan"].record
 
 KIND_TASK_CREATION = "task-creation"
@@ -1111,6 +1113,8 @@ def _discover_runs(
         ("handoff_semantic_records", HANDOFF_SEMANTIC_RECORD),
         ("quality_records", QUALITY_RECORD),
         ("plan_content_records", PLAN_CONTENT_RECORD),
+        ("file_fidelity_records", FILE_FIDELITY_RECORD),
+        ("file_readability_records", FILE_READABILITY_RECORD),
     ):
         records = [
             record for record in frozen.get(group, ()) if isinstance(record, Mapping)
@@ -2271,6 +2275,16 @@ def _collect_assessment(
             "plan_content_records",
             "Presented-plan content assessment",
         ),
+        (
+            "file-fidelity",
+            "file_fidelity_records",
+            "Task-file fidelity assessment",
+        ),
+        (
+            "file-readability",
+            "file_readability_records",
+            "Task-file readability assessment",
+        ),
     ):
         records = [
             record
@@ -2498,17 +2512,41 @@ def _collect_per_subject_assessment(
                         " boundaries, and whether the plan is self-contained."
                         if name == "handoff"
                         else (
-                            "- Rubric: every requirement is graded"
-                            " (conveyed/partial/missing; the self-containedness"
-                            " and proportionality requirements use their own"
-                            " scales); non-top grades require a named finding;"
-                            " coverage is the share of top grades."
-                            if name == "plan-content"
-                            else "- Rubric: every dimension is a positive"
-                            " completeness grade (complete/partial/poor;"
-                            " justified/not_applicable/fabricated; fits/forced/"
-                            "missing). Grades carry evidence occurrences; no"
-                            " numeric score is derived."
+                            (
+                                "- Rubric: every requirement is graded"
+                                " (conveyed/partial/missing; the self-containedness"
+                                " and proportionality requirements use their own"
+                                " scales); non-top grades require a named finding;"
+                                " coverage is the share of top grades."
+                                if name == "plan-content"
+                                else (
+                                    "- Rubric: five fidelity dimensions"
+                                    " (complete/partial/poor;"
+                                    " justified/not_applicable/fabricated;"
+                                    " fits/forced/missing); every grade carries"
+                                    " {where, quote, why} findings, non-top grades"
+                                    " require them, and every response harvests"
+                                    " mistakes."
+                                    if name == "file-fidelity"
+                                    else (
+                                        "- Rubric: every top-level section is"
+                                        " graded (readable/partial/unreadable)"
+                                        " plus whole-file navigation"
+                                        " (navigable/partial/confusing), anchored"
+                                        " on measured structure facts; findings"
+                                        " required for non-top grades; presentation"
+                                        " mistakes harvested."
+                                        if name == "file-readability"
+                                        else "- Rubric: every dimension is a"
+                                        " positive"
+                                        " completeness grade (complete/partial/poor;"
+                                        " justified/not_applicable/fabricated;"
+                                        " fits/forced/"
+                                        "missing). Grades carry evidence"
+                                        " occurrences; no numeric score is derived."
+                                    )
+                                )
+                            )
                         )
                     )
                 ),
@@ -2562,6 +2600,28 @@ def _subject_assessment_note(
         missed = assessment.get("missed_requirements") or []
         for item in missed:
             lines.append(f"- Missed requirement: {item}")
+    elif name == "file-fidelity":
+        dimensions = assessment.get("dimensions") or {}
+        for dim_name, dim in sorted(dimensions.items()):
+            if not isinstance(dim, Mapping):
+                continue
+            findings = dim.get("findings") or []
+            lines.append(
+                f"- {dim_name}: **{dim.get('grade')}**" f" ({len(findings)} findings)"
+            )
+        mistakes = assessment.get("mistakes") or []
+        lines.append(f"- Mistakes harvested: {len(mistakes)}")
+    elif name == "file-readability":
+        sections = assessment.get("sections") or {}
+        for title, entry in sorted(sections.items()):
+            if not isinstance(entry, Mapping):
+                continue
+            lines.append(f"- {title}: **{entry.get('grade')}**")
+        navigation = assessment.get("navigation") or {}
+        if isinstance(navigation, Mapping):
+            lines.append(f"- Navigation: **{navigation.get('grade')}**")
+        mistakes = assessment.get("mistakes") or []
+        lines.append(f"- Mistakes harvested: {len(mistakes)}")
     else:
         overall = assessment.get("overall_success_percentage")
         metrics = assessment.get("quality_metrics") or {}
@@ -2676,17 +2736,41 @@ def _collect_assessment_record(
                         " boundaries, and whether the plan is self-contained."
                         if name == "handoff"
                         else (
-                            "- Rubric: every requirement is graded"
-                            " (conveyed/partial/missing; the self-containedness"
-                            " and proportionality requirements use their own"
-                            " scales); non-top grades require a named finding;"
-                            " coverage is the share of top grades."
-                            if name == "plan-content"
-                            else "- Rubric: every dimension is a positive"
-                            " completeness grade (complete/partial/poor;"
-                            " justified/not_applicable/fabricated; fits/forced/"
-                            "missing). Grades carry evidence occurrences; no"
-                            " numeric score is derived."
+                            (
+                                "- Rubric: every requirement is graded"
+                                " (conveyed/partial/missing; the self-containedness"
+                                " and proportionality requirements use their own"
+                                " scales); non-top grades require a named finding;"
+                                " coverage is the share of top grades."
+                                if name == "plan-content"
+                                else (
+                                    "- Rubric: five fidelity dimensions"
+                                    " (complete/partial/poor;"
+                                    " justified/not_applicable/fabricated;"
+                                    " fits/forced/missing); every grade carries"
+                                    " {where, quote, why} findings, non-top grades"
+                                    " require them, and every response harvests"
+                                    " mistakes."
+                                    if name == "file-fidelity"
+                                    else (
+                                        "- Rubric: every top-level section is"
+                                        " graded (readable/partial/unreadable)"
+                                        " plus whole-file navigation"
+                                        " (navigable/partial/confusing), anchored"
+                                        " on measured structure facts; findings"
+                                        " required for non-top grades; presentation"
+                                        " mistakes harvested."
+                                        if name == "file-readability"
+                                        else "- Rubric: every dimension is a"
+                                        " positive"
+                                        " completeness grade (complete/partial/poor;"
+                                        " justified/not_applicable/fabricated;"
+                                        " fits/forced/"
+                                        "missing). Grades carry evidence"
+                                        " occurrences; no numeric score is derived."
+                                    )
+                                )
+                            )
                         )
                     )
                 ),
@@ -2771,6 +2855,24 @@ def _assessment_results_markdown(
             elif kind == "plan-content":
                 lines.extend(
                     _plan_content_judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            elif kind == "file-fidelity":
+                lines.extend(
+                    _file_fidelity_judgment_markdown(
+                        assessment,
+                        profile=profile,
+                        effort=effort,
+                        sample_index=sample_index,
+                    )
+                )
+            elif kind == "file-readability":
+                lines.extend(
+                    _file_readability_judgment_markdown(
                         assessment,
                         profile=profile,
                         effort=effort,
@@ -2920,6 +3022,121 @@ def _plan_content_judgment_markdown(
     if missed:
         lines.extend(["", "**Content the requirement layers missed**", ""])
         lines.extend(f"- {item}" for item in missed)
+    summary = assessment.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        lines.extend(["", summary, ""])
+    return lines
+
+
+def _file_fidelity_judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
+    heading = f"### {profile} · {effort}"
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
+    lines = [
+        heading,
+        "",
+        "| Dimension | Grade | Findings |",
+        "|---|---|---:|",
+    ]
+    dimensions = assessment.get("dimensions") or {}
+    for dimension in (
+        "plan_design_completeness",
+        "durable_context_preservation",
+        "section_appropriateness",
+        "plan_justification",
+        "task_kind_fit",
+    ):
+        item = dimensions.get(dimension) or {}
+        findings = item.get("findings") or []
+        lines.append(f"| {dimension} | {item.get('grade')} | {len(findings)} |")
+    lines.extend(["", "**Findings**", ""])
+    for dimension, item in sorted((dimensions or {}).items()):
+        if not isinstance(item, Mapping):
+            continue
+        for finding in item.get("findings") or []:
+            if isinstance(finding, Mapping):
+                lines.append(
+                    f"- {dimension} — {finding.get('where')}:"
+                    f" {finding.get('why')}"
+                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                )
+    mistakes = assessment.get("mistakes") or []
+    if mistakes:
+        lines.extend(["", "**Mistakes**", ""])
+        for mistake in mistakes:
+            if isinstance(mistake, Mapping):
+                lines.append(
+                    f"- {mistake.get('where')}: {mistake.get('why')}"
+                    f" (`{str(mistake.get('quote', ''))[:80]}`)"
+                )
+    summary = assessment.get("summary")
+    if isinstance(summary, str) and summary.strip():
+        lines.extend(["", summary, ""])
+    return lines
+
+
+def _file_readability_judgment_markdown(
+    assessment: Mapping[str, Any],
+    *,
+    profile: Any = None,
+    effort: Any = None,
+    sample_index: int | None = None,
+) -> list[str]:
+    heading = f"### {profile} · {effort}"
+    if sample_index is not None:
+        heading += f" (sample {sample_index})"
+    lines = [
+        heading,
+        "",
+        "| Section | Grade | Findings |",
+        "|---|---|---:|",
+    ]
+    sections = assessment.get("sections") or {}
+    for title, entry in sections.items():
+        if not isinstance(entry, Mapping):
+            continue
+        findings = entry.get("findings") or []
+        lines.append(f"| {title} | {entry.get('grade')} | {len(findings)} |")
+    navigation = assessment.get("navigation") or {}
+    if isinstance(navigation, Mapping):
+        nav_findings = navigation.get("findings") or []
+        lines.append(
+            f"| _navigation_ | {navigation.get('grade')} | {len(nav_findings)} |"
+        )
+    lines.extend(["", "**Findings**", ""])
+    for title, entry in sorted(sections.items()):
+        if not isinstance(entry, Mapping):
+            continue
+        for finding in entry.get("findings") or []:
+            if isinstance(finding, Mapping):
+                lines.append(
+                    f"- {title} — {finding.get('where')}:"
+                    f" {finding.get('why')}"
+                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                )
+    if isinstance(navigation, Mapping):
+        for finding in navigation.get("findings") or []:
+            if isinstance(finding, Mapping):
+                lines.append(
+                    f"- navigation — {finding.get('where')}:"
+                    f" {finding.get('why')}"
+                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                )
+    mistakes = assessment.get("mistakes") or []
+    if mistakes:
+        lines.extend(["", "**Mistakes**", ""])
+        for mistake in mistakes:
+            if isinstance(mistake, Mapping):
+                lines.append(
+                    f"- {mistake.get('where')}: {mistake.get('why')}"
+                    f" (`{str(mistake.get('quote', ''))[:80]}`)"
+                )
     summary = assessment.get("summary")
     if isinstance(summary, str) and summary.strip():
         lines.extend(["", summary, ""])
@@ -3207,6 +3424,63 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
                 ),
             }
         )
+    file_fidelity: list[dict[str, Any]] = []
+    for record in frozen.get("file_fidelity_records", ()):
+        scenario_id = record.get("scenario_id")
+        subject = record.get("subject") or {}
+        assessment = record.get("assessment") or {}
+        cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
+        sample_index = subject.get("sample_index")
+        file_fidelity.append(
+            {
+                "kind": "file-fidelity",
+                "scenario_id": scenario_id,
+                "profile": subject.get("profile"),
+                "reasoning_effort": subject.get("reasoning_effort"),
+                "sample_index": sample_index,
+                "dimensions": {
+                    name: (entry or {}).get("grade")
+                    for name, entry in (assessment.get("dimensions") or {}).items()
+                },
+                "mistake_count": len(assessment.get("mistakes") or ()),
+                "run_path": (
+                    f"scenarios/{scenario_id}/{cell}"
+                    f"/s{0 if sample_index is None else sample_index}"
+                ),
+                "results_path": (
+                    f"scenarios/{scenario_id}/assessment/file-fidelity/results.md"
+                ),
+            }
+        )
+    file_readability: list[dict[str, Any]] = []
+    for record in frozen.get("file_readability_records", ()):
+        scenario_id = record.get("scenario_id")
+        subject = record.get("subject") or {}
+        assessment = record.get("assessment") or {}
+        cell = f"{subject.get('profile')}-{subject.get('reasoning_effort')}"
+        sample_index = subject.get("sample_index")
+        file_readability.append(
+            {
+                "kind": "file-readability",
+                "scenario_id": scenario_id,
+                "profile": subject.get("profile"),
+                "reasoning_effort": subject.get("reasoning_effort"),
+                "sample_index": sample_index,
+                "sections": {
+                    title: (entry or {}).get("grade")
+                    for title, entry in (assessment.get("sections") or {}).items()
+                },
+                "navigation": (assessment.get("navigation") or {}).get("grade"),
+                "mistake_count": len(assessment.get("mistakes") or ()),
+                "run_path": (
+                    f"scenarios/{scenario_id}/{cell}"
+                    f"/s{0 if sample_index is None else sample_index}"
+                ),
+                "results_path": (
+                    f"scenarios/{scenario_id}/assessment/file-readability/results.md"
+                ),
+            }
+        )
     handoff: list[dict[str, Any]] = []
     for record in frozen.get("handoff_semantic_records", ()):
         scenario_id = record.get("scenario_id")
@@ -3267,7 +3541,22 @@ def _assessment_details(frozen: Mapping[str, Any]) -> list[dict[str, Any]]:
             row["reasoning_effort"] or "",
         )
     )
-    return task_creation + handoff + task_quality + plan_content
+    for rows in (file_fidelity, file_readability):
+        rows.sort(
+            key=lambda row: (
+                row["scenario_id"] or "",
+                row["profile"] or "",
+                row["reasoning_effort"] or "",
+            )
+        )
+    return (
+        task_creation
+        + handoff
+        + task_quality
+        + plan_content
+        + file_fidelity
+        + file_readability
+    )
 
 
 def _build_index_views(records: PackageRecords) -> list[GeneratedView]:
@@ -3471,6 +3760,14 @@ def _matrix_detail_sections(aggregate: Mapping[str, Any]) -> list[str]:
     if plan_content_rows:
         sections.append(_plan_content_cohort_section(plan_content_rows))
         sections.append(_plan_content_detail_section(plan_content_rows))
+    fidelity_rows = [row for row in details if row.get("kind") == "file-fidelity"]
+    if fidelity_rows:
+        sections.append(_file_fidelity_cohort_section(fidelity_rows))
+        sections.append(_file_fidelity_detail_section(fidelity_rows))
+    readability_rows = [row for row in details if row.get("kind") == "file-readability"]
+    if readability_rows:
+        sections.append(_file_readability_cohort_section(readability_rows))
+        sections.append(_file_readability_detail_section(readability_rows))
     return sections
 
 
@@ -3585,6 +3882,221 @@ def _plan_content_detail_section(rows: Sequence[Mapping[str, Any]]) -> str:
         lines.append(
             f"| `{row.get('scenario_id')}` | {row.get('variant')} | {producer}"
             f" | {coverage_text} | {non_top_text} | {missed_text}"
+            f" | {subject_link}"
+            f" | [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
+        )
+    return "\n".join(lines)
+
+
+def _FILE_FIDELITY_DIMENSION_LABELS() -> dict[str, str]:
+    return {
+        "plan_design_completeness": "design",
+        "durable_context_preservation": "context",
+        "section_appropriateness": "placement",
+        "plan_justification": "justification",
+        "task_kind_fit": "kind-fit",
+    }
+
+
+def _file_fidelity_cohort_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Cohort shares of top fidelity grades per dimension."""
+
+    labels = _FILE_FIDELITY_DIMENSION_LABELS()
+    cohorts: dict[str, list[Mapping[str, Any]]] = {"All": list(rows)}
+    for row in rows:
+        model = str(row.get("profile") or "").upper()
+        if model:
+            cohorts.setdefault(model, []).append(row)
+        cohorts.setdefault(
+            f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip(), []
+        ).append(row)
+    model_names = sorted(name for name in cohorts if name in {"GLM", "GPT"})
+    ordered = (
+        ["All"]
+        + model_names
+        + sorted(key for key in cohorts if key != "All" and key not in {"GLM", "GPT"})
+    )
+    lines = [
+        "## Task-file fidelity",
+        "",
+        "Share of top grades (complete / justified / fits) per dimension;"
+        " `n` is the judged subjects in the cohort.",
+        "",
+        "| Cohort | n | Top grades overall |"
+        + "".join(f" {label} |" for label in labels.values()),
+        "|---|---:|---:|" + "---:|" * len(labels),
+    ]
+    top_grades = {"complete", "justified", "fits"}
+    seen: set[str] = set()
+    for name in ordered:
+        if name not in cohorts or name in seen:
+            continue
+        seen.add(name)
+        cohort_rows = cohorts[name]
+        count = len(cohort_rows)
+        per_dimension = {}
+        for dim_name in labels:
+            values = [
+                (row.get("dimensions") or {}).get(dim_name) for row in cohort_rows
+            ]
+            graded = [value for value in values if value is not None]
+            per_dimension[dim_name] = (
+                f"{100 * sum(1 for value in graded if value in top_grades) / len(graded):.0f}%"
+                if graded
+                else "—"
+            )
+        overall = sum(
+            sum(
+                1
+                for value in (row.get("dimensions") or {}).values()
+                if value in top_grades
+            )
+            for row in cohort_rows
+        )
+        total = sum(
+            len(
+                [
+                    value
+                    for value in (row.get("dimensions") or {}).values()
+                    if value is not None
+                ]
+            )
+            for row in cohort_rows
+        )
+        overall_text = f"{100 * overall / total:.0f}%" if total else "—"
+        lines.append(
+            f"| {name} | {count} | {overall_text} |"
+            + "".join(f" {per_dimension[dim_name]} |" for dim_name in labels)
+        )
+    mistake_total = sum(row.get("mistake_count") or 0 for row in rows)
+    lines.extend(
+        [
+            "",
+            f"Mistakes harvested across all judgments: {mistake_total}.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _file_fidelity_detail_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """One row per fidelity judgment, linked to its subject."""
+
+    has_samples = any(row.get("sample_index") is not None for row in rows)
+    sample_header = " Sample |" if has_samples else ""
+    sample_rule = "---|" if has_samples else ""
+    lines = [
+        "## Task-file fidelity detail",
+        "",
+        "| Scenario | Producer | design | context | placement | justification |"
+        " kind-fit | Mistakes | Subject | Judgment |" + sample_header,
+        "|---|---|---|---|---|---|---|---:|---|---|" + sample_rule,
+    ]
+    labels = _FILE_FIDELITY_DIMENSION_LABELS()
+    for row in rows:
+        producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+        dimensions = row.get("dimensions") or {}
+        run_path = row.get("run_path") or ""
+        subject_link = (
+            f"[{run_path.rstrip('/').rsplit('/', 1)[-1]}]"
+            f"({_link(run_path + '/assessment.md', 'matrix.md')})"
+            if run_path
+            else "—"
+        )
+        sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
+        cells = "".join(f" {dimensions.get(dim_name) or '—'} |" for dim_name in labels)
+        lines.append(
+            f"| `{row.get('scenario_id')}` | {producer} |{cells}"
+            f" {row.get('mistake_count')} | {subject_link}"
+            f" | [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
+        )
+    return "\n".join(lines)
+
+
+def _file_readability_cohort_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """Cohort shares of readable sections and navigable files."""
+
+    cohorts: dict[str, list[Mapping[str, Any]]] = {"All": list(rows)}
+    for row in rows:
+        model = str(row.get("profile") or "").upper()
+        if model:
+            cohorts.setdefault(model, []).append(row)
+        cohorts.setdefault(
+            f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip(), []
+        ).append(row)
+    model_names = sorted(name for name in cohorts if name in {"GLM", "GPT"})
+    ordered = (
+        ["All"]
+        + model_names
+        + sorted(key for key in cohorts if key != "All" and key not in {"GLM", "GPT"})
+    )
+    lines = [
+        "## Task-file readability",
+        "",
+        "Share of `readable` section grades, `navigable` whole-file grades,"
+        " and harvested presentation mistakes per cohort.",
+        "",
+        "| Cohort | n | Readable sections | Navigable files | Mistakes |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    seen: set[str] = set()
+    for name in ordered:
+        if name not in cohorts or name in seen:
+            continue
+        seen.add(name)
+        cohort_rows = cohorts[name]
+        section_total = sum(len(row.get("sections") or {}) for row in cohort_rows)
+        readable = sum(
+            1
+            for row in cohort_rows
+            for grade in (row.get("sections") or {}).values()
+            if grade == "readable"
+        )
+        navigable = sum(
+            1 for row in cohort_rows if row.get("navigation") == "navigable"
+        )
+        mistakes = sum(row.get("mistake_count") or 0 for row in cohort_rows)
+        readable_text = (
+            f"{100 * readable / section_total:.0f}%" if section_total else "—"
+        )
+        navigable_text = (
+            f"{100 * navigable / len(cohort_rows):.0f}%" if cohort_rows else "—"
+        )
+        lines.append(
+            f"| {name} | {len(cohort_rows)} | {readable_text}"
+            f" | {navigable_text} | {mistakes} |"
+        )
+    return "\n".join(lines)
+
+
+def _file_readability_detail_section(rows: Sequence[Mapping[str, Any]]) -> str:
+    """One row per readability judgment, linked to its subject."""
+
+    has_samples = any(row.get("sample_index") is not None for row in rows)
+    sample_header = " Sample |" if has_samples else ""
+    sample_rule = "---|" if has_samples else ""
+    lines = [
+        "## Task-file readability detail",
+        "",
+        "| Scenario | Producer | Readable sections | Navigation | Mistakes |"
+        " Subject | Judgment |" + sample_header,
+        "|---|---|---|---|---:|---|---|" + sample_rule,
+    ]
+    for row in rows:
+        producer = f"{row.get('profile')} {row.get('reasoning_effort')}".rstrip()
+        sections = row.get("sections") or {}
+        readable = sum(1 for grade in sections.values() if grade == "readable")
+        sections_text = f"{readable}/{len(sections)}" if sections else "—"
+        run_path = row.get("run_path") or ""
+        subject_link = (
+            f"[{run_path.rstrip('/').rsplit('/', 1)[-1]}]"
+            f"({_link(run_path + '/assessment.md', 'matrix.md')})"
+            if run_path
+            else "—"
+        )
+        sample_cell = f" s{row.get('sample_index')} |" if has_samples else ""
+        lines.append(
+            f"| `{row.get('scenario_id')}` | {producer} | {sections_text}"
+            f" | {row.get('navigation') or '—'} | {row.get('mistake_count')}"
             f" | {subject_link}"
             f" | [results]({_link(row['results_path'], 'matrix.md')}) |" + sample_cell
         )
@@ -3747,8 +4259,8 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
         "## Per-scenario results",
         "",
         "| Scenario | Numbers | Cells | Task-creation | Handoff | Quality"
-        " | Plan content |",
-        "|---|---|---|---|---|---|---|",
+        " | Plan content | Fidelity | Readability |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for scenario_id in sorted(set(cells) | set(assessments)):
         cell_links = " · ".join(
@@ -3769,7 +4281,9 @@ def _per_scenario_section(records: PackageRecords) -> list[str]:
             f" | {assessment_links.get('task-creation', '—')}"
             f" | {assessment_links.get('handoff', '—')}"
             f" | {assessment_links.get('task-quality', '—')}"
-            f" | {assessment_links.get('plan-content', '—')} |"
+            f" | {assessment_links.get('plan-content', '—')}"
+            f" | {assessment_links.get('file-fidelity', '—')}"
+            f" | {assessment_links.get('file-readability', '—')} |"
         )
     return ["\n".join(lines)]
 
@@ -3900,6 +4414,35 @@ def _cell_runs(
     return entries
 
 
+def _fidelity_grades_text(row: Mapping[str, Any] | None) -> str:
+    if not row:
+        return "—"
+    dimensions = row.get("dimensions") or {}
+    parts = [
+        f"{label} {dimensions.get(name) or '—'}"
+        for name, label in (
+            ("plan_design_completeness", "design"),
+            ("durable_context_preservation", "context"),
+            ("task_kind_fit", "kind-fit"),
+        )
+    ]
+    parts.append(f"mistakes {row.get('mistake_count') or 0}")
+    return " · ".join(parts)
+
+
+def _readability_grades_text(row: Mapping[str, Any] | None) -> str:
+    if not row:
+        return "—"
+    sections = row.get("sections") or {}
+    readable = sum(1 for grade in sections.values() if grade == "readable")
+    navigation = row.get("navigation")
+    return (
+        f"{readable}/{len(sections)} readable"
+        f" · navigation {navigation or '—'}"
+        f" · mistakes {row.get('mistake_count') or 0}"
+    )
+
+
 def _scenario_results_view(
     records: PackageRecords, scenario_id: str, cell_keys: Sequence[str]
 ) -> GeneratedView | None:
@@ -3935,8 +4478,9 @@ def _scenario_results_view(
         "",
         "## Producer samples",
         "",
-        "| Cell | Sample | Status | Task-creation overall | Task-file quality grades |",
-        "|---|---|---|---|---|",
+        "| Cell | Sample | Status | Task-creation overall | Task-file quality"
+        " grades | Fidelity | Readability |",
+        "|---|---|---|---|---|---|---|",
     ]
     for entry in runs:
         run = entry["run"]
@@ -3969,9 +4513,14 @@ def _scenario_results_view(
             link += f" ([assessment]({_link(entry['path'] + '/assessment.md', page)}))"
         if f"{entry['path']}/invalid.md" in records.collected_paths:
             link += f" ([invalid]({_link(entry['path'] + '/invalid.md', page)}))"
+        fidelity_row = by_run_path.get(("file-fidelity", entry["path"]))
+        fidelity_text = _fidelity_grades_text(fidelity_row)
+        readability_row = by_run_path.get(("file-readability", entry["path"]))
+        readability_text = _readability_grades_text(readability_row)
         lines.append(
             f"| [`{cell}`]({cell}/index.md) | {link} | {status}"
-            f" | {overall_text} | {quality_text} |"
+            f" | {overall_text} | {quality_text} | {fidelity_text}"
+            f" | {readability_text} |"
         )
     lines.extend(
         [
@@ -4103,6 +4652,8 @@ def _cell_views(
         ("handoff", "Handoff semantic results"),
         ("task-quality", "Task-file quality results"),
         ("plan-content", "Presented-plan content results"),
+        ("file-fidelity", "Task-file fidelity results"),
+        ("file-readability", "Task-file readability results"),
     ):
         path = f"scenarios/{scenario_id}/assessment/{name}/results.md"
         if path in records.collected_paths:

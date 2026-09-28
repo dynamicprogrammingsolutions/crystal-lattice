@@ -211,6 +211,61 @@ def profile_task_files(task_files: Mapping[str, str]) -> dict[str, Any]:
     }
 
 
+def profile_file_sections(title: str, text: str) -> dict[str, Any]:
+    """Per-section structure facts of one markdown task file.
+
+    One entry per top-level (H2) section: the measured numbers a
+    readability judge anchors on — size, longest paragraph and list
+    item in words, shape counts. Reported facts only; nothing here
+    asserts or prescribes a shape.
+    """
+
+    all_sections = _sections(text)
+    sections = [
+        section
+        for section in all_sections
+        if section["title"] and section["depth"] == 2
+    ]
+    entries = []
+    for section in sections:
+        scope = [section] + [
+            deeper
+            for deeper in all_sections
+            if deeper["depth"] > 2 and deeper["parent"] == section["title"]
+        ]
+        body = "\n\n".join(part["body"] for part in scope)
+        paragraphs = [item for part in scope for item in _paragraphs(part["body"])]
+        items = [item for part in scope for item in _list_items(part["body"])]
+        _, fenced, table_rows, _ = _strip_blocks(body)
+        entries.append(
+            {
+                "title": section["title"],
+                "words": _words(body),
+                "paragraph_count": len(paragraphs),
+                "longest_paragraph_words": max(
+                    (_words(item) for item in paragraphs), default=0
+                ),
+                "list_item_count": len(items),
+                "longest_list_item_words": max(
+                    (_words(item) for item in items), default=0
+                ),
+                "subsection_count": sum(1 for part in scope if part["depth"] > 2),
+                "fenced_block_count": fenced,
+                "table_row_count": table_rows,
+                "code_span_count": len(CODE_SPAN.findall(body)),
+            }
+        )
+    return {"file": title, "sections": entries}
+
+
+def profile_sections(task_files: Mapping[str, str]) -> list[dict[str, Any]]:
+    """Per-section structure facts of a set of produced task files."""
+
+    return [
+        profile_file_sections(path, text) for path, text in sorted(task_files.items())
+    ]
+
+
 def conversation_plan_ratio(
     task_files: Mapping[str, str],
     conversation: str,

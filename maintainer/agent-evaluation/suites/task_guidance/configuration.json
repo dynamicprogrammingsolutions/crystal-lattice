@@ -64,6 +64,14 @@
           "agent": "glm",
           "effort": "max"
         },
+        "file-fidelity-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "file-readability-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
         "plan-content-assessment": {
           "agent": "glm",
           "effort": "max"
@@ -104,6 +112,14 @@
         "task-quality-assessment": {
           "agent": "glm",
           "effort": "max"
+        },
+        "file-fidelity-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "file-readability-assessment": {
+          "agent": "glm",
+          "effort": "max"
         }
       }
     },
@@ -131,6 +147,14 @@
           "effort": "max"
         },
         "task-quality-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "file-fidelity-assessment": {
+          "agent": "glm",
+          "effort": "max"
+        },
+        "file-readability-assessment": {
           "agent": "glm",
           "effort": "max"
         }

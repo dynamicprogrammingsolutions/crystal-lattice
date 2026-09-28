@@ -169,8 +169,37 @@ def task_quality_assessment_cases() -> tuple[CellCase, ...]:
     comparable.
     """
 
+    return _producer_assessment_cases("task-quality-assessment")
+
+
+def file_fidelity_cases() -> tuple[CellCase, ...]:
+    """One case per fidelity-assessed subject cell, judged by the declared
+    agent.
+
+    The subjects are the scenario's producer cells; the fidelity judge
+    asks whether the files carry the conversation's decided design and
+    durable context.
+    """
+
+    return _producer_assessment_cases("file-fidelity-assessment")
+
+
+def file_readability_cases() -> tuple[CellCase, ...]:
+    """One case per readability-assessed subject cell, judged by the
+    declared agent.
+
+    The subjects are the scenario's producer cells; the readability
+    judge asks how easily a human reader can work with each section.
+    """
+
+    return _producer_assessment_cases("file-readability-assessment")
+
+
+def _producer_assessment_cases(stage: str) -> tuple[CellCase, ...]:
+    """Enumerate every producer subject cell for one assessment stage."""
+
     cases = []
-    for scenario in _scenarios_with("task-quality-assessment"):
+    for scenario in _scenarios_with(stage):
         for subject_agent, subject_effort in producer_cells(scenario.category):
             cases.append(
                 CellCase(
@@ -179,7 +208,7 @@ def task_quality_assessment_cases() -> tuple[CellCase, ...]:
                     agent=subject_agent,
                     effort=subject_effort,
                     category=scenario.category,
-                    stage="task-quality-assessment",
+                    stage=stage,
                 )
             )
     return tuple(cases)

@@ -19,6 +19,7 @@ from .configuration import (
 )
 from .handoff_semantic import handoff_assessment_subject_identity
 from .scenarios import SCENARIOS
+from .file_quality import aggregate_file_fidelity, aggregate_file_readability
 from .plan_content import aggregate_plan_content
 from .quality import aggregate_quality_dimensions
 from .semantic import (
@@ -115,6 +116,18 @@ def consolidate_results(
         cell_identity=handoff_assessment_subject_identity,
         labels=labels,
     )
+    file_fidelities = select_cell_records(
+        artifact_root,
+        record_name=STAGES["file-fidelity-assessment"].record,
+        cell_identity=assessment_subject_identity,
+        labels=labels,
+    )
+    file_readabilities = select_cell_records(
+        artifact_root,
+        record_name=STAGES["file-readability-assessment"].record,
+        cell_identity=assessment_subject_identity,
+        labels=labels,
+    )
     provider_cells = select_cell_records(
         artifact_root,
         record_name=STAGES["task-creation"].record,
@@ -181,6 +194,12 @@ def consolidate_results(
         for scenario in _scenarios_with_stage("generated-plan")
         for profile, effort in producer_cells(scenario.category)
     }
+    expected_file_assessments = {
+        f"{scenario.scenario_id}:{profile}:{effort}"
+        for stage in ("file-fidelity-assessment", "file-readability-assessment")
+        for scenario in _scenarios_with_stage(stage)
+        for profile, effort in producer_cells(scenario.category)
+    }
     expected_plan_contents = {
         *(
             f"{scenario.scenario_id}:{variant}:{profile}:{effort}"
@@ -224,6 +243,8 @@ def consolidate_results(
     quality_values = _values(quality)
     generated_plan_values = _values(generated_plans)
     plan_content_values = _values(plan_contents)
+    file_fidelity_values = _values(file_fidelities)
+    file_readability_values = _values(file_readabilities)
     valid_provider_identities = {
         cell
         for cell, samples in provider_cells.items()
@@ -253,6 +274,8 @@ def consolidate_results(
                 quality,
                 generated_plans,
                 plan_contents,
+                file_fidelities,
+                file_readabilities,
             )
             for samples in selected.values()
             for record in samples
@@ -279,6 +302,10 @@ def consolidate_results(
         "quality_summary": aggregate_quality_dimensions(quality_values),
         "plan_content_records": plan_content_values,
         "plan_content_summary": aggregate_plan_content(plan_content_values),
+        "file_fidelity_records": file_fidelity_values,
+        "file_fidelity_summary": aggregate_file_fidelity(file_fidelity_values),
+        "file_readability_records": file_readability_values,
+        "file_readability_summary": aggregate_file_readability(file_readability_values),
         "provider_blocker_records": provider_blocker_values,
         "status": {
             "producers": _status(
@@ -312,6 +339,10 @@ def consolidate_results(
                 valid_key="valid",
             ),
             "plan_contents": completeness(expected_plan_contents, plan_contents),
+            "file_fidelity": completeness(expected_file_assessments, file_fidelities),
+            "file_readability": completeness(
+                expected_file_assessments, file_readabilities
+            ),
             "provider_blockers": {
                 "present": len(provider_blocker_values),
                 "identities": sorted(
@@ -387,14 +418,19 @@ def render_summary(value: dict[str, Any]) -> str:
         f"{negative_controls['present']} | — | — | "
         f"{len(negative_controls['missing'])} |"
     )
-    # Historical frozen datasets predate the plan-content stage.
-    plan_contents = status.get("plan_contents")
-    if plan_contents is not None:
-        lines.append(
-            f"| Plan-content judgments | {plan_contents['expected']} | "
-            f"{plan_contents['present']} | — | — | "
-            f"{len(plan_contents['missing'])} |"
-        )
+    # Historical frozen datasets predate the newer assessment stages.
+    for key, title in (
+        ("plan_contents", "Plan-content judgments"),
+        ("file_fidelity", "File-fidelity judgments"),
+        ("file_readability", "File-readability judgments"),
+    ):
+        group = status.get(key)
+        if group is not None:
+            lines.append(
+                f"| {title} | {group['expected']} | "
+                f"{group['present']} | — | — | "
+                f"{len(group['missing'])} |"
+            )
     provider_blockers = status["provider_blockers"]
     lines.append(
         f"| Provider setup blockers | — | {provider_blockers['present']} | "

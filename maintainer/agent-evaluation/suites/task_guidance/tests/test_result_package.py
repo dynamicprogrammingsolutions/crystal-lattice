@@ -1311,6 +1311,135 @@ def test_collect_exports_invalid_samples_beside_valid_evidence(
     assert f"({cell.name}/s1/invalid.md)" in results
 
 
+def test_collect_renders_file_fidelity_and_readability_beside_subjects(
+    tmp_path: Path,
+) -> None:
+    """Fidelity and readability judgments live inside the judged cell.
+
+    Both assessor runs sit under ``<cell>/assessment/``, their grades
+    render in the producer sample's ``assessment.md``, the scenario
+    ``results.md`` producer row carries them, and the matrix gains the
+    fidelity and readability cohort tables.
+    """
+
+    paths = _build_synthetic_evaluation(tmp_path)
+    frozen = paths["frozen"]
+    fidelity = {
+        "schema_version": 1,
+        "scenario_id": HANDOFF_SCENARIO_ID,
+        "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
+        "assessment": {
+            "dimensions": {
+                "plan_design_completeness": {"grade": "complete", "findings": []},
+                "durable_context_preservation": {
+                    "grade": "partial",
+                    "findings": [
+                        {
+                            "where": "Supporting details",
+                            "quote": "…",
+                            "why": "dropped the ordering guarantee",
+                        }
+                    ],
+                },
+                "section_appropriateness": {"grade": "complete", "findings": []},
+                "plan_justification": {"grade": "justified", "findings": []},
+                "task_kind_fit": {"grade": "fits", "findings": []},
+            },
+            "mistakes": [
+                {
+                    "where": "Requirements",
+                    "quote": "…",
+                    "why": "invented a delivery constraint",
+                }
+            ],
+            "summary": "Synthetic fidelity judgment.",
+        },
+        "summary": "Synthetic fidelity judgment.",
+    }
+    readability = {
+        "schema_version": 1,
+        "scenario_id": HANDOFF_SCENARIO_ID,
+        "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
+        "assessment": {
+            "sections": {
+                "Requirements checklist": {"grade": "readable", "findings": []},
+                "Supporting details": {
+                    "grade": "partial",
+                    "findings": [
+                        {
+                            "where": "Supporting details",
+                            "quote": "…",
+                            "why": "one dense paragraph carries three facts",
+                        }
+                    ],
+                },
+            },
+            "navigation": {"grade": "navigable", "findings": []},
+            "mistakes": [],
+            "summary": "Synthetic readability judgment.",
+        },
+        "summary": "Synthetic readability judgment.",
+    }
+    for name, record_name, record in (
+        ("file-fidelity", "task-guidance-file-fidelity.json", fidelity),
+        ("file-readability", "task-guidance-file-readability.json", readability),
+    ):
+        record["run_id"] = f"synthetic-tg02-{name}"
+        _write_run(
+            paths["artifact_root"],
+            run_id=f"synthetic-tg02-{name}",
+            record_name=record_name,
+            record=record,
+            session=_session(
+                f"/tmp/synthetic-task-guidance/synthetic-tg02-{name}/workspace",
+                prompt=f"Assess the synthetic tg02 files ({name}).",
+                response=json.dumps(record["assessment"], indent=2),
+                compiled="synthetic assessor guidance",
+                run_id=f"synthetic-tg02-{name}",
+            ),
+        )
+    frozen["file_fidelity_records"] = [fidelity]
+    frozen["file_readability_records"] = [readability]
+    frozen["status"]["file_fidelity"] = {"expected": 1, "present": 1, "missing": []}
+    frozen["status"]["file_readability"] = {"expected": 1, "present": 1, "missing": []}
+    paths["frozen_path"].write_text(
+        json.dumps(frozen, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    package_dir = tmp_path / "package"
+    collect(
+        package_dir=package_dir,
+        artifact_root=paths["artifact_root"],
+        frozen_path=paths["frozen_path"],
+        cells=list(SYNTHETIC_CELLS),
+        bundle=DEFAULT_BUNDLE,
+    )
+    cell = package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/glm-max"
+    assert (cell / "assessment" / "file-fidelity" / "s0" / "run.json").is_file()
+    assert (cell / "assessment" / "file-readability" / "s0" / "run.json").is_file()
+    subject_note = (cell / "s0" / "assessment.md").read_text(encoding="utf-8")
+    assert "## file-fidelity assessment" in subject_note
+    assert "durable_context_preservation: **partial** (1 findings)" in subject_note
+    assert "## file-readability assessment" in subject_note
+    assert "Supporting details: **partial**" in subject_note
+    assert "Navigation: **navigable**" in subject_note
+
+    results = (package_dir / f"scenarios/{HANDOFF_SCENARIO_ID}/results.md").read_text(
+        encoding="utf-8"
+    )
+    producer_rows = [
+        line for line in results.splitlines() if line.startswith("| [`glm-max`]")
+    ]
+    assert producer_rows and "context partial" in producer_rows[0]
+    assert "1/2 readable" in producer_rows[0]
+
+    matrix = (package_dir / "matrix.md").read_text(encoding="utf-8")
+    assert "## Task-file fidelity" in matrix
+    assert "## Task-file fidelity detail" in matrix
+    assert "## Task-file readability" in matrix
+    assert "## Task-file readability detail" in matrix
+    assert f"](scenarios/{HANDOFF_SCENARIO_ID}/glm-max/s0/assessment.md)" in matrix
+
+
 def test_collect_renders_plan_content_judgment_beside_its_subject(
     tmp_path: Path,
 ) -> None:

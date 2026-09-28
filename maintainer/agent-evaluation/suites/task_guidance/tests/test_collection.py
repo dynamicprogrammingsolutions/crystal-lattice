@@ -20,6 +20,8 @@ from ..evaluation.matrix import (
     handoff_plan_cases,
     negative_control_cases,
     continuation_cases,
+    file_fidelity_cases,
+    file_readability_cases,
     generated_plan_cases,
     plan_content_cases,
     task_creation_assessment_cases,
@@ -50,6 +52,14 @@ def _expected_ids() -> set[str]:
             for case in task_quality_assessment_cases()
         ),
         *(f"test_plan_content_assessment[{case.id}]" for case in plan_content_cases()),
+        *(
+            f"test_file_fidelity_assessment[{case.id}]"
+            for case in file_fidelity_cases()
+        ),
+        *(
+            f"test_file_readability_assessment[{case.id}]"
+            for case in file_readability_cases()
+        ),
     }
 
 

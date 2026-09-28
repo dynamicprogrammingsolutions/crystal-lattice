@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from suites.task_guidance.structure import (
     conversation_plan_ratio,
+    profile_sections,
     profile_task_files,
     profile_text,
 )
@@ -178,3 +179,40 @@ def test_conversation_ratio_reports_compression_evidence() -> None:
 
     assert ratio["conversation_words"] > ratio["task_file_words"] > 0
     assert 0.0 < ratio["file_to_conversation_ratio"] < 1.0
+
+
+def test_profile_sections_reports_per_h2_facts() -> None:
+    text = (
+        "# Title\n\n"
+        "## Requirements checklist\n\n"
+        "- one item\n"
+        "- another item with more words in it\n\n"
+        "## Supporting details\n\n"
+        "A single long paragraph that keeps going and going and going"
+        " and going and going and going and going.\n\n"
+        "### Learned fact\n\n"
+        "Nested content.\n\n"
+        "## Implementation plan\n\n"
+        "Status: Draft\n\n"
+        "Prose then a list:\n\n"
+        "1. first step\n"
+    )
+    entries = profile_sections({"tasks/a.md": text})
+
+    assert len(entries) == 1
+    sections = entries[0]["sections"]
+    assert [s["title"] for s in sections] == [
+        "Requirements checklist",
+        "Supporting details",
+        "Implementation plan",
+    ]
+    requirements = sections[0]
+    assert requirements["list_item_count"] == 2
+    assert requirements["longest_list_item_words"] == 8
+    assert requirements["paragraph_count"] == 0
+    details = sections[1]
+    assert details["paragraph_count"] >= 1
+    assert details["longest_paragraph_words"] >= 15
+    assert details["subsection_count"] == 1
+    plan = sections[2]
+    assert plan["words"] > 0

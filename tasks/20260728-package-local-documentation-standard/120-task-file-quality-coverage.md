@@ -272,7 +272,14 @@ REQUIRED EXECUTION ORDER (approved September 26, 2026):
    2026): plan content requirements declared in the reviewed targets,
    judged semantically over the committed plan sessions; no
    deterministic element assertions.
-4. C — assessment semantics rework (re-judge only).
+4. C — assessment semantics rework (re-judge only). Layer-style plan
+   approved September 27, 2026 with recommendations: two new stages
+   (`file-fidelity-assessment`, `file-readability-assessment`;
+   `task-quality-assessment` retires after the re-judge lands,
+   history preserved); readability grades EVERY top-level section
+   present; b0 leniency check on a 12-file contrast subset;
+   plan-content stays separate (presented plan vs file). See the
+   Theme C execution plan section.
 5. D — two-stage pipeline (own subtask when it starts).
 
 Observed while inspecting
@@ -719,6 +726,46 @@ producer runs. **Deliverables:** generic + task-specific requirements
 committed in the suite, calibration baseline in this file, the
 assessment ready as the plan-fidelity component of Theme C and the
 plan-verification gate of Theme D.
+
+### Theme C execution plan (approved September 27, 2026)
+
+Re-judge only; producers untouched. Components: (1) findings contract
+— `{where, quote, why}` replaces `occurrences`, non-top grade without
+findings invalid; (2) mistake-harvesting block
+`"mistakes": [{where, quote, why}]` — defect-oriented search,
+completeness-oriented grades; (3) file-fidelity assessment — plan
+design completeness, durable-context preservation, section
+appropriateness, plan justification, task-kind fit; (4)
+file-readability assessment — per-section readability over every
+top-level section present (deterministic per-section structure facts
+embedded as measured numbers: longest paragraph words, longest list
+item, list/table usage, plan prose share) plus a whole-file
+navigation grade, no formatting prescriptions; (5) embedded-markdown
+judge input — task files as fenced markdown with path headers,
+conversation as text, quality-specific target excerpt (title, task
+summary, approved outcomes, open questions, acceptable alternatives,
+kind expectations) instead of the decomposition target wholesale.
+
+Validation gates before baselines (generalizes the Layer 1 gate):
+per assessment a natural subject + hand-adjusted good probe + one
+deliberately bad probe (prose wall for readability; steps-only or
+dropped-context file for fidelity); acceptance: good probes score
+well (not 100), bad probes grade down, no dimension flat-low,
+ceiling candidates break. Then the b0 LENIENCY CHECK: re-judge a
+12-file contrast subset of the committed b0 package sessions
+(`20260919-current-guidance-b0`) with the same new prompts — if the
+old ceiling dimensions still grade complete on b0 files under the new
+rubric the dimensions are broken; if per-section readability
+discriminates b0 from B1v3 the rubric is fixed.
+
+Execution steps: excerpt builder + contract module (unit tests);
+fidelity assessment wiring (stage, consolidation, package tables);
+readability assessment wiring (same, plus per-section facts from the
+structure profile); probe gates; b0 check; live re-judge of the 28
+B1v3 subjects × 2 assessments (~56 GLM-flash judgments), freeze +
+collect new package `20260927-file-fidelity-readability/` under the
+cell layout with cohort/detail/variance tables; baseline table into
+this file. Old task-quality records and packages stay as history.
 
 ### Guidance gaps found by applying the task guidance to this file
 

@@ -56,6 +56,8 @@ markers = [
   "handoff_assessment: live handoff assessment stage",
   "task_quality_assessment: live task-file quality assessment stage",
   "plan_content_assessment: live presented-plan content assessment stage",
+  "file_fidelity_assessment: live task-file fidelity assessment stage",
+  "file_readability_assessment: live task-file readability assessment stage",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

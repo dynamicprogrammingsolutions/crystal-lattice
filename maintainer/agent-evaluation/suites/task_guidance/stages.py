@@ -117,6 +117,30 @@ STAGES: dict[str, StageSpec] = {
         executor="run_assessment",
         record="task-guidance-quality.json",
     ),
+    "file-fidelity-assessment": StageSpec(
+        name="file-fidelity-assessment",
+        # A minimal stub workspace; the judged material (task files and
+        # the producer's final response) arrives embedded in the user
+        # message; fresh session, run by the stage's declared agent.
+        workspace="assessment-stub",
+        parent=None,
+        runs_per="scenario (the stage's declared agent)",
+        config=("agent", "effort"),
+        executor="run_assessment",
+        record="task-guidance-file-fidelity.json",
+    ),
+    "file-readability-assessment": StageSpec(
+        name="file-readability-assessment",
+        # A minimal stub workspace; the judged material (task files and
+        # measured per-section structure facts) arrives embedded in the
+        # user message; fresh session, run by the stage's declared agent.
+        workspace="assessment-stub",
+        parent=None,
+        runs_per="scenario (the stage's declared agent)",
+        config=("agent", "effort"),
+        executor="run_assessment",
+        record="task-guidance-file-readability.json",
+    ),
     "plan-content-assessment": StageSpec(
         name="plan-content-assessment",
         # A minimal stub workspace; the judged material (one presented
