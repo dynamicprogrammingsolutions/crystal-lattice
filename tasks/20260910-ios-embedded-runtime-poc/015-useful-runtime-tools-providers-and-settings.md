@@ -660,6 +660,31 @@ OpenAI Responses request exposed a package-resource path that worked from an
 editable source checkout but failed when imported from
 `crystal_lattice_app.zip`.
 
+### Reviewer protocol and ChatGPT settings correction — September 28, 2026
+
+The user clarified after completion that the external reviewer is intended to
+use OpenAI Responses end to end. The historical external test instead used
+`reviewer-claude`, the generic `reference_openai_compatible` provider, and
+`/v1/chat/completions`. Its real proxy, TLS, authentication, usage-budget,
+tool-loop, and persistence evidence remains valid, but it does not prove the
+new `/v1/responses` acceptance boundary.
+
+The completed profile also combines local Ollama defaults with the Ireland
+reviewer CA, while the external matrix overwrites those defaults at test time.
+In addition, ChatGPT actions were bundled and unit-tested but the real login
+gate was not completed; the current Detox assertion expects a modal despite
+the plugin returning an inline display, and a physical device reports
+`CERTIFICATE_VERIFY_FAILED` before a login URL can be returned.
+
+These findings supersede the earlier conclusion that the reviewer could
+remain the generic OpenAI-compatible profile and that no dedicated login
+settings UI was required. Implementation is split into:
+
+`tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
+
+This subtask remains the immutable source for the historical implementation
+and test evidence rather than being reopened for another execution plan.
+
 ### Follow-up requirements checklist
 
 - [x] Selected direct provider integration tests, including hosted real-API

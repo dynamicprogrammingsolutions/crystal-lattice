@@ -19,7 +19,7 @@ reviewer path.
 Parent Task: tasks/20260910-ios-embedded-runtime-poc/000-main.md
 
 Depends On:
-tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md
+tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md
 
 ## Scope notes
 

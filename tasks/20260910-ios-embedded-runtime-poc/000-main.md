@@ -18,8 +18,9 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] Separate iOS-safe Claude-like and Codex-like plugin sets provide useful
   workspace and public-fetch tools with model-family-appropriate names,
   schemas, and result formatting.
-- [x] The embedded runtime offers fixed OpenAI-compatible, OpenAI Responses,
-  OpenRouter, and Anthropic agents with provider-specific settings.
+- [ ] The embedded runtime offers separate generic OpenAI-compatible,
+  dedicated OpenAI Responses reviewer, direct OpenAI Responses, OpenRouter,
+  and Anthropic profiles with provider-specific settings and tool families.
 - [x] The local connection is preconfigured, and Home exposes a separate local
   runtime settings window for provider credentials, URLs, models, and default
   selection.
@@ -43,6 +44,9 @@ session-management parity, then add the next research-oriented capabilities.
   upstream OpenAI credential.
 - [ ] Sessions created with the credential-free `local` agent remain usable
   after a provider profile is enabled and the embedded application reloads.
+- [ ] On-device OpenAI settings use an explicit API-key or ChatGPT default,
+  expose plugin-driven ChatGPT login controls, and retain independent
+  per-session overrides.
 
 Related Task:
 tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md
@@ -57,18 +61,20 @@ the embedded implementation and its staged tool/provider enhancements.
 ## Scope boundaries
 
 - Subtask `010` is complete.
-- Subtask `015` is reopened with an approved testing and reviewer-proxy
-  follow-up under execution.
+- Subtask `015` is complete historical implementation and verification.
+- Subtask `017` owns the approved reviewer Responses and ChatGPT
+  settings/TLS correction and is under execution.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
-- ChatGPT authorization actions and production reviewer deployment are in the
-  approved subtask `015` follow-up. Local-model fallback, email, arbitrary
+- ChatGPT authorization settings and the corrected production reviewer
+  Responses path are in approved subtask `017`. Local-model fallback, email, arbitrary
   workspace roots, and polished cross-platform credential hardening remain
   outside this task.
 
 ## Subtasks
 
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
-- [ ] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
+- [ ] `tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`
