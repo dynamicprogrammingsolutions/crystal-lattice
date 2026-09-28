@@ -54,6 +54,8 @@ from .history_projection import (
     get_canonical_message,
     project_session_history,
 )
+from .json_projection import project_json_document
+from .session_data_query import serialize_session_messages
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
 from .session_request_status import SessionRequestStatusService
@@ -3646,6 +3648,30 @@ class AgentApplication:
             limit=limit,
         )
 
+    def list_session_summaries_document(
+        self,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+        limit: Optional[int] = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return the shared session envelope with optional JSONPath projection."""
+
+        document = {
+            "sessions": self.list_session_summaries(
+                filter_values=filter_values,
+                apply_filter_defaults=apply_filter_defaults,
+                limit=limit,
+            )
+        }
+        return project_json_document(
+            document,
+            include=include,
+            exclude=exclude,
+        )
+
     def get_session_summary(self, session_id: str) -> Dict[str, Any]:
         """Return the shared unfiltered summary for one exact session id."""
 
@@ -3707,6 +3733,31 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
         return self._session_store.load(session_id)
+
+    def list_session_messages_document(
+        self,
+        session_id: str,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return one canonical message-range envelope with optional projection."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        document = serialize_session_messages(
+            session,
+            start=start,
+            end=end,
+        )
+        return project_json_document(
+            document,
+            include=include,
+            exclude=exclude,
+        )
 
     def get_compact_session_history(
         self,

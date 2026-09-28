@@ -767,7 +767,9 @@ def _resolve_config_and_session_paths(
     return config_path.resolve(), session_root.resolve()
 
 
-_LOCAL_HEADLESS_COMMANDS = frozenset({"agents", "run", "history"})
+_LOCAL_HEADLESS_COMMANDS = frozenset(
+    {"agents", "run", "history", "sessions", "messages"}
+)
 
 
 def _command_parser(name: str, description: str) -> argparse.ArgumentParser:
@@ -1008,6 +1010,154 @@ def _run_history_command(
         _render_compact_history_text(history)
 
 
+def _query_projection_arguments(command_parser: argparse.ArgumentParser) -> None:
+    command_parser.add_argument(
+        "--include",
+        action="append",
+        metavar="JSONPATH",
+        help="retain JSONPath matches and their structural ancestors",
+    )
+    command_parser.add_argument(
+        "--exclude",
+        action="append",
+        metavar="JSONPATH",
+        help="remove JSONPath matches after inclusion",
+    )
+    command_parser.add_argument(
+        "--format",
+        choices=["text", "json", "tsv", "csv"],
+        default="text",
+    )
+
+
+def _coerce_cli_session_filters(
+    runtime: Any,
+    assignments: list[str],
+    command_parser: argparse.ArgumentParser,
+) -> dict[str, object]:
+    from .session_query import coerce_session_filter_assignments
+
+    try:
+        return coerce_session_filter_assignments(
+            runtime.application,
+            assignments,
+        )
+    except ValueError as exc:
+        command_parser.error(str(exc))
+    raise AssertionError("argparse error must exit")
+
+
+def _run_sessions_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser(
+        "sessions",
+        "List plugin-filtered session summaries",
+    )
+    command_parser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        metavar="ID=VALUE",
+        help="apply a filter declared by an active application plugin",
+    )
+    command_parser.add_argument(
+        "--no-filter-defaults",
+        action="store_true",
+        help="ignore plugin-declared filter defaults",
+    )
+    command_parser.add_argument("--limit", type=int)
+    _query_projection_arguments(command_parser)
+    parsed = command_parser.parse_args(command_args)
+
+    from .local_runtime import open_runtime
+    from .query_rendering import render_sessions_document
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                filter_values = _coerce_cli_session_filters(
+                    runtime,
+                    parsed.filter,
+                    command_parser,
+                )
+                document = runtime.list_sessions(
+                    filter_values=filter_values,
+                    apply_filter_defaults=not parsed.no_filter_defaults,
+                    limit=parsed.limit,
+                    include=parsed.include,
+                    exclude=parsed.exclude,
+                )
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    print(
+        render_sessions_document(document, parsed.format),
+        end="",
+    )
+
+
+def _run_messages_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser(
+        "messages",
+        "List one canonical session message range",
+    )
+    command_parser.add_argument("--session", required=True)
+    command_parser.add_argument("--start", type=int)
+    command_parser.add_argument("--end", type=int)
+    _query_projection_arguments(command_parser)
+    parsed = command_parser.parse_args(command_args)
+
+    from .local_runtime import open_runtime
+    from .query_rendering import render_messages_document
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                document = runtime.list_messages(
+                    parsed.session,
+                    start=parsed.start,
+                    end=parsed.end,
+                    include=parsed.include,
+                    exclude=parsed.exclude,
+                )
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    print(
+        render_messages_document(
+            document,
+            parsed.format,
+            session_id=parsed.session,
+        ),
+        end="",
+    )
+
+
 def _run_local_headless_command(
     command: str,
     command_args: list[str],
@@ -1037,6 +1187,24 @@ def _run_local_headless_command(
         return
     if command == "history":
         _run_history_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
+    if command == "sessions":
+        _run_sessions_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
+    if command == "messages":
+        _run_messages_command(
             command_args,
             config_path=config_path,
             session_root=session_root,

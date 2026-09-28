@@ -137,6 +137,12 @@ The approved post-completion extension adds:
   targets;
 - one-off native Detox evidence for the three availability presentations.
 
+The future
+[session and message data query specification](../session-data-query/index.md)
+refines this surface with local-runtime session listing, full canonical message
+ranges, and one-shot `sessions` and `messages` commands. It leaves compact
+history and task execution unchanged.
+
 ## Specification documents
 
 - [Technical specification](technical-spec.md)

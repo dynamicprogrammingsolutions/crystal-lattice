@@ -62,6 +62,59 @@ def assert_headless_access(
         config_path=smoke_config,
         session_root=cli_sessions,
     )
+    cli_session_id = _result_session_id(cli_result)
+    listed_session_ids = _run_text(
+        [
+            *(str(part) for part in command),
+            "--config",
+            str(smoke_config),
+            "--sessions-dir",
+            str(cli_sessions),
+            "sessions",
+            "--filter",
+            "modified_after=1970-01-01T00:00:00Z",
+            "--include",
+            "$.sessions[*].session_id",
+            "--format",
+            "text",
+        ],
+        cwd=workspace,
+        env=env,
+    ).splitlines()
+    if listed_session_ids != [cli_session_id]:
+        raise RuntimeError(
+            "Installed sessions command did not emit exactly the persisted "
+            f"session ID: {listed_session_ids!r}"
+        )
+    projected_messages = _run_json(
+        [
+            *(str(part) for part in command),
+            "--config",
+            str(smoke_config),
+            "--sessions-dir",
+            str(cli_sessions),
+            "messages",
+            "--session",
+            cli_session_id,
+            "--include",
+            "$.messages[*].index",
+            "--include",
+            "$.messages[*].message.role",
+            "--include",
+            "$.messages[*].message.content",
+            "--exclude",
+            '$.messages[?(@.message.role == "tool")]',
+            "--format",
+            "json",
+        ],
+        cwd=workspace,
+        env=env,
+    )
+    if "CLI_ACCESS_SMOKE" not in json.dumps(projected_messages):
+        raise RuntimeError(
+            "Installed messages command omitted the deterministic marker: "
+            f"{projected_messages!r}"
+        )
 
     sdk_sessions = workspace / "SDK sessions with spaces"
     sdk_script = workspace / "run SDK access smoke.py"
@@ -80,6 +133,21 @@ def assert_headless_access(
                 "            'SDK_ACCESS_SMOKE',",
                 "            agent_id='headless-access-smoke',",
                 "        )",
+                "        sessions = runtime.list_sessions(",
+                "            filter_values={'modified_after': '1970-01-01T00:00:00Z'},",
+                "            include=['$.sessions[*].session_id'],",
+                "        )",
+                "        assert sessions == {'sessions': [{'session_id': result.session_id}]}",
+                "        messages = runtime.list_messages(",
+                "            result.session_id,",
+                "            include=[",
+                "                '$.messages[*].index',",
+                "                '$.messages[*].message.role',",
+                "                '$.messages[*].message.content',",
+                "            ],",
+                "            exclude=['$.messages[?(@.message.role == \"tool\")]'],",
+                "        )",
+                "        assert 'SDK_ACCESS_SMOKE' in json.dumps(messages)",
                 "print(json.dumps(result.to_dict(), sort_keys=True))",
                 "",
             ]
@@ -147,6 +215,7 @@ def prepare_headless_access_config(config_path: Path) -> Path:
         },
         "plugins": [
             "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+            "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
             "plugins.deterministic_stream_provider.DeterministicStreamProvider",
         ],
         "agents": {
@@ -200,6 +269,39 @@ def _run_json(
     return payload
 
 
+def _run_text(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+) -> str:
+    result = subprocess.run(
+        command,
+        cwd=str(cwd),
+        env=dict(env),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=300,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Headless access command failed ({result.returncode}): "
+            f"{subprocess.list2cmdline(command)}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result.stdout
+
+
+def _result_session_id(result: dict) -> str:
+    session_id = result.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        raise RuntimeError(f"Headless access result lacks session_id: {result!r}")
+    return session_id
+
+
 def _assert_access_result(
     result: dict,
     *,
@@ -247,9 +349,7 @@ def _assert_access_result(
         raise RuntimeError(
             f"Headless access output lacks a readable local docs path:\n{output}"
         )
-    session_id = result.get("session_id")
-    if not isinstance(session_id, str) or not session_id:
-        raise RuntimeError(f"Headless access result lacks session_id: {result!r}")
+    session_id = _result_session_id(result)
     if not list(session_root.rglob(f"{session_id}.json")):
         raise RuntimeError(
             f"Headless access session was not persisted under {session_root}: {session_id}"

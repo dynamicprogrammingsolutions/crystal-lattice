@@ -447,6 +447,15 @@ result document or empty when execution fails before a run result exists.
   rendering, but terminal rendering does not become the data authority.
 - HTTP and frontend contracts do not change.
 
+The separately specified
+[session and message data query](../session-data-query/index.md) is a future
+refinement of the local runtime and one-shot CLI. It adds complete
+session/message enumeration and projection through new methods and commands;
+it does not change the existing `agents`, `run`, compact `history`, or
+full-message `history --index` behavior. Its HTTP and frontend changes are
+owned by that specification rather than this specification's original
+compatibility boundary.
+
 ## External-project access
 
 The direct Python and CLI requirements were verified before this contract was

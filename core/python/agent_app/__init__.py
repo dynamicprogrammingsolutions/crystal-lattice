@@ -38,6 +38,8 @@ from .history_projection import (
     get_canonical_message,
     project_session_history,
 )
+from .json_projection import JsonProjectionError, project_json_document
+from .session_data_query import normalize_message_range, serialize_session_messages
 from .operations import (
     ApplicationOperationBusyError,
     ApplicationOperationClosedError,
@@ -68,6 +70,7 @@ __all__ = [
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
     "InMemoryApplicationNotificationStore",
+    "JsonProjectionError",
     "CompactHistory",
     "CompactMessage",
     "ManagedProcess",
@@ -87,6 +90,9 @@ __all__ = [
     "get_managed_process_registry",
     "get_application_operation_service",
     "get_canonical_message",
+    "normalize_message_range",
+    "project_json_document",
     "project_session_history",
+    "serialize_session_messages",
     "session_operation_exclusivity_key",
 ]

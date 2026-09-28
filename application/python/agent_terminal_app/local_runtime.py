@@ -413,6 +413,46 @@ class LocalAgentRuntime:
         self._require_open()
         self._application.cancel_request(request_id)
 
+    def list_sessions(
+        self,
+        *,
+        filter_values: Dict[str, object] | None = None,
+        apply_filter_defaults: bool = True,
+        limit: int | None = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return shared session summaries with optional filtering and projection."""
+
+        self._require_open()
+        return self._application.list_session_summaries_document(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+            include=include,
+            exclude=exclude,
+        )
+
+    def list_messages(
+        self,
+        session_id: str,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return one canonical message range with optional JSONPath projection."""
+
+        self._require_open()
+        return self._application.list_session_messages_document(
+            session_id,
+            start=start,
+            end=end,
+            include=include,
+            exclude=exclude,
+        )
+
     def history(
         self,
         session_id: str,

@@ -246,6 +246,26 @@ the complete data once resolution succeeds.
 Invalid filter declarations and runtime values produce diagnostics without
 disabling unrelated valid filters.
 
+### Date-filter refinement
+
+The
+[session and message data query specification](../../../../../../application/python/docs/development/specifications/session-data-query/index.md)
+adds a `datetime` filter type with timezone-aware caller input and
+`before`, `on_or_before`, `after`, and `on_or_after` matches.
+
+Declarations continue to use plugin-owned IDs and dotted summary paths. A
+datetime filter may target the built-in numeric `modified` epoch or an ISO
+plugin-contributed value. Python and TypeScript evaluators normalize both
+candidate forms to UTC instants and reject naive or invalid runtime values
+with diagnostics. Existing text, boolean, and select behavior remains
+unchanged.
+
+Adapters pass caller values through the normalized schema and coercion path;
+they do not hardcode a modified-date flag. Established ordering remains before
+filter evaluation, and limits remain after filtering. JSONPath projection is
+outside `SessionListService` and occurs after the ordinary result envelope is
+serialized.
+
 ## Exact summary lookup
 
 `get_session_summary(session_id)` validates a non-empty ID and performs exact

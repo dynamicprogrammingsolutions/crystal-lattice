@@ -6,6 +6,41 @@ from agent_core.types import ToolPlugin
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
 
 
+class DateSessionFilterAppPlugin:
+    name = "date_session_filter_fixture"
+    version = "0.1.0"
+
+    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+        _ = app_config
+        return {}
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {}
+
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        _ = state, config, context
+        return [
+            {
+                "ui_type": "session_list_filter",
+                "id": "modified_after",
+                "label": "Modified after",
+                "data": "modified",
+                "type": "datetime",
+                "match": "on_or_after",
+                "default": None,
+            }
+        ]
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        _ = state
+        return []
+
+
 class DeterministicLongToolProvider(EchoOpenAILikeProvider):
     name = "deterministic_long_tool_provider"
     version = "0.1.0"
@@ -147,6 +182,7 @@ class DeterministicFailureProvider(EchoOpenAILikeProvider):
 
 
 __all__ = [
+    "DateSessionFilterAppPlugin",
     "DeterministicFailureProvider",
     "DeterministicLongOutputTool",
     "DeterministicLongToolProvider",

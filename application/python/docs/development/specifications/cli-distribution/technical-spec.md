@@ -261,6 +261,15 @@ checks. The headless probe then invokes the exact installed extensionless Bash
 launcher or Windows `.cmd` launcher so Python executable lookup cannot fall
 through to a same-named console executable elsewhere on PATH.
 
+The future
+[session and message data query specification](../session-data-query/index.md)
+adds deterministic `sessions` and `messages` command checks. Distribution
+acceptance must execute representative JSONPath filter expressions and
+line-oriented chaining through source installation, direct archive/manual use,
+applicable Bash installation, and native PowerShell installation. Query
+semantics remain owned by the query specification; distribution tests prove
+packaging, platform quoting, and installed-command availability.
+
 The real provider scenario runs once per native target against the extracted
 archive rather than once per installer transformation. Release tags require
 the scenario; workflow dispatch may opt in. See the

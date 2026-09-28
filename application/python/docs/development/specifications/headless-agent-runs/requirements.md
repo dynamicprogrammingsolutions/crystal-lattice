@@ -37,3 +37,19 @@ These requirements track the live implementation of the
 
 Requirements `HLR-080` through `HLR-084` are implemented, verified, and
 documented.
+
+## Session-query refinement requirements
+
+These implemented requirements refine the local Python and one-shot CLI
+surfaces through the
+[session and message data query specification](../session-data-query/index.md).
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| HLR-090 | `LocalAgentRuntime` lists plugin-filtered session summaries and complete canonical message ranges with optional JSONPath include/exclude projection while preserving `history(...)` and `get_message(...)`. | Implemented | Automated | Documented | Local-runtime tests; source and packaged SDK smokes; [query guide](../../../session-data-query.md#python) |
+| HLR-091 | `crystal-lattice sessions` uses the active plugin filter schema and emits exact JSON plus composable text/TSV/CSV projections, including one undecorated session ID per line when selected alone. | Implemented | Automated | Documented | CLI subprocess and renderer tests; [session CLI](../../../session-data-query.md#command-line) |
+| HLR-092 | `crystal-lattice messages` queries one session range, supports generic include/exclude projection and JSON/text/TSV/CSV output, and composes safely in a `sessions` shell loop. | Implemented | Automated | Documented | CLI subprocess chaining and invalid-input tests; [message CLI](../../../session-data-query.md#command-line) |
+| HLR-093 | Existing `agents`, `run`, compact `history`, full-message lookup, stdout/stderr separation, exit behavior, and external-project access guidance remain compatible and document the new low-level commands only after verification. | Implemented | Automated | Documented | Existing headless suites; compiled access-guidance tests; source/archive/installer smokes; [external-project guidance](../../../headless-agent-runs.md#let-a-configured-agent-delegate-from-another-project) |
+
+Requirements `HLR-090` through `HLR-093` are implemented, verified, and
+documented.

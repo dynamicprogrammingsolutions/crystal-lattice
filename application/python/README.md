@@ -7,7 +7,8 @@ run:
   application actions
 - a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
 - local Python and one-shot CLI APIs for configured agent tasks, follow-ups,
-  bounded progress, and compact history
+  bounded progress, compact history, plugin-filtered session enumeration, and
+  projected canonical message ranges
 - both together, sharing the same session store and in-memory event stream
 - optional Bonjour/mDNS advertisement for LAN discovery
 - optional bridge registration for paired mobile access across networks
@@ -22,6 +23,7 @@ Documentation:
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
 - [Local headless agent runs](docs/headless-agent-runs.md)
+- [Session and message queries](docs/session-data-query.md)
 - [Application configuration](docs/configuration.md)
 - [Configuration mixins](docs/configuration-mixins.md)
 - [Configuration variants](docs/configuration-variants.md)

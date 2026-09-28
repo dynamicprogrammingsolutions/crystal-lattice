@@ -14,6 +14,7 @@ import type {
   SessionListFilterValues,
   SessionListOption,
 } from '@crystal-lattice/frontend-sdk';
+import { validateSessionListFilterValue } from '@crystal-lattice/frontend-sdk';
 
 import { useTheme } from './theme';
 
@@ -41,6 +42,63 @@ function booleanLabel(
 
 function isSelected(value: unknown, option: SessionListOption): boolean {
   return typeof value === typeof option.value && value === option.value;
+}
+
+function DatetimeFilterInput({
+  filter,
+  value,
+  onChange,
+  style,
+  placeholderTextColor,
+}: {
+  filter: SessionListFilterElement;
+  value: unknown;
+  onChange: (filterId: string, value: unknown) => void;
+  style: any;
+  placeholderTextColor: string;
+}): React.JSX.Element {
+  const externalValue = typeof value === 'string' ? value : '';
+  const [draft, setDraft] = React.useState(externalValue);
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setDraft(externalValue);
+    setError(null);
+  }, [externalValue]);
+  const commit = React.useCallback(() => {
+    const normalized = draft.trim();
+    const nextValue = normalized || null;
+    const nextError = validateSessionListFilterValue(filter, nextValue);
+    setError(nextError);
+    if (nextError === null) {
+      onChange(filter.id, nextValue);
+    }
+  }, [draft, filter, onChange]);
+
+  return (
+    <View>
+      <TextInput
+        testID={`session-filter-${filter.id}-datetime`}
+        accessibilityLabel={filter.label}
+        style={style}
+        value={draft}
+        placeholder="2026-09-01T00:00:00Z"
+        placeholderTextColor={placeholderTextColor}
+        onChangeText={setDraft}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {error ? (
+        <Text
+          testID={`session-filter-${filter.id}-datetime-error`}
+          style={{ color: placeholderTextColor }}
+        >
+          {error}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 export function SessionListFiltersPanel({
@@ -154,6 +212,15 @@ export function SessionListFiltersPanel({
                   onChangeText={(next) => onChange(filter.id, next)}
                   autoCapitalize="none"
                   autoCorrect={false}
+                />
+              ) : null}
+              {filter.type === 'datetime' ? (
+                <DatetimeFilterInput
+                  filter={filter}
+                  value={value}
+                  onChange={onChange}
+                  style={styles.textInput}
+                  placeholderTextColor={theme.textMuted}
                 />
               ) : null}
               {filter.type === 'boolean' ? (

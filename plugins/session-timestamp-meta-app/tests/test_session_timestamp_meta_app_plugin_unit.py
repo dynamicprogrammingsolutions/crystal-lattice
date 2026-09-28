@@ -21,9 +21,7 @@ from session_timestamp_meta_app import SessionTimestampMetaAppPlugin  # noqa: F4
 
 def _make_config_with_timestamp_meta(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
@@ -46,7 +44,16 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     return AgentApplication(str(cfg_path), str(session_root), event_store=events)
 
 
-def test_session_timestamp_meta_ui_schema_includes_created_and_updated(tmp_path: Path) -> None:
+def test_session_timestamp_meta_init_accepts_missing_application_config() -> None:
+    plugin = SessionTimestampMetaAppPlugin()
+
+    assert plugin.init({}) == {"use_modified_when_missing": True}
+    assert plugin.init({"application": None}) == {"use_modified_when_missing": True}
+
+
+def test_session_timestamp_meta_ui_schema_includes_created_and_updated(
+    tmp_path: Path,
+) -> None:
     app = _build_app(tmp_path)
 
     elements = app.get_application_ui_schema()
@@ -70,6 +77,28 @@ def test_session_timestamp_meta_ui_schema_includes_created_and_updated(tmp_path:
         md = field.get("metadata") or {}
         assert md.get("format") == "datetime"
 
+    date_filters = [
+        element
+        for element in elements
+        if isinstance(element, dict)
+        and element.get("plugin") == "session_timestamp_meta"
+        and element.get("ui_type") == "session_list_filter"
+    ]
+    assert date_filters == [
+        {
+            "ui_type": "session_list_filter",
+            "id": "modified_after",
+            "label": "Modified after",
+            "icon": "calendar",
+            "order": 30,
+            "data": "modified",
+            "type": "datetime",
+            "match": "on_or_after",
+            "default": None,
+            "plugin": "session_timestamp_meta",
+        }
+    ]
+
 
 def _make_session_with_timestamps(app: AgentApplication, timestamps: List[str]) -> str:
     from agent_core import AgentCore
@@ -86,12 +115,16 @@ def _make_session_with_timestamps(app: AgentApplication, timestamps: List[str]) 
 
     from agent_core import Session as CoreSession
 
-    session = CoreSession(session_id=session.session_id, messages=messages, metadata=session.metadata)
+    session = CoreSession(
+        session_id=session.session_id, messages=messages, metadata=session.metadata
+    )
     app.save_session(session)
     return session.session_id
 
 
-def test_session_timestamp_meta_action_computes_created_and_updated(tmp_path: Path) -> None:
+def test_session_timestamp_meta_action_computes_created_and_updated(
+    tmp_path: Path,
+) -> None:
     app = _build_app(tmp_path)
 
     # Build a session with known timestamps.
@@ -119,7 +152,9 @@ def test_session_timestamp_meta_action_computes_created_and_updated(tmp_path: Pa
     assert created < updated
 
 
-def test_session_timestamp_meta_action_uses_modified_when_missing(tmp_path: Path) -> None:
+def test_session_timestamp_meta_action_uses_modified_when_missing(
+    tmp_path: Path,
+) -> None:
     app = _build_app(tmp_path)
 
     # Create a session without message-level timestamps.

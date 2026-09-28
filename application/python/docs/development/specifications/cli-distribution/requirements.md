@@ -37,7 +37,10 @@ These requirements track the live implementation of the
 | CLIDIST-116 | Release publication validates and publishes `install.sh`, `install.ps1`, `latest.txt`, and all six native archives, then performs bounded post-CDN public endpoint and installation checks that do not rely only on pre-publication loopback servers. | Implemented | Automated | Documented | `v0.1.5` release run `34878990045`; production download smoke passed on 2026-09-14 |
 | CLIDIST-117 | Source, direct archive/manual, Bash-installed, and PowerShell-installed scenarios execute deterministic tasks through both their actual CLI and packaged Python SDK and validate the full access-variable contract. | Implemented | Automated | Documented | Clean macOS ARM64 source smoke plus every applicable native archive/Bash/PowerShell path passed in [run 34999315316](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34999315316) |
 | CLIDIST-118 | Every native release target runs one real model-mediated CLI/SDK access scenario against its extracted archive, with provider credentials excluded from model-controlled tool and child environments. | Implemented | Automated | Documented | Both model-mediated routes passed on Linux AMD64/ARM64, macOS AMD64/ARM64, and Windows AMD64/ARM64 in [run 35062591328](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35062591328) |
+| CLIDIST-119 | Source, direct archive/manual, applicable Bash-installed, and native PowerShell-installed commands execute representative plugin-filtered `sessions` and per-session projected `messages` queries with platform-safe JSONPath quoting and line-oriented chaining. | In progress | Unverified | Documented | macOS ARM64 source, direct archive, and default Bash-installer smokes passed; all-six-target native run pending |
 
 ## Current-state note
 
 Requirements through `CLIDIST-118` have current native evidence.
+`CLIDIST-119` is an in-progress target owned by the
+[session and message data query specification](../session-data-query/index.md).

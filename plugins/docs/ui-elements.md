@@ -963,8 +963,15 @@ interface SessionListFilter {
   icon?: string;
   order?: number;
   data: string | string[];
-  type: 'text' | 'boolean' | 'select';
-  match: 'contains' | 'equals' | 'one_of';
+  type: 'text' | 'boolean' | 'select' | 'datetime';
+  match:
+    | 'contains'
+    | 'equals'
+    | 'one_of'
+    | 'before'
+    | 'on_or_before'
+    | 'after'
+    | 'on_or_after';
   multiple?: boolean;          // select only
   case_sensitive?: boolean;    // text only
   missing_value?: unknown;
@@ -986,11 +993,18 @@ Supported combinations are:
 | `boolean` | `null`, `true`, or `false` | `equals` | `null` |
 | single `select` | `null` or one declared option value | `equals` | `null` |
 | multiple `select` | list of declared option values | `one_of` | `[]` |
+| `datetime` | `null` or timezone-bearing ISO-8601 string | `before`, `on_or_before`, `after`, or `on_or_after` | `null` |
 
 Text matching is case-insensitive unless `case_sensitive` is true. Non-string
 summary values do not match text operators. For a multiple select, the
 resolved summary value is scalar and matches when it occurs among the selected
 values.
+
+Datetime runtime values must include a timezone, such as
+`2026-09-01T00:00:00Z` or `2026-09-01T02:00:00+02:00`. Candidate summary data
+may be a timezone-bearing ISO string or numeric Unix epoch seconds. Python and
+TypeScript evaluators compare UTC instants. Naive or invalid values do not
+match and produce diagnostics when supplied as runtime values.
 
 Composition rules:
 
@@ -1044,12 +1058,15 @@ built-in search plugin also declares `session_title_search` over displayed
 title/subtitle paths and `session_first_message_search` over a complete
 `first_user_message` field contributed by a `session_list` trigger.
 
-HTTP session listing remains unfiltered in this iteration. Mobile and desktop
-apply declarations to the complete ordered collection locally. Terminal
-filtering uses the in-process `AgentApplication` query service. Exact session
-loading by ID is independent of filter state. Frontend state is scoped by the
-active connection and normalized declaration identity; changing either restores
-the current declarations' defaults and removes stale values.
+Mobile and desktop apply declarations to an ordered collection locally. The
+one-shot `crystal-lattice sessions --filter <id>=<value>` command and repeated
+HTTP `GET /sessions?filter=<id>=<value>` parameters use the same normalized
+application query service. HTTP callers opt into defaults with
+`apply_filter_defaults=true`; an ordinary request with no new parameters
+retains the complete current response. Exact session loading by ID is
+independent of filter state. Frontend state is scoped by the active connection
+and normalized declaration identity; changing either restores the current
+declarations' defaults and removes stale values.
 
 Built-in pin, archive, and status plugins demonstrate metadata-backed filters
 and rich ordinary actions. Their `rich_ui.value_path` and filters use the same
@@ -1115,6 +1132,23 @@ status inactive defaults preserve the full list; archive intentionally hides
 archived sessions by default. Missing pin/archive state resolves to false and
 missing status resolves to `todo`, allowing old sessions to participate
 without a migration write.
+
+The built-in timestamp metadata plugin also demonstrates a date filter over an
+always-available summary field:
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "modified_after",
+    "label": "Modified after",
+    "icon": "calendar",
+    "order": 30,
+    "type": "datetime",
+    "match": "on_or_after",
+    "data": "modified",
+    "default": None,
+}
+```
 
 ### Composer attachments (`ui_type == "composer_attachment"`)
 
@@ -1457,9 +1491,11 @@ GET /sessions
 GET /sessions/{session_id}/summary
 ```
 
-The first endpoint returns the complete application-ordered summary list
-(optionally truncated by its existing `limit` parameter). The second returns
-the same summary contract for one exact ID without applying list filters.
+The first endpoint returns the complete application-ordered summary list by
+default. It accepts `limit`, repeated plugin `filter=<id>=<value>`, optional
+`apply_filter_defaults`, and repeated RFC 9535 `include`/`exclude` JSONPath
+parameters. The second returns the same summary contract for one exact ID
+without applying list filters.
 
 ### Server settings values
 

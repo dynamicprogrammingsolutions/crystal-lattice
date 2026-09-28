@@ -485,6 +485,15 @@ describe('SessionsPanel', () => {
           { value: 'done', label: 'Done', tone: 'success' },
         ],
       },
+      {
+        ui_type: 'session_list_filter',
+        id: 'modified_after',
+        label: 'Modified after',
+        data: 'modified',
+        type: 'datetime',
+        match: 'on_or_after',
+        default: null,
+      },
     ]);
     mockSessions = [
       {
@@ -545,6 +554,7 @@ describe('SessionsPanel', () => {
     ).toBeTruthy();
     expect(rendered.getByTestId('session-filter-pinned_state')).toBeTruthy();
     expect(rendered.getByTestId('session-filter-session_status')).toBeTruthy();
+    expect(rendered.getByTestId('session-filter-modified_after')).toBeTruthy();
     expect(
       rendered.getByTestId('session-filter-pinned_state-option-true-icon'),
     ).toBeTruthy();
@@ -569,6 +579,13 @@ describe('SessionsPanel', () => {
     expect(rendered.getByTestId('session-row-visible')).toBeTruthy();
     expect(rendered.getByTestId('session-row-pinned-done')).toBeTruthy();
     expect(rendered.queryByTestId('session-filters-active-count')).toBeNull();
+    fireEvent.changeText(
+      rendered.getByTestId('session-filter-modified_after-datetime'),
+      '1970-01-01T00:00:01.500Z',
+    );
+    expect(rendered.getByTestId('session-row-visible')).toBeTruthy();
+    expect(rendered.queryByTestId('session-row-pinned-done')).toBeNull();
+    fireEvent.press(rendered.getByTestId('session-filters-show-all'));
     fireEvent.press(rendered.getByTestId('session-filters-close'));
     expect(rendered.queryByTestId('desktop-popover-root')).toBeNull();
     expect(rendered.queryByTestId('session-filters-panel')).toBeNull();

@@ -204,6 +204,54 @@ def test_distinct_sessions_run_concurrently(tmp_path: Path) -> None:
     assert results[0].session_id != results[1].session_id
 
 
+def test_runtime_lists_full_and_projected_sessions_and_messages(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+
+    with open_runtime(
+        config_path=config,
+        session_root=tmp_path / "sessions",
+    ) as runtime:
+        first = runtime.run("first task", agent_id="alpha")
+        second = runtime.run("second task", agent_id="beta")
+
+        full_sessions = runtime.list_sessions(apply_filter_defaults=False)
+        assert {item["session_id"] for item in full_sessions["sessions"]} == {
+            first.session_id,
+            second.session_id,
+        }
+        projected_sessions = runtime.list_sessions(
+            apply_filter_defaults=False,
+            include=["$.sessions[*].session_id"],
+        )
+        assert projected_sessions == {
+            "sessions": [
+                {"session_id": item["session_id"]} for item in full_sessions["sessions"]
+            ]
+        }
+
+        full_messages = runtime.list_messages(first.session_id)
+        assert [item["index"] for item in full_messages["messages"]] == [0, 1]
+        projected_messages = runtime.list_messages(
+            first.session_id,
+            include=[
+                "$.messages[*].index",
+                "$.messages[*].message.role",
+                "$.messages[*].message.content",
+            ],
+            exclude=['$.messages[?(@.message.role == "assistant")]'],
+        )
+        assert projected_messages == {
+            "messages": [
+                {
+                    "index": 0,
+                    "message": {"role": "user", "content": "first task"},
+                }
+            ]
+        }
+
+
 def test_same_session_rejection_does_not_append_losing_prompt(
     tmp_path: Path,
 ) -> None:

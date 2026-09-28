@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 import asyncio
 import hashlib
@@ -20,6 +20,7 @@ from fastapi import (  # type: ignore[reportMissingImports]
     FastAPI,
     Header,
     HTTPException,
+    Query,
     Request,
     Response,
 )
@@ -46,10 +47,12 @@ from agent_app.request_execution import (
     StaleApplicationGenerationError,
 )
 from agent_app.sessions import FilesystemSnapshotSelectionStore
+from agent_app.json_projection import project_json_document
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
 from agent_terminal_app.runtime_layout import load_runtime_layout
+from agent_terminal_app.session_query import coerce_session_filter_assignments
 
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
@@ -1970,11 +1973,31 @@ def delete_messages(
 @app.get("/sessions")
 def list_sessions(
     limit: Optional[int] = None,
+    filters: Annotated[Optional[List[str]], Query(alias="filter")] = None,
+    include: Annotated[Optional[List[str]], Query()] = None,
+    exclude: Annotated[Optional[List[str]], Query()] = None,
+    apply_filter_defaults: bool = False,
     app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
+) -> Any:
     """List shared application-layer session summaries."""
 
-    return {"sessions": app_instance.list_session_summaries(limit=limit)}
+    if not filters and not include and not exclude and not apply_filter_defaults:
+        return {"sessions": app_instance.list_session_summaries(limit=limit)}
+
+    try:
+        filter_values = coerce_session_filter_assignments(
+            app_instance,
+            filters or [],
+        )
+        return app_instance.list_session_summaries_document(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+            include=include,
+            exclude=exclude,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/sessions/request-statuses")
@@ -2313,8 +2336,10 @@ def list_session_messages(
     session_id: str,
     start: Optional[int] = None,
     end: Optional[int] = None,
+    include: Annotated[Optional[List[str]], Query()] = None,
+    exclude: Annotated[Optional[List[str]], Query()] = None,
     app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
+) -> Any:
     """List messages for a session with optional slice-style bounds."""
 
     snapshot_fields = _snapshot_response_fields(app_instance, session_id)
@@ -2326,13 +2351,18 @@ def list_session_messages(
             message_count = len(session.messages)
 
             if message_count == 0:
-                return {
+                response = {
                     "messages": [],
                     "cursor_event_id": app_instance.get_session_cursor_event_id(
                         session_id
                     ),
                     **snapshot_fields,
                 }
+                return project_json_document(
+                    response,
+                    include=include,
+                    exclude=exclude,
+                )
 
             try:
                 start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
@@ -2368,13 +2398,23 @@ def list_session_messages(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {
+    response = {
         "messages": results,
         "cursor_event_id": cursor_event_id,
         "active_request_id": active_request_id,
         **snapshot_fields,
     }
+    try:
+        return project_json_document(
+            response,
+            include=include,
+            exclude=exclude,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/events")

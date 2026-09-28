@@ -243,6 +243,10 @@ sensitive tool, metadata, or multipart fields; request it only when needed.
 
 Neither operation modifies session history.
 
+For complete ranges with caller-selected fields, plugin-filtered session
+enumeration, and JSON/text shell pipelines, see
+[Query sessions and messages](session-data-query.md).
+
 ## Command-line runs
 
 Run one task:
@@ -392,7 +396,7 @@ Lattice Access Guidance**. When enabled, the agent receives:
 - the active `--config` and `--sessions-dir`, so delegated calls cannot select
   an unrelated project config or session store;
 - examples for agent discovery, initial runs, completed-session follow-ups,
-  and compact history;
+  compact history, session enumeration, and projected canonical messages;
 - the applicable Python interpreter and
   `from agent_terminal_app import open_runtime` when a general Python runtime
   is available;

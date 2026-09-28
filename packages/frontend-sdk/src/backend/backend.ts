@@ -14,6 +14,12 @@ import type {
   SessionNotification,
 } from '../types/notifications';
 import type { SessionRequestStatusSnapshot } from '../types/sessionRequestStatus';
+import type {
+  MessageDataQueryParams,
+  MessageDataQueryResult,
+  SessionDataQueryParams,
+  SessionDataQueryResult,
+} from '../types/sessionDataQuery';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -76,6 +82,9 @@ export interface AgentBackend {
     idempotencyKey?: string;
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
+  querySessions?(
+    params?: SessionDataQueryParams,
+  ): Promise<SessionDataQueryResult>;
   getSessionSummary(sessionId: string): Promise<SessionSummary>;
   getSessionRequestStatuses?(
     sessionIds: readonly string[],
@@ -125,6 +134,10 @@ export interface AgentBackend {
     sessionId: string,
     params?: { start?: number; end?: number },
   ): Promise<ListMessagesResult>;
+  queryMessages?(
+    sessionId: string,
+    params?: MessageDataQueryParams,
+  ): Promise<MessageDataQueryResult>;
 
   appendMessage(
     sessionId: string,

@@ -31,7 +31,8 @@ def _write_config(path: Path, *, delay_ms: int = 0) -> Path:
                     }
                 },
                 "plugins": [
-                    "plugins.deterministic_stream_provider.DeterministicStreamProvider"
+                    "plugins.deterministic_stream_provider.DeterministicStreamProvider",
+                    "headless_runtime_plugins.DateSessionFilterAppPlugin",
                 ],
                 "agents": {
                     "alpha": {"provider": "deterministic"},
@@ -248,6 +249,139 @@ def test_agents_and_json_run_follow_up_and_history(tmp_path: Path) -> None:
     full_payload = _json_stdout(full)
     assert full_payload["index"] == 3
     assert full_payload["message"]["content"] == "SYS= | USER=follow-up CLI task"
+
+
+def test_sessions_and_messages_commands_chain_text_and_json(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+    run = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--prompt",
+        "find Crystal Lattice",
+        "--format",
+        "json",
+    )
+    assert run.returncode == 0, run.stderr
+    session_id = _json_stdout(run)["session_id"]
+
+    listed = _run(
+        tmp_path,
+        config,
+        sessions,
+        "sessions",
+        "--filter",
+        "modified_after=1970-01-01T00:00:00Z",
+        "--include",
+        "$.sessions[*].session_id",
+        "--format",
+        "text",
+    )
+    assert listed.returncode == 0, listed.stderr
+    assert listed.stdout == f"{session_id}\n"
+    assert listed.stderr == ""
+
+    messages = _run(
+        tmp_path,
+        config,
+        sessions,
+        "messages",
+        "--session",
+        listed.stdout.strip(),
+        "--include",
+        "$.messages[*].index",
+        "--include",
+        "$.messages[*].message.role",
+        "--include",
+        "$.messages[*].message.content",
+        "--exclude",
+        '$.messages[?(@.message.role == "tool")]',
+        "--format",
+        "json",
+    )
+    assert messages.returncode == 0, messages.stderr
+    assert _json_stdout(messages) == {
+        "messages": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "user",
+                    "content": "find Crystal Lattice",
+                },
+            },
+            {
+                "index": 1,
+                "message": {
+                    "role": "assistant",
+                    "content": "SYS= | USER=find Crystal Lattice",
+                },
+            },
+        ]
+    }
+
+    text = _run(
+        tmp_path,
+        config,
+        sessions,
+        "messages",
+        "--session",
+        session_id,
+        "--include",
+        "$.messages[*].index",
+        "--include",
+        "$.messages[*].message.role",
+        "--include",
+        "$.messages[*].message.content",
+        "--format",
+        "text",
+    )
+    assert text.returncode == 0, text.stderr
+    matching = [
+        line for line in text.stdout.splitlines() if "crystal lattice" in line.lower()
+    ]
+    assert matching == [
+        f"{session_id} [0] user content: find Crystal Lattice",
+        f"{session_id} [1] assistant content: SYS= | USER=find Crystal Lattice",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        (
+            ["sessions", "--filter", "unknown=value"],
+            "unknown session filter",
+        ),
+        (
+            ["sessions", "--include", "$["],
+            "invalid include JSONPath",
+        ),
+        (
+            ["messages", "--session", "missing"],
+            "not found",
+        ),
+    ],
+)
+def test_query_commands_reject_invalid_inputs(
+    tmp_path: Path,
+    args: list[str],
+    error: str,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    result = _run(
+        tmp_path,
+        config,
+        tmp_path / "sessions",
+        *args,
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert error in result.stderr
 
 
 @pytest.mark.parametrize("source", ["prompt", "file", "stdin"])

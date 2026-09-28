@@ -1,6 +1,7 @@
 # session-timestamp-meta-app
 
-Application-level plugin that computes timestamp-derived fields for sessions.
+Application-level plugin that computes timestamp-derived fields for sessions
+and contributes the `modified_after` timezone-aware session-list filter.
 
 ## License
 
