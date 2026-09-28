@@ -41,3 +41,13 @@ Category: handoff · Project: `Eleventy Base Blog` · Acceptable partition sizes
 - retain plan: Preserve the reviewed implementation and verification approach as a Draft plan.
 - omit plan: Preserve outcomes, project facts, source pointers, protected surfaces, and unresolved public decisions without plan steps.
 - fresh agent plan: A fresh agent can reconstruct the complete generated-output plan without broad site rediscovery.
+
+**Plan content requirements**
+
+- PLAN-1: The pagination URL design: `/blog/` as page one and the stable later-page URL pattern, with the approval status of that pattern stated — recommended versus decided — rather than silently chosen. (from ARCHIVE-1)
+- PLAN-2: The mechanism keeping every archive page at or under twenty posts while each post appears exactly once across pages. (from ARCHIVE-2, ARCHIVE-3)
+- PLAN-3: How pagination preserves the newest-first ordering of posts. (from ARCHIVE-3)
+- PLAN-4: Conditional previous/next navigation: what 'its destination exists' means and how the navigation stays accessible. (from ARCHIVE-4)
+- PLAN-5: Why home, tags, feed, sitemap, and individual-post surfaces keep their current behavior — the change stays scoped to the archive. (from ARCHIVE-5)
+- PLAN-6: That the archive output stays statically generated without client-side JavaScript, and how the approach preserves it. (from ARCHIVE-6)
+- PLAN-7: The verification approach names the production Eleventy build over a multi-page fixture as the decisive check of pagination correctness.

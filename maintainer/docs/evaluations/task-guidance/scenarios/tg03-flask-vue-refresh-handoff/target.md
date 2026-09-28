@@ -34,3 +34,10 @@ Category: handoff · Project: `Flask-Vue CRUD` · Acceptable partition sizes: 1
 - retain plan: Preserve the selected-state owner, refresh call paths, compatibility constraints, and real crossing.
 - omit plan: Preserve the observed regression, source pointers, state owner, and public response constraints without the proposed shared fetch-path solution.
 - fresh agent plan: A fresh agent reconstructs one cohesive cross-layer fix and groups CRUD refresh variants.
+
+**Plan content requirements**
+
+- PLAN-1: Where the selected All/Read/Unread filter lives and how it survives add, update, and delete refreshes. (from REFRESH-1)
+- PLAN-2: The path a mutation refresh takes through the production client transport and the Flask route. (from REFRESH-2)
+- PLAN-3: How the visible active choice, the table results, and the empty state stay consistent with the refreshed response. (from REFRESH-3)
+- PLAN-4: What stays untouched: CRUD success behavior, response shape, and unfiltered behavior. (from REFRESH-4)

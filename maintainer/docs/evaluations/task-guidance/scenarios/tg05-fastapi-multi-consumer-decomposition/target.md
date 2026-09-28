@@ -59,3 +59,11 @@ Category: decomposition · Project: `FastAPI notes multi-consumer fixture` · Ac
 - retain plan: Preserve contract, ownership, compatibility, parallelism, and final integration dependencies.
 - omit plan: Preserve package facts, public questions, ownership boundaries, and crossings without the four-component task partition.
 - fresh agent plan: A fresh agent recognizes valid component boundaries while keeping each component's work, tests, and docs together.
+
+**Plan content requirements**
+
+- PLAN-1: The public query contract as the first-class design object: filtering, sorting, pagination, validation, and compatibility in one approved form. (from QUERY-1)
+- PLAN-2: How the FastAPI service implements the contract through production HTTP and real storage behavior. (from QUERY-2)
+- PLAN-3: How the reusable Python client exposes the capability while preserving current calls. (from QUERY-3)
+- PLAN-4: How the CLI exposes the capability so the CLI-to-client-to-service path is proven. (from QUERY-4)
+- PLAN-5: The delivery order — contract settled before the surfaces that consume it — with each independently delivered public surface documented as it lands. (from QUERY-5)

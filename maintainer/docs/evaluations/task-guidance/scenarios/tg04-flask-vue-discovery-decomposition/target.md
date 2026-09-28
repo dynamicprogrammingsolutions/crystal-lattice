@@ -59,3 +59,12 @@ Category: decomposition · Project: `Flask-Vue CRUD discovery fixture` · Accept
 - retain plan: Preserve the reviewed vertical delivery rationale and dependency graph.
 - omit plan: Preserve approved outcomes, project facts, cross-layer constraints, and public questions without the four-slice implementation direction.
 - fresh agent plan: A fresh agent reconstructs a small vertical partition and does not expand layers or test types into separate phases.
+
+**Plan content requirements**
+
+- PLAN-1: The discovery state contract between client and server: what read-status filtering, title/author search, bounded pagination, and total count are exchanged. (from DISCOVERY-1, DISCOVERY-2, DISCOVERY-3)
+- PLAN-2: The composability rules and bounds: how search composes with filtering and pagination, and where the bounds are. (from DISCOVERY-2, DISCOVERY-3)
+- PLAN-3: The URL shareability design: which discovery state encodes in the URL and how it restores across reload and browser navigation. (from DISCOVERY-4)
+- PLAN-4: How CRUD refreshes retain the current discovery view instead of resetting it. (from DISCOVERY-6)
+- PLAN-5: How existing CRUD and unparameterized API behavior remain compatible. (from DISCOVERY-7)
+- PLAN-6: The adoption sequence across the Vue state/rendering, production transport, Flask routing, and data selection crossings — with the state contract settled before the surfaces that consume it.

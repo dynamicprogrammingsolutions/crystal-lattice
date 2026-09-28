@@ -117,6 +117,9 @@ from .runner import (  # noqa: E402
     request_overrides,
 )
 from .scenarios import SCENARIOS  # noqa: E402
+from .file_quality import FILE_FIDELITY_PROMPT_TEMPLATE  # noqa: E402
+from .file_quality import FILE_READABILITY_PROMPT_TEMPLATE  # noqa: E402
+from .plan_content import PLAN_CONTENT_PROMPT_TEMPLATE  # noqa: E402
 from .quality import QUALITY_DIMENSIONS as QUALITY_GRADES  # noqa: E402
 from .quality import TASK_QUALITY_ASSESSMENT_PROMPT_TEMPLATE  # noqa: E402
 from .semantic import (  # noqa: E402
@@ -276,6 +279,37 @@ def _template_export_files() -> list[tuple[str, str]]:
                 " $subject_json."
             )
             + TASK_QUALITY_ASSESSMENT_PROMPT_TEMPLATE.template,
+        ),
+        (
+            "templates/plan-content-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the presented-plan content"
+                " assessment prompt. Per-evaluation material is substituted"
+                " into the $placeholders: $scenario_id,"
+                " $generic_requirements, $task_requirements,"
+                " $approved_outcomes, $presented_plan."
+            )
+            + PLAN_CONTENT_PROMPT_TEMPLATE.template,
+        ),
+        (
+            "templates/file-fidelity-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the task-file fidelity assessment"
+                " prompt. Per-evaluation material is substituted into the"
+                " $placeholders: $scenario_id, $target_excerpt, $prompt,"
+                " $conversation, $task_files."
+            )
+            + FILE_FIDELITY_PROMPT_TEMPLATE.template,
+        ),
+        (
+            "templates/file-readability-assessment-prompt.md",
+            _generated_note(
+                "Fixed instruction part of the task-file readability"
+                " assessment prompt. Per-evaluation material is substituted"
+                " into the $placeholders: $scenario_id, $context_excerpt,"
+                " $structure_facts, $task_files."
+            )
+            + FILE_READABILITY_PROMPT_TEMPLATE.template,
         ),
         (
             "templates/handoff-assessment-prompt.md",
@@ -2955,6 +2989,18 @@ def _target_markdown(target: Mapping[str, Any]) -> list[str]:
         lines.extend(["", "**Handoff expectations**", ""])
         for key, value in handoff.items():
             lines.append(f"- {key.replace('_', ' ')}: {value}")
+    plan_target = target.get("plan_target") or {}
+    required = plan_target.get("required_content") or []
+    if required:
+        lines.extend(["", "**Plan content requirements**", ""])
+        for item in required:
+            derived = item.get("derived_from") or []
+            suffix = (
+                f" (from {', '.join(str(source) for source in derived)})"
+                if derived
+                else ""
+            )
+            lines.append(f"- {item.get('id')}: {item.get('content')}{suffix}")
     return lines
 
 

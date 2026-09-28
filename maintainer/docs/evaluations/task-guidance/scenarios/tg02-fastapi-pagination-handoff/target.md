@@ -41,3 +41,11 @@ Category: handoff · Project: `FastAPI CRUD Async` · Acceptable partition sizes
 - retain plan: Preserve route/storage inspection, public ambiguities, and decisive HTTP evidence in the Draft plan.
 - omit plan: Preserve public contract facts, source pointers, coverage gaps, and unresolved questions without implementation or test steps.
 - fresh agent plan: A fresh agent reconstructs representative boundary, compatibility, storage, and public HTTP evidence without inventing query mechanics.
+
+**Plan content requirements**
+
+- PLAN-1: The query contract: what `limit` and `offset` mean, their defaults and bounds, and how invalid values are rejected — as a contract, not an exhaustive validation rule list. (from NOTES-1, NOTES-5)
+- PLAN-2: Response compatibility: an unparameterized request still returns the full-list array; a requested slice keeps the note array shape and adds the total count via a response header. (from NOTES-2, NOTES-4)
+- PLAN-3: The stable ascending note-ID ordering guarantee for requested slices. (from NOTES-3)
+- PLAN-4: How create, item-read, update, and delete behavior remains compatible. (from NOTES-6)
+- PLAN-5: The verification approach exercises the route through the running application — not only data-layer shapes.

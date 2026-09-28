@@ -56,3 +56,12 @@ Category: decomposition · Project: `Eleventy author metadata migration fixture`
 - retain plan: Preserve working migration states, rollback assumptions, dependencies, and direct retirement evidence.
 - omit plan: Preserve current consumers/producers, compatibility constraints, public questions, and source pointers without the four-stage migration direction.
 - fresh agent plan: A fresh agent reconstructs compatible working states and does not create a task per surface or test type.
+
+**Plan content requirements**
+
+- PLAN-1: The normalized internal author representation both the legacy single-author form and the structured one-or-more-author form map into. (from AUTHOR-1)
+- PLAN-2: The rendering equivalence rules: how single-author behavior renders equivalently and what the approved multi-author behavior is, across pages, archives, feeds, and metadata. (from AUTHOR-2)
+- PLAN-3: The content and authoring-tool migration approach that moves safely to the structured form. (from AUTHOR-3)
+- PLAN-4: The retirement condition for the legacy form: what must be true before it is retired. (from AUTHOR-4)
+- PLAN-5: How the constraint that every intermediate revision builds and publishes valid output shapes the phase boundaries. (from AUTHOR-5)
+- PLAN-6: The phase order — normalization, rendering, content and tooling, retirement — with the compatibility constraint explicit.

@@ -1,6 +1,6 @@
 # Task-guidance evaluation scenarios
 
-Scenario definitions and stage inputs for the task-guidance evaluation suite, generated from the suite sources in `maintainer/agent-evaluation/suites/task_guidance/` (`result_package.py extract-scenarios`) with the guidance bundle `maintainer/guidance/candidates/task-mechanics-b1v3`.
+Scenario definitions and stage inputs for the task-guidance evaluation suite, generated from the suite sources in `maintainer/agent-evaluation/suites/task_guidance/` (`result_package.py extract-scenarios`) with the guidance bundle `maintainer/guidance/current`.
 
 These definitions may change between evaluations; git tracks their evolution here while each result package under `../results/` freezes its own copies of the material it was produced with.
 

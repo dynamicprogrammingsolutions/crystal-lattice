@@ -2,36 +2,31 @@
   "bundle": {
     "git": {
       "dirty": false,
-      "revision": "e04c3d86e96698f7c298e6ff490ed2e1cdd4b20b"
+      "revision": "555b498128ad2663c3c79040927a100405e449f2"
     },
-    "id": "task-mechanics-b1v3",
-    "path": "maintainer/guidance/candidates/task-mechanics-b1v3"
+    "id": "current",
+    "path": "maintainer/guidance/current"
   },
-  "compilation_sha256": "9ff7b763aa082f3b7ed8eda30c9e45ff1723546a8cb518da8d2b5f3385fe53a1",
+  "compilation_sha256": "d69735cc87ec720d775e788d6c51ee62dc6d3ebea6350edb5a4ede107910468b",
   "compiler_version": "2",
   "inputs": [
     {
-      "path": "candidates/task-mechanics-b1v3/candidate.toml",
-      "role": "bundle",
-      "sha256": "4fabb1083ba9af19b89fac33a33549e21684d1f4c8201ff0dd31b555e183c578"
-    },
-    {
-      "path": "current/bundle.toml",
+      "path": "bundle.toml",
       "role": "bundle",
       "sha256": "56fd33439037a7c33b9880d84ef18b664a14a9767459f168d559943fa2867475"
     },
     {
-      "path": "current/sections/documentation.md",
+      "path": "sections/documentation.md",
       "role": "bundle",
       "sha256": "a3362c0ce5b8f1d08c0e43b1eb96076ebbf1ff5d7653668d944d3ac7d8f92e38"
     },
     {
-      "path": "current/sections/requirements.md",
+      "path": "sections/requirements.md",
       "role": "bundle",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "current/sections/testing-strategy.md",
+      "path": "sections/testing-strategy.md",
       "role": "bundle",
       "sha256": "553970e009dd30ba09469238b3386bc95195754b2e3c761a681cec0a8d830717"
     },
@@ -61,7 +56,7 @@
   "target": {
     "git": {
       "dirty": false,
-      "revision": "e04c3d86e96698f7c298e6ff490ed2e1cdd4b20b"
+      "revision": "555b498128ad2663c3c79040927a100405e449f2"
     },
     "id": "task-guidance-fastapi",
     "kind": "fixture",
