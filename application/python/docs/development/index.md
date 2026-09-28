@@ -2,6 +2,7 @@
 
 - [CLI distribution implementation and verification](cli-distribution.md)
 - [CLI distribution verification specification](specifications/cli-distribution/index.md)
+- [Agent creation and model updates](agent-creation.md)
 - [Application request execution](request-execution.md)
 - [Request cancellation specification](specifications/request-cancellation/index.md)
 - [Application operations](operations.md)

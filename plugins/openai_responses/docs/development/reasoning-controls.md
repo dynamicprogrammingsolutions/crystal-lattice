@@ -141,12 +141,14 @@ value for Pro mode.
 
 Cost estimation continues to use the selected model's standard-tier pricing
 entry from `data/openai_model_pricing.json` (or the manual ChatGPT fallback).
-Pro mode does not introduce a priority-tier or flex-tier price lookup.
+Pro mode does not introduce a fast-tier or flex-tier price lookup.
 Priority-tier pricing applies only when Fast mode reports
-`service_tier: "priority"`; Pro mode does not change the service tier and
-does not trigger priority-tier pricing.
+`service_tier: "fast"`; Pro mode does not change the service tier and
+does not trigger fast-tier pricing.
 
-Fast mode (`service_tier: "priority"`) applies to both API and ChatGPT auth
+Fast mode (the fast processing tier; wire value `service_tier: "fast"`
+for API auth and the legacy `service_tier: "priority"` name for ChatGPT
+auth, whose backend rejects `"fast"`) applies to both API and ChatGPT auth
 modes and is independent of Pro mode.
 
 ### Pro mode vs Pro model SKUs
@@ -160,5 +162,5 @@ the model SKU suffix.
 
 The usage extension surfaces `usage_reasoning_mode` metadata and a
 `mode: pro` footer entry when the response reports `reasoning.mode: "pro"`.
-This is additive to the existing `usage_service_tier` / `tier: priority`
+This is additive to the existing `usage_service_tier` / `tier: fast`
 footer for Fast mode. Standard mode is the default and is not shown.

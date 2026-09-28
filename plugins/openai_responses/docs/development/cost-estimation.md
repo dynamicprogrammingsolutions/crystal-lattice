@@ -52,7 +52,8 @@ with the maintenance command described in
 
 Each model entry has a top-level `pricing` block (the standard-tier
 projection) and a `service_tiers` mapping with per-tier rates. The supported
-tiers are `standard`, `batch`, `flex`, and `priority`.
+tiers are `standard`, `batch`, `flex`, and `fast` (the obsolete name
+`priority` is accepted for compatibility).
 
 Each tier pricing block has up to four token-price columns:
 
@@ -157,7 +158,10 @@ For ChatGPT-backed requests:
   output. The usage footer explicitly reports when the write counter is
   absent.
 - `service_tier: "default"` resolves to standard pricing;
-  `service_tier: "priority"` (Fast mode) resolves to priority pricing.
+  `service_tier: "fast"` (Fast mode) resolves to fast-tier pricing. The
+  obsolete name `priority` — which the official API still reports in
+  responses, and which is the only name the ChatGPT backend accepts on
+  requests — normalizes to the same fast-tier prices.
 
 ## Explicit cache boundaries
 

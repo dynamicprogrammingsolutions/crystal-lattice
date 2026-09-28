@@ -378,6 +378,8 @@ def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
         assert (
             service_tier_requests
         ), f"expected at least one recorded request with service_tier for model {model}"
+        # The ChatGPT backend only accepts the legacy ``priority`` tier
+        # name (sending ``fast`` fails with 400 ``Unsupported service_tier``).
         assert any(
             request.get("service_tier") == "priority"
             for request in service_tier_requests
@@ -387,10 +389,8 @@ def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
         assert isinstance(metadata, dict)
         reported_tier = metadata.get("usage_service_tier")
 
-        if reported_tier != "priority":
+        if reported_tier not in ("fast", "priority"):
             pytest.xfail(
                 f"ChatGPT backend reported service_tier={reported_tier!r} for model {model}; "
                 "some accounts or models may not have Fast mode access."
             )
-
-        assert reported_tier == "priority"
