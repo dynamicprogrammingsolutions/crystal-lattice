@@ -395,3 +395,71 @@ Blocked or unrelated verification:
   documentation. Desktop behavior was not changed by this follow-up.
 - Verified with the mobile TypeScript build, the focused
   `SessionChatScreenRangeFallback` component test, and `git diff --check`.
+
+### Approved mobile composer action follow-up
+
+Status: Approved
+
+Outcome:
+
+- Show hard cancel, soft cancel, and resend in Mobile Composer actions.
+- Replace the hard-coded button above Send with one dynamically selected
+  pinned action.
+- Make resend available immediately after a terminal request error whenever no
+  request is active.
+
+Design:
+
+- Add hard cancel to the Composer action definitions. Keep append, hard cancel,
+  and resend pinned by default for users without stored preferences; preserve
+  existing stored pin choices.
+- Use the ordered primary-slot preference
+  `cancel`, `softCancel`, `resend`. Among pinned candidates, show the first
+  enabled action above Send. If none is enabled, show the first candidate as a
+  disabled placeholder.
+- Remove only the selected primary action from the normal pinned bar. Other
+  pinned candidates remain in their regular pinned position, including when
+  more than one preferred action is enabled.
+- Implement the selection in the mobile screen/composer using the existing
+  `pinnedKeysForBar` boundary; no shared actions-menu API change is needed.
+- Treat live chat state, including an explicit null active-request ID, as
+  authoritative over cached state.
+- Treat fatal request `error` events as terminal for the matching active
+  request in frontend streaming state. A later `request_completed` event
+  remains idempotent.
+- Remove draft-content restrictions from resend eligibility. Preserve the
+  existing pending-send recovery guard while request acceptance is genuinely
+  unknown; once reconciliation establishes no active request, resend becomes
+  available without refresh.
+
+Follow-up task checklist:
+
+- [x] Add hard cancel to Mobile Composer actions and update fresh defaults.
+- [x] Add and test primary-slot selection for pinned preferred actions.
+- [x] Replace the hard-coded side cancel button with the selected action.
+- [x] Make explicit live null request state override stale cached state.
+- [x] Clear matching active request state on fatal request errors.
+- [x] Enable resend whenever no request is active and request acceptance is
+  not unresolved.
+- [x] Add focused SDK reducer, selection, component, and mobile type tests.
+- [x] Update affected mobile/frontend development documentation.
+- [x] Run focused SDK, shared-component, and mobile verification.
+
+Follow-up completion:
+
+- Mobile Composer actions now include hard Cancel, Soft cancel, and Resend.
+  Fresh pin preferences include Append, hard Cancel, and Resend.
+- A tested mobile selector chooses the first enabled pinned action in
+  `cancel`, `softCancel`, `resend` order for the slot above Send. Only the
+  selected key is omitted from the normal pinned bar.
+- Fatal request errors clear only their matching active request and provisional
+  streaming row. Errors from older requests do not clear a newer request.
+- Explicit live null request state now overrides stale cached request state.
+  Draft content no longer disables Resend. Explicit status reconciliation
+  clears pending recovery when it confirms either an active request or no
+  active request; genuinely unresolved send acknowledgement still blocks
+  Resend.
+- Verification: all 354 frontend SDK tests passed; all 262 Mobile Jest tests
+  passed; Mobile TypeScript passed; focused Rich Session UI, primary selector,
+  and recovery tests passed; documentation preparation and MkDocs build
+  passed with the repository's existing warnings; `git diff --check` passed.

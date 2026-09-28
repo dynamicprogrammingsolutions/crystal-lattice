@@ -122,7 +122,15 @@ export function reduceStreamingState(state: StreamingState, event: Event): Strea
     const detail =
       (typeof (event as any).detail === 'string' && (event as any).detail) || 'Request failed with an error.';
     const requestId = typeof (event as any).request_id === 'string' ? (event as any).request_id : null;
-    return { ...state, requestError: { detail, requestId } };
+    const current = state.activeRequestId;
+    const matchesActiveRequest =
+      current == null || requestId == null || current === requestId;
+    return {
+      ...state,
+      activeRequestId: matchesActiveRequest ? null : current,
+      streamingRow: matchesActiveRequest ? null : state.streamingRow,
+      requestError: { detail, requestId },
+    };
   }
 
   if (type === 'request_completed' || type === 'request_cancelled') {

@@ -103,7 +103,15 @@ describe('reduceStreamingState', () => {
   );
 
   it('captures request errors', () => {
-    const next = reduceStreamingState(emptyState(), {
+    const next = reduceStreamingState({
+      ...emptyState(),
+      activeRequestId: 'r1',
+      streamingRow: {
+        requestId: 'r1',
+        content: 'partial',
+        metadata: {},
+      },
+    }, {
       type: 'error',
       request_id: 'r1',
       detail: 'boom',
@@ -111,5 +119,20 @@ describe('reduceStreamingState', () => {
 
     expect(next.requestError?.detail).toBe('boom');
     expect(next.requestError?.requestId).toBe('r1');
+    expect(next.activeRequestId).toBeNull();
+    expect(next.streamingRow).toBeNull();
+  });
+
+  it('does not clear a newer active request for an older request error', () => {
+    const next = reduceStreamingState(
+      { ...emptyState(), activeRequestId: 'r2' },
+      {
+        type: 'error',
+        request_id: 'r1',
+        detail: 'old request failed',
+      } as any,
+    );
+
+    expect(next.activeRequestId).toBe('r2');
   });
 });

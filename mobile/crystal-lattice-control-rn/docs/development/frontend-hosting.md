@@ -53,27 +53,42 @@ owns portable mode and migration behavior.
 Session Chat renders model and reasoning settings as compact dropdowns and web
 search as a compact Boolean toggle. The shared pinned-action bar is explicitly
 configured for two rows with the leftover row below. Compact setting controls
-come first; Append and Resend occupy the lower right-aligned action row.
-Composer actions contain Resend, Append, and Append as. Request Cancel is not
-duplicated there.
+come first; ordinary pinned actions occupy the lower right-aligned action row.
+Composer actions contain Resend, Append, Append as, hard Cancel, and Soft
+cancel.
 
-The message input has a fixed side stack with request Cancel above Send. Each
-control is 44 points square; the inline input has a 94-point minimum height.
-Cancel remains visible and disabled when no request is active. Send uses the
-paper-plane `send` icon and Resend uses `repeat`. The Send icon becomes a
-spinner during both request submission and the full active-request lifetime;
-the maximized composer uses the same state.
+The message input has a dynamic primary pinned action above Send. The ordered
+preference is hard Cancel, Soft cancel, then Resend; the first enabled pinned
+candidate occupies that slot, and only that candidate is removed from the
+normal pinned bar. Other pinned candidates stay visible there. Fresh
+preferences pin Append, hard Cancel, and Resend, so hard Cancel occupies the
+slot during a request and Resend occupies it while idle. Existing stored pin
+choices remain authoritative.
 
-An active request disables duplicate Send/Resend starts and enables Cancel,
+Each side control is 44 points square; the inline input has a 94-point minimum
+height. Send uses the paper-plane `send` icon and Resend uses `repeat`. The
+Send icon becomes a spinner during both request submission and the full
+active-request lifetime; the maximized composer uses the same state.
+
+An active request disables duplicate Send/Resend starts and enables hard and
+soft Cancel,
 but does not globally disable model/reasoning/web settings, plugin actions,
 attachments, Append, or reload. Append has separate local in-flight state, and
 attachment operations retain their own pick/upload guards. Eligible concurrent
 operations use the normal backend path and rely on the server to accept or
 reject them.
 
-The top Session actions also expose Resend and request Cancel. These entries
-reuse the same handlers and request-state eligibility as the composer Resend
-and permanent Cancel controls.
+A fatal request error clears the matching active-request UI state immediately;
+the later completion event remains idempotent. Live controller state,
+including an explicit null request ID, takes precedence over cached state so
+Resend becomes available without a manual refresh. Draft text does not disable
+Resend. An unconfirmed send acknowledgement remains under the existing
+status-check/retry recovery guard until reconciliation establishes whether a
+request exists.
+
+The top Session actions also expose Resend, hard Cancel, and Soft cancel.
+These entries reuse the same handlers and request-state eligibility as their
+Composer action counterparts.
 
 The in-frame `maximize-2` control opens a full-screen editor backed by the same
 draft, attachments, validation, persistence, and send path. `minimize-2`

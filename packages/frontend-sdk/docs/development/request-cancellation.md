@@ -24,3 +24,8 @@ of an active request after acknowledgement.
 The additive `request_cancelled.cancellation_mode` value is `soft` or `hard`.
 Existing lifecycle reduction remains based on the event type, so older event
 consumers can ignore the field.
+
+The public `error` event represents a fatal request error. Frontend streaming
+state therefore clears a matching active request when it receives `error`;
+the normal later `request_completed` event is idempotent. An error for an older
+request does not clear a newer active request.
