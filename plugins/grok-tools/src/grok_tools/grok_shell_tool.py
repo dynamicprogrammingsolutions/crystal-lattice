@@ -12,14 +12,10 @@ Features:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
-from tool_compat_shared import (
-    ShellInfo,
-    detect_shell,
-    run_shell_command,
-)
+from tool_compat_shared import run_shell_command
 
 
 class GrokShellTool(ToolPlugin):
@@ -83,6 +79,8 @@ class GrokShellTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute the bash tool.
         
@@ -108,11 +106,15 @@ class GrokShellTool(ToolPlugin):
         import asyncio
         
         async def _run():
-            return await run_shell_command(command, workdir=workdir)
+            return await run_shell_command(
+                command,
+                workdir=workdir,
+                cancellation=cancellation,
+            )
         
         # Check if we're already in an async context
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're in an async context - need to run in a thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -131,6 +133,7 @@ class GrokShellTool(ToolPlugin):
             "exit_code": result["exit_code"],
             "duration_seconds": result["duration_seconds"],
             "command": command,
+            "cancelled": bool(result.get("cancelled")),
         }
     
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:

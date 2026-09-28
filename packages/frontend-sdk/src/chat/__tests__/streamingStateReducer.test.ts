@@ -89,6 +89,19 @@ describe('reduceStreamingState', () => {
     expect(next.activeRequestId).toBe('r2');
   });
 
+  it.each(['soft', 'hard'] as const)(
+    'request_cancelled clears the matching request for %s mode',
+    (cancellationMode) => {
+      const state: StreamingState = { ...emptyState(), activeRequestId: 'r1' };
+      const next = reduceStreamingState(state, {
+        type: 'request_cancelled',
+        request_id: 'r1',
+        cancellation_mode: cancellationMode,
+      } as any);
+      expect(next.activeRequestId).toBeNull();
+    },
+  );
+
   it('captures request errors', () => {
     const next = reduceStreamingState(emptyState(), {
       type: 'error',

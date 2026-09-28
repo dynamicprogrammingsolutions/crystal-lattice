@@ -770,7 +770,10 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
   notifications use the same endpoint with `session_id` and persist in session
   metadata. Both use standard `banner`, `inline`, and `modal` display
   presentations.
-- `POST /requests/{request_id}/cancel` - cancel an active request.
+- `POST /requests/{request_id}/cancel` - hard-cancel an active request,
+  interrupting a cooperative foreground tool.
+- `POST /requests/{request_id}/soft-cancel` - stop after an active foreground
+  tool finishes and its result is saved.
 - `GET /agents` - list configured agents.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.

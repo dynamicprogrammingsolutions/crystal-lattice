@@ -21,6 +21,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -295,6 +296,7 @@ async def run_shell_command(
     background_delay_seconds: float | None = None,
     background_max_lines: int | None = None,
     background_read_timeout: float | None = None,
+    cancellation: Any | None = None,
 ) -> dict[str, Any]:
     """Execute a shell command with interleaved output capture.
 
@@ -329,6 +331,8 @@ async def run_shell_command(
         background_delay_seconds: Delay before returning for background. Default BACKGROUND_DELAY_SECONDS.
         background_max_lines: Max lines to capture per stream for background. Default BACKGROUND_MAX_LINES.
         background_read_timeout: Per-line read timeout for background. Default BACKGROUND_READ_TIMEOUT.
+        cancellation: Optional hard-cancellation signal. Foreground execution
+                      registers a callback that terminates the process tree.
 
     Returns:
         Dict with:
@@ -339,6 +343,7 @@ async def run_shell_command(
             - stderr: str (separate stderr)
             - duration_seconds: float
             - timed_out: bool (always False for background)
+            - cancelled: bool (always False for background)
             - shell: ShellInfo (shell used for execution, only for string commands)
             - background: bool (True if background mode, only present when True)
             - pid: int (process ID, only present for background mode)
@@ -402,6 +407,7 @@ async def run_shell_command(
             "stderr": initial_output["stderr"],
             "duration_seconds": duration,
             "timed_out": False,
+            "cancelled": False,
             "background": True,
             "pid": pid,
         }
@@ -413,6 +419,30 @@ async def run_shell_command(
     combined_chunks: list[str] = []  # Interleaved order
     stdout_chunks: list[str] = []  # Separate for vendor formatting
     stderr_chunks: list[str] = []  # Separate for vendor formatting
+    cancelled_event = threading.Event()
+    cancel_token: int | None = None
+    loop = asyncio.get_running_loop()
+    termination_futures: list[Any] = []
+
+    def _request_cancel() -> None:
+        cancelled_event.set()
+        if process.returncode is not None:
+            return
+        try:
+            termination_futures.append(
+                asyncio.run_coroutine_threadsafe(
+                    terminate_async_process_tree(process),
+                    loop,
+                )
+            )
+        except Exception:
+            pass
+
+    if cancellation is not None and hasattr(cancellation, "add_callback"):
+        try:
+            cancel_token = cancellation.add_callback(_request_cancel)
+        except Exception:
+            cancel_token = None
 
     async def read_stdout() -> None:
         """Read stdout line-by-line, appending to both combined and stdout buffers."""
@@ -433,32 +463,52 @@ async def run_shell_command(
             stderr_chunks.append(decoded)
 
     try:
-        if timeout_seconds is not None:
-            await asyncio.wait_for(
-                asyncio.gather(read_stdout(), read_stderr()),
-                timeout=timeout_seconds,
-            )
-        else:
-            await asyncio.gather(read_stdout(), read_stderr())
+        try:
+            if timeout_seconds is not None:
+                await asyncio.wait_for(
+                    asyncio.gather(read_stdout(), read_stderr()),
+                    timeout=timeout_seconds,
+                )
+            else:
+                await asyncio.gather(read_stdout(), read_stderr())
 
-        exit_code = await process.wait()
-        timed_out = False
+            exit_code = await process.wait()
+            timed_out = False
 
-    except asyncio.TimeoutError:
-        await terminate_async_process_tree(process)
-        exit_code = None
-        timed_out = True
+        except asyncio.TimeoutError:
+            await terminate_async_process_tree(process)
+            exit_code = None
+            timed_out = True
+    finally:
+        for future in list(termination_futures):
+            try:
+                await asyncio.wrap_future(future)
+            except Exception:
+                pass
+        if (
+            cancellation is not None
+            and cancel_token is not None
+            and hasattr(cancellation, "remove_callback")
+        ):
+            try:
+                cancellation.remove_callback(cancel_token)
+            except Exception:
+                pass
 
     duration = time.monotonic() - start_time
+    cancelled = cancelled_event.is_set() and not timed_out
+    if cancelled:
+        exit_code = None
 
     result = {
-        "ok": not timed_out and exit_code == 0,
+        "ok": not timed_out and not cancelled and exit_code == 0,
         "exit_code": exit_code,
         "output": "".join(combined_chunks),
         "stdout": "".join(stdout_chunks),
         "stderr": "".join(stderr_chunks),
         "duration_seconds": duration,
         "timed_out": timed_out,
+        "cancelled": cancelled,
     }
     if used_shell is not None:
         result["shell"] = used_shell

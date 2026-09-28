@@ -178,6 +178,29 @@ describe('ChatController.ensureEventStreamingStarted', () => {
   });
 });
 
+describe('ChatController request cancellation', () => {
+  it('routes hard and soft cancellation without clearing the active request', async () => {
+    const cancelRequest = vi.fn(async () => {});
+    const softCancelRequest = vi.fn(async () => {});
+    const controller = new ChatController({
+      backend: {
+        cancelRequest,
+        softCancelRequest,
+      } as any,
+      sessionId: 's1',
+      initialActiveRequestId: 'request-1',
+    });
+
+    await controller.softCancelActiveRequest();
+    await controller.cancelActiveRequest();
+
+    expect(softCancelRequest).toHaveBeenCalledWith('request-1');
+    expect(cancelRequest).toHaveBeenCalledWith('request-1');
+    expect(controller.getSnapshot().activeRequestId).toBe('request-1');
+    controller.dispose();
+  });
+});
+
 describe('ChatController default-range fallback', () => {
   it('falls back to the default range when an absolute range selects no messages', async () => {
     const listMessages = vi

@@ -4,6 +4,7 @@ import json
 import os
 import queue
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -18,6 +19,37 @@ logger = get_logger("BashToolPlugin")
 
 
 _SCALAR_TYPES = (str, int, float, bool)
+
+
+def _terminate_process_tree(
+    process: subprocess.Popen[Any],
+    *,
+    grace_seconds: float = 0.2,
+) -> None:
+    if process.poll() is not None:
+        return
+    if os.name != "nt":
+        try:
+            process_group = os.getpgid(process.pid)
+            os.killpg(process_group, signal.SIGTERM)
+            try:
+                process.wait(timeout=grace_seconds)
+                return
+            except subprocess.TimeoutExpired:
+                os.killpg(process_group, signal.SIGKILL)
+                process.wait(timeout=grace_seconds)
+                return
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            return
+    process.terminate()
+    try:
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 def _to_cli_scalar(value: Any) -> str:
@@ -81,11 +113,17 @@ class BashToolPlugin:
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         if not self._handles_tool_name(tool_name):
             return
 
-        yield from self._stream_run_tool(arguments, state)
+        yield from self._stream_run_tool(
+            arguments,
+            state,
+            cancellation=cancellation,
+        )
 
     def format_tool_call_preview(
         self,
@@ -111,6 +149,8 @@ class BashToolPlugin:
         success = bool(result.get("success"))
         if success:
             return self._format_success(result)
+        if result.get("cancelled"):
+            return "Error: tool cancelled"
 
         custom = self._try_format_error_with_script(result, state)
         if isinstance(custom, str) and custom.strip():
@@ -393,7 +433,11 @@ class BashToolPlugin:
         return result
 
     def _stream_run_tool(
-        self, arguments: Dict[str, Any], state: Dict[str, Any]
+        self,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         if not shutil.which(self.bash_command):
             yield {
@@ -436,6 +480,7 @@ class BashToolPlugin:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
+                **({"start_new_session": True} if os.name != "nt" else {}),
             )
         except Exception as exc:
             yield {
@@ -466,6 +511,18 @@ class BashToolPlugin:
         stdout_chunks: List[str] = []
         stderr_chunks: List[str] = []
         timed_out = False
+        cancelled_event = threading.Event()
+        cancel_token: int | None = None
+
+        def _request_cancel() -> None:
+            cancelled_event.set()
+            _terminate_process_tree(proc)
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            try:
+                cancel_token = cancellation.add_callback(_request_cancel)
+            except Exception:
+                cancel_token = None
 
         stdout_queue: "queue.Queue[str]" = queue.Queue()
         stderr_queue: "queue.Queue[str]" = queue.Queue()
@@ -511,11 +568,7 @@ class BashToolPlugin:
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds and elapsed >= timeout_seconds:
                     timed_out = True
-                    try:
-                        proc.kill()
-                        proc.wait(timeout=1)
-                    except Exception:
-                        pass
+                    _terminate_process_tree(proc)
                     break
 
                 drained_any = False
@@ -567,6 +620,15 @@ class BashToolPlugin:
                 err_thread.join(timeout=1)
             except Exception:
                 pass
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
             while True:
                 try:
@@ -589,10 +651,15 @@ class BashToolPlugin:
         stdout_text = "".join(stdout_chunks)
         stderr_text = "".join(stderr_chunks)
 
+        cancelled = cancelled_event.is_set() and not timed_out
         if timed_out:
             exit_code: int | None = 124
             success = False
             err = f"Tool timed out after {timeout_seconds} seconds"
+        elif cancelled:
+            exit_code = None
+            success = False
+            err = "Tool cancelled"
         else:
             exit_code = proc.returncode
             success = isinstance(exit_code, int) and exit_code == 0
@@ -604,12 +671,19 @@ class BashToolPlugin:
             "stdout": stdout_text,
             "stderr": stderr_text,
             "timed_out": timed_out,
+            "cancelled": cancelled,
             "timeout_seconds": timeout_seconds,
             "tool_name": self.name,
             "arguments": arguments,
         }
         if not success:
-            result["error"] = "timeout" if timed_out else "exit_code_nonzero"
+            result["error"] = (
+                "timeout"
+                if timed_out
+                else "cancelled"
+                if cancelled
+                else "exit_code_nonzero"
+            )
             result["detail"] = err
 
         summary = self._stream_summary(result, stderr_streamed=stream_stderr)
@@ -623,6 +697,7 @@ class BashToolPlugin:
         exit_code = result.get("exit_code")
         stderr = str(result.get("stderr") or "")
         timed_out = bool(result.get("timed_out"))
+        cancelled = bool(result.get("cancelled"))
 
         if success:
             if stderr.strip() and not stderr_streamed:
@@ -633,6 +708,8 @@ class BashToolPlugin:
         if timed_out:
             timeout_seconds = result.get("timeout_seconds")
             lines.append(f"Timed out after {timeout_seconds} seconds.")
+        elif cancelled:
+            lines.append("Cancelled.")
         elif isinstance(exit_code, int):
             lines.append(f"Exit code: {exit_code}.")
         else:
@@ -691,10 +768,13 @@ class BashToolPlugin:
         stdout = str(result.get("stdout") or "")
         stderr = str(result.get("stderr") or "")
         timed_out = bool(result.get("timed_out"))
+        cancelled = bool(result.get("cancelled"))
         timeout_seconds = result.get("timeout_seconds")
 
         if timed_out:
             prefix = f"Error: tool timed out after {timeout_seconds} seconds"
+        elif cancelled:
+            prefix = "Error: tool cancelled"
         elif isinstance(exit_code, int):
             prefix = f"Error: tool exited with code {exit_code}"
         else:

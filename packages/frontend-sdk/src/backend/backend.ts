@@ -171,6 +171,7 @@ export interface AgentBackend {
   ): Promise<{ status?: string; request_id?: string }>;
 
   cancelRequest(requestId: string, options?: { idempotencyKey?: string }): Promise<void>;
+  softCancelRequest(requestId: string, options?: { idempotencyKey?: string }): Promise<void>;
 
   // --- Events ---
   listEvents(params: {

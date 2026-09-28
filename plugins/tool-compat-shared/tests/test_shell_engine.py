@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 import platform
 import shlex
+import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -22,6 +25,49 @@ from tool_compat_shared import (
     run_shell_command,
     truncate_output,
 )
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callbacks: dict[int, object] = {}
+        self._next = 0
+        self._cancelled = False
+
+    def add_callback(self, callback):
+        token = self._next
+        self._next += 1
+        self._callbacks[token] = callback
+        if self._cancelled:
+            callback()
+        return token
+
+    def remove_callback(self, token: int) -> None:
+        self._callbacks.pop(token, None)
+
+    def cancel(self) -> None:
+        self._cancelled = True
+        for callback in list(self._callbacks.values()):
+            callback()
+
+
+def _pid_is_live(pid: int) -> bool:
+    completed = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    status = completed.stdout.strip()
+    return bool(status) and not status.startswith("Z")
+
+
+def _assert_pid_exits(pid: int, *, timeout: float = 3.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _pid_is_live(pid):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"process {pid} remained alive past timeout")
 
 
 class TestDetectShell:
@@ -405,6 +451,53 @@ class TestRunShellCommandArray:
         assert result["exit_code"] == 0
         assert "stdin-bytes 0" in result["output"]
 
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(sys.platform == "win32", reason="uses POSIX process groups")
+    async def test_hard_cancellation_terminates_spawned_process_tree(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        script_path = tmp_path / "spawn_child.py"
+        pid_file = tmp_path / "child.pid"
+        script_path.write_text(
+            "\n".join(
+                [
+                    "import subprocess",
+                    "import sys",
+                    "import time",
+                    f"pid_file = {str(pid_file)!r}",
+                    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])",
+                    "with open(pid_file, 'w', encoding='utf-8') as handle:",
+                    "    handle.write(str(child.pid))",
+                    "time.sleep(60)",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        cancellation = _TestCancellation()
+
+        def _cancel_after_child_starts() -> None:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not pid_file.exists():
+                time.sleep(0.02)
+            cancellation.cancel()
+
+        worker = threading.Thread(target=_cancel_after_child_starts)
+        worker.start()
+        result = await run_shell_command(
+            [sys.executable, str(script_path)],
+            cancellation=cancellation,
+        )
+        worker.join(timeout=1)
+
+        assert result["ok"] is False
+        assert result["cancelled"] is True
+        assert result["timed_out"] is False
+        assert result["exit_code"] is None
+        assert pid_file.exists()
+        _assert_pid_exits(int(pid_file.read_text(encoding="utf-8")))
+
 
 class TestApproxTokenCount:
     """Tests for the token approximation function."""
@@ -761,6 +854,26 @@ class TestRunShellCommandBackground:
         assert result["pid"] > 0
         # Should return quickly (well under 60 seconds)
         assert result["duration_seconds"] < 5.0
+
+    @pytest.mark.asyncio
+    async def test_background_handoff_ignores_request_cancellation(self) -> None:
+        cancellation = _TestCancellation()
+        cancellation.cancel()
+        command = (
+            "Write-Output 'background handoff'"
+            if platform.system() == "Windows"
+            else "printf 'background handoff\\n'"
+        )
+
+        result = await run_shell_command(
+            command,
+            is_background=True,
+            background_delay_seconds=0.1,
+            cancellation=cancellation,
+        )
+
+        assert result["background"] is True
+        assert result["cancelled"] is False
 
     @pytest.mark.asyncio
     async def test_background_unix_ampersand_appended(self) -> None:

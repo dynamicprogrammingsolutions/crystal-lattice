@@ -609,6 +609,7 @@ class ClaudeBashTool(ToolPlugin):
         *,
         timeout_ms: int,
         working_directory: str,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         shell = _detect_login_shell()
         wrapped = _wrap_foreground_command(command)
@@ -618,14 +619,16 @@ class ClaudeBashTool(ToolPlugin):
                 workdir=working_directory,
                 timeout_seconds=timeout_ms / 1000.0,
                 shell=shell,
+                cancellation=cancellation,
             )
         )
-        if result.get("timed_out"):
+        if result.get("timed_out") or result.get("cancelled"):
             return {
                 "exit_code": 143,
                 "output": str(result.get("output") or "").rstrip("\n"),
                 "success": False,
                 "cwd": working_directory,
+                "cancelled": bool(result.get("cancelled")),
             }
         parsed = _parse_wrapped_output(
             str(result.get("output") or ""),
@@ -647,6 +650,7 @@ class ClaudeBashTool(ToolPlugin):
         *,
         tool_call: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
         **_: Any,
     ) -> Dict[str, Any]:
         if tool_name != "Bash":
@@ -784,6 +788,7 @@ class ClaudeBashTool(ToolPlugin):
             command.strip(),
             timeout_ms=timeout_ms,
             working_directory=resolved,
+            cancellation=cancellation,
         )
         exit_code = int(foreground["exit_code"])
         output = str(foreground["output"] or "")
@@ -799,15 +804,17 @@ class ClaudeBashTool(ToolPlugin):
                 end_cwd=end_cwd,
                 cwd_persistence=cwd_persistence,
             )
-        extra: Optional[Dict[str, Any]] = None
+        extra: Dict[str, Any] = {}
         if cwd_persistence:
             stored = _cwd_for_storage(end_cwd, working_directory)
-            extra = {"metadata": {"bash": {"end_cwd": stored}}}
+            extra["metadata"] = {"bash": {"end_cwd": stored}}
+        if foreground.get("cancelled"):
+            extra["cancelled"] = True
         return self._result(
             tool_use_id=tool_use_id,
             message=message,
             success=bool(foreground["success"]),
-            extra=extra,
+            extra=extra or None,
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:

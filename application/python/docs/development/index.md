@@ -3,6 +3,7 @@
 - [CLI distribution implementation and verification](cli-distribution.md)
 - [CLI distribution verification specification](specifications/cli-distribution/index.md)
 - [Application request execution](request-execution.md)
+- [Request cancellation specification](specifications/request-cancellation/index.md)
 - [Application operations](operations.md)
 - [Bridge registered-server adapter](bridge-server-adapter.md)
 - [Runtime owner integration](runtime-owner-integration.md)

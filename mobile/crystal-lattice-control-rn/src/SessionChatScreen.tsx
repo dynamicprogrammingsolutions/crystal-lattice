@@ -231,6 +231,13 @@ const MOBILE_REQUEST_SESSION_ACTIONS: SessionActionDefinition[] = [
     defaultPinned: false,
     order: 31,
   },
+  {
+    key: "softCancel",
+    label: "Soft cancel request",
+    iconName: "pause-circle",
+    defaultPinned: false,
+    order: 32,
+  },
 ];
 
 type PluginActionContext =
@@ -1713,6 +1720,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         iconName: "repeat",
         order: 120,
         testID: "composer-action-resend",
+      },
+      {
+        key: "softCancel",
+        label: "Soft cancel request",
+        iconName: "pause-circle",
+        order: 125,
+        testID: "composer-action-soft-cancel",
       },
     ];
 
@@ -3672,6 +3686,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const handleSoftCancel = async () => {
+    if (!chatController) {
+      Alert.alert("No connection", "Connect to a server to cancel.");
+      return;
+    }
+    if (!activeRequestId) {
+      Alert.alert("No active request", "There is no active request to cancel.");
+      return;
+    }
+    try {
+      await chatController.softCancelActiveRequest();
+      appendDebugNote("Soft cancel requested", activeRequestId, {
+        sessionId,
+      });
+    } catch (err: any) {
+      console.log("Failed to soft cancel request", err);
+      const message = err?.message || "Failed to soft cancel request";
+      appendDebugNote("Soft cancel failed", message, {
+        activeRequestId,
+      });
+      Alert.alert("Error", message);
+    }
+  };
+
   const handleCheckPendingRequestStatus = async () => {
     if (!pendingRequestRecovery) {
       return;
@@ -3768,6 +3806,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         handleCancel().catch(() => {});
         return;
       }
+      if (key === "softCancel") {
+        handleSoftCancel().catch(() => {});
+        return;
+      }
 
       const richConfig = composerRichConfigControlByActionKey[key];
       if (richConfig) {
@@ -3820,6 +3862,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       executePluginAction,
       handleAppend,
       handleCancel,
+      handleSoftCancel,
       handleRichConfigValue,
       handlePickAttachment,
       handleResend,
@@ -3844,7 +3887,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           composerHasDraftMessage
         );
       }
-      if (key === "cancel") {
+      if (key === "cancel" || key === "softCancel") {
         return sendInProgress || !activeRequestId;
       }
       if (key === "append" || key === "appendAs") {
@@ -4042,6 +4085,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === "cancel") {
       await handleCancel();
+      return;
+    }
+    if (action === "softCancel") {
+      await handleSoftCancel();
       return;
     }
     if (action === "reload") {
@@ -4920,6 +4967,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                       ? isComposerActionDisabled("resend")
                       : action === "cancel"
                       ? isComposerActionDisabled("cancel")
+                      : action === "softCancel"
+                      ? isComposerActionDisabled("softCancel")
                       : resumeRecoveryInProgress && action === "reload")
                   );
                 }}

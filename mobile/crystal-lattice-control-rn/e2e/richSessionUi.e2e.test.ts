@@ -81,7 +81,7 @@ async function collapseExpandedComposer(): Promise<void> {
 }
 
 describe("portable rich session UI", () => {
-  it("places Resend and Cancel in Session actions", async () => {
+  it("places Resend, hard cancel, and soft cancel in Session actions", async () => {
     await launchHarness();
 
     await element(by.id("session-actions-menu")).tap();
@@ -89,6 +89,9 @@ describe("portable rich session UI", () => {
       .toBeVisible()
       .withTimeout(10000);
     await detoxExpect(element(by.id("actions-menu-action-cancel"))).toExist();
+    await detoxExpect(
+      element(by.id("actions-menu-action-softCancel"))
+    ).toHaveLabel("Soft cancel request");
     await detoxExpect(
       element(by.id("actions-menu-action-localWatchlist"))
     ).toHaveLabel("Add to Watchlist");

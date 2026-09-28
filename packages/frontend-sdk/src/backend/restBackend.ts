@@ -392,6 +392,19 @@ export class RestAgentBackend implements AgentBackend {
     });
   }
 
+  async softCancelRequest(
+    requestId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/requests/${encodeURIComponent(requestId)}/soft-cancel`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
   async listEvents(params: {
     sessionId?: string;
     sinceId?: string;

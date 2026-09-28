@@ -2,14 +2,30 @@
 
 from __future__ import annotations
 
-import platform
 from pathlib import Path
-import tempfile
+import threading
+import time
 
 import pytest
 
 from agent_core.plugin import ToolWrapper
 from qwen_tools.qwen_shell_tool import QwenShellTool
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callback = None
+
+    def add_callback(self, callback):
+        self._callback = callback
+        return 1
+
+    def remove_callback(self, token: int) -> None:
+        self._callback = None
+
+    def cancel(self) -> None:
+        if self._callback is not None:
+            self._callback()
 
 
 class TestQwenShellToolSchemas:
@@ -105,6 +121,25 @@ class TestQwenShellToolExecute:
         assert result["success"] is True
         assert result["exit_code"] == 0
         assert "hello" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_hard_cancellation_reaches_shared_shell(self, tmp_path: Path) -> None:
+        wrapper = ToolWrapper(QwenShellTool)
+        state = wrapper.init({"working_directory": str(tmp_path)})
+        cancellation = _TestCancellation()
+        timer = threading.Timer(0.2, cancellation.cancel)
+        timer.start()
+        started = time.monotonic()
+        result = await wrapper.execute_tool_async(
+            "bash",
+            {"command": "sleep 60"},
+            state,
+            cancellation=cancellation,
+        )
+        timer.join(timeout=1)
+        assert result["success"] is False
+        assert result["cancelled"] is True
+        assert time.monotonic() - started < 5
 
     @pytest.mark.asyncio
     async def test_exit_code_zero_success(self, tmp_path: Path) -> None:

@@ -13,19 +13,12 @@ Features:
 
 from __future__ import annotations
 
-import sys
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
-from tool_compat_shared import (
-    BACKGROUND_DELAY_SECONDS,
-    ShellInfo,
-    detect_shell,
-    run_shell_command,
-    truncate_output,
-)
+from tool_compat_shared import run_shell_command, truncate_output
 
 
 # Gemini defaults
@@ -133,6 +126,8 @@ class GeminiShellTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute the run_shell_command tool.
         
@@ -160,19 +155,18 @@ class GeminiShellTool(ToolPlugin):
         
         # Execute via shared engine (sync wrapper around async)
         import asyncio
-        import inspect
-        
         async def _run():
             return await run_shell_command(
                 command,
                 workdir=dir_path,
                 timeout_seconds=timeout_seconds,
                 is_background=is_background,
+                cancellation=cancellation,
             )
         
         # Check if we're already in an async context
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're in an async context - need to run in a thread
             # since we can't nest asyncio.run()
             import concurrent.futures
@@ -189,6 +183,22 @@ class GeminiShellTool(ToolPlugin):
         
         if result.get("timed_out"):
             return self._format_timeout_result(result, timeout_seconds, command, dir_path)
+
+        if result.get("cancelled"):
+            output = str(result.get("output") or "").rstrip()
+            message = "Command cancelled."
+            if output:
+                message = f"{message}\n{output}"
+            return {
+                "success": False,
+                "output": message,
+                "exit_code": None,
+                "cancelled": True,
+                "duration_seconds": result["duration_seconds"],
+                "command": command,
+                "dir_path": dir_path,
+                "description": description,
+            }
         
         # Apply truncation to output
         output, trunc_meta = truncate_output(

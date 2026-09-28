@@ -1620,6 +1620,30 @@ async def _shortcut_cancel_request(
     write("[cancel] cancellation requested for active request")
 
 
+@slash_command(
+    "soft-cancel",
+    "Cancel after the active tool finishes (if any)",
+)
+async def _cmd_soft_cancel_request(
+    app: TerminalApplication,
+    text: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    request_id = ui_state.get("active_request_id")
+    if not isinstance(request_id, str) or not request_id:
+        write("[soft-cancel] no active request to cancel")
+        return
+
+    try:
+        app.agent_app.soft_cancel_request(request_id)
+    except Exception as exc:  # pragma: no cover - defensive
+        _render_terminal_exception("soft-cancel", exc, write)
+        return
+
+    write("[soft-cancel] request will stop after the active tool finishes")
+
+
 @slash_command("delete", "Delete messages by index or range")
 async def _cmd_delete(
     app: TerminalApplication,

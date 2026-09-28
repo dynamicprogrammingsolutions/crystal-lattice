@@ -137,6 +137,8 @@ class KimiShellTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute the Shell tool.
         
@@ -185,11 +187,12 @@ class KimiShellTool(ToolPlugin):
                 workdir=workdir,
                 timeout_seconds=timeout,
                 env=env,
+                cancellation=cancellation,
             )
         
         # Check if we're already in an async context
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're in an async context - need to run in a thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -214,6 +217,20 @@ class KimiShellTool(ToolPlugin):
         # Format output based on result type
         if result.get("timed_out"):
             return self._format_timeout_result(result, timeout, command)
+
+        if result.get("cancelled"):
+            output = str(result.get("output") or "").rstrip()
+            lines = [output] if output else []
+            lines.append("Command cancelled.")
+            return {
+                "success": False,
+                "output": "\n".join(lines),
+                "exit_code": None,
+                "cancelled": True,
+                "duration_seconds": result["duration_seconds"],
+                "command": command,
+                "truncated": bool(result.get("truncated")),
+            }
         
         # Build result based on exit code
         if result["exit_code"] == 0:

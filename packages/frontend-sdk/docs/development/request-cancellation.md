@@ -1,0 +1,26 @@
+# Request cancellation
+
+`AgentBackend` exposes two request-ID operations:
+
+- `cancelRequest(requestId)` posts to `/requests/{requestId}/cancel` and
+  requests hard cancellation;
+- `softCancelRequest(requestId)` posts to
+  `/requests/{requestId}/soft-cancel` and lets an active tool finish before the
+  request stops.
+
+`ChatController.cancelActiveRequest()` and
+`ChatController.softCancelActiveRequest()` select the current
+`activeRequestId`. Neither method clears that ID after HTTP acknowledgement.
+The request remains active until the event stream delivers
+`request_cancelled` or `request_completed`.
+
+This permits escalation: after soft cancellation is acknowledged, a frontend
+must keep hard cancellation available for the same active request. On mobile,
+soft and hard cancellation have the same enabled state so either action
+remains available while the request is active. A frontend may guard only the
+brief submission itself, but must not disable soft cancellation for the rest
+of an active request after acknowledgement.
+
+The additive `request_cancelled.cancellation_mode` value is `soft` or `hard`.
+Existing lifecycle reduction remains based on the event type, so older event
+consumers can ignore the field.
