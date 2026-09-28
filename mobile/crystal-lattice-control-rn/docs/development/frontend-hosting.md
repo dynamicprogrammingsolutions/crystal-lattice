@@ -57,12 +57,18 @@ come first; ordinary pinned actions occupy the lower right-aligned action row.
 Composer actions contain Resend, Append, Append as, hard Cancel, and Soft
 cancel.
 
-The message input has a dynamic primary pinned action above Send. The ordered
-preference is hard Cancel, Soft cancel, then Resend; the first enabled pinned
-candidate occupies that slot, and only that candidate is removed from the
-normal pinned bar. Other pinned candidates stay visible there. Fresh
-preferences pin Append, hard Cancel, and Resend, so hard Cancel occupies the
-slot during a request and Resend occupies it while idle. Existing stored pin
+The message input has a dynamic primary pinned action above Send. Placement is
+stateless and depends only on pinning and whether a request is active. Resend
+pairs with hard Cancel when both are pinned, otherwise with Soft cancel when
+those two are pinned. The pair shares the side slot: Resend appears while idle
+and during the all-disabled submission gap, while the paired Cancel appears
+during an active request. The other pair member is hidden from the normal
+pinned bar. If both Cancel actions are pinned, the unpaired one remains in the
+normal bar. With no Resend/Cancel pair, the first pinned action in hard Cancel,
+Soft cancel, Resend order occupies the side slot and no other action is
+hidden. Enabled state changes styling and interaction, not placement.
+
+Fresh preferences pin Append, hard Cancel, and Resend. Existing stored pin
 choices remain authoritative.
 
 Each side control is 44 points square; the inline input has a 94-point minimum

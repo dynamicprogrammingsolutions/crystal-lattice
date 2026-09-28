@@ -1,25 +1,52 @@
-export interface SelectPrimaryComposerActionOptions {
+export interface ResolveComposerPrimaryLayoutOptions {
   pinnedKeys: readonly string[];
   preferenceKeys: readonly string[];
-  isDisabled: (key: string) => boolean;
+  requestActive: boolean;
 }
 
-export function selectPrimaryComposerActionKey({
+export interface ComposerPrimaryLayout {
+  alternatingCancelKey: string | null;
+  primaryKey: string | null;
+  hiddenKey: string | null;
+}
+
+export function resolveComposerPrimaryLayout({
   pinnedKeys,
   preferenceKeys,
-  isDisabled,
-}: SelectPrimaryComposerActionOptions): string | null {
-  const candidates = preferenceKeys.filter((key) => pinnedKeys.includes(key));
-  return candidates.find((key) => !isDisabled(key)) ?? candidates[0] ?? null;
+  requestActive,
+}: ResolveComposerPrimaryLayoutOptions): ComposerPrimaryLayout {
+  const pinned = new Set(pinnedKeys);
+  const alternatingCancelKey = pinned.has('resend')
+    ? pinned.has('cancel')
+      ? 'cancel'
+      : pinned.has('softCancel')
+        ? 'softCancel'
+        : null
+    : null;
+
+  if (alternatingCancelKey != null) {
+    return {
+      alternatingCancelKey,
+      primaryKey: requestActive ? alternatingCancelKey : 'resend',
+      hiddenKey: requestActive ? 'resend' : alternatingCancelKey,
+    };
+  }
+
+  return {
+    alternatingCancelKey: null,
+    primaryKey:
+      preferenceKeys.find((key) => pinned.has(key)) ?? null,
+    hiddenKey: null,
+  };
 }
 
 export function pinnedComposerKeysForBar(
   pinnedKeys: readonly string[],
-  primaryKey: string | null,
+  layout: Pick<ComposerPrimaryLayout, 'primaryKey' | 'hiddenKey'>,
 ): string[] {
-  return primaryKey == null
-    ? [...pinnedKeys]
-    : pinnedKeys.filter((key) => key !== primaryKey);
+  return pinnedKeys.filter(
+    (key) => key !== layout.primaryKey && key !== layout.hiddenKey,
+  );
 }
 
 export function resolveActiveRequestId(

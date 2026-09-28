@@ -131,7 +131,7 @@ import {
 import {
   pinnedComposerKeysForBar,
   resolveActiveRequestId,
-  selectPrimaryComposerActionKey,
+  resolveComposerPrimaryLayout,
 } from "./composerPrimaryAction";
 import SessionSettingsModal from "./components/SessionSettingsModal";
 import SessionPluginsModal from "./components/SessionPluginsModal";
@@ -697,16 +697,16 @@ const ChatComposer = React.memo(
       !activeRequestId &&
       !attachmentActionInProgress &&
       hasDraftMessage;
-    const primaryComposerActionKey = selectPrimaryComposerActionKey({
+    const primaryComposerLayout = resolveComposerPrimaryLayout({
       pinnedKeys: pinnedComposerActions,
       preferenceKeys: PRIMARY_COMPOSER_ACTION_PREFERENCE,
-      isDisabled: (key) =>
-        isComposerActionDisabled(key, hasDraftMessage),
+      requestActive: !!activeRequestId,
     });
     const pinnedComposerActionsForBar = pinnedComposerKeysForBar(
       pinnedComposerActions,
-      primaryComposerActionKey
+      primaryComposerLayout
     );
+    const primaryComposerActionKey = primaryComposerLayout.primaryKey;
     const primaryComposerAction =
       primaryComposerActionKey == null
         ? null

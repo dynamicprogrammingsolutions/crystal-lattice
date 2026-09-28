@@ -463,3 +463,54 @@ Follow-up completion:
   passed; Mobile TypeScript passed; focused Rich Session UI, primary selector,
   and recovery tests passed; documentation preparation and MkDocs build
   passed with the repository's existing warnings; `git diff --check` passed.
+
+### Approved stateless alternating-action follow-up
+
+Status: Approved
+
+Replace enabled-state-driven placement with a stateless layout determined only
+by pinning and whether a request is active:
+
+- Resend alternates with at most one pinned cancellation action.
+- If Resend and hard Cancel are pinned, they form the alternating pair.
+- Otherwise, if Resend and Soft cancel are pinned, they form the alternating
+  pair.
+- With an alternating pair, Resend occupies the side slot when no request is
+  active, including the all-disabled submission gap. The paired Cancel action
+  occupies it while a request is active. The other pair member is hidden from
+  the normal pinned bar.
+- A second pinned cancellation action is not part of the pair and remains in
+  the normal pinned bar.
+- If no alternating pair exists, the highest-priority pinned preferred action
+  occupies the side slot and no other pinned action is hidden.
+- Enabled state affects only styling and interaction, never placement.
+  Persisted pin state and Composer-action menu visibility remain unchanged.
+
+Stateless follow-up checklist:
+
+- [x] Replace the enabled-action selector with a pin/request-state layout
+  function returning primary, hidden, and paired-cancel keys.
+- [x] Cover all one-, two-, and three-action pin combinations for idle,
+  all-disabled submission, and active-request states.
+- [x] Route the mobile composer through the stateless layout result.
+- [x] Update component/e2e expectations and mobile development documentation.
+- [x] Run full Mobile Jest, Mobile TypeScript, focused frontend SDK tests,
+  documentation validation, and diff checks.
+
+Stateless follow-up completion:
+
+- The layout helper now returns `alternatingCancelKey`, `primaryKey`, and
+  `hiddenKey` from pinned keys and request-active state only.
+- With all three actions pinned, hard Cancel alternates with Resend and Soft
+  cancel remains in the normal pinned bar. With Resend plus only Soft cancel,
+  those two alternate. Hard Cancel plus Soft cancel has no alternating pair,
+  so both remain visible in stable positions.
+- The submission gap uses the no-active-request layout even when every action
+  is temporarily disabled. Enabled state changes styling and interaction only.
+- Table tests cover every non-empty one-, two-, and three-action pin
+  combination in idle/all-disabled and active-request states. Component tests
+  cover live idle-to-active swapping.
+- Verification: all 273 Mobile Jest tests passed; Mobile TypeScript passed;
+  focused frontend SDK cancellation/controller tests passed; documentation
+  preparation and MkDocs build passed with existing warnings; and
+  `git diff --check` passed.
