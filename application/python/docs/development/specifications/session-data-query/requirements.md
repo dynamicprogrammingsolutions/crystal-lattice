@@ -3,8 +3,7 @@
 These requirements track the live implementation of the
 [session and message data query specification](index.md).
 
-The query contract is implemented locally. Native all-target distribution
-verification remains in progress under `SDQ-013`.
+The query contract is implemented, verified, and documented.
 
 | ID | Requirement | Implementation | Verification | Documentation | Evidence |
 |---|---|---|---|---|---|
@@ -20,7 +19,7 @@ verification remains in progress under `SDQ-013`.
 | SDQ-010 | JSON output is structurally lossless within the requested projection; text, TSV, and CSV output have documented deterministic one-record rendering and escaping suitable for human inspection and ordinary `grep`. | Implemented | Automated | Documented | `test_query_rendering.py`; CLI JSON/text chain; [output guide](../../../session-data-query.md#json-output) |
 | SDQ-011 | Projection and enumeration enforce bounded selector, range, result, output, and complexity limits without treating projection as an authorization boundary or exposing selected sensitive values in diagnostics. | Implemented | Automated | Documented | Projection selector/match/size tests; renderer row/value bounds; invalid CLI/HTTP tests; [bounds and security](../../../session-data-query.md#bounds-and-security) |
 | SDQ-012 | Current field documentation covers session summaries, plugin-contributed fields, indexed and canonical messages, metadata reasoning, multipart content, tool results, snapshot/cursor envelope fields, projection semantics, and copyable JSON and text search examples without named presets. | Implemented | Automated | Documented | Application and frontend SDK query guides; docs preparation and MkDocs build |
-| SDQ-013 | Source, direct archive/manual, Bash-installed, and PowerShell-installed runtimes expose and execute the new session/message commands with platform-safe JSONPath quoting and line-oriented output on applicable native targets. | In progress | Unverified | Documented | macOS ARM64 clean source, direct archive, and default Bash-installer smokes passed; six-target native workflow pending |
+| SDQ-013 | Source, direct archive/manual, Bash-installed, and PowerShell-installed runtimes expose and execute the new session/message commands with platform-safe JSONPath quoting and line-oriented output on applicable native targets. | Implemented | Automated | Documented | Clean macOS ARM64 source smoke plus all applicable direct archive, Bash, and PowerShell paths passed on six native targets in [run 36442124636](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/36442124636) |
 
 ## Active work
 

@@ -46,7 +46,7 @@ Depends On: `tasks/20260825-crystal-lattice-product-positioning-and-website/021-
 - [x] Current user and developer documentation describes canonical fields,
       plugin-contributed fields, projection semantics, date filters, formats,
       and copyable JSON and text pipelines instead of named presets.
-- [ ] Source, direct archive/manual, Bash-installed, and PowerShell-installed
+- [x] Source, direct archive/manual, Bash-installed, and PowerShell-installed
       runtimes execute the new commands on applicable native release targets.
 
 These requirements map to `SDQ-001` through `SDQ-013`, `SLIST-021` onward,
@@ -321,8 +321,8 @@ installation, and PowerShell installation.
 - [x] Add frontend SDK projected types, query options, and cache-safe hydration.
 - [x] Add focused, integration, subprocess, frontend, and compatibility tests.
 - [x] Update current consumer and developer documentation after delivery.
-- [ ] Verify source and all applicable native archive/installer paths.
-- [ ] Update all affected requirement evidence and append completion notes.
+- [x] Verify source and all applicable native archive/installer paths.
+- [x] Update all affected requirement evidence and append completion notes.
 
 ### Requirement verification
 
@@ -383,9 +383,68 @@ installation, and PowerShell installation.
 - Added direct Python, CLI, existing-HTTP-route, and frontend REST query
   surfaces. Projected SDK methods are separate from complete list methods, so
   partial messages cannot enter the existing complete-message cache path.
-- Focused evidence currently includes 17 Core projection/filter tests, 14 real
-  CLI subprocess tests, 17 local-runtime/rendering tests, real FastAPI
-  projection tests, 37 focused frontend SDK tests, one production REST/FastAPI
-  integration test, 51 shared component tests, and the focused mobile filter
-  suite. Full suites, final docs, distribution smoke, and requirement-state
-  updates remain.
+- Focused projection, filter, CLI subprocess, local-runtime, rendering,
+  FastAPI, production REST-adapter, shared-component, mobile, and desktop
+  checks passed before the complete suites and distribution matrix. Final
+  counts and evidence are recorded in Completion Notes.
+- The first all-native run exposed PowerShell `-File` argument forwarding
+  removing inner double quotes from the tool-role JSONPath string. The smoke
+  now uses the equivalent RFC-valid single-quoted literal and has a focused
+  regression assertion. Final run
+  [36442124636](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/36442124636)
+  passed the hosted tests and all six native archive/installer jobs at commit
+  `9592b1ba`.
+
+## Completion Notes
+
+- Delivered strict RFC 9535 include/exclude projection for session and message
+  response envelopes with source-order preservation, clean array removal,
+  generic conditional selectors, deterministic limits, and unchanged
+  no-selector behavior.
+- Added timezone-aware plugin datetime filters in Python and TypeScript. The
+  built-in timestamp metadata plugin declares `modified_after`; mobile and
+  desktop render a draft-then-commit date control.
+- Added `LocalAgentRuntime.list_sessions(...)` and `list_messages(...)`,
+  one-shot `crystal-lattice sessions` and one-session `messages`, JSON/text/
+  TSV/CSV output, existing-route HTTP query parameters, and explicit projected
+  frontend SDK types and REST methods.
+- Added complete field and usage documentation with Python, CLI, HTTP,
+  TypeScript, JSON, text, and `sessions | while read ... messages | grep`
+  examples. No named preset, multi-session messages command, server-side text
+  index, fixed role registry, or POST query endpoint was introduced.
+- Automated local evidence:
+  - Core default: 556 passed, 26 deselected, 1 expected xfail.
+  - Application default: 486 passed, 1 skipped, 98 deselected.
+  - Query/headless integration: 16 passed.
+  - Timestamp plugin: 4 passed.
+  - Frontend SDK: 351 passed; React bindings: 20 passed; shared RN components:
+    51 passed.
+  - Mobile: 181 passed; desktop: 144 passed.
+  - Production frontend REST adapter against real FastAPI: passed.
+  - Targeted Python Pyright, Ruff, Black, JSON, requirement-evidence, link,
+    docs preparation, and MkDocs build checks passed.
+- Distribution evidence:
+  - Clean source installation, direct archive, and default Bash installer
+    passed locally on macOS ARM64.
+  - Final non-publishing native workflow
+    [36442124636](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/36442124636)
+    passed Linux AMD64/ARM64, macOS AMD64/ARM64, and Windows AMD64/ARM64,
+    including every applicable direct archive, Bash installer, and native
+    PowerShell installer path. Real-provider access was intentionally disabled
+    because this query contract requires no hosted model call.
+- Implementation findings and deviations:
+  - `jsonpath-rfc9535` was rejected after its compiled `iregexp-check`
+    dependency proved to lack a Windows ARM64 wheel. The delivered
+    `python-jsonpath` strict-mode engine is pure Python, MIT licensed, and
+    compliance-suite tested.
+  - Native smoke use of the timestamp plugin exposed and fixed its assumption
+    that every config contains an `application` object.
+  - The first Windows run exposed PowerShell stripping inner double quotes from
+    an argv JSONPath literal; switching the smoke to RFC-valid single quotes
+    passed both Windows architectures.
+- Existing repository quality baselines remain outside this task: mobile
+  ESLint has no discoverable configuration; desktop lint and full frontend SDK
+  typecheck report established unrelated errors; and MkDocs reports existing
+  plugin/reference warnings. Mobile TypeScript compilation and all affected
+  runtime/component tests passed.
+- No unresolved or deferred task scope remains.
