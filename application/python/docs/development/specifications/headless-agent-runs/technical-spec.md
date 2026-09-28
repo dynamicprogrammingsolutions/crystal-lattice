@@ -448,8 +448,8 @@ result document or empty when execution fails before a run result exists.
 - HTTP and frontend contracts do not change.
 
 The separately specified
-[session and message data query](../session-data-query/index.md) is a future
-refinement of the local runtime and one-shot CLI. It adds complete
+[session and message data query](../session-data-query/index.md) refines the
+local runtime and one-shot CLI. It adds complete
 session/message enumeration and projection through new methods and commands;
 it does not change the existing `agents`, `run`, compact `history`, or
 full-message `history --index` behavior. Its HTTP and frontend changes are

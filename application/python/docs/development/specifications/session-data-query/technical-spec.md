@@ -86,9 +86,8 @@ Projection does not synthesize absent values or rename current fields.
 
 ## JSONPath contract
 
-Selectors use RFC 9535 JSONPath notation. The implementation may choose a
-library only after conformance tests prove the supported syntax and result
-ordering required here.
+Selectors use RFC 9535 JSONPath notation. Conformance tests prove the supported
+syntax and result ordering required here.
 
 The initial implementation uses MIT-licensed `python-jsonpath` 2.x with
 `JSONPathEnvironment(strict=True)`. It is pure Python across all supported

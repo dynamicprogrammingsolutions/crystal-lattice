@@ -1102,10 +1102,12 @@ def _run_sessions_command(
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
 
-    print(
-        render_sessions_document(document, parsed.format),
-        end="",
-    )
+    try:
+        rendered = render_sessions_document(document, parsed.format)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    print(rendered, end="")
 
 
 def _run_messages_command(
@@ -1148,14 +1150,16 @@ def _run_messages_command(
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
 
-    print(
-        render_messages_document(
+    try:
+        rendered = render_messages_document(
             document,
             parsed.format,
             session_id=parsed.session,
-        ),
-        end="",
-    )
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    print(rendered, end="")
 
 
 def _run_local_headless_command(

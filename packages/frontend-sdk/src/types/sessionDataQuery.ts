@@ -24,7 +24,8 @@ export type ProjectedSessionSummary = Partial<SessionSummary> & {
   [key: string]: unknown;
 };
 
-export type ProjectedApiMessage = Partial<ApiMessage> & {
+export type ProjectedApiMessage = Omit<Partial<ApiMessage>, 'content'> & {
+  content?: unknown;
   [key: string]: unknown;
 };
 

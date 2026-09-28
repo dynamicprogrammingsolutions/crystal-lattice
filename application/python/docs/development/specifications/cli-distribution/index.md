@@ -121,7 +121,7 @@ new commands, tests, messages, and documentation use the descriptive names.
 - [Application configuration](../../../configuration.md)
 - [Configuration placeholders and `.env` loading](../../../configuration-placeholders.md)
 
-## Related future target
+## Related query contract
 
 The
 [session and message data query specification](../session-data-query/index.md)

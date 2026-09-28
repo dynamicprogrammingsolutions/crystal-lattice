@@ -261,7 +261,7 @@ checks. The headless probe then invokes the exact installed extensionless Bash
 launcher or Windows `.cmd` launcher so Python executable lookup cannot fall
 through to a same-named console executable elsewhere on PATH.
 
-The future
+The
 [session and message data query specification](../session-data-query/index.md)
 adds deterministic `sessions` and `messages` command checks. Distribution
 acceptance must execute representative JSONPath filter expressions and
