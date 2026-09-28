@@ -284,6 +284,13 @@ def test_headless_access_configs_are_minimal_and_never_store_provider_key(
     assert "test-secret-must-not-appear" not in real_text
 
 
+def test_headless_access_jsonpath_survives_powershell_file_forwarding() -> None:
+    selector = headless_access_smoke.TOOL_MESSAGE_EXCLUDE_JSONPATH
+
+    assert selector == "$.messages[?(@.message.role == 'tool')]"
+    assert '"' not in selector
+
+
 def test_real_access_acceptance_requires_method_evidence_in_tool_calls() -> None:
     marker = smoke_agent_access.CLI_MARKER
     worker = Session(

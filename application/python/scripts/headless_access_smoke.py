@@ -15,6 +15,7 @@ ACCESS_AGENT_ID = "headless-access-smoke"
 ACCESS_PROVIDER_ID = "headless_access_deterministic"
 ACCESS_MIXIN_ID = "headless_access_smoke_system"
 ACCESS_TEMPLATE = "{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
+TOOL_MESSAGE_EXCLUDE_JSONPATH = "$.messages[?(@.message.role == 'tool')]"
 
 
 def assert_headless_access(
@@ -103,7 +104,7 @@ def assert_headless_access(
             "--include",
             "$.messages[*].message.content",
             "--exclude",
-            '$.messages[?(@.message.role == "tool")]',
+            TOOL_MESSAGE_EXCLUDE_JSONPATH,
             "--format",
             "json",
         ],
@@ -145,7 +146,7 @@ def assert_headless_access(
                 "                '$.messages[*].message.role',",
                 "                '$.messages[*].message.content',",
                 "            ],",
-                "            exclude=['$.messages[?(@.message.role == \"tool\")]'],",
+                f"            exclude=[{TOOL_MESSAGE_EXCLUDE_JSONPATH!r}],",
                 "        )",
                 "        assert 'SDK_ACCESS_SMOKE' in json.dumps(messages)",
                 "print(json.dumps(result.to_dict(), sort_keys=True))",
