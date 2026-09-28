@@ -44,6 +44,25 @@ async function tapById(testId: string, timeoutMs = 15000): Promise<void> {
   }
 }
 
+async function settleAfterModalTransition(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 600));
+}
+
+async function scrollUntilVisible(
+  scrollId: string,
+  testId: string
+): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      await waitFor(element(by.id(testId))).toBeVisible().withTimeout(1500);
+      return;
+    } catch {
+      await element(by.id(scrollId)).swipe("up", "fast", 0.45);
+    }
+  }
+  throw new Error(`${testId} never became visible`);
+}
+
 async function readText(testId: string): Promise<string> {
   const attributes = (await element(by.id(testId)).getAttributes()) as {
     text?: string;
@@ -129,34 +148,24 @@ async function configureProfile(options: {
   await waitFor(element(by.id("embedded-runtime-settings")))
     .toBeVisible()
     .withTimeout(30000);
-  const scroll = by.id("embedded-runtime-settings-scroll");
+  await settleAfterModalTransition();
+  const scrollId = "embedded-runtime-settings-scroll";
+  const scroll = by.id(scrollId);
   const prefix = `embedded-provider-${options.profileId}`;
-  if (options.profileId === "openrouter") {
-    await element(scroll).scroll(500, "down");
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .withTimeout(30000);
-  } else if (options.profileId === "anthropic") {
-    await element(scroll).swipe("up", "fast", 0.8);
-    await element(scroll).swipe("up", "fast", 0.8);
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .withTimeout(30000);
-  } else {
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
+  if (options.profileId === "openai" && options.authMode === "chatgpt") {
+    await scrollUntilVisible(
+      scrollId,
+      "embedded-provider-openai-auth-chatgpt"
+    );
+    await tapById("embedded-provider-openai-auth-chatgpt");
   }
+  await scrollUntilVisible(scrollId, `${prefix}-base-url`);
 
   const replaceProfileField = async (
     fieldId: string,
     value: string
   ): Promise<void> => {
-    await waitFor(element(by.id(fieldId)))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
+    await scrollUntilVisible(scrollId, fieldId);
     const deadline = Date.now() + 15000;
     while (true) {
       try {
@@ -171,18 +180,8 @@ async function configureProfile(options: {
 
   await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
   await replaceProfileField(`${prefix}-model`, options.model);
-  if (options.profileId === "openai" && options.authMode === "chatgpt") {
-    const authModeId = "embedded-provider-openai-auth-chatgpt";
-    await waitFor(element(by.id(authModeId)))
-      .toBeVisible()
-      .withTimeout(30000);
-    await tapById(authModeId);
-  }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
-  await waitFor(element(by.id(`${prefix}-test`)))
-    .toBeVisible()
-    .whileElement(scroll)
-    .scroll(100, "down");
+  await scrollUntilVisible(scrollId, `${prefix}-test`);
   await tapById(`${prefix}-test`);
   await waitFor(element(by.id(`${prefix}-validation`)))
     .toHaveText(`Connected to ${options.model}`)
@@ -251,6 +250,13 @@ describe("embedded provider real API matrix", () => {
     await detoxExpect(
       element(by.id("embedded-provider-matrix-agent"))
     ).toHaveText(agentId);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-tools"))
+    ).toHaveText(
+      profileId === "reviewer" || profileId === "openai"
+        ? "apply_patch"
+        : "Write"
+    );
     const sessionId = await readText("embedded-provider-matrix-session");
     await detoxExpect(
       element(by.id("embedded-provider-matrix-assistant"))

@@ -277,3 +277,14 @@ URL/code display without a certificate failure.
   Open-link and Copy-code actions, and cancels successfully. The action row
   wraps on compact screens. The human authorization/tool-request portion
   remains collected and skipped unless its explicit gate is enabled.
+- 2026-09-28: A local HTTP loopback authenticated, Luna-only, Responses-only
+  reviewer proxy completed the Release-simulator reviewer matrix through
+  `reviewer-codex`. The run preserved a credential-free local session,
+  invoked `apply_patch`, produced `MATRIX_REVIEWER`, and recovered the same
+  provider session after relaunch. Proxy evidence contained only `/v1/models`
+  and `/v1/responses`; two Responses calls completed with HTTP 200, and the
+  configured budget ledger recorded `$0.0004818`. This proves the
+  provider/tool/relaunch slice but does not complete the checklist's HTTPS
+  boundary; that still requires a simulator-trusted local test certificate or
+  the separately gated Ireland deployment. A repeat run passed with an
+  explicit `embedded-provider-matrix-tools == apply_patch` assertion.
