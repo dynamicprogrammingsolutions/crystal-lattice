@@ -1,5 +1,5 @@
 """
-PrefixExtension example (class-based provider extension) derived from PLUGIN_EXAMPLES.md.
+Example 2: Prefix provider extension.
 Adds a prefix to final assistant messages and counts processed chunks in metadata.
 """
 

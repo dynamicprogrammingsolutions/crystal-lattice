@@ -297,7 +297,7 @@ def test_send_message_applies_request_overrides_before_pdf_append(
         fastapi_app.dependency_overrides.clear()
 
 
-def test_add_message_returns_400_for_pdf_without_upload_mode(
+def test_add_message_stores_pdf_without_running_provider_validation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -336,8 +336,21 @@ def test_add_message_returns_400_for_pdf_without_upload_mode(
             },
         )
 
-        assert response.status_code == 400
-        assert "attachment_upload_mode=upload_before_send" in response.json()["detail"]
+        assert response.status_code == 200
+        loaded = app_instance.load_session(session_id)
+        assert loaded is not None
+        _core, _base_config, session = loaded
+        assert session.messages[-1].multipart_content == [
+            {
+                "type": "pdf",
+                "content": {
+                    "url": pdf_data_url,
+                    "mime_type": "application/pdf",
+                    "filename": pdf_path.name,
+                },
+                "metadata": {},
+            }
+        ]
     finally:
         fastapi_app.dependency_overrides.clear()
 

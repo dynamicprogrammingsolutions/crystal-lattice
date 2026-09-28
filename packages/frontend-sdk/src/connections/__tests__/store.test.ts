@@ -63,6 +63,14 @@ describe('connections store', () => {
         serverName: 'My Server',
         pairingToken: null,
       },
+      {
+        id: 'embedded-ios-runtime',
+        kind: 'embedded',
+        name: 'On-device Python agent',
+        lastUsedAt: 4,
+        proxyUrl: 'https://review.example.test/v1',
+        model: 'small-model',
+      },
     ];
 
     await saveConnections(store, connections);

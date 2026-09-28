@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import {
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,11 +21,11 @@ export interface MenuIconRenderParams {
 }
 
 export type MenuIconRenderer = (
-  params: MenuIconRenderParams,
+  params: MenuIconRenderParams
 ) => React.ReactNode;
 
 export interface ActionsMenuRenderItemParams<
-  TDef extends ActionDefinition = ActionDefinition,
+  TDef extends ActionDefinition = ActionDefinition
 > {
   action: TDef;
   pinned: boolean;
@@ -34,7 +35,7 @@ export interface ActionsMenuRenderItemParams<
 }
 
 export interface ActionsMenuContentProps<
-  TDef extends ActionDefinition = ActionDefinition,
+  TDef extends ActionDefinition = ActionDefinition
 > {
   actions: readonly TDef[];
   pinnedKeys: readonly ActionKey[];
@@ -55,12 +56,12 @@ export interface ActionsMenuContentProps<
 }
 
 export function ActionsMenuContent<TDef extends ActionDefinition>(
-  props: ActionsMenuContentProps<TDef>,
+  props: ActionsMenuContentProps<TDef>
 ): React.JSX.Element {
   const theme = useTheme();
   const pinnedSet = useMemo(
     () => new Set(props.pinnedKeys),
-    [props.pinnedKeys],
+    [props.pinnedKeys]
   );
   const isActionDisabled = props.isActionDisabled ?? (() => false);
   const iconSize = props.iconSize ?? 16;
@@ -121,6 +122,21 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
                 menuStateLabel
                   ? `${action.label}: ${menuStateLabel}`
                   : action.label
+              }
+              accessibilityRole="button"
+              accessibilityActions={
+                Platform.OS === "macos"
+                  ? undefined
+                  : [{ name: "activate", label: action.label }]
+              }
+              onAccessibilityAction={
+                Platform.OS === "macos"
+                  ? undefined
+                  : (event) => {
+                      if (event.nativeEvent.actionName === "activate") {
+                        onPressAction();
+                      }
+                    }
               }
               onPress={onPressAction}
               disabled={disabled}

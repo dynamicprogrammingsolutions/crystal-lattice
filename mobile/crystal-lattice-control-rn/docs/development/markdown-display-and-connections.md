@@ -4,19 +4,43 @@ Mobile loads one versioned markdown display preference record from
 AsyncStorage before leaving the application loading boundary. The application
 supplies the normalized value through the shared markdown preference provider.
 Global Settings uses the standard `PanelModalFrame` and option-picker surfaces
-to update the 14, 15 (Default), 16, or 17 font size and Normal/Small headers.
-Legacy 13 and 19 records migrate to 14 and 17 and are rewritten in normalized
-form.
+to update the 14, 15 (Default), 16, or 17 font size, Normal/Small headers, the
+markdown renderer, and the block-code renderer. Legacy 13 and 19 records
+migrate to 14 and 17. Older typography-only records retain those values, gain
+the renderer defaults, and are rewritten in normalized form.
+
+The mobile renderer choices are:
+
+- `React Native Markdown Display`, the stable default;
+- `Enriched Markdown (experimental)`;
+- `Selectable native code`, the requested default code implementation;
+- `Syntax highlighter`.
+
+The stored IDs are requested preferences. A mobile capability resolver derives
+effective IDs without overwriting a known request. RNMD and syntax-highlighter
+are stable fallbacks. Settings displays a fallback notice only when the
+requested and effective values differ. Selectable native code is currently
+verified and enabled on iOS. Android falls back to syntax-highlighter because
+the existing native package's Fabric measurement path crashes when the
+optional false `wrapLines` prop is absent; the native-code workstream owns
+correcting that backend and enabling its capability.
 
 The application overlays the selected shared typography preset on its
 light/dark color theme. Message, footer, reasoning, tool, composer, settings,
 actions, and code consumers use responsive semantic font-size and line-height
 tokens; explicit card/screen/modal titles and layout dimensions remain fixed.
-Both the enriched selectable renderer and the legacy markdown renderer map the
+Both the enriched selectable renderer and the RNMD renderer map the
 shared semantic body and H1–H6 metrics to their renderer-specific style keys.
-Syntax-highlighted fallback code blocks pass the semantic `code` font size and
-line height directly to the `feature/native-line-height` branch of the
-`ferenci84/react-native-syntax-highlighter` fork.
+
+`ConfiguredMarkdownMessageContent` is the production dispatch boundary for
+user/assistant chat markdown and markdown action-display bodies. Raw chat
+messages and text-format action displays bypass it. Both markdown
+implementations send fenced and indented block-code segments through
+`ConfiguredCodeBlock`, which selects the existing native selectable component
+or the syntax-highlighter component. Inline code remains part of each markdown
+renderer's prose layout. Syntax-highlighted code passes the semantic `code`
+font size and line height directly to the `feature/native-line-height` branch
+of the `ferenci84/react-native-syntax-highlighter` fork.
 
 Session cards use semantic typography from the selected preset: `large` for
 the title, `normal` for the subtitle or preview, `small` for the session ID,
@@ -68,16 +92,20 @@ production connected navigation root, Connections screen, settings modals,
 pinnable actions, persistence owners, message footer, and markdown renderer
 with deterministic connection data. The focused Detox scenario runs on iOS
 and Android and verifies card versus Open-action navigation, action
-applicability, modal transitions, preference and pin persistence, and
-screenshot-derived prose/header/footer geometry. The bridge-transport Detox
-scenario separately verifies
-that the production New Connection action still enters the connection wizard.
+applicability, modal transitions, typography and renderer preference
+persistence, active markdown/code implementations, and screenshot-derived
+prose/header/footer geometry. The bridge-transport Detox scenario separately
+verifies that the production New Connection action still enters the connection
+wizard.
 
 Maintainer entry points:
 
 - `App.tsx`
 - `src/useMarkdownDisplayPreferences.ts`
+- `src/markdownRendererPreferences.ts`
 - `src/components/GlobalSettingsModal.tsx`
+- `src/components/ConfiguredMarkdownMessageContent.tsx`
+- `src/components/ConfiguredCodeBlock.tsx`
 - `src/components/SelectableMarkdownMessageContent.tsx`
 - `src/components/MarkdownMessageContent.tsx`
 - `src/ConnectedRoot.tsx`

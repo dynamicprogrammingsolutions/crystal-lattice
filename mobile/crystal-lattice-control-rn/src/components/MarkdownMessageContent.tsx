@@ -1,19 +1,20 @@
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
 import {
   deriveMarkdownTypography,
   useMarkdownDisplayPreferences,
+  type CodeBlockRendererId,
 } from '@crystal-lattice/frontend-rn-components';
 import { useTheme } from '../theme';
+import ConfiguredCodeBlock from './ConfiguredCodeBlock';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
 
 export interface MarkdownMessageContentProps {
   text: string;
   variant?: MarkdownMessageVariant;
+  codeBlockRenderer?: CodeBlockRendererId;
 }
 
 function inlineCodeText(node: any, children: any): string {
@@ -39,13 +40,10 @@ function inlineCodeText(node: any, children: any): string {
 const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   text,
   variant = 'assistant',
+  codeBlockRenderer = 'syntax-highlighter',
 }) => {
   const theme = useTheme();
   const { preferences } = useMarkdownDisplayPreferences();
-
-  const isDarkCodeBlock = useMemo(() => {
-    return theme.codeBlockBg !== '#FFFFFF';
-  }, [theme.codeBlockBg]);
 
   const markdownStyle = useMemo(() => {
     const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
@@ -98,14 +96,6 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
     } as const;
   }, [preferences, variant, theme]);
 
-  const codeBlockInnerStyle = useMemo(
-    () => ({
-      ...styles.codeBlockInner,
-      fontSize: theme.typography.fontSize.code,
-    }),
-    [theme.typography.fontSize.code],
-  );
-
   const rules = useMemo(
     () => ({
       // Fenced / block code
@@ -116,47 +106,12 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         const content = typeof node.content === 'string' ? node.content : '';
 
         return (
-          <View
+          <ConfiguredCodeBlock
             key={node.key}
-            style={[
-              styles.codeBlockOuter,
-              {
-                backgroundColor: theme.codeBlockBg,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <ScrollView
-              style={styles.codeBlockScrollVertical}
-              contentContainerStyle={styles.codeBlockScrollVerticalContent}
-              nestedScrollEnabled
-            >
-              <ScrollView
-                horizontal
-                style={styles.codeBlockScrollHorizontal}
-                contentContainerStyle={styles.codeBlockScrollHorizontalContent}
-                showsHorizontalScrollIndicator
-              >
-                <SyntaxHighlighter
-                  language={language}
-                  style={
-                    (isDarkCodeBlock
-                      ? (hljsStyles as any).atomOneDark
-                      : (hljsStyles as any).atomOneLight) as any
-                  }
-                  highlighter="hljs"
-                  fontFamily="Courier"
-                  fontSize={theme.typography.fontSize.code}
-                  lineHeight={theme.typography.lineHeight.code}
-                  customStyle={codeBlockInnerStyle}
-                  PreTag={View as any}
-                  CodeTag={Text as any}
-                >
-                  {content}
-                </SyntaxHighlighter>
-              </ScrollView>
-            </ScrollView>
-          </View>
+            renderer={codeBlockRenderer}
+            language={language}
+            code={content}
+          />
         );
       },
       code_block: (node: any) => {
@@ -167,47 +122,12 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
         const content = typeof node.content === 'string' ? node.content : '';
 
         return (
-          <View
+          <ConfiguredCodeBlock
             key={node.key}
-            style={[
-              styles.codeBlockOuter,
-              {
-                backgroundColor: theme.codeBlockBg,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <ScrollView
-              style={styles.codeBlockScrollVertical}
-              contentContainerStyle={styles.codeBlockScrollVerticalContent}
-              nestedScrollEnabled
-            >
-              <ScrollView
-                horizontal
-                style={styles.codeBlockScrollHorizontal}
-                contentContainerStyle={styles.codeBlockScrollHorizontalContent}
-                showsHorizontalScrollIndicator
-              >
-                <SyntaxHighlighter
-                  language={language}
-                  style={
-                    (isDarkCodeBlock
-                      ? (hljsStyles as any).atomOneDark
-                      : (hljsStyles as any).atomOneLight) as any
-                  }
-                  highlighter="hljs"
-                  fontFamily="Courier"
-                  fontSize={theme.typography.fontSize.code}
-                  lineHeight={theme.typography.lineHeight.code}
-                  customStyle={codeBlockInnerStyle}
-                  PreTag={View as any}
-                  CodeTag={Text as any}
-                >
-                  {content}
-                </SyntaxHighlighter>
-              </ScrollView>
-            </ScrollView>
-          </View>
+            renderer={codeBlockRenderer}
+            language={language}
+            code={content}
+          />
         );
       },
       code_inline: (node: any, children: any) => {
@@ -232,10 +152,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       },
     }),
     [
-      codeBlockInnerStyle,
-      isDarkCodeBlock,
-      theme.border,
-      theme.codeBlockBg,
+      codeBlockRenderer,
       theme.inlineCodeBg,
       theme.text,
       theme.textOnPrimary,
@@ -286,33 +203,6 @@ const styles = StyleSheet.create({
   codeBlockContainer: {
     marginTop: 4,
     marginBottom: 4,
-  },
-  codeBlockOuter: {
-    marginTop: 4,
-    marginBottom: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  codeBlockScrollVertical: {
-    maxHeight: 260,
-  },
-  codeBlockScrollVerticalContent: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  codeBlockScrollHorizontal: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  codeBlockScrollHorizontalContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  codeBlockInner: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    margin: 0,
   },
 });
 

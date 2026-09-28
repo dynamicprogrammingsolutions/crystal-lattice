@@ -5,13 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import itertools
 import json
 import math
+import queue
 import threading
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
+import time
+from typing import Any, Callable, cast, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
 
 from agent_core import Session
 
+from ._session_list_cache import (
+    _default_cache_path,
+    _NullSessionSummaryCache,
+    _PersistedSessionSummary,
+    _SQLiteSessionSummaryCache,
+    _stable_revision_token,
+)
 from .sessions import SessionStore, SessionStoreRecord
 
 
@@ -169,10 +179,297 @@ class _OrderSpec:
 @dataclass
 class _CachedSummary:
     revision: object
+    revision_token: str
     contract_token: str
     summary: Dict[str, Any]
     order_specs: Tuple[_OrderSpec, ...]
     diagnostics: Tuple[SessionListDiagnostic, ...]
+    complete: bool
+    cacheable: bool
+
+
+@dataclass(frozen=True)
+class _ResolutionTask:
+    key: Tuple[str, str, str, int]
+    record: SessionStoreRecord
+    actions: Tuple[_TriggerAction, ...]
+    fields: Tuple[_SessionListField, ...]
+    contract_token: str
+    build: Callable[
+        [
+            SessionStoreRecord,
+            Sequence[_TriggerAction],
+            Sequence[_SessionListField],
+            str,
+        ],
+        _CachedSummary,
+    ]
+    persist: Callable[[_CachedSummary], None]
+
+
+class _BackgroundSummaryResolver:
+    """Private newest-first resolver with cooperative daemon-worker shutdown."""
+
+    def __init__(self, *, worker_count: int) -> None:
+        self._worker_count = max(1, worker_count)
+        self._condition = threading.Condition(threading.RLock())
+        self._queue: queue.PriorityQueue[Tuple[float, int, Optional[_ResolutionTask]]] = (
+            queue.PriorityQueue()
+        )
+        self._sequence = itertools.count()
+        self._workers: List[threading.Thread] = []
+        self._desired: Dict[str, Tuple[str, str, str, int]] = {}
+        self._latest_tasks: Dict[str, _ResolutionTask] = {}
+        self._scheduled: Dict[str, Tuple[str, str, str, int]] = {}
+        self._results: Dict[str, Tuple[Tuple[str, str, str, int], _CachedSummary]] = {}
+        self._epochs: Dict[str, int] = {}
+        self._closed = False
+
+    def _key_for(
+        self,
+        record: SessionStoreRecord,
+        contract_token: str,
+    ) -> Tuple[str, str, str, int]:
+        return (
+            record.session_id,
+            _stable_revision_token(record.revision),
+            contract_token,
+            self._epochs.get(record.session_id, 0),
+        )
+
+    def _ensure_workers_locked(self) -> None:
+        if self._workers or self._closed:
+            return
+        for index in range(self._worker_count):
+            worker = threading.Thread(
+                target=self._worker,
+                name=f"session-list-resolver-{index + 1}",
+                daemon=True,
+            )
+            self._workers.append(worker)
+            worker.start()
+
+    def resolve(
+        self,
+        *,
+        records: Sequence[SessionStoreRecord],
+        actions: Sequence[_TriggerAction],
+        fields: Sequence[_SessionListField],
+        contract_token: str,
+        persisted: Mapping[str, _CachedSummary],
+        build: Callable[
+            [
+                SessionStoreRecord,
+                Sequence[_TriggerAction],
+                Sequence[_SessionListField],
+                str,
+            ],
+            _CachedSummary,
+        ],
+        persist: Callable[[_CachedSummary], None],
+        timeout_seconds: float,
+    ) -> Dict[str, _CachedSummary]:
+        ordered_records = sorted(
+            records,
+            key=lambda record: record.modified,
+            reverse=True,
+        )
+        with self._condition:
+            if self._closed:
+                return {}
+            live_ids = {record.session_id for record in ordered_records}
+            for session_id in tuple(self._desired):
+                if session_id not in live_ids:
+                    self._desired.pop(session_id, None)
+                    self._latest_tasks.pop(session_id, None)
+                    self._results.pop(session_id, None)
+
+            for record in ordered_records:
+                key = self._key_for(record, contract_token)
+                self._desired[record.session_id] = key
+                existing = self._results.get(record.session_id)
+                if existing is not None and existing[0] != key:
+                    self._results.pop(record.session_id, None)
+                    existing = None
+
+                seeded = persisted.get(record.session_id)
+                if existing is None and seeded is not None:
+                    self._results[record.session_id] = (key, seeded)
+                    existing = (key, seeded)
+
+                task = _ResolutionTask(
+                    key=key,
+                    record=record,
+                    actions=tuple(actions),
+                    fields=tuple(fields),
+                    contract_token=contract_token,
+                    build=build,
+                    persist=persist,
+                )
+                self._latest_tasks[record.session_id] = task
+                if existing is None:
+                    self._enqueue_latest_locked(record.session_id)
+
+            self._ensure_workers_locked()
+            deadline = time.monotonic() + max(0.0, timeout_seconds)
+            while not self._all_desired_resolved_locked(ordered_records):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._condition.wait(timeout=remaining)
+
+            return self._snapshot_locked(ordered_records, contract_token)
+
+    def _enqueue_latest_locked(self, session_id: str) -> None:
+        if self._closed or session_id in self._scheduled:
+            return
+        desired = self._desired.get(session_id)
+        task = self._latest_tasks.get(session_id)
+        result = self._results.get(session_id)
+        if (
+            desired is None
+            or task is None
+            or task.key != desired
+            or (result is not None and result[0] == desired)
+        ):
+            return
+        self._scheduled[session_id] = task.key
+        self._queue.put(
+            (
+                -float(task.record.modified),
+                next(self._sequence),
+                task,
+            )
+        )
+
+    def _all_desired_resolved_locked(
+        self,
+        records: Sequence[SessionStoreRecord],
+    ) -> bool:
+        for record in records:
+            desired = self._desired.get(record.session_id)
+            result = self._results.get(record.session_id)
+            if desired is None or result is None or result[0] != desired:
+                return False
+        return True
+
+    def _snapshot_locked(
+        self,
+        records: Sequence[SessionStoreRecord],
+        contract_token: str,
+    ) -> Dict[str, _CachedSummary]:
+        snapshot: Dict[str, _CachedSummary] = {}
+        for record in records:
+            key = self._key_for(record, contract_token)
+            result = self._results.get(record.session_id)
+            if result is not None and result[0] == key:
+                snapshot[record.session_id] = result[1]
+        return snapshot
+
+    def get(
+        self,
+        *,
+        record: SessionStoreRecord,
+        contract_token: str,
+    ) -> Optional[_CachedSummary]:
+        with self._condition:
+            key = self._key_for(record, contract_token)
+            result = self._results.get(record.session_id)
+            if result is None or result[0] != key:
+                return None
+            return result[1]
+
+    def install(
+        self,
+        *,
+        record: SessionStoreRecord,
+        contract_token: str,
+        result: _CachedSummary,
+    ) -> None:
+        with self._condition:
+            if self._closed:
+                return
+            key = self._key_for(record, contract_token)
+            self._desired[record.session_id] = key
+            self._results[record.session_id] = (key, result)
+            self._condition.notify_all()
+
+    def pending_count(self) -> int:
+        with self._condition:
+            return sum(
+                1
+                for session_id, desired in self._desired.items()
+                if (session_id not in self._results or self._results[session_id][0] != desired)
+            )
+
+    def invalidate(self, session_id: Optional[str] = None) -> None:
+        with self._condition:
+            if session_id is None:
+                affected = set(self._desired) | set(self._results) | set(self._epochs)
+                for affected_id in affected:
+                    self._epochs[affected_id] = self._epochs.get(affected_id, 0) + 1
+                self._desired.clear()
+                self._results.clear()
+            else:
+                self._epochs[session_id] = self._epochs.get(session_id, 0) + 1
+                self._desired.pop(session_id, None)
+                self._results.pop(session_id, None)
+            self._condition.notify_all()
+
+    def _worker(self) -> None:
+        while True:
+            _priority, _sequence, task = self._queue.get()
+            if task is None:
+                self._queue.task_done()
+                return
+            try:
+                with self._condition:
+                    if self._closed or self._desired.get(task.record.session_id) != task.key:
+                        if self._scheduled.get(task.record.session_id) == task.key:
+                            self._scheduled.pop(task.record.session_id, None)
+                        self._enqueue_latest_locked(task.record.session_id)
+                        self._condition.notify_all()
+                        continue
+                result = task.build(
+                    task.record,
+                    task.actions,
+                    task.fields,
+                    task.contract_token,
+                )
+                with self._condition:
+                    current = (
+                        not self._closed and self._desired.get(task.record.session_id) == task.key
+                    )
+                if current and result.cacheable:
+                    task.persist(result)
+                with self._condition:
+                    if self._scheduled.get(task.record.session_id) == task.key:
+                        self._scheduled.pop(task.record.session_id, None)
+                    if not self._closed and self._desired.get(task.record.session_id) == task.key:
+                        self._results[task.record.session_id] = (task.key, result)
+                    else:
+                        self._enqueue_latest_locked(task.record.session_id)
+                    self._condition.notify_all()
+            except Exception:
+                with self._condition:
+                    if self._scheduled.get(task.record.session_id) == task.key:
+                        self._scheduled.pop(task.record.session_id, None)
+                    self._enqueue_latest_locked(task.record.session_id)
+                    self._condition.notify_all()
+            finally:
+                self._queue.task_done()
+
+    def shutdown(self) -> None:
+        with self._condition:
+            if self._closed:
+                return
+            self._closed = True
+            self._desired.clear()
+            self._latest_tasks.clear()
+            self._results.clear()
+            for _worker in self._workers:
+                self._queue.put((0.0, next(self._sequence), None))
+            self._condition.notify_all()
 
 
 ListActions = Callable[[], List[Dict[str, Any]]]
@@ -186,6 +483,8 @@ ExecuteAction = Callable[
 class SessionListService:
     """Build and query shared session summaries for all application consumers."""
 
+    _DERIVATION_VERSION = 2
+
     def __init__(
         self,
         *,
@@ -195,6 +494,7 @@ class SessionListService:
         execute_action: ExecuteAction,
         logger: Any,
         filter_evaluator: Optional[SessionListFilterEvaluator] = None,
+        context: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self._store = store
         self._list_actions = list_actions
@@ -204,9 +504,151 @@ class SessionListService:
         self._filter_evaluator: SessionListFilterEvaluator = (
             filter_evaluator or _identity_filter_evaluator
         )
-        self._cache: Dict[str, _CachedSummary] = {}
         self._last_diagnostics: Tuple[SessionListDiagnostic, ...] = ()
         self._lock = threading.RLock()
+        self._action_lock = threading.RLock()
+        self._closed = threading.Event()
+        self._context = context or {}
+        self._configuration_diagnostics: Tuple[SessionListDiagnostic, ...] = ()
+        (
+            foreground_timeout,
+            worker_count,
+            persistent_cache,
+        ) = self._configure_resolution()
+        self._foreground_timeout_seconds = foreground_timeout
+        self._persistent_cache = persistent_cache
+        self._resolver = _BackgroundSummaryResolver(worker_count=worker_count)
+        self._summary_context_token = self._build_summary_context_token()
+
+    def _configure_resolution(
+        self,
+    ) -> Tuple[
+        float,
+        int,
+        _SQLiteSessionSummaryCache | _NullSessionSummaryCache,
+    ]:
+        diagnostics: List[SessionListDiagnostic] = []
+        raw_config = self._context.get("application_config")
+        raw_application = raw_config.get("application") if isinstance(raw_config, Mapping) else None
+        application: Mapping[str, Any] = (
+            raw_application if isinstance(raw_application, Mapping) else {}
+        )
+        raw_implementation_config = application.get("cached_background_session_list")
+        implementation_config: Mapping[str, Any] = (
+            raw_implementation_config if isinstance(raw_implementation_config, Mapping) else {}
+        )
+
+        raw_timeout = implementation_config.get(
+            "foreground_timeout_seconds",
+            10.0,
+        )
+        if (
+            isinstance(raw_timeout, (int, float))
+            and not isinstance(raw_timeout, bool)
+            and math.isfinite(float(raw_timeout))
+            and float(raw_timeout) >= 0.0
+        ):
+            foreground_timeout = float(raw_timeout)
+        else:
+            foreground_timeout = 10.0
+            diagnostics.append(
+                SessionListDiagnostic(
+                    code="invalid_session_list_resolution_config",
+                    message=(
+                        "cached background session-list foreground timeout "
+                        "must be a non-negative finite number; using 10 seconds."
+                    ),
+                )
+            )
+
+        raw_workers = implementation_config.get("worker_count", 1)
+        if (
+            isinstance(raw_workers, int)
+            and not isinstance(raw_workers, bool)
+            and 1 <= raw_workers <= 8
+        ):
+            worker_count = raw_workers
+        else:
+            worker_count = 1
+            diagnostics.append(
+                SessionListDiagnostic(
+                    code="invalid_session_list_resolution_config",
+                    message=(
+                        "cached background session-list worker count must be "
+                        "an integer from 1 through 8; using one worker."
+                    ),
+                )
+            )
+
+        cache: _SQLiteSessionSummaryCache | _NullSessionSummaryCache
+        cache_enabled = implementation_config.get(
+            "persistent_cache_enabled",
+            True,
+        )
+        if not isinstance(cache_enabled, bool):
+            cache_enabled = True
+            diagnostics.append(
+                SessionListDiagnostic(
+                    code="invalid_session_list_resolution_config",
+                    message=(
+                        "cached background session-list persistent cache "
+                        "enabled must be a boolean; enabling persistent reuse."
+                    ),
+                )
+            )
+        store_identity = self._context.get("session_store_identity")
+        override = implementation_config.get("local_cache_directory")
+        if override is not None and not isinstance(override, str):
+            diagnostics.append(
+                SessionListDiagnostic(
+                    code="invalid_session_list_resolution_config",
+                    message=(
+                        "cached background session-list local cache directory "
+                        "must be a string; using the default."
+                    ),
+                )
+            )
+            override = None
+
+        if cache_enabled and isinstance(store_identity, str) and store_identity:
+            cache = _SQLiteSessionSummaryCache(
+                _default_cache_path(
+                    session_store_identity=store_identity,
+                    override=override,
+                )
+            )
+            cache_error = cache.take_error()
+            if cache_error is not None:
+                diagnostics.append(
+                    SessionListDiagnostic(
+                        code="session_list_cache_unavailable",
+                        message=(
+                            "Persistent session-list summaries required "
+                            "recovery or are unavailable; continuing safely."
+                        ),
+                        details={"error": cache_error},
+                    )
+                )
+        else:
+            cache = _NullSessionSummaryCache()
+
+        self._configuration_diagnostics = tuple(diagnostics)
+        return foreground_timeout, worker_count, cache
+
+    def _build_summary_context_token(self) -> str:
+        payload = {
+            "derivation_version": self._DERIVATION_VERSION,
+            "application_config": self._context.get("application_config"),
+            "application_plugins": self._context.get("application_plugins"),
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            default=repr,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def set_filter_evaluator(self, evaluator: SessionListFilterEvaluator) -> None:
         """Install the filter evaluator supplied by the filter feature layer."""
@@ -217,11 +659,8 @@ class SessionListService:
             self._filter_evaluator = evaluator
 
     def invalidate(self, session_id: Optional[str] = None) -> None:
-        with self._lock:
-            if session_id is None:
-                self._cache.clear()
-            else:
-                self._cache.pop(session_id, None)
+        self._resolver.invalidate(session_id)
+        self._persistent_cache.invalidate(session_id)
 
     def get_last_diagnostics(self) -> List[Dict[str, Any]]:
         with self._lock:
@@ -234,70 +673,174 @@ class SessionListService:
         apply_filter_defaults: bool = False,
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
+        started = time.monotonic()
+        diagnostics: List[SessionListDiagnostic] = list(self._configuration_diagnostics)
+        actions, ui_elements, fields, contract_token = self._load_contract(diagnostics)
+
+        # Membership enumeration intentionally precedes the foreground content
+        # resolution budget. Stores return only opaque identities and metadata.
+        records = self._store.list_records()
+        resolution_deadline = time.monotonic() + self._foreground_timeout_seconds
+        revision_tokens = {
+            record.session_id: _stable_revision_token(record.revision) for record in records
+        }
+        persisted = self._load_persisted_summaries(
+            records=records,
+            revision_tokens=revision_tokens,
+            contract_token=contract_token,
+        )
+        self._persistent_cache.remove_missing([record.session_id for record in records])
+        resolved = self._resolver.resolve(
+            records=records,
+            actions=actions,
+            fields=fields,
+            contract_token=contract_token,
+            persisted=persisted,
+            build=self._build_summary_for_record,
+            persist=self._persist_summary,
+            timeout_seconds=max(
+                0.0,
+                resolution_deadline - time.monotonic(),
+            ),
+        )
+
+        complete_summaries: List[Dict[str, Any]] = []
+        metadata_summaries: List[Dict[str, Any]] = []
+        all_specs: List[_OrderSpec] = []
+        records_by_id = {record.session_id: record for record in records}
+        for record in records:
+            result = resolved.get(record.session_id)
+            if result is not None:
+                diagnostics.extend(result.diagnostics)
+                if result.complete:
+                    complete_summaries.append(result.summary)
+                    all_specs.extend(result.order_specs)
+                    continue
+                metadata_summaries.append(result.summary)
+                continue
+            metadata_summaries.append(self._build_metadata_summary(record=record, fields=fields))
+
+        ordered_complete = self._apply_ordering(
+            complete_summaries,
+            all_specs,
+            diagnostics,
+        )
         with self._lock:
-            diagnostics: List[SessionListDiagnostic] = []
-            actions, ui_elements, fields, contract_token = self._load_contract(diagnostics)
-            records = self._store.list_records()
-            seen_ids = {record.session_id for record in records}
-            for cached_id in tuple(self._cache):
-                if cached_id not in seen_ids:
-                    self._cache.pop(cached_id, None)
+            filter_evaluator = self._filter_evaluator
+        filter_evaluation = filter_evaluator(
+            ordered_complete,
+            ui_elements=ui_elements,
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+        )
+        if isinstance(filter_evaluation, SessionListFilterEvaluation):
+            filtered_complete = filter_evaluation.summaries
+            diagnostics.extend(filter_evaluation.diagnostics)
+        else:
+            filtered_complete = filter_evaluation
 
-            summaries: List[Dict[str, Any]] = []
-            all_specs: List[_OrderSpec] = []
-            for record in records:
-                summary, specs, entry_diagnostics = self._summary_for_record(
-                    record=record,
-                    actions=actions,
-                    fields=fields,
-                    contract_token=contract_token,
+        metadata_summaries.sort(
+            key=lambda summary: records_by_id[str(summary.get("session_id") or "")].modified,
+            reverse=True,
+        )
+        filtered = [*filtered_complete, *metadata_summaries]
+        if limit is not None and isinstance(limit, int) and not isinstance(limit, bool):
+            if limit >= 0:
+                filtered = filtered[:limit]
+
+        cache_error = self._persistent_cache.take_error()
+        if cache_error is not None:
+            diagnostics.append(
+                SessionListDiagnostic(
+                    code="session_list_cache_unavailable",
+                    message=(
+                        "Persistent session-list summaries became unavailable; "
+                        "continuing with process-local results."
+                    ),
+                    details={"error": cache_error},
                 )
-                summaries.append(summary)
-                all_specs.extend(specs)
-                diagnostics.extend(entry_diagnostics)
-
-            ordered = self._apply_ordering(summaries, all_specs, diagnostics)
-            filter_evaluation = self._filter_evaluator(
-                ordered,
-                ui_elements=ui_elements,
-                filter_values=filter_values,
-                apply_filter_defaults=apply_filter_defaults,
             )
-            if isinstance(filter_evaluation, SessionListFilterEvaluation):
-                filtered = filter_evaluation.summaries
-                diagnostics.extend(filter_evaluation.diagnostics)
-            else:
-                filtered = filter_evaluation
-            if limit is not None and isinstance(limit, int) and not isinstance(limit, bool):
-                if limit >= 0:
-                    filtered = filtered[:limit]
-
-            self._publish_diagnostics(diagnostics)
-            return filtered
+        self._publish_diagnostics(diagnostics)
+        self._log_resolution(
+            record_count=len(records),
+            complete_count=len(complete_summaries),
+            metadata_count=len(metadata_summaries),
+            persistent_hit_count=len(persisted),
+            pending_count=self._resolver.pending_count(),
+            elapsed_seconds=time.monotonic() - started,
+        )
+        return filtered
 
     def get_session_summary(self, session_id: str) -> Dict[str, Any]:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
-        with self._lock:
-            diagnostics: List[SessionListDiagnostic] = []
-            actions, _ui_elements, fields, contract_token = self._load_contract(diagnostics)
-            record = self._store.get_record(session_id)
-            if record is None:
-                self._cache.pop(session_id, None)
-                raise KeyError(f"Session {session_id!r} not found")
-            summary, _specs, entry_diagnostics = self._summary_for_record(
-                record=record,
-                actions=actions,
-                fields=fields,
+        diagnostics: List[SessionListDiagnostic] = list(self._configuration_diagnostics)
+        actions, _ui_elements, fields, contract_token = self._load_contract(diagnostics)
+        record = self._store.get_record(session_id)
+        if record is None:
+            self.invalidate(session_id)
+            raise KeyError(f"Session {session_id!r} not found")
+
+        result = self._resolver.get(
+            record=record,
+            contract_token=contract_token,
+        )
+        if result is None:
+            persisted = self._load_persisted_summaries(
+                records=[record],
+                revision_tokens={record.session_id: _stable_revision_token(record.revision)},
                 contract_token=contract_token,
             )
-            diagnostics.extend(entry_diagnostics)
-            self._publish_diagnostics(diagnostics)
-            return summary
+            result = persisted.get(record.session_id)
+        if result is None:
+            result = self._build_summary_for_record(
+                record,
+                actions,
+                fields,
+                contract_token,
+            )
+            if result.cacheable:
+                self._persist_summary(result)
+        self._resolver.install(
+            record=record,
+            contract_token=contract_token,
+            result=result,
+        )
+        diagnostics.extend(result.diagnostics)
+        self._publish_diagnostics(diagnostics)
+        return result.summary
+
+    def _shutdown(self) -> None:
+        self._closed.set()
+        self._resolver.shutdown()
+        self._persistent_cache.close()
+
+    def _log_resolution(
+        self,
+        *,
+        record_count: int,
+        complete_count: int,
+        metadata_count: int,
+        persistent_hit_count: int,
+        pending_count: int,
+        elapsed_seconds: float,
+    ) -> None:
+        log = getattr(self._logger, "debug", None)
+        if callable(log):
+            log(
+                "session_list_resolution",
+                record_count=record_count,
+                complete_count=complete_count,
+                metadata_count=metadata_count,
+                persistent_hit_count=persistent_hit_count,
+                pending_count=pending_count,
+                elapsed_seconds=elapsed_seconds,
+            )
 
     def _publish_diagnostics(self, diagnostics: Sequence[SessionListDiagnostic]) -> None:
-        self._last_diagnostics = tuple(diagnostics)
+        with self._lock:
+            self._last_diagnostics = tuple(diagnostics)
         for diagnostic in diagnostics:
             log = getattr(self._logger, "warning", None)
             if callable(log):
@@ -370,7 +913,11 @@ class SessionListService:
         ui_elements = [element for element in raw_ui_elements if isinstance(element, dict)]
         actions = self._collect_trigger_actions(raw_actions)
         fields = self._normalize_fields(ui_elements, diagnostics)
-        return actions, ui_elements, fields, self._contract_token(actions, fields)
+        local_token = self._contract_token(actions, fields)
+        combined_token = hashlib.sha256(
+            f"{local_token}:{self._summary_context_token}".encode("utf-8")
+        ).hexdigest()
+        return actions, ui_elements, fields, combined_token
 
     @staticmethod
     def _collect_trigger_actions(
@@ -456,10 +1003,10 @@ class SessionListService:
 
             fields.append(
                 _SessionListField(
-                    element_id=element_id,
+                    element_id=cast(str, element_id),
                     plugin_id=plugin_id if isinstance(plugin_id, str) else None,
-                    role=role,
-                    data=data,
+                    role=cast(str, role),
+                    data=cast(str, data),
                     template=template,
                     order=float(raw_order),
                     metadata=raw_metadata,
@@ -468,26 +1015,13 @@ class SessionListService:
             )
         return fields
 
-    def _summary_for_record(
+    def _build_summary_for_record(
         self,
-        *,
         record: SessionStoreRecord,
         actions: Sequence[_TriggerAction],
         fields: Sequence[_SessionListField],
         contract_token: str,
-    ) -> Tuple[
-        Dict[str, Any],
-        Tuple[_OrderSpec, ...],
-        Tuple[SessionListDiagnostic, ...],
-    ]:
-        cached = self._cache.get(record.session_id)
-        if (
-            cached is not None
-            and cached.revision == record.revision
-            and cached.contract_token == contract_token
-        ):
-            return cached.summary, cached.order_specs, cached.diagnostics
-
+    ) -> _CachedSummary:
         diagnostics: List[SessionListDiagnostic] = []
         session: Optional[Session]
         try:
@@ -503,34 +1037,167 @@ class SessionListService:
                 )
             )
 
+        if self._closed.is_set():
+            return _CachedSummary(
+                revision=record.revision,
+                revision_token=_stable_revision_token(record.revision),
+                contract_token=contract_token,
+                summary=self._build_metadata_summary(record=record, fields=fields),
+                order_specs=(),
+                diagnostics=tuple(diagnostics),
+                complete=False,
+                cacheable=False,
+            )
+
         summary = self._build_base_summary(record, session)
         order_specs: List[_OrderSpec] = []
-        cacheable = True
-        for action in actions:
-            action_diagnostics, action_specs, succeeded = self._run_trigger_action(
-                action=action,
-                record=record,
-                session=session,
-                summary=summary,
-            )
-            diagnostics.extend(action_diagnostics)
-            order_specs.extend(action_specs)
-            cacheable = cacheable and succeeded
+        cacheable = session is not None
+        with self._action_lock:
+            for action in actions:
+                action_diagnostics, action_specs, succeeded = self._run_trigger_action(
+                    action=action,
+                    record=record,
+                    session=session,
+                    summary=summary,
+                )
+                diagnostics.extend(action_diagnostics)
+                order_specs.extend(action_specs)
+                cacheable = cacheable and succeeded
 
         summary["presentation"] = derive_session_list_presentation(summary, fields)
-        result_specs = tuple(order_specs)
-        result_diagnostics = tuple(diagnostics)
-        if cacheable:
-            self._cache[record.session_id] = _CachedSummary(
+        return _CachedSummary(
+            revision=record.revision,
+            revision_token=_stable_revision_token(record.revision),
+            contract_token=contract_token,
+            summary=summary,
+            order_specs=tuple(order_specs),
+            diagnostics=tuple(diagnostics),
+            complete=session is not None,
+            cacheable=cacheable,
+        )
+
+    @classmethod
+    def _build_metadata_summary(
+        cls,
+        *,
+        record: SessionStoreRecord,
+        fields: Sequence[_SessionListField],
+    ) -> Dict[str, Any]:
+        summary = cls._build_base_summary(record, None)
+        summary["presentation"] = derive_session_list_presentation(summary, fields)
+        return summary
+
+    def _load_persisted_summaries(
+        self,
+        *,
+        records: Sequence[SessionStoreRecord],
+        revision_tokens: Mapping[str, str],
+        contract_token: str,
+    ) -> Dict[str, _CachedSummary]:
+        persisted = self._persistent_cache.load_valid(
+            revision_tokens=revision_tokens,
+            contract_token=contract_token,
+        )
+        records_by_id = {record.session_id: record for record in records}
+        results: Dict[str, _CachedSummary] = {}
+        for session_id, stored in persisted.items():
+            record = records_by_id.get(session_id)
+            if record is None:
+                continue
+            try:
+                order_specs = tuple(self._order_spec_from_dict(raw) for raw in stored.order_specs)
+                diagnostics = tuple(self._diagnostic_from_dict(raw) for raw in stored.diagnostics)
+            except (KeyError, TypeError, ValueError):
+                continue
+            results[session_id] = _CachedSummary(
                 revision=record.revision,
-                contract_token=contract_token,
-                summary=summary,
-                order_specs=result_specs,
-                diagnostics=result_diagnostics,
+                revision_token=stored.revision_token,
+                contract_token=stored.contract_token,
+                summary=stored.summary,
+                order_specs=order_specs,
+                diagnostics=diagnostics,
+                complete=True,
+                cacheable=True,
             )
-        else:
-            self._cache.pop(record.session_id, None)
-        return summary, result_specs, result_diagnostics
+        return results
+
+    def _persist_summary(self, result: _CachedSummary) -> None:
+        if not result.cacheable or not result.complete:
+            return
+        session_id = result.summary.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            return
+        self._persistent_cache.put(
+            _PersistedSessionSummary(
+                session_id=session_id,
+                revision_token=result.revision_token,
+                contract_token=result.contract_token,
+                summary=result.summary,
+                order_specs=tuple(self._order_spec_to_dict(spec) for spec in result.order_specs),
+                diagnostics=tuple(diagnostic.to_dict() for diagnostic in result.diagnostics),
+            )
+        )
+
+    @staticmethod
+    def _order_spec_to_dict(spec: _OrderSpec) -> Dict[str, Any]:
+        return {
+            "key": spec.key,
+            "direction": spec.direction,
+            "has_fallback": spec.has_fallback,
+            "fallback": spec.fallback,
+            "priority": spec.priority,
+            "plugin_id": spec.plugin_id,
+            "action_id": spec.action_id,
+            "plugin_index": spec.plugin_index,
+            "action_index": spec.action_index,
+            "declaration_index": spec.declaration_index,
+        }
+
+    @staticmethod
+    def _order_spec_from_dict(raw: Mapping[str, Any]) -> _OrderSpec:
+        return _OrderSpec(
+            key=str(raw["key"]),
+            direction=str(raw["direction"]),
+            has_fallback=bool(raw["has_fallback"]),
+            fallback=raw.get("fallback"),
+            priority=int(raw["priority"]),
+            plugin_id=str(raw["plugin_id"]),
+            action_id=str(raw["action_id"]),
+            plugin_index=int(raw["plugin_index"]),
+            action_index=int(raw["action_index"]),
+            declaration_index=int(raw["declaration_index"]),
+        )
+
+    @staticmethod
+    def _diagnostic_from_dict(
+        raw: Mapping[str, Any],
+    ) -> SessionListDiagnostic:
+        details = raw.get("details")
+        return SessionListDiagnostic(
+            code=str(raw["code"]),
+            message=str(raw["message"]),
+            plugin_id=(
+                str(raw["plugin_id"])
+                if isinstance(raw.get("plugin_id"), str)
+                else None
+            ),
+            action_id=(
+                str(raw["action_id"])
+                if isinstance(raw.get("action_id"), str)
+                else None
+            ),
+            session_id=(
+                str(raw["session_id"])
+                if isinstance(raw.get("session_id"), str)
+                else None
+            ),
+            element_id=(
+                str(raw["element_id"])
+                if isinstance(raw.get("element_id"), str)
+                else None
+            ),
+            details=details if isinstance(details, dict) else None,
+        )
 
     @staticmethod
     def _build_base_summary(
@@ -732,8 +1399,8 @@ class SessionListService:
 
             specs.append(
                 _OrderSpec(
-                    key=key,
-                    direction=direction,
+                    key=cast(str, key),
+                    direction=cast(str, direction),
                     has_fallback="fallback" in candidate,
                     fallback=candidate.get("fallback"),
                     priority=raw_priority,

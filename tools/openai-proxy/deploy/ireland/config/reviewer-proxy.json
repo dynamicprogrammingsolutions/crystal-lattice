@@ -1,0 +1,65 @@
+{
+  "listen": {
+    "host": "0.0.0.0",
+    "port": 3000
+  },
+  "upstream": {
+    "base_url": "https://api.openai.com/v1",
+    "api_key_env": "OPENAI_UPSTREAM_API_KEY"
+  },
+  "routing": {
+    "base_path": "/v1"
+  },
+  "client_auth": {
+    "api_key_env": "REVIEWER_PROXY_API_KEY"
+  },
+  "models": {
+    "allowed": [
+      "gpt-5.6-luna"
+    ],
+    "allowed_service_tiers": [
+      "auto",
+      "default"
+    ],
+    "request_overrides": {
+      "chat_completions": {
+        "reasoning_effort": "none"
+      }
+    }
+  },
+  "budget": {
+    "enabled": true,
+    "limit_usd": 1.0,
+    "cooldown_seconds": 86400,
+    "state_path": "/data/rate-limit.json",
+    "serialize_requests": true,
+    "ensure_stream_usage": true,
+    "pricing_per_million": {
+      "input": 0.2,
+      "cached_input": 0.02,
+      "output": 1.2
+    },
+    "long_context": {
+      "input_token_threshold": 272000,
+      "input_multiplier": 2.0,
+      "cached_input_multiplier": 2.0,
+      "output_multiplier": 1.5
+    },
+    "ignored_charges": [
+      "web_search"
+    ]
+  },
+  "forwarding": {
+    "delay_ms": 0
+  },
+  "logging": {
+    "headers": false,
+    "bodies": false,
+    "long_text_threshold": 1000
+  },
+  "responses": {
+    "blocked_status": 429,
+    "unauthorized_status": 401,
+    "invalid_model_status": 400
+  }
+}

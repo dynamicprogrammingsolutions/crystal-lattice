@@ -8,6 +8,9 @@ from types import SimpleNamespace
 
 from suites.documentation_standard.support import (
     BASELINE_GUIDANCE_REVISION,
+    CURRENT_GUIDANCE_PATHS,
+    LEGACY_GUIDANCE_PATHS,
+    ORIGINAL_DEVELOP_GUIDANCE_REVISION,
     PROFILES,
     REPOSITORY_ROOT,
     SPEC_ROOT,
@@ -21,6 +24,7 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    original_develop_guidance_source,
     _commit_fixture,
     _project_config_for_profile,
     EVALUATION_TOOL_PLUGINS,
@@ -34,7 +38,7 @@ from suites.documentation_standard.guidance_feature import (
 
 
 def test_profiles_pin_requested_models() -> None:
-    assert PROFILES["glm"].model == "glm-5.2:cloud"
+    assert PROFILES["glm"].model == "glm-5.3-flash:cloud"
     assert PROFILES["glm"].hosted is False
     assert PROFILES["gpt"].model == "gpt-5.6-luna"
     assert PROFILES["gpt"].auth_mode == "chatgpt"
@@ -44,6 +48,7 @@ def test_profiles_pin_requested_models() -> None:
 def test_candidate_guidance_provenance_is_stable() -> None:
     files = candidate_guidance_files()
     assert files
+    assert tuple(item.path for item in files) == CURRENT_GUIDANCE_PATHS
     assert all(len(item.sha256) == 64 for item in files)
     assert len(candidate_guidance_sha256()) == 64
 
@@ -52,60 +57,57 @@ def test_baseline_guidance_is_pinned_and_distinct() -> None:
     baseline = baseline_guidance_source()
 
     assert baseline.revision == BASELINE_GUIDANCE_REVISION
+    assert baseline.paths == LEGACY_GUIDANCE_PATHS
     assert len(baseline.sha256()) == 64
     assert baseline.sha256() != candidate_guidance_sha256()
     agents = baseline.read_bytes("AGENTS.md").decode("utf-8")
     assert "Preserve artifact and audience boundaries" not in agents
 
 
-def test_documentation_guidance_uses_concrete_terminology() -> None:
-    paths = (
-        "AGENTS.md",
-        "docs/index.md",
-        "docs/development/standards/index.md",
-        "docs/development/standards/documentation.md",
-        "docs/development/standards/specifications.md",
-        "docs/development/repository/index.md",
-        "docs/development/repository/documentation.md",
-        "docs/development/repository/specifications.md",
-        "maintainer/specifications/documentation-and-specification-standard/index.md",
-        "maintainer/specifications/documentation-and-specification-standard/product-spec.md",
-        "maintainer/specifications/documentation-and-specification-standard/technical-spec.md",
-        "maintainer/specifications/documentation-and-specification-standard/requirements.md",
-    )
-    prohibited_phrases = (
-        "artifact audience",
-        "artifact boundary",
-        "artifact mapping",
-        "artifact role",
-        "artifact set",
-        "artifact tree",
-        "authored artifact",
-        "destination artifact",
-        "documentation artifact",
-        "expected artifact",
-        "output artifact",
-        "proportional artifact",
-        "source artifact",
-        "specification artifact",
-        "work-tracking artifact",
-    )
+def test_original_develop_guidance_is_pinned_and_distinct() -> None:
+    source = original_develop_guidance_source()
 
-    for path in paths:
-        text = REPOSITORY_ROOT.joinpath(path).read_text().lower()
-        matches = tuple(phrase for phrase in prohibited_phrases if phrase in text)
-        assert not matches, f"{path}: generic umbrella terminology {matches!r}"
+    assert source.revision == ORIGINAL_DEVELOP_GUIDANCE_REVISION
+    assert source.paths == LEGACY_GUIDANCE_PATHS
+    assert len(source.sha256()) == 64
+    assert source.sha256() != candidate_guidance_sha256()
 
-    index_paths = (
-        "docs/development/specifications/chat-transcript-navigation/index.md",
-        "plugins/openai_responses/docs/development/specifications/native-compaction/index.md",
-        "plugins/kimi-tools/docs/development/specifications/kimi-compaction-parity/index.md",
-        "maintainer/specifications/documentation-and-specification-standard/index.md",
-        "maintainer/specifications/agent-evaluation-framework/index.md",
-    )
-    for path in index_paths:
-        lines = REPOSITORY_ROOT.joinpath(path).read_text().splitlines()
-        assert "Artifacts:" not in lines, path
+
+def test_current_documentation_guidance_shape_is_concise() -> None:
+    guide = REPOSITORY_ROOT / "docs/development/documentation.md"
+    local = REPOSITORY_ROOT / "docs/development/crystal-lattice-documentation.md"
+    index = REPOSITORY_ROOT / "docs/development/index.md"
+    agents = REPOSITORY_ROOT.joinpath("AGENTS.md").read_text()
+    start = agents.index("## Documentation ownership and workflow")
+    end = agents.index("**Auxiliary directories**", start)
+    agent_section = agents[start:end]
+
+    assert 1600 <= len(guide.read_text().split()) <= 2000
+    assert 900 <= len(local.read_text().split()) <= 1200
+    assert len(index.read_text().split()) < 150
+    assert 200 <= len(agent_section.split()) <= 300
+
+    project_independent = guide.read_text().lower()
+    for project_term in (
+        "crystal lattice",
+        "plugins/docs",
+        "maintainer/",
+        "docs_site",
+        "tasks-v7",
+    ):
+        assert project_term not in project_independent
+
+    for path in (
+        REPOSITORY_ROOT / "docs/development/standards/index.md",
+        REPOSITORY_ROOT / "docs/development/standards/documentation.md",
+        REPOSITORY_ROOT / "docs/development/standards/specifications.md",
+        REPOSITORY_ROOT / "docs/development/repository/index.md",
+        REPOSITORY_ROOT / "docs/development/repository/documentation.md",
+        REPOSITORY_ROOT / "docs/development/repository/specifications.md",
+    ):
+        text = path.read_text()
+        assert len(text.split()) < 80
+        assert "does not define separate rules" in text
 
 
 def test_explicit_guidance_source_participates_in_workspace_fingerprint(
@@ -381,7 +383,7 @@ def test_profile_config_projection_excludes_other_agent_tool_stacks(
     assert projected["mixins"] == {"shared": {}}
     assert projected["application"] == {"setting": True}
     assert "plugin-cache/gpt/" in projected["plugin_cache_dir"]
-    assert projected["plugin_cache_dir"].endswith("-v5")
+    assert projected["plugin_cache_dir"].endswith("-v8")
 
 
 def test_profile_projection_reuses_path_plugin_from_agent_definition(
@@ -493,6 +495,22 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
     assert layout_override == (
         "Please complete the approved offline-synchronization specification "
         "task. Do not implement the protocol."
+    )
+    requirement_scope = extract_blockquote(
+        SPEC_ROOT / "22-requirement-scope-restraint.md",
+        "## Exact user prompt",
+    )
+    assert requirement_scope == (
+        "Please prepare the approved batch-enqueue specification and "
+        "requirements. Do not implement the change."
+    )
+    testing_strategy = extract_blockquote(
+        SPEC_ROOT / "23-testing-without-overspecification.md",
+        "## Exact user prompt",
+    )
+    assert testing_strategy == (
+        "Please prepare the approved testing strategy for option visibility. "
+        "Do not implement the change or edit test code."
     )
 
 
@@ -630,6 +648,22 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
             "packages/sync-engine/docs/development/specifications/"
             "sync-v2/requirements.md",
         ),
+        "seed-10-requirement-scope.md": (
+            "tasks/offline-queue-batch-enqueue.md",
+            "packages/offline-queue/README.md",
+            "packages/offline-queue/src/queue.py",
+            "packages/offline-queue/docs/development/index.md",
+        ),
+        "seed-11-testing-strategy.md": (
+            "plugins/ui-options/README.md",
+            "plugins/ui-options/src/options.py",
+            "plugins/ui-options/tests/test_options.py",
+            "plugins/ui-options/docs/development/specifications/"
+            "option-visibility/index.md",
+            "application/python/example_api/options.py",
+            "packages/frontend-sdk/src/options.ts",
+            "docs/development/specifications/option-delivery/index.md",
+        ),
     }
     for filename, paths in required_paths.items():
         prompt = extract_blockquote(
@@ -652,6 +686,11 @@ def test_synthetic_fixtures_contain_expected_seed_sources(tmp_path: Path) -> Non
             "label-normalization/technical-spec.md"
         ),
         "sync-engine": "tasks/sync-v2.md",
+        "requirement-scope": "tasks/offline-queue-batch-enqueue.md",
+        "testing-strategy": (
+            "plugins/ui-options/docs/development/specifications/"
+            "option-visibility/index.md"
+        ),
     }
     for fixture_id, expected in fixtures.items():
         workspace = tmp_path / fixture_id
@@ -701,6 +740,8 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
     assert factory.fingerprint()["fixture_revision"] == "v3"
     assert fixture_revision("js-single-file-tool") == "v4"
     assert fixture_revision("event-retry") == "v5"
+    assert fixture_revision("requirement-scope") == "v1"
+    assert fixture_revision("testing-strategy") == "v1"
 
 
 def test_failed_generator_fixture_preserves_prepared_output(tmp_path: Path) -> None:

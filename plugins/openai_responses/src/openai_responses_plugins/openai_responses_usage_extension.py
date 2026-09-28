@@ -11,7 +11,22 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
-from .openai_responses_pricing import estimate_usage_cost
+from .chatgpt_rate_limits import (
+    load_rate_limits_state,
+    resolve_rate_limits_path,
+)
+from .chatgpt_usage_journal import (
+    append_request_usage,
+    iter_journal_records,
+    resolve_usage_journal_path,
+    resolve_working_directory,
+    session_id_from_state,
+)
+from .cost_bucket import resolve_cost_bucket
+from .openai_responses_pricing import (
+    estimate_usage_cost,
+    estimate_usage_cost_breakdown,
+)
 from .openai_responses_codex_models import (
     load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
 )
@@ -19,6 +34,29 @@ from .openai_responses_codex_models import (
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = (
+    "_openai_responses_chatgpt_rate_limit_snapshots"
+)
+_PERSISTED_USAGE_ROOT_KEYS = frozenset(
+    {
+        "input_tokens",
+        "input_tokens_details",
+        "output_tokens",
+        "output_tokens_details",
+        "completion_tokens_details",
+        "total_tokens",
+    }
+)
+_PERSISTED_USAGE_DETAIL_KEYS = {
+    "input_tokens_details": frozenset(
+        {
+            "cached_tokens",
+            "cache_write_tokens",
+        }
+    ),
+    "output_tokens_details": frozenset({"reasoning_tokens"}),
+    "completion_tokens_details": frozenset({"reasoning_tokens"}),
+}
 _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_input_tokens_cumulative",
     "usage_turn_input_tokens_cumulative_formatted",
@@ -36,6 +74,7 @@ _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_completion_tokens_formatted",
     "usage_effective_auth_mode",
     "usage_effective_auth_mode_label",
+    "usage_bucket",
     "usage_service_tier",
     "usage_reasoning_mode",
     "usage_total_cost",
@@ -63,6 +102,50 @@ _USAGE_MESSAGE_FOOTER_FIELDS = (
     "turn_cached",
     "turn_output",
 )
+
+
+def unsupported_usage_root_keys(usage: Dict[str, Any]) -> Tuple[str, ...]:
+    """Return OpenAI usage root keys outside the persisted local contract."""
+
+    return tuple(key for key in usage if key not in _PERSISTED_USAGE_ROOT_KEYS)
+
+
+def unsupported_usage_paths(usage: Dict[str, Any]) -> Tuple[str, ...]:
+    """Return OpenAI usage paths outside the persisted local contract."""
+
+    unsupported = list(unsupported_usage_root_keys(usage))
+    for root_key, supported_detail_keys in _PERSISTED_USAGE_DETAIL_KEYS.items():
+        details = usage.get(root_key)
+        if not isinstance(details, dict):
+            continue
+        unsupported.extend(
+            f"{root_key}.{detail_key}"
+            for detail_key in details
+            if detail_key not in supported_detail_keys
+        )
+    return tuple(unsupported)
+
+
+def project_usage_for_persistence(usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Project raw OpenAI usage onto the supported persisted field paths."""
+
+    if not unsupported_usage_paths(usage):
+        return usage
+
+    projected: Dict[str, Any] = {}
+    for key, value in usage.items():
+        if key not in _PERSISTED_USAGE_ROOT_KEYS:
+            continue
+        supported_detail_keys = _PERSISTED_USAGE_DETAIL_KEYS.get(key)
+        if supported_detail_keys is None or not isinstance(value, dict):
+            projected[key] = value
+            continue
+        projected[key] = {
+            detail_key: detail_value
+            for detail_key, detail_value in value.items()
+            if detail_key in supported_detail_keys
+        }
+    return projected
 
 
 class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
@@ -95,11 +178,16 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     "When omitted, the existing complete footer is preserved."
                 ),
             },
-            "show_usage_status_total": {
-                "type": "boolean",
+            "cost_bucket": {
+                "type": "string",
                 "required": False,
-                "default": True,
-                "description": "Show cumulative usage cost as Total in the chat status bar.",
+                "default": "openai-responses",
+                "description": (
+                    "Base name of the provider-defined cost bucket used by the "
+                    "generic cost tracking plugin. The provider appends the "
+                    "active endpoint suffix ('-chatgpt' or '-api') to form the "
+                    "final bucket."
+                ),
             },
             "show_estimated_cached_tokens": {
                 "type": "boolean",
@@ -112,6 +200,44 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "required": False,
                 "default": False,
                 "description": "Show the effective OpenAI auth mode in usage footers.",
+            },
+            "track_chatgpt_usage_journal": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Append ChatGPT-backed request usage and rate-limit snapshots "
+                    "to the append-only ChatGPT usage journal (NDJSON)."
+                ),
+            },
+            "chatgpt_usage_journal_path": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional path override for the ChatGPT usage journal file. "
+                    "Defaults to a chatgpt-usage-journal.ndjson file next to the "
+                    "ChatGPT rate-limits file."
+                ),
+            },
+            "track_chatgpt_usage_summary_csv": {
+                "type": "boolean",
+                "required": False,
+                "default": True,
+                "description": (
+                    "Also append a simplified per-record summary CSV "
+                    "(time, working_directory, session_id, estimated_cost, "
+                    "total_cost since the last reset, used_percent) whenever a "
+                    "journal record is written."
+                ),
+            },
+            "chatgpt_usage_summary_csv_path": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional path override for the simplified ChatGPT usage "
+                    "summary CSV. Defaults to a chatgpt-usage-summary.csv file "
+                    "next to the usage journal."
+                ),
             },
         }
 
@@ -336,17 +462,6 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         "template": template,
                     }
                 )
-        if (
-            not isinstance(config, dict)
-            or config.get("show_usage_status_total") is not False
-        ):
-            elements.append(
-                {
-                    "ui_type": "status_bar",
-                    "data": "metadata.usage_total_cost_cumulative_formatted",
-                    "template": "Total: {{data}}",
-                }
-            )
         return elements
 
     def get_tags(
@@ -384,9 +499,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
             metadata_raw = message.get("metadata")
             metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
+            metadata, metadata_changed = self._sanitize_core_message_metadata(metadata)
             native_indices = metadata.get("native_indices")
             if not isinstance(native_indices, list):
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             extra_md: Dict[str, Any] = {}
@@ -404,7 +522,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     extra_md = candidate
 
             if not extra_md:
-                out.append(message)
+                out.append(
+                    {**message, "metadata": metadata} if metadata_changed else message
+                )
                 continue
 
             merged = dict(metadata)
@@ -415,6 +535,56 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             out.append({**message, "metadata": merged})
 
         return out
+
+    @staticmethod
+    def _sanitize_core_message_metadata(
+        metadata: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], bool]:
+        updated = metadata
+        changed = False
+
+        usage = metadata.get("usage")
+        if isinstance(usage, dict):
+            sanitized_usage = project_usage_for_persistence(usage)
+            if sanitized_usage is not usage:
+                updated = {**updated, "usage": sanitized_usage}
+                changed = True
+
+        phase_messages = metadata.get("phase_messages")
+        if isinstance(phase_messages, list):
+            sanitized_phases: List[Any] = []
+            phases_changed = False
+            for phase_message in phase_messages:
+                if not isinstance(phase_message, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_metadata = phase_message.get("metadata")
+                if not isinstance(phase_metadata, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                phase_usage = phase_metadata.get("usage")
+                if not isinstance(phase_usage, dict):
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phase_usage = project_usage_for_persistence(phase_usage)
+                if sanitized_phase_usage is phase_usage:
+                    sanitized_phases.append(phase_message)
+                    continue
+                sanitized_phases.append(
+                    {
+                        **phase_message,
+                        "metadata": {
+                            **phase_metadata,
+                            "usage": sanitized_phase_usage,
+                        },
+                    }
+                )
+                phases_changed = True
+            if phases_changed:
+                updated = {**updated, "phase_messages": sanitized_phases}
+                changed = True
+
+        return updated, changed
 
     @staticmethod
     def _usage_reasoning_tokens(usage: Dict[str, Any]) -> int:
@@ -549,7 +719,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         out: Dict[str, Any] = {}
         usage = cls._public_usage_from_internal(internal)
         if isinstance(usage, dict) and usage:
-            out["usage"] = usage
+            out["usage"] = project_usage_for_persistence(usage)
 
         has_tool_calls = internal.get("has_tool_calls")
         if isinstance(has_tool_calls, bool):
@@ -821,6 +991,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         base_native: List[Dict[str, Any]],
         current_items: List[Dict[str, Any]],
         state: Dict[str, Any],
+        response_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         prompt_tokens_str = None
         cached_tokens_str = None
@@ -886,6 +1057,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(output_tokens, (int, float)):
             completion_tokens_str = f"{int(output_tokens):,}"
 
+        cost_breakdown: Optional[Dict[str, Any]] = None
         if isinstance(model, str) and model:
             try:
                 total_cost = estimate_usage_cost(
@@ -897,8 +1069,20 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     ),
                     manual_entries=manual_pricing,
                 )
+                cost_breakdown = estimate_usage_cost_breakdown(
+                    effective_usage,
+                    model=model,
+                    service_tier=service_tier,
+                    snapshot_path=(
+                        snapshot_path if isinstance(snapshot_path, str) else None
+                    ),
+                    manual_entries=manual_pricing,
+                )
+                if not isinstance(cost_breakdown, dict) or not cost_breakdown:
+                    cost_breakdown = None
             except Exception:
                 total_cost = None
+                cost_breakdown = None
 
         if isinstance(total_cost, (int, float)):
             total_cost = float(total_cost)
@@ -984,7 +1168,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         )
 
         extra_md: Dict[str, Any] = {
-            "usage": usage,
+            "usage": project_usage_for_persistence(usage),
             "has_tool_calls": has_tool_calls,
             "turn": {
                 "id": current_turn_id,
@@ -994,6 +1178,10 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             "usage_effective_auth_mode": effective_auth_mode,
             "usage_effective_auth_mode_label": self._effective_auth_mode_label(
                 effective_auth_mode
+            ),
+            "usage_bucket": resolve_cost_bucket(
+                state.get("config") if isinstance(state, dict) else None,
+                effective_auth_mode,
             ),
             "usage_total_cost": effective_total_cost,
             "usage_total_cost_cumulative": cumulative_cost,
@@ -1025,6 +1213,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(service_tier, str) and service_tier:
             extra_md["usage_service_tier"] = service_tier
 
+        if isinstance(cost_breakdown, dict) and cost_breakdown:
+            # Per-item cost components for the generic cost tracking plugin
+            # (input / cached / cache_write / output); items without data are
+            # omitted by the estimator.
+            extra_md["usage_cost_breakdown"] = cost_breakdown
+
         if isinstance(reasoning_mode, str) and reasoning_mode:
             extra_md["usage_reasoning_mode"] = reasoning_mode
 
@@ -1049,7 +1243,120 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if cost_str is not None and effective_total_cost != 0.0:
             extra_md["usage_total_cost_formatted"] = cost_str
 
+        if effective_auth_mode == "chatgpt":
+            self._append_chatgpt_usage_journal_record(
+                usage=usage,
+                state=state,
+                config=config if isinstance(config, dict) else {},
+                response_id=response_id,
+                model=model,
+                service_tier=service_tier,
+                reasoning_mode=reasoning_mode,
+                estimated_cached_tokens=estimated_cached_tokens,
+                input_tokens=current_input,
+                cached_tokens=current_cached,
+                cache_write_tokens=current_cache_write,
+                output_tokens=current_output,
+                reasoning_tokens=current_reasoning,
+                estimated_cost=effective_total_cost,
+            )
+
         return extra_md
+
+    @staticmethod
+    def _chatgpt_rate_limits_for_journal(
+        state: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Return the rate-limit snapshot payload for the journal record.
+
+        Prefers the exact snapshot stashed in shared provider state for the
+        current response; falls back to the latest persisted rate-limits
+        state file.
+        """
+
+        stash = (
+            state.get(_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY)
+            if isinstance(state, dict)
+            else None
+        )
+        if (
+            isinstance(stash, dict)
+            and isinstance(stash.get("snapshots"), list)
+            and stash["snapshots"]
+        ):
+            return stash
+        try:
+            rate_limits_state = load_rate_limits_state(resolve_rate_limits_path(config))
+        except Exception:
+            return None
+        if (
+            isinstance(rate_limits_state, dict)
+            and isinstance(rate_limits_state.get("snapshots"), list)
+            and rate_limits_state["snapshots"]
+        ):
+            return rate_limits_state
+        return None
+
+    def _append_chatgpt_usage_journal_record(
+        self,
+        *,
+        usage: Dict[str, Any],
+        state: Dict[str, Any],
+        config: Dict[str, Any],
+        response_id: Optional[str],
+        model: Any,
+        service_tier: Any,
+        reasoning_mode: Any,
+        estimated_cached_tokens: Optional[int],
+        input_tokens: int,
+        cached_tokens: int,
+        cache_write_tokens: int,
+        output_tokens: int,
+        reasoning_tokens: int,
+        estimated_cost: float,
+    ) -> None:
+        """Append one request_usage record to the ChatGPT usage journal.
+
+        Best-effort by contract: journaling failures are swallowed so they
+        can never break the request pipeline.
+        """
+
+        if config.get("track_chatgpt_usage_journal") is False:
+            return
+        try:
+            journal_path = resolve_usage_journal_path(config)
+            # Re-finalize and rebuild paths can present the same response
+            # again (for example when a session is re-rendered); journal each
+            # response id at most once so rebuilds never duplicate records.
+            if isinstance(response_id, str) and response_id:
+                for record in iter_journal_records(journal_path):
+                    if (
+                        record.get("type") == "request_usage"
+                        and record.get("response_id") == response_id
+                    ):
+                        return
+            append_request_usage(
+                journal_path,
+                input_tokens=input_tokens,
+                cached_tokens=cached_tokens,
+                cache_write_tokens=cache_write_tokens,
+                output_tokens=output_tokens,
+                reasoning_tokens=reasoning_tokens,
+                estimated_cached_tokens=estimated_cached_tokens,
+                estimated_cost=estimated_cost,
+                model=model,
+                response_id=response_id,
+                service_tier=service_tier,
+                reasoning_mode=reasoning_mode,
+                usage=project_usage_for_persistence(usage),
+                rate_limits=self._chatgpt_rate_limits_for_journal(state, config),
+                session_id=session_id_from_state(state),
+                working_directory=resolve_working_directory(config),
+                config=config,
+            )
+        except Exception:
+            return
 
     @staticmethod
     def _manual_model_pricing() -> Dict[str, Any] | None:
@@ -1072,6 +1379,22 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return usage
         return None
 
+    def _extract_stream_response_id(
+        self, native_chunk: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
+        if not isinstance(native_chunk, dict):
+            return None
+        if native_chunk.get("type") == "response.completed":
+            response = native_chunk.get("response")
+            if isinstance(response, dict):
+                response_id = response.get("id")
+                if isinstance(response_id, str) and response_id:
+                    return response_id
+        response_id = native_chunk.get("response_id")
+        if isinstance(response_id, str) and response_id:
+            return response_id
+        return None
+
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -1092,7 +1415,13 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         except Exception:
             base_native = list(native_messages)
 
-        extra_md = self._build_usage_metadata(usage, base_native, final_messages, state)
+        extra_md = self._build_usage_metadata(
+            usage,
+            base_native,
+            final_messages,
+            state,
+            response_id=self._extract_stream_response_id(native_chunk),
+        )
         attach_idx = self._select_attach_index(final_messages)
         if attach_idx is None:
             return partial_messages, final_messages, native_messages, state
@@ -1191,7 +1520,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             if idx not in response_index_set and isinstance(item, dict)
         ]
         extra_md = self._build_usage_metadata(
-            current_usage, base_native, current_items, state
+            current_usage,
+            base_native,
+            current_items,
+            state,
+            response_id=current_response_id,
         )
         attach_rel_idx = self._select_attach_index(current_items)
         if attach_rel_idx is None:

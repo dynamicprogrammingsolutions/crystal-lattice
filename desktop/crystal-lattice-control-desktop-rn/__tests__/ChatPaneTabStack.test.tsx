@@ -36,8 +36,16 @@ jest.mock('../src/chat/ChatPane', () => {
         View,
         { testID: `chat-pane-${sessionId}` },
         React.createElement(Text, null, `pane:${sessionId}`),
-        React.createElement(Text, null, `active:${sessionId}:${isActive ? 'yes' : 'no'}`),
-        React.createElement(Text, null, `cache:${sessionId}:${cachedEntry ? 'yes' : 'no'}`),
+        React.createElement(
+          Text,
+          null,
+          `active:${sessionId}:${isActive ? 'yes' : 'no'}`,
+        ),
+        React.createElement(
+          Text,
+          null,
+          `cache:${sessionId}:${cachedEntry ? 'yes' : 'no'}`,
+        ),
         React.createElement(
           Pressable,
           {
@@ -118,7 +126,11 @@ const messagesCache: MessagesCache = {
   },
 };
 
-function renderTabsUi(activeTabId: string | null, visibleTabs: DesktopSessionTab[]) {
+function renderTabsUi(
+  activeTabId: string | null,
+  visibleTabs: DesktopSessionTab[],
+  workspaceVisible = true,
+) {
   return (
     <>
       <SessionTabs
@@ -132,6 +144,7 @@ function renderTabsUi(activeTabId: string | null, visibleTabs: DesktopSessionTab
       <ChatPaneTabStack
         tabs={visibleTabs}
         activeTabId={activeTabId}
+        workspaceVisible={workspaceVisible}
         styleVariant="toolbarTabs"
         connectionNameById={{ 'conn-1': 'Connection One' }}
         getBackend={() => null}
@@ -187,6 +200,40 @@ describe('ChatPaneTabStack', () => {
     expect(screen.getByText('active:session-3:yes')).toBeTruthy();
     expect(screen.getByText('active:session-4:yes')).toBeTruthy();
     expect(screen.getByText('cache:session-1:yes')).toBeTruthy();
+  });
+
+  it('keeps the 3 warm panes mounted while Home hides the Chat workspace', () => {
+    const screen = render(renderTabsUi(tabs[0].tabId, tabs.slice(0, 1)));
+    const includeHiddenElements = { includeHiddenElements: true };
+
+    screen.rerender(renderTabsUi(tabs[1].tabId, tabs.slice(0, 2)));
+    screen.rerender(renderTabsUi(tabs[2].tabId, tabs.slice(0, 3)));
+    screen.rerender(renderTabsUi(tabs[3].tabId, tabs));
+    screen.rerender(renderTabsUi(null, tabs, false));
+
+    expect(
+      screen.queryByTestId('chat-pane-session-1', includeHiddenElements),
+    ).toBeNull();
+    expect(
+      screen.getByTestId('chat-pane-session-2', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('chat-pane-session-3', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('chat-pane-session-4', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('desktop-chat-pane-stack', includeHiddenElements).props
+        .pointerEvents,
+    ).toBe('none');
+
+    screen.rerender(renderTabsUi(tabs[2].tabId, tabs, true));
+
+    expect(screen.queryByTestId('chat-pane-session-1')).toBeNull();
+    expect(screen.getByTestId('chat-pane-session-2')).toBeTruthy();
+    expect(screen.getByTestId('chat-pane-session-3')).toBeTruthy();
+    expect(screen.getByTestId('chat-pane-session-4')).toBeTruthy();
   });
 
   it('promotes the matching preview identity before a Chat mutation', () => {

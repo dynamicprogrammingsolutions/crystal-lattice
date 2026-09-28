@@ -138,6 +138,8 @@ actions from the shared frontend SDK.
   `rich_ui.placements`.
 - Rich toggle/list controls invoke the ordinary action and keep its dialog as
   fallback.
+- Program-provided session actions remain above plugin-contributed actions in
+  the complete menu; each group retains its own declared order.
 - Connection-scoped pin preferences preserve explicit user choices; plugin
   `default_pinned` values apply only before a preference is stored.
 

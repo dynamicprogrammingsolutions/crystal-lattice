@@ -19,7 +19,10 @@ export interface MarkdownMessageContentProps {
 }
 
 export function createDesktopMarkdownTypographyStyles(
-  preferences: MarkdownDisplayPreferences,
+  preferences: Pick<
+    MarkdownDisplayPreferences,
+    'baseFontSize' | 'headerSize'
+  >,
 ) {
   const typography = deriveMarkdownTypography(preferences);
   const textStyle = {

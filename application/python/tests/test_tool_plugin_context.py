@@ -139,7 +139,7 @@ class TestToolLoopRunnerContextEnrichment:
         assert runner._app_context is app_context
         assert runner._base_config == base_config
 
-    def test_application_context_builders_include_effective_config(
+    def test_application_owned_context_includes_effective_config(
         self, tmp_path: Path
     ) -> None:
         app = _make_app(tmp_path)
@@ -160,7 +160,7 @@ class TestToolLoopRunnerContextEnrichment:
             config=effective_config,
         )
         assert core_context["base_config"]["mcp_enabled"] is False
-        assert core_context["config"]["mcp_enabled"] is True
+        assert "config" not in core_context
 
         session_action_context = app_context.build_session_action_context(
             session=session,
@@ -177,7 +177,7 @@ class TestToolLoopRunnerContextEnrichment:
             config=effective_config,
         )
         assert tool_context["base_config"]["mcp_enabled"] is False
-        assert tool_context["config"]["mcp_enabled"] is True
+        assert "config" not in tool_context
 
 
 class TestToolContextDocumentation:

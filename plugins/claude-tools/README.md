@@ -42,7 +42,56 @@ Tavily credentials are configured.
 
 `Grep` currently supports default `files_with_matches`, `content`, and `count` output modes, along with the observed no-match string and missing-path error wrapper.
 
-`Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, and the Claude background-run message format.
+`Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, the Claude background-run message format, and working-directory persistence between commands: each foreground command starts in the working directory where the previous foreground command ended, with the ending directory stored in the tool-result message metadata as a path relative to the configured working directory (portable across sandbox moves).
+
+Bash working-directory configuration keys:
+
+- `bash_cwd_persistence`: keep the working directory between Bash commands (default `true`, matching Claude Code). When `false`, every command starts in the configured working directory, no ending-directory metadata is stored, and the tool description states that the working directory does not persist and advises chaining `cd dir && cmd` in a single call.
+- `bash_include_cwd_in_result`: surface the working directory in Bash tool results (default `false`). When `true`, the initial working directory appears as a `[cwd: ...]` first line, and the end working directory is noted as a last line when a command changed it and persistence is enabled.
+- `bash_permissive_cd_guidance`: use permissive `cd` guidance in the Bash tool description instead of the upstream restrictive wording (default `false`). With all options at their defaults and persistence on, the tool description matches upstream Claude Code verbatim.
+
+Working combinations (preset mixins):
+
+The three keys must stay coherent with the system message's tool-usage section, which must state the same persistence behavior the Bash tool actually applies. The default config ships four preset mixins — pure deltas defined in its `mixins` section that set the three keys plus the matching `system_message.template` tool-usage variable:
+
+| Preset mixin | `bash_cwd_persistence` | `bash_include_cwd_in_result` | `bash_permissive_cd_guidance` | Tool-usage variable |
+|---|---|---|---|---|
+| `claude_bash_upstream_parity` | `true` | `false` | `false` | `{{TOOL_USAGE}}` |
+| `claude_bash_permissive` | `true` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
+| `claude_bash_permissive_visible` | `true` | `true` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD}}` |
+| `claude_bash_permissive_no_persistence` | `false` | `false` | `true` | `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` |
+
+Each preset carries its own per-key merge policy, so applying one needs no merge configuration on the agent — just list it right after `claude_system_message` in the agent's `mixin_refs`:
+
+```json
+"claude-anthropic": {
+  "mixin_refs": [
+    "claude_system_message",
+    "claude_bash_permissive_visible",
+    "claude_mcp_defaults",
+    "claude_anthropic_model_variants"
+  ]
+}
+```
+
+The interpreter applies a referenced mixin's own root `$merge` to that mixin's merge action and then consumes it: the policy deep-merges only `system_message` (keeping the base mixin's variables and toggle while the preset overrides the template variable), leaves everything else shallow, and neither the root nor any nested directive persists into the agent's resolved configuration. `$merge` is parent-scoped (a mapping's `$merge` controls how its sibling keys merge), so a `$merge` nested inside the preset's `system_message` would instead govern `template` — a plain string — which is why the policy sits at the preset root naming `system_message` as a deep key. References without their own directive use the referencing node's root policy.
+
+The shipped default config uses `claude_bash_permissive` for the Claude and Ollama-backed Claude-tools agents, and `claude_bash_permissive_visible` for the Z.ai agent so its Bash results also report the working directory. In both cases, the tool description and system message give coherent permissive `cd` guidance. Switch an agent to `claude_bash_upstream_parity` for upstream-verbatim guidance everywhere.
+
+Agent-local keys still win over preset values, so a single tweak does not need a new mixin:
+
+```json
+"claude-anthropic": {
+  "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+  "bash_include_cwd_in_result": true
+}
+```
+
+For custom templates, the tool-usage variants are available as `files` variables in `claude_system_message.system_message.variables`:
+
+- `{{TOOL_USAGE}}` — the original upstream Claude Code wording with restrictive `cd` guidance.
+- `{{TOOL_USAGE_PERMISSIVE_CD}}` — permissive `cd` guidance; the working directory persists between commands.
+- `{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}` — permissive `cd` guidance; chain `cd dir && cmd` in a single Bash call.
 
 `TaskStop` currently supports stopping running background Bash tasks by the background ID returned from `Bash`. `Read` remains the primary Claude-shaped way to inspect Bash background output via the returned output path.
 

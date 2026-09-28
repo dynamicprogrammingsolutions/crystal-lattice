@@ -186,6 +186,48 @@ class ExtensionWrapper(ProviderExtensionPlugin):
             context=context,
         )
 
+    def prepare_tool_call(
+        self,
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Run extension prepare_tool_call; return (tool_call, new_state)."""
+        return self.plugin.prepare_tool_call(
+            tool_call,
+            state,
+            context=context,
+        )
+
+    def finalize_tool_call(
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Run extension finalize_tool_call; return (tool_message, new_state)."""
+        return self.plugin.finalize_tool_call(
+            tool_message,
+            state,
+            context=context,
+        )
+
+    def prepare_appended_message(
+        self,
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Run extension prepare_appended_message; return (message, new_state)."""
+        return self.plugin.prepare_appended_message(
+            message,
+            state,
+            context=context,
+        )
+
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions from the extension."""
         return self.plugin.get_actions(state)

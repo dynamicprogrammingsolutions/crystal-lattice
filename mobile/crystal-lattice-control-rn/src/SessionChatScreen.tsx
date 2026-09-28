@@ -83,11 +83,16 @@ import {
   ActionsMenuBar,
   RichConfigDropdownControl,
   RichConfigToggleControl,
+  runComposedMessageSubmission,
   SessionActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionNotificationsHost,
+  ALL_SESSION_ACTIONS,
   SESSION_ACTIONS,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   type ActionDefinition,
   type SessionActionDefinition,
   type SessionActionKey,
@@ -156,6 +161,7 @@ import { createChatScrollAnchor, type ChatScrollAnchor } from "./chatScroll";
 import type { MessageAttachmentSnapshot } from "./messageAttachments";
 import { useTheme, type Theme } from "./theme";
 import { useApplicationPlugins } from "./ApplicationPluginsContext";
+import { useHumanTimeTelemetry } from "./humanTimeTelemetry/HumanTimeTelemetryProvider";
 import { usePersistentPinnedActions } from "./usePersistentPinnedActions";
 import { usePluginActionDialog } from "./usePluginActionDialog";
 import { handleGeneratedFileFollowupAction } from "./utils/generatedFileActions";
@@ -170,6 +176,7 @@ import {
   MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
 } from "./transcriptRange";
 import { getMobileHeaderMaxPinnedActions } from "./responsiveHeaderActions";
+import { useHomeWorkspace } from "./HomeWorkspaceContext";
 
 interface SessionChatScreenProps {
   backend: AgentBackend | null;
@@ -491,6 +498,7 @@ const ChatTranscript = React.memo(
                   <SelectablePlainText
                     text={statusBarParts.join("   ")}
                     style={styles.statusBarText}
+                    testID="session-status-bar"
                   />
                 </View>
               );
@@ -848,6 +856,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const { splitForComposedMessage } = useHumanTimeTelemetry();
+  const {
+    hydrated: homeWorkspaceHydrated,
+    isWatched,
+    addToWatchlist,
+    removeFromWatchlist,
+  } = useHomeWorkspace();
+  const sessionWatched =
+    connectionId != null && isWatched(connectionId, sessionId);
   const { width: windowWidth } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const maxHeaderPinnedActions = getMobileHeaderMaxPinnedActions(windowWidth);
@@ -930,6 +947,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const {
+    loaded: sessionActionsLoaded,
     pinned: pinnedSessionActions,
     setPinned: setPinnedSessionActions,
     hasStoredPreference: hasStoredSessionActionPreference,
@@ -940,6 +958,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const {
+    loaded: composerActionsLoaded,
     pinned: pinnedComposerActions,
     setPinned: setPinnedComposerActions,
     hasStoredPreference: hasStoredComposerActionPreference,
@@ -1193,6 +1212,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const eventsEnabled = !!(backend && sessionId && isActive && isAppActive);
 
+  // Sync the UI range state and the persisted history range when the
+  // controller falls back to the default range (e.g. an absolute range no
+  // longer selects messages after session compaction).
+  const handleRangeFallback = useCallback(
+    (range: { start?: number; end?: number }) => {
+      const startText = range.start != null ? String(range.start) : "";
+      const endText = range.end != null ? String(range.end) : "";
+      setRangeStartText(startText);
+      setRangeEndText(endText);
+      onSaveHistoryRangeRef.current(startText, endText);
+    },
+    []
+  );
+
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
@@ -1201,6 +1234,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     initialActiveRequestId: cachedActiveRequestId ?? null,
     onEvents: appendEventsToDebugBuffer,
     eventsEnabled,
+    onRangeFallback: handleRangeFallback,
   });
 
   const messages: IndexedMessage[] =
@@ -1784,6 +1818,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
   useEffect(() => {
     if (
+      !composerActionsLoaded ||
       hasStoredComposerActionPreference ||
       defaultPinnedComposerUiActionKeys.length === 0
     ) {
@@ -1797,6 +1832,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ]);
   }, [
     defaultPinnedComposerUiActionKeys,
+    composerActionsLoaded,
     hasStoredComposerActionPreference,
     setPinnedComposerActions,
   ]);
@@ -1810,6 +1846,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
   useEffect(() => {
     if (
+      !sessionActionsLoaded ||
       hasStoredSessionActionPreference ||
       defaultPinnedHeaderSessionActionKeys.length === 0
     ) {
@@ -1823,6 +1860,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ]);
   }, [
     defaultPinnedHeaderSessionActionKeys,
+    sessionActionsLoaded,
     hasStoredSessionActionPreference,
     setPinnedSessionActions,
   ]);
@@ -1965,9 +2003,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }),
     [currentSessionSummary, headerSessionActions, sessionId]
   );
-  const sessionActionDefs = useMemo(
-    () => [...MOBILE_REQUEST_SESSION_ACTIONS, ...pluginSessionActionDefs],
-    [pluginSessionActionDefs]
+  const sessionProgramActionDefs = useMemo(
+    () => [
+      ...ALL_SESSION_ACTIONS,
+      ...MOBILE_REQUEST_SESSION_ACTIONS,
+      ...buildLocalSessionActionDefinitions({
+        watched: sessionWatched,
+        includeNote: false,
+      }),
+    ],
+    [sessionWatched]
   );
 
   const pluginMessageActionDefs = useMemo(
@@ -3324,11 +3369,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     setAppendInProgress(true);
     try {
-      await chatController.appendMessage({
-        role: "user",
-        content: text,
-        multipartContent,
-      });
+      await runComposedMessageSubmission(
+        () => splitForComposedMessage(sessionId),
+        () =>
+          chatController.appendMessage({
+            role: "user",
+            content: text,
+            multipartContent,
+          })
+      );
       clearComposerDraft();
     } catch (err: any) {
       console.log("Failed to append message", err);
@@ -3415,11 +3464,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     setAppendInProgress(true);
     try {
-      await chatController.appendMessage({
-        role: appendAsRole as any,
-        content: text,
-        multipartContent,
-      });
+      await runComposedMessageSubmission(
+        () => splitForComposedMessage(sessionId),
+        () =>
+          chatController.appendMessage({
+            role: appendAsRole as any,
+            content: text,
+            multipartContent,
+          })
+      );
       clearComposerDraft();
       setAppendAsVisible(false);
       setAppendAsDraftText("");
@@ -3439,6 +3492,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     attachmentsBelow,
     chatController,
     clearComposerDraft,
+    sessionId,
+    splitForComposedMessage,
     unresolvedAttachmentDraft,
   ]);
 
@@ -3500,19 +3555,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     const idempotencyKey = generateIdempotencyKey();
     try {
-      appendDebugNote("Send started", text || "multipart_message", {
-        multipartCount: multipartContent.length,
-        idempotencyKey,
-      });
-      chatController.clearRequestState();
-      await chatController.sendMessage({
-        message: {
-          role: "user",
-          content: text,
-          multipartContent,
-        },
-        idempotencyKey,
-      });
+      await runComposedMessageSubmission(
+        () => splitForComposedMessage(sessionId),
+        () => {
+          appendDebugNote("Send started", text || "multipart_message", {
+            multipartCount: multipartContent.length,
+            idempotencyKey,
+          });
+          chatController.clearRequestState();
+          return chatController.sendMessage({
+            message: {
+              role: "user",
+              content: text,
+              multipartContent,
+            },
+            idempotencyKey,
+          });
+        }
+      );
       setPendingRequestRecovery(null);
       clearComposerDraft();
       appendDebugNote("Send acknowledged", text || "multipart_message", {
@@ -3968,6 +4028,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   );
 
   const handleSessionAction = async (action: SessionActionKey) => {
+    if (action === LOCAL_WATCHLIST_SESSION_ACTION_KEY && connectionId) {
+      if (sessionWatched) {
+        removeFromWatchlist(connectionId, sessionId);
+      } else {
+        addToWatchlist(connectionId, sessionId);
+      }
+      return;
+    }
     if (action === "resend") {
       await handleResend();
       return;
@@ -4803,6 +4871,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 onPress={handleBack}
                 accessibilityRole="button"
                 accessibilityLabel="Back to sessions"
+                testID="messages-back-to-sessions"
               >
                 <Icon name="arrow-left" size={22} color={theme.primary} />
               </TouchableOpacity>
@@ -4841,15 +4910,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 onAction={handleSessionAction}
                 onOpenMenu={refreshSessionContextInBackground}
                 menuButtonTestID="session-actions-menu"
-                isActionDisabled={(action) =>
-                  pluginActionInProgress ||
-                  (action === "resend"
-                    ? isComposerActionDisabled("resend")
-                    : action === "cancel"
-                    ? isComposerActionDisabled("cancel")
-                    : resumeRecoveryInProgress && action === "reload")
-                }
-                extraActions={sessionActionDefs}
+                isActionDisabled={(action) => {
+                  if (isLocalSessionActionKey(String(action))) {
+                    return !homeWorkspaceHydrated || connectionId == null;
+                  }
+                  return (
+                    pluginActionInProgress ||
+                    (action === "resend"
+                      ? isComposerActionDisabled("resend")
+                      : action === "cancel"
+                      ? isComposerActionDisabled("cancel")
+                      : resumeRecoveryInProgress && action === "reload")
+                  );
+                }}
+                baseActions={sessionProgramActionDefs}
+                extraActions={pluginSessionActionDefs}
                 renderPinnedAction={renderPinnedHeaderSessionAction}
                 isActive={isActive}
                 modalContentStyle={styles.sessionActionsModalContent}
@@ -5018,9 +5093,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         />
 
         {activeError && (
-          <View style={styles.errorContainer}>
+          <View testID="session-chat-error" style={styles.errorContainer}>
             <Text style={styles.errorTitle}>Error</Text>
-            <Text style={styles.errorText}>{activeError.detail}</Text>
+            <Text testID="session-chat-error-detail" style={styles.errorText}>
+              {activeError.detail}
+            </Text>
           </View>
         )}
 

@@ -1,6 +1,7 @@
 # Frontend SDK development
 
 - [Bridge transport implementation](bridge-transport-implementation.md)
+- [Chat history range loading](chat-history-range-loading.md)
 - [Notification implementation](notification-implementation.md)
 - [Session request-status implementation](session-request-status-implementation.md)
 - [Rich session UI implementation](rich-session-ui.md)

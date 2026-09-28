@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import sqlite3
 import threading
 from typing import Any, Dict, Iterator, Mapping, Protocol
 
@@ -444,6 +443,8 @@ class SQLiteApplicationNotificationStore(_BaseApplicationNotificationStore):
         *,
         owner_epoch: str | None = None,
     ) -> None:
+        import sqlite3
+
         super().__init__(owner_epoch=owner_epoch)
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)

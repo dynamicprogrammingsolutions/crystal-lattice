@@ -66,6 +66,12 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const sessionRequestStatus = jest.requireActual(
     '../../packages/frontend-rn-components/src/sessionRequestStatus',
   );
+  const localSessionActions = jest.requireActual(
+    '../../packages/frontend-rn-components/src/localSessionActions',
+  );
+  const humanTimeTelemetry = jest.requireActual(
+    '../../packages/frontend-rn-components/src/humanTimeTelemetry',
+  );
   const theme = {
     typography:
       DISPLAY_TYPOGRAPHY_PRESETS[
@@ -323,6 +329,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     ...homeWorkspace,
     ...reorderGeometry,
     ...sessionRequestStatus,
+    ...localSessionActions,
+    ...humanTimeTelemetry,
     ThemeProvider: ({
       theme: value,
       children,
@@ -685,12 +693,29 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     SessionListActionsBar: ({
       session,
       pluginActions,
+      baseActions = [],
       pinned,
+      onBaseAction,
       onExecuteAction,
+      isActionDisabled,
     }) =>
       React.createElement(
         View,
         null,
+        baseActions.map(action =>
+          React.createElement(
+            View,
+            {
+              key: action.key,
+              testID: `session-base-action-${session.session_id}-${action.key}`,
+              accessibilityState: {
+                disabled: isActionDisabled?.(action.key) ?? false,
+              },
+              onPress: () => onBaseAction?.(action.key),
+            },
+            React.createElement(Text, null, action.label),
+          ),
+        ),
         (pluginActions || [])
           .filter(
             action =>

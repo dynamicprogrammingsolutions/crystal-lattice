@@ -41,9 +41,14 @@ from agent_core.tool_interop import (
 from agent_core.tool_result_payloads import FORMAT_ANTHROPIC_MESSAGES, TOOL_RESULT_FIELD
 from claude_tools import ClaudeBashTool
 from claude_tools.claude_bash_tool import (
+    BASH_DESCRIPTION,
+    _apply_cwd_lines,
+    _bash_description_for_options,
     _cwd_for_storage,
     _last_bash_end_cwd_from_context,
     _resolve_stored_cwd,
+    _UPSTREAM_CD_GUIDANCE,
+    _UPSTREAM_OPENING,
 )
 
 
@@ -686,3 +691,324 @@ def test_bash_cwd_falls_back_when_stored_path_does_not_exist(tmp_path: Path) -> 
     # Should fall back to the configured working directory
     assert result["text"].strip() == str(tmp_path.resolve())
     assert result["metadata"]["bash"]["end_cwd"] == "."
+
+
+def test_upstream_description_segments_present() -> None:
+    """The exact-string replacements rely on the upstream segments being present
+    verbatim in ``BASH_DESCRIPTION``; drift in the upstream text must be caught
+    by this test rather than silently producing an unmodified description."""
+    assert _UPSTREAM_OPENING in BASH_DESCRIPTION
+    assert _UPSTREAM_CD_GUIDANCE in BASH_DESCRIPTION
+
+
+def test_init_reads_cwd_config_options_with_defaults() -> None:
+    tool = ClaudeBashTool()
+    state = tool.init({"working_directory": os.getcwd()})
+    assert state["cwd_persistence"] is True
+    assert state["include_cwd_in_result"] is False
+    assert state["permissive_cd_guidance"] is False
+
+
+def test_init_reads_cwd_config_options_overrides() -> None:
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": os.getcwd(),
+            "bash_cwd_persistence": False,
+            "bash_include_cwd_in_result": True,
+            "bash_permissive_cd_guidance": True,
+        }
+    )
+    assert state["cwd_persistence"] is False
+    assert state["include_cwd_in_result"] is True
+    assert state["permissive_cd_guidance"] is True
+
+
+def test_bash_description_defaults_match_upstream() -> None:
+    """With both options at their defaults the description must be byte-identical
+    to the upstream Claude Code Bash description (persistence on)."""
+    description = _bash_description_for_options(
+        cwd_persistence=True,
+        permissive_cd_guidance=False,
+    )
+    assert description == BASH_DESCRIPTION
+
+
+def test_bash_description_persistence_off_restrictive_guidance() -> None:
+    description = _bash_description_for_options(
+        cwd_persistence=False,
+        permissive_cd_guidance=False,
+    )
+    assert description != BASH_DESCRIPTION
+    assert (
+        "The working directory does not persist between commands; each command "
+        "starts in the configured working directory."
+    ) in description
+    # Upstream restrictive sentence stays, with the chaining note appended.
+    assert "Try to maintain your current working directory" in description
+    assert (
+        "When you do use `cd`, chain it with the command in a single Bash call "
+        "(`cd dir && cmd`) because the working directory does not persist "
+        "between commands."
+    ) in description
+
+
+def test_bash_description_persistence_off_permissive_guidance() -> None:
+    description = _bash_description_for_options(
+        cwd_persistence=False,
+        permissive_cd_guidance=True,
+    )
+    assert "The working directory does not persist between commands" in description
+    assert "You may use `cd` when a command must run from a specific directory" in (
+        description
+    )
+    assert "chain `cd dir && cmd` in a single Bash call" in description
+    assert "Try to maintain your current working directory" not in description
+
+
+def test_bash_description_persistence_on_permissive_guidance() -> None:
+    description = _bash_description_for_options(
+        cwd_persistence=True,
+        permissive_cd_guidance=True,
+    )
+    assert (
+        "The working directory persists between commands, but shell state does " "not."
+    ) in description
+    assert "You may use `cd` when a command must run from a specific directory" in (
+        description
+    )
+    assert "so `cd` alone is sufficient" in description
+    assert "Try to maintain your current working directory" not in description
+
+
+def test_get_tool_schemas_description_follows_state() -> None:
+    tool = ClaudeBashTool()
+    state = tool.init({"working_directory": os.getcwd()})
+    schemas = tool.get_tool_schemas(state)
+    assert len(schemas) == 1
+    assert schemas[0]["name"] == "Bash"
+    assert schemas[0]["description"] == BASH_DESCRIPTION
+
+    state_off = tool.init(
+        {
+            "working_directory": os.getcwd(),
+            "bash_cwd_persistence": False,
+            "bash_permissive_cd_guidance": True,
+        }
+    )
+    schemas_off = tool.get_tool_schemas(state_off)
+    assert schemas_off[0]["description"] != BASH_DESCRIPTION
+    assert "The working directory does not persist between commands" in (
+        schemas_off[0]["description"]
+    )
+
+
+def test_apply_cwd_lines_formats() -> None:
+    assert (
+        _apply_cwd_lines(
+            "output",
+            start_cwd="/a",
+            end_cwd="/a",
+            cwd_persistence=True,
+        )
+        == "[cwd: /a]\noutput"
+    )
+    assert (
+        _apply_cwd_lines(
+            "output",
+            start_cwd="/a",
+            end_cwd="/b",
+            cwd_persistence=True,
+        )
+        == "[cwd: /a]\noutput\n[cwd: /b]"
+    )
+    # A changed cwd is not noted when persistence is disabled.
+    assert (
+        _apply_cwd_lines(
+            "output",
+            start_cwd="/a",
+            end_cwd="/b",
+            cwd_persistence=False,
+        )
+        == "[cwd: /a]\noutput"
+    )
+
+
+def test_bash_cwd_persistence_disabled_ignores_stored_cwd(
+    tmp_path: Path,
+) -> None:
+    """With ``bash_cwd_persistence`` disabled, a stored ``end_cwd`` in the
+    session is ignored: the command runs in the configured working directory
+    and no ``bash.end_cwd`` metadata is emitted."""
+    (tmp_path / "subdir").mkdir()
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_cwd_persistence": False,
+        }
+    )
+    context = {
+        "session": {
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": "old output",
+                    "metadata": {
+                        "tool_call_id": "call_bash_1",
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": "subdir"},
+                    },
+                }
+            ]
+        }
+    }
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "pwd", "description": "Print working directory"},
+        state,
+        tool_call={"id": "call_bash_2"},
+        context=context,
+    )
+    assert result["success"] is True
+    assert result["text"].strip() == str(tmp_path.resolve())
+    assert not result.get("metadata")
+
+
+def test_bash_include_cwd_in_result_success(tmp_path: Path) -> None:
+    """With ``bash_include_cwd_in_result`` enabled, the initial cwd appears as
+    the first line of the result; no end line when the cwd did not change."""
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_include_cwd_in_result": True,
+        }
+    )
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "printf hello", "description": "Print hello"},
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["text"] == f"[cwd: {tmp_path.resolve()}]\nhello"
+    # The cwd chain still works with cwd lines enabled.
+    assert result["metadata"]["bash"]["end_cwd"] == "."
+
+
+def test_bash_include_cwd_in_result_changed_cwd_notes_end(tmp_path: Path) -> None:
+    """When the command changes the cwd and persistence is on, the end cwd is
+    noted as the last line."""
+    (tmp_path / "subdir").mkdir()
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_include_cwd_in_result": True,
+        }
+    )
+    result = tool.execute_tool(
+        "Bash",
+        {
+            "command": f'cd "{tmp_path / "subdir"}" && pwd',
+            "description": "Change to subdir and print working directory",
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["text"] == (
+        f"[cwd: {tmp_path.resolve()}]\n"
+        f"{tmp_path.resolve() / 'subdir'}\n"
+        f"[cwd: {tmp_path.resolve() / 'subdir'}]"
+    )
+    assert result["metadata"]["bash"]["end_cwd"] == "subdir"
+
+
+def test_bash_include_cwd_in_result_changed_cwd_no_end_note_when_persistence_off(
+    tmp_path: Path,
+) -> None:
+    """With persistence disabled, a changed cwd is not noted at the end because
+    it does not persist."""
+    (tmp_path / "subdir").mkdir()
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_include_cwd_in_result": True,
+            "bash_cwd_persistence": False,
+        }
+    )
+    result = tool.execute_tool(
+        "Bash",
+        {
+            "command": f'cd "{tmp_path / "subdir"}" && pwd',
+            "description": "Change to subdir and print working directory",
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["text"] == (
+        f"[cwd: {tmp_path.resolve()}]\n{tmp_path.resolve() / 'subdir'}"
+    )
+
+
+def test_bash_include_cwd_in_result_failure(tmp_path: Path) -> None:
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_include_cwd_in_result": True,
+        }
+    )
+    result = tool.execute_tool(
+        "Bash",
+        {
+            "command": 'sh -c "echo problem 1>&2; exit 7"',
+            "description": "Fail with output",
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is False
+    assert result["text"] == (f"[cwd: {tmp_path.resolve()}]\nExit code 7\nproblem")
+
+
+def test_bash_include_cwd_in_result_no_output_placeholder(
+    tmp_path: Path,
+) -> None:
+    tool = ClaudeBashTool()
+    state = tool.init(
+        {
+            "working_directory": str(tmp_path),
+            "bash_include_cwd_in_result": True,
+        }
+    )
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "true", "description": "No-op command"},
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["text"] == (
+        f"[cwd: {tmp_path.resolve()}]\n(Bash completed with no output)"
+    )
+
+
+def test_bash_cwd_lines_disabled_by_default(tmp_path: Path) -> None:
+    """Without ``bash_include_cwd_in_result`` the result content is unchanged
+    (no cwd lines), matching the upstream result format."""
+    tool = ClaudeBashTool()
+    state = tool.init({"working_directory": str(tmp_path)})
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "printf hello", "description": "Print hello"},
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["text"] == "hello"

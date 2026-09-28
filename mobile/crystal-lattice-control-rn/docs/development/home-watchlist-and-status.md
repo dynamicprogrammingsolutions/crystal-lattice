@@ -29,6 +29,16 @@ Notes deliberately share across connections when session IDs match. Removing
 a Watchlist entry or saved connection leaves notes intact. Only the explicit
 Remove Note action deletes note text.
 
+Sessions and Messages add shared static local action definitions to their
+existing pinnable Session actions. `localWatchlist` resolves against
+`HomeWorkspaceProvider` and changes only composite local membership. Its label
+and icon update between Add and Remove without requiring an open backend.
+Server session-pin actions remain separate plugin-owned commands.
+The local actions stay disabled until Home storage hydration completes.
+Pinned-action hydration also preserves an explicit user change made while an
+older storage read is in flight; plugin-declared defaults are merged only
+after the scoped record has loaded.
+
 `deriveHomeSessionCollections()` preserves stored Watchlist order and derives a
 separate modified-descending Recent Sessions timeline. The timeline applies
 the exact `24h`, `3d`, or `1w` cutoff. Watchlist membership does not filter the
@@ -60,8 +70,20 @@ selected time window.
   Watchlist tile uses `x` to remove that membership;
 - server session pins continue to use their existing rich application action.
 
-Tiles bound note previews to two lines and consume semantic typography. Native
-selectors include connection and session identity.
+Mobile owns its Watchlist and timeline presentation directly; desktop has a
+separate implementation. They currently align on title, optional
+subtitle/distinct preview, session ID, request status, note, and a final
+connection/time metadata row, but no shared React component or spacing
+contract prevents later platform-specific changes.
+
+The mobile fallback starts with the SDK session-list presentation. It uses a
+distinct preview only when no subtitle exists and never renders the same
+preview as both title and secondary text. Connection is the only flexible
+metadata child; relative time and action controls do not shrink. Tiles bound
+title, subtitle, and note lines, consume semantic theme typography, and expose
+field-level native selectors containing connection and session identity.
+Timeline rail dots use `theme.textMuted`; request-status colors remain
+semantic.
 
 ## Derived request status
 
@@ -87,9 +109,11 @@ The frontend SDK exposes an optional backend method and normalized projection.
   cannot guarantee a no-wake read.
 
 `useSessionRequestStatuses` unions exact consumer IDs, groups by connection,
-uses independent cancellable timers, stops in the background, and applies
-bounded per-connection backoff. Unsupported readers are not repeatedly
-probed. Loss of authority removes stale Running state.
+splits large groups into bounded requests, uses independent cancellable
+timers, stops in the background, and applies bounded per-connection backoff.
+Successful batches reconcile only their queried IDs. Transient unavailability
+retains a recently observed Running result through retry, while authoritative
+replacement or bounded loss of authority removes stale Running state.
 
 ## Verification
 

@@ -1,5 +1,9 @@
 # Small-package documentation
 
+Legacy status: retained for the direct pre/post comparison. Its README-only
+mutation requirement is replaced by Test 28, which permits one justified
+shared-doc correction while still preventing filler.
+
 Requirement coverage: `DOCGEN-001`, `DOCVAL-008`
 
 ## Normative traceability

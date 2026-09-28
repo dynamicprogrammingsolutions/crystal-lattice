@@ -10,17 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
-from agent_app.plugin_sources import (
-    BashToolSource,
-    DottedClassSource,
-    GitRepoSource,
-    LocalPathRepoSource,
-    NodeToolSource,
+from agent_app.plugin_sources.types import (
     PluginContext,
     PluginResolution,
     PluginSource,
 )
-from agent_app.plugin_sources.install import PipTargetInstallStrategy
 
 
 class PluginManager:
@@ -36,16 +30,28 @@ class PluginManager:
         policy_dict.setdefault("pip_cache_dir", str(self._default_pip_cache_dir(cache_dir)))
         self.policy: Mapping[str, Any] = policy_dict
         if sources is None:
-            installer = PipTargetInstallStrategy()
-            self.sources: List[PluginSource] = [
-                DottedClassSource(),
-                NodeToolSource(),
-                BashToolSource(),
-                LocalPathRepoSource(installer=installer),
-                GitRepoSource(installer=installer),
-            ]
+            self.sources = self._default_sources()
         else:
-            self.sources = sources
+            self.sources = list(sources)
+
+    def _default_sources(self) -> List[PluginSource]:
+        from agent_app.plugin_sources import (
+            BashToolSource,
+            DottedClassSource,
+            GitRepoSource,
+            LocalPathRepoSource,
+            NodeToolSource,
+        )
+        from agent_app.plugin_sources.install import PipTargetInstallStrategy
+
+        installer = PipTargetInstallStrategy()
+        return [
+            DottedClassSource(),
+            NodeToolSource(),
+            BashToolSource(),
+            LocalPathRepoSource(installer=installer),
+            GitRepoSource(installer=installer),
+        ]
 
     def _default_pip_cache_dir(self, cache_dir: Path) -> Path:
         if cache_dir.name == "plugins":

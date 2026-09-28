@@ -9,17 +9,21 @@ import pytest
 import requests
 
 from agent_core.core import AgentCore
-from hosted_test_utils import build_reference_core, load_root_env
+from hosted_test_utils import (
+    REASONING_TEST_DIR,
+    build_reference_core,  # noqa: F401 - re-exported for Z.ai tests
+    load_root_env,
+)
 
-DEFAULT_ZAI_BASE_URL = "https://api.z.ai/api/paas/v4"
+DEFAULT_ZAI_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
 DEFAULT_ZAI_TIMEOUT = 180.0
 _ZAI_MIN_REQUEST_INTERVAL_SECONDS = 0.25
 _ZAI_RATE_LIMIT_RETRY_DELAYS_SECONDS = (1.0, 2.0, 4.0)
 
 _next_zai_request_time = 0.0
 
-ZAI_BASIC_MODEL = "glm-4.5-air"
-ZAI_REASONING_MODEL = "glm-4.7"
+ZAI_BASIC_MODEL = "glm-5.3-flash"
+ZAI_REASONING_MODEL = "glm-5.3-flash"
 
 
 def zai_api_key() -> str | None:
@@ -36,6 +40,10 @@ def zai_base_url() -> str:
 def zai_model(env_var: str, default: str) -> str:
     load_root_env()
     return os.environ.get(env_var, default)
+
+
+def reasoning_test_prompt() -> str:
+    return (REASONING_TEST_DIR / "prompt.txt").read_text(encoding="utf-8")
 
 
 def _zai_headers(api_key: str) -> dict[str, str]:

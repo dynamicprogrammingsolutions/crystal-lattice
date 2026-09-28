@@ -24,28 +24,37 @@ export function normalizeActionDefinitions<TDef extends ActionDefinition>(option
 }): {
   actionsByKey: Record<ActionKey, TDef>;
   orderedActions: TDef[];
+  compactOrderedActions: TDef[];
 } {
   const baseActions =
     options.availableActions && options.availableActions.length > 0
       ? options.baseActions.filter((def) => options.availableActions!.includes(def.key))
       : options.baseActions;
 
-  const combined: TDef[] = [...baseActions, ...(options.extraActions ?? [])];
+  const combined = [
+    ...baseActions.map((definition) => ({ definition, group: 0 })),
+    ...(options.extraActions ?? []).map((definition) => ({
+      definition,
+      group: 1,
+    })),
+  ];
 
   const actionsByKey: Record<ActionKey, TDef> = Object.create(null);
+  const groupByKey: Record<ActionKey, number> = Object.create(null);
   const seenKeys = new Set<ActionKey>();
   const orderedKeys: ActionKey[] = [];
 
-  for (const def of combined) {
+  for (const { definition: def, group } of combined) {
     if (!def || typeof def.key !== 'string') continue;
     actionsByKey[def.key] = def;
     if (!seenKeys.has(def.key)) {
       seenKeys.add(def.key);
       orderedKeys.push(def.key);
+      groupByKey[def.key] = group;
     }
   }
 
-  const orderedActions = orderedKeys
+  const actionEntries = orderedKeys
     .map((key, declarationIndex) => ({
       declarationIndex,
       definition: actionsByKey[key],
@@ -57,21 +66,35 @@ export function normalizeActionDefinitions<TDef extends ActionDefinition>(option
         declarationIndex: number;
         definition: TDef;
       } => Boolean(entry.definition),
-    )
+    );
+  const compareNumericOrder = (
+    left: (typeof actionEntries)[number],
+    right: (typeof actionEntries)[number],
+  ) => {
+    const leftOrder =
+      typeof left.definition.order === 'number' &&
+      Number.isFinite(left.definition.order)
+        ? left.definition.order
+        : Number.POSITIVE_INFINITY;
+    const rightOrder =
+      typeof right.definition.order === 'number' &&
+      Number.isFinite(right.definition.order)
+        ? right.definition.order
+        : Number.POSITIVE_INFINITY;
+    return leftOrder - rightOrder || left.declarationIndex - right.declarationIndex;
+  };
+  const compactOrderedActions = [...actionEntries]
+    .sort(compareNumericOrder)
+    .map((entry) => entry.definition);
+  const orderedActions = [...actionEntries]
     .sort((left, right) => {
-      const leftOrder =
-        typeof left.definition.order === 'number' && Number.isFinite(left.definition.order)
-          ? left.definition.order
-          : Number.POSITIVE_INFINITY;
-      const rightOrder =
-        typeof right.definition.order === 'number' && Number.isFinite(right.definition.order)
-          ? right.definition.order
-          : Number.POSITIVE_INFINITY;
-      return leftOrder - rightOrder || left.declarationIndex - right.declarationIndex;
+      const groupDifference =
+        groupByKey[left.definition.key] - groupByKey[right.definition.key];
+      return groupDifference || compareNumericOrder(left, right);
     })
     .map((entry) => entry.definition);
 
-  return { actionsByKey, orderedActions };
+  return { actionsByKey, orderedActions, compactOrderedActions };
 }
 
 export function buildActionsMenuModel<TDef extends ActionDefinition>(options: {
@@ -82,14 +105,17 @@ export function buildActionsMenuModel<TDef extends ActionDefinition>(options: {
   isActionDisabled?: (key: ActionKey) => boolean;
 }): ActionsMenuModel<TDef> {
   const isActionDisabled = options.isActionDisabled ?? (() => false);
-  const { actionsByKey, orderedActions } = normalizeActionDefinitions({
-    baseActions: options.baseActions,
-    extraActions: options.extraActions,
-    availableActions: options.availableActions,
-  });
+  const { actionsByKey, orderedActions, compactOrderedActions } =
+    normalizeActionDefinitions({
+      baseActions: options.baseActions,
+      extraActions: options.extraActions,
+      availableActions: options.availableActions,
+    });
 
   const pinnedSet = new Set(options.pinned);
-  const visiblePinned = orderedActions.filter((def) => pinnedSet.has(def.key));
+  const visiblePinned = compactOrderedActions.filter((def) =>
+    pinnedSet.has(def.key),
+  );
 
   const visibleOverflow = orderedActions.filter((def) => !pinnedSet.has(def.key));
 

@@ -7,6 +7,11 @@ static NSNotificationName const CLCSessionsFollowActiveTabDidChangeNotification 
     @"CrystalLattice.SessionsFollowActiveTabDidChange";
 static NSString *const CLCSessionsFollowActiveTabEnabledUserInfoKey = @"enabled";
 
+static NSNotificationName const CLCSwitchConnectionWithActiveTabDidChangeNotification =
+    @"CrystalLattice.SwitchConnectionWithActiveTabDidChange";
+static NSString *const CLCSwitchConnectionWithActiveTabEnabledUserInfoKey =
+    @"enabled";
+
 static NSNotificationName const CLCMarkdownBaseFontSizeDidChangeNotification =
     @"CrystalLattice.MarkdownBaseFontSizeDidChange";
 static NSString *const CLCMarkdownBaseFontSizeUserInfoKey = @"baseFontSize";
@@ -42,3 +47,15 @@ static NSNotificationName const CLCSessionDoubleClickActionDidChangeNotification
     @"CrystalLattice.SessionDoubleClickActionDidChange";
 static NSString *const CLCSessionDoubleClickActionUserInfoKey =
     @"sessionDoubleClickAction";
+
+static NSNotificationName const CLCTimeTrackingEnabledDidChangeNotification =
+    @"CrystalLattice.TimeTrackingEnabledDidChange";
+static NSString *const CLCTimeTrackingEnabledUserInfoKey = @"enabled";
+
+static NSNotificationName const CLCTimeTrackingPluginIdDidChangeNotification =
+    @"CrystalLattice.TimeTrackingPluginIdDidChange";
+static NSString *const CLCTimeTrackingPluginIdUserInfoKey = @"pluginId";
+
+static NSNotificationName const CLCTimeTrackingInactivitySecondsDidChangeNotification =
+    @"CrystalLattice.TimeTrackingInactivitySecondsDidChange";
+static NSString *const CLCTimeTrackingInactivitySecondsUserInfoKey = @"seconds";

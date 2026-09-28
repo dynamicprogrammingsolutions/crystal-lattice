@@ -266,6 +266,7 @@ export const ApplicationActionForm = forwardRef<ApplicationActionFormHandle, App
                 firstInputRef.current = node;
               }
             }}
+            testID={`action-form-input-${params.name}`}
             style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
             value={params.value}
             onChangeText={params.onChange}
@@ -541,6 +542,7 @@ export function ApplicationActionDialogLayout({
               firstInputRef.current = node;
             }
           }}
+          testID={`action-form-input-${params.name}`}
           style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
           value={params.value}
           onChangeText={params.onChange}

@@ -63,7 +63,13 @@ The application supplies:
 
 - `CONFIG_DIR`: absolute directory containing the active config file;
 - `WORKING_DIR`: absolute current working directory;
-- `BUILTIN_PLUGINS`: built-in plugin bundle directory for the install layout.
+- `BUILTIN_PLUGINS`: built-in plugin bundle directory for the install layout;
+- `CRYSTAL_DATA_DIR`: user-level Crystal data directory, defaulting to
+  `~/.crystal`. This is the home for user-owned data such as usage journals
+  and cost tracking stores. It defaults to the same directory as `CONFIG_DIR`
+  on a normal install, but it follows the user rather than the active config
+  file location, so data does not move when a different config file (or a
+  copied config asset tree, as in the cloud runtime) is active.
 
 Example:
 

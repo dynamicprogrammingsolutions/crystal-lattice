@@ -14,7 +14,7 @@ import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
-import SelectableMarkdownMessageContent from './SelectableMarkdownMessageContent';
+import ConfiguredMarkdownMessageContent from './ConfiguredMarkdownMessageContent';
 import SelectablePlainText from './SelectablePlainText';
 import { AttachmentThumbnailStrip } from './AttachmentThumbnailStrip';
 import {
@@ -169,7 +169,11 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`User message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.userBubble]}>
         <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
         <MessageAttachmentsPreview
@@ -185,7 +189,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
               style={[styles.contentText, styles.userContentText, styles.rawReadonlyInput]}
             />
           ) : (
-            <SelectableMarkdownMessageContent
+            <ConfiguredMarkdownMessageContent
               text={content}
               variant="user"
             />
@@ -288,7 +292,11 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`System message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
@@ -405,7 +413,11 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   }, [footerElements, message]);
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`Tool message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>
@@ -605,7 +617,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   return (
-    <View testID={`message-bubble-${index}`} style={styles.row}>
+    <View
+      testID={`message-bubble-${index}`}
+      accessibilityLabel={`Assistant message ${index}`}
+      style={styles.row}
+    >
       <View style={[styles.bubble, styles.otherBubble]}>
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
@@ -674,7 +690,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               style={[styles.contentText, styles.rawReadonlyInput]}
             />
           ) : (
-            <SelectableMarkdownMessageContent
+            <ConfiguredMarkdownMessageContent
               text={content}
               variant="assistant"
             />

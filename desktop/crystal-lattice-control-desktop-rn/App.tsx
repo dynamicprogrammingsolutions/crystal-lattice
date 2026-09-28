@@ -11,7 +11,10 @@ import {
   type RecentSessionsWindow,
 } from '@crystal-lattice/frontend-rn-components';
 
-import { DesktopRoot } from './src/DesktopRoot';
+import {
+  DesktopRoot,
+  type DesktopHumanTimeNativeFixture,
+} from './src/DesktopRoot';
 import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
 import { DesktopMarkdownGeometryHarness } from './src/testing/DesktopMarkdownGeometryHarness';
 import { useDesktopTheme } from './src/theme/useDesktopTheme';
@@ -25,26 +28,33 @@ import type { SessionOpenMode } from './src/settings/desktopGlobalSettings';
 export interface AppProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
+  initialSwitchConnectionWithActiveTabEnabled?: boolean;
   initialMarkdownBaseFontSize?: MarkdownBaseFontSize;
   initialMarkdownHeaderSize?: MarkdownHeaderSize;
   initialRecentSessionsWindow?: RecentSessionsWindow;
   initialSessionDoubleClickAction?: SessionOpenMode;
   enableScrollTestHarness?: boolean;
   enableMarkdownGeometryHarness?: boolean;
+  humanTimeNativeFixture?: DesktopHumanTimeNativeFixture;
 }
 
 export default function App(props: AppProps) {
   const theme = useDesktopTheme();
   const initialTabStripStyle =
-    parseTabStripStyle((props as any)?.initialTabStripStyle) ?? DEFAULT_TAB_STRIP_STYLE;
+    parseTabStripStyle((props as any)?.initialTabStripStyle) ??
+    DEFAULT_TAB_STRIP_STYLE;
 
   return (
     <ThemeProvider theme={theme}>
       <View style={styles.root}>
         {(props as any)?.enableMarkdownGeometryHarness === true ? (
           <DesktopMarkdownGeometryHarness
-            initialMarkdownBaseFontSize={(props as any)?.initialMarkdownBaseFontSize}
-            initialMarkdownHeaderSize={(props as any)?.initialMarkdownHeaderSize}
+            initialMarkdownBaseFontSize={
+              (props as any)?.initialMarkdownBaseFontSize
+            }
+            initialMarkdownHeaderSize={
+              (props as any)?.initialMarkdownHeaderSize
+            }
           />
         ) : (props as any)?.enableScrollTestHarness === true ? (
           <ProgressiveScrollHarness />
@@ -52,8 +62,15 @@ export default function App(props: AppProps) {
           <DesktopRoot
             initialTabStripStyle={initialTabStripStyle}
             initialSessionsFollowActiveTabEnabled={
-              typeof (props as any)?.initialSessionsFollowActiveTabEnabled === 'boolean'
+              typeof (props as any)?.initialSessionsFollowActiveTabEnabled ===
+              'boolean'
                 ? (props as any).initialSessionsFollowActiveTabEnabled
+                : undefined
+            }
+            initialSwitchConnectionWithActiveTabEnabled={
+              typeof (props as any)
+                ?.initialSwitchConnectionWithActiveTabEnabled === 'boolean'
+                ? (props as any).initialSwitchConnectionWithActiveTabEnabled
                 : undefined
             }
             initialMarkdownBaseFontSize={normalizeMarkdownBaseFontSize(
@@ -69,6 +86,11 @@ export default function App(props: AppProps) {
             }
             initialSessionDoubleClickAction={
               (props as any)?.initialSessionDoubleClickAction
+            }
+            humanTimeNativeFixture={
+              (props as any)?.humanTimeNativeFixture as
+                | DesktopHumanTimeNativeFixture
+                | undefined
             }
           />
         )}

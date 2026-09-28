@@ -558,8 +558,17 @@ def test_provider_metadata_schema_and_tags() -> None:
         "supports_reasoning",
         "supports_reasoning_effort",
         "supports_tools",
+        "cost_tracking",
         "supports_verbosity",
     ]
+
+
+def test_get_tags_advertises_cost_tracking_capability() -> None:
+    provider = OpenAIResponsesProvider()
+
+    tags = provider.get_tags({"model": "gpt-4.1-mini"}, [{"id": "gpt-4.1-mini"}])
+
+    assert "cost_tracking" in tags
 
 
 def test_get_tags_does_not_advertise_verbosity_for_non_gpt5_models() -> None:

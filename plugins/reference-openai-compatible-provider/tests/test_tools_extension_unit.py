@@ -117,6 +117,28 @@ def test_initialize_request_uses_tool_interop_context_for_schema_conversion() ->
     ]
 
 
+def test_initialize_request_honors_configured_tool_choice() -> None:
+    ext = OpenAICompatibleToolsExtension()
+    state = {
+        "_tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "fetch",
+                    "description": "Fetch",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ],
+        "request": {"payload": {}},
+        "config": {"tool_choice": "required"},
+    }
+
+    _native, new_state = ext.initialize_request([], state)
+
+    assert new_state["request"]["payload"]["tool_choice"] == "required"
+
+
 def test_finalize_uses_tool_interop_context_for_sanitization() -> None:
     ext = OpenAICompatibleToolsExtension()
     registry = ToolInteropRegistry(call_accessors=[_SanitizingAccessor()])

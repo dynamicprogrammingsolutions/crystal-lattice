@@ -4,7 +4,11 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from openai import AsyncOpenAI, OpenAI
+try:
+    from openai import AsyncOpenAI, OpenAI
+except ImportError:
+    AsyncOpenAI = None
+    OpenAI = None
 
 
 DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
@@ -105,7 +109,21 @@ def build_openai_sdk_client(
     *,
     timeout: float,
     max_retries: Optional[int] = None,
-) -> OpenAI:
+) -> Any:
+    if config.get("provider_transport") == "requests":
+        from .requests_transport import RequestsOpenAIClient
+
+        return RequestsOpenAIClient(
+            api_key=resolve_api_key(config),
+            base_url=resolve_base_url(config),
+            timeout=timeout,
+            default_headers=chatgpt_default_headers(config),
+            max_retries=max_retries or 0,
+        )
+    if OpenAI is None:
+        raise RuntimeError(
+            "The OpenAI SDK is required unless provider_transport is requests"
+        )
     kwargs: Dict[str, Any] = {
         "api_key": resolve_api_key(config),
         "base_url": resolve_base_url(config),
@@ -124,7 +142,13 @@ def build_async_openai_sdk_client(
     *,
     timeout: float,
     max_retries: Optional[int] = None,
-) -> AsyncOpenAI:
+) -> Any:
+    if config.get("provider_transport") == "requests":
+        raise RuntimeError(
+            "Async OpenAI operations are unavailable with provider_transport=requests"
+        )
+    if AsyncOpenAI is None:
+        raise RuntimeError("The OpenAI SDK is required for async OpenAI operations")
     kwargs: Dict[str, Any] = {
         "api_key": resolve_api_key(config),
         "base_url": resolve_base_url(config),

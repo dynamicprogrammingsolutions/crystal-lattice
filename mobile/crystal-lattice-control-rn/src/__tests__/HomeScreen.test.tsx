@@ -1,12 +1,12 @@
-import React from 'react';
-import { StyleSheet } from 'react-native';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import type { KeyValueStore } from '@crystal-lattice/frontend-sdk';
+import React from "react";
+import { StyleSheet } from "react-native";
+import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import type { KeyValueStore } from "@crystal-lattice/frontend-sdk";
 
-import HomeScreen from '../HomeScreen';
-import { HomeWorkspaceProvider } from '../HomeWorkspaceContext';
-import { PinnedActionsProvider } from '../PinnedActionsContext';
-import { ThemeProvider, lightTheme } from '../theme';
+import HomeScreen from "../HomeScreen";
+import { HomeWorkspaceProvider } from "../HomeWorkspaceContext";
+import { PinnedActionsProvider } from "../PinnedActionsContext";
+import { ThemeProvider, lightTheme } from "../theme";
 
 function createStore(): KeyValueStore {
   const values = new Map<string, string>();
@@ -23,26 +23,30 @@ function createStore(): KeyValueStore {
 
 const connections = [
   {
-    id: 'one',
-    kind: 'manual' as const,
-    name: 'Office',
-    host: 'one.test',
+    id: "one",
+    kind: "manual" as const,
+    name: "Office connection with a deliberately long display name",
+    host: "one.test",
     port: 8000,
     lastUsedAt: 1,
   },
   {
-    id: 'two',
-    kind: 'manual' as const,
-    name: 'Laptop',
-    host: 'two.test',
+    id: "two",
+    kind: "manual" as const,
+    name: "Laptop",
+    host: "two.test",
     port: 8000,
     lastUsedAt: 2,
   },
 ];
 
+const longSessionId =
+  "session-with-a-deliberately-long-identifier-for-truncation";
+
 function renderHome() {
   const now = Date.now() / 1000;
   const onOpenGlobalSettings = jest.fn();
+  const onOpenEmbeddedSettings = jest.fn();
   const onSelectSession = jest.fn();
   const screen = render(
     <ThemeProvider theme={lightTheme}>
@@ -52,34 +56,44 @@ function renderHome() {
             connections={connections}
             sessionsCache={{
               one: {
-                connectionId: 'one',
+                connectionId: "one",
                 lastLoadedAt: Date.now(),
                 sessions: [
                   {
-                    session_id: 'shared',
+                    session_id: "shared",
                     modified: now - 20,
-                    preview: 'Office shared session',
+                    preview: "Office shared session",
                   },
                   {
-                    session_id: 'office-next',
+                    session_id: "office-next",
                     modified: now - 30,
-                    preview: 'Office next session',
+                    preview: "Office next session",
+                  },
+                  {
+                    session_id: longSessionId,
+                    modified: now - 25,
+                    preview: "A distinct message preview",
+                    presentation: {
+                      title: "A complete session title",
+                      subtitle: "A complete session subtitle",
+                      meta: null,
+                    },
                   },
                 ],
               },
               two: {
-                connectionId: 'two',
+                connectionId: "two",
                 lastLoadedAt: Date.now(),
                 sessions: [
                   {
-                    session_id: 'shared',
+                    session_id: "shared",
                     modified: now - 10,
-                    preview: 'Laptop shared session',
+                    preview: "Laptop shared session",
                   },
                   {
-                    session_id: 'laptop-next',
+                    session_id: "laptop-next",
                     modified: now - 40,
-                    preview: 'Laptop next session',
+                    preview: "Laptop next session",
                   },
                 ],
               },
@@ -87,26 +101,39 @@ function renderHome() {
             statusesByConnection={{
               one: {
                 shared: {
-                  session_id: 'shared',
+                  session_id: "shared",
                   request_id: null,
-                  state: 'succeeded',
-                  basis: 'session_tail',
+                  state: "succeeded",
+                  basis: "session_tail",
                   session_modified: now - 20,
+                },
+                [longSessionId]: {
+                  session_id: longSessionId,
+                  request_id: null,
+                  state: "interrupted",
+                  basis: "session_tail",
+                  session_modified: now - 25,
                 },
               },
             }}
             hasActiveBackend
             isActive
             onOpenGlobalSettings={onOpenGlobalSettings}
+            onOpenEmbeddedSettings={onOpenEmbeddedSettings}
             onNewConnection={() => {}}
             onNewSession={() => {}}
             onSelectSession={onSelectSession}
           />
         </HomeWorkspaceProvider>
       </PinnedActionsProvider>
-    </ThemeProvider>,
+    </ThemeProvider>
   );
-  return { ...screen, onOpenGlobalSettings, onSelectSession };
+  return {
+    ...screen,
+    onOpenEmbeddedSettings,
+    onOpenGlobalSettings,
+    onSelectSession,
+  };
 }
 
 function panEvent(options: {
@@ -145,134 +172,140 @@ function panEvent(options: {
 }
 
 function directWatchlistChildIDs(
-  screen: ReturnType<typeof renderHome>,
+  screen: ReturnType<typeof renderHome>
 ): string[] {
   return screen
-    .getByTestId('home-watchlist-grid')
+    .getByTestId("home-watchlist-grid")
     .findAll(
       (node) =>
-        typeof node.props.testID === 'string' &&
-        (node.props.testID.startsWith('home-watchlist-tile-') ||
-          node.props.testID.startsWith('home-watchlist-placeholder-')),
+        typeof node.props.testID === "string" &&
+        (node.props.testID.startsWith("home-watchlist-tile-") ||
+          node.props.testID.startsWith("home-watchlist-placeholder-"))
     )
     .map((node) => node.props.testID)
     .filter((testID, index, values) => values.indexOf(testID) === index);
 }
 
-describe('HomeScreen', () => {
-  it('renders a distinct Recent Sessions timeline and Settings-only Home menu', async () => {
+describe("HomeScreen", () => {
+  it("renders a distinct Recent Sessions timeline and Settings-only Home menu", async () => {
     const screen = renderHome();
     await waitFor(() =>
-      expect(screen.getByTestId('home-recent-timeline')).toBeTruthy(),
+      expect(screen.getByTestId("home-recent-timeline")).toBeTruthy()
     );
 
-    fireEvent.press(screen.getByTestId('home-menu'));
-    fireEvent.press(screen.getByTestId('home-menu-global-settings'));
+    fireEvent.press(screen.getByTestId("home-menu"));
+    fireEvent.press(screen.getByTestId("home-menu-global-settings"));
 
     expect(screen.onOpenGlobalSettings).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Recent Sessions')).toBeTruthy();
-    expect(screen.getByText('Last 3 days')).toBeTruthy();
+    fireEvent.press(screen.getByTestId("home-menu"));
+    fireEvent.press(screen.getByTestId("home-menu-embedded-settings-label"));
+    await waitFor(() =>
+      expect(screen.onOpenEmbeddedSettings).toHaveBeenCalledTimes(1)
+    );
+    expect(screen.getByText("Recent Sessions")).toBeTruthy();
+    expect(screen.getByText("Last 3 days")).toBeTruthy();
   });
 
-  it('uses exactly two reorderable Watchlist columns and shares notes by session ID', async () => {
+  it("uses exactly two reorderable Watchlist columns and shares notes by session ID", async () => {
     const screen = renderHome();
     await waitFor(() =>
-      expect(screen.getByTestId('home-recent-one-shared')).toBeTruthy(),
+      expect(screen.getByTestId("home-recent-one-shared")).toBeTruthy()
     );
 
-    fireEvent.press(screen.getByTestId('home-recent-watch-one-shared'));
-    fireEvent.press(screen.getByTestId('home-recent-watch-two-shared'));
+    fireEvent.press(screen.getByTestId("home-recent-watch-one-shared"));
+    fireEvent.press(screen.getByTestId("home-recent-watch-two-shared"));
     await waitFor(() =>
-      expect(screen.getByTestId('home-watchlist-tile-one-shared')).toBeTruthy(),
+      expect(screen.getByTestId("home-watchlist-tile-one-shared")).toBeTruthy()
     );
-    expect(screen.getByTestId('home-recent-one-shared')).toBeTruthy();
+    expect(screen.getByTestId("home-recent-one-shared")).toBeTruthy();
     expect(
-      screen.getByTestId('home-recent-watch-one-shared').props
-        .accessibilityState,
+      screen.getByTestId("home-recent-watch-one-shared").props
+        .accessibilityState
     ).toEqual({ disabled: true });
 
-    const firstTile = screen.getByTestId('home-watchlist-tile-one-shared');
-    const secondTile = screen.getByTestId('home-watchlist-tile-two-shared');
-    expect(StyleSheet.flatten(firstTile.props.style).width).toBe('48.5%');
-    expect(StyleSheet.flatten(secondTile.props.style).width).toBe('48.5%');
+    const firstTile = screen.getByTestId("home-watchlist-tile-one-shared");
+    const secondTile = screen.getByTestId("home-watchlist-tile-two-shared");
+    expect(StyleSheet.flatten(firstTile.props.style).width).toBe("48.5%");
+    expect(StyleSheet.flatten(secondTile.props.style).width).toBe("48.5%");
     expect(
       screen
-        .getByTestId('home-watchlist-remove-one-shared')
-        .findAllByProps({ name: 'x' }),
+        .getByTestId("home-watchlist-remove-one-shared")
+        .findAllByProps({ name: "x" })
     ).toHaveLength(1);
 
-    fireEvent.press(screen.getByTestId('home-watchlist-note-one-shared'));
+    fireEvent.press(screen.getByTestId("home-watchlist-note-one-shared"));
     fireEvent.changeText(
-      screen.getByTestId('session-note-input'),
-      'Shared permanent note',
+      screen.getByTestId("session-note-input"),
+      "Shared permanent note"
     );
-    fireEvent.press(screen.getByTestId('session-note-save'));
+    fireEvent.press(screen.getByTestId("session-note-save"));
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('home-watchlist-note-preview-one-shared').props
-          .children,
-      ).toBe('Shared permanent note');
+        screen.getByTestId("home-watchlist-note-preview-one-shared").props
+          .children
+      ).toBe("Shared permanent note");
       expect(
-        screen.getByTestId('home-watchlist-note-preview-two-shared').props
-          .children,
-      ).toBe('Shared permanent note');
+        screen.getByTestId("home-watchlist-note-preview-two-shared").props
+          .children
+      ).toBe("Shared permanent note");
     });
 
     fireEvent(
-      screen.getByTestId('home-watchlist-drag-one-shared'),
-      'accessibilityAction',
-      { nativeEvent: { actionName: 'increment' } },
+      screen.getByTestId("home-watchlist-drag-one-shared"),
+      "accessibilityAction",
+      { nativeEvent: { actionName: "increment" } }
     );
     const tileOrderWithDuplicates = screen
-      .getByTestId('home-watchlist-grid')
+      .getByTestId("home-watchlist-grid")
       .findAll(
         (node) =>
-          typeof node.props.testID === 'string' &&
-          node.props.testID.startsWith('home-watchlist-tile-'),
+          typeof node.props.testID === "string" &&
+          node.props.testID.startsWith("home-watchlist-tile-")
       )
-      .map((node) => node.props.testID);
+      .map((node) => node.props.testID)
+      .filter((testID, index, values) => values.indexOf(testID) === index);
     const tileOrder = tileOrderWithDuplicates.filter(
-      (testID, index) => tileOrderWithDuplicates.indexOf(testID) === index,
+      (testID, index) => tileOrderWithDuplicates.indexOf(testID) === index
     );
     expect(tileOrder).toEqual([
-      'home-watchlist-tile-two-shared',
-      'home-watchlist-tile-one-shared',
+      "home-watchlist-tile-two-shared",
+      "home-watchlist-tile-one-shared",
     ]);
   });
 
-  it('captures vertical handle drags and previews the measured target slot', async () => {
+  it("captures vertical handle drags and previews the measured target slot", async () => {
     const screen = renderHome();
     await waitFor(() =>
-      expect(screen.getByTestId('home-recent-one-shared')).toBeTruthy(),
+      expect(screen.getByTestId("home-recent-one-shared")).toBeTruthy()
     );
     [
-      'home-recent-watch-one-shared',
-      'home-recent-watch-two-shared',
-      'home-recent-watch-one-office-next',
-      'home-recent-watch-two-laptop-next',
+      "home-recent-watch-one-shared",
+      "home-recent-watch-two-shared",
+      "home-recent-watch-one-office-next",
+      "home-recent-watch-two-laptop-next",
     ].forEach((testID) => fireEvent.press(screen.getByTestId(testID)));
 
     const layouts = [
       {
-        testID: 'home-watchlist-tile-one-shared',
+        testID: "home-watchlist-tile-one-shared",
         layout: { x: 0, y: 0, width: 100, height: 120 },
       },
       {
-        testID: 'home-watchlist-tile-two-shared',
+        testID: "home-watchlist-tile-two-shared",
         layout: { x: 112, y: 0, width: 100, height: 150 },
       },
       {
-        testID: 'home-watchlist-tile-one-office-next',
+        testID: "home-watchlist-tile-one-office-next",
         layout: { x: 0, y: 162, width: 100, height: 180 },
       },
       {
-        testID: 'home-watchlist-tile-two-laptop-next',
+        testID: "home-watchlist-tile-two-laptop-next",
         layout: { x: 112, y: 162, width: 100, height: 100 },
       },
     ];
     layouts.forEach(({ testID, layout }) => {
-      fireEvent(screen.getByTestId(testID), 'layout', {
+      fireEvent(screen.getByTestId(testID), "layout", {
         nativeEvent: { layout },
       });
     });
@@ -284,18 +317,18 @@ describe('HomeScreen', () => {
       currentY: 60,
       timestamp: 1,
     });
-    let handle = screen.getByTestId('home-watchlist-drag-one-shared');
+    let handle = screen.getByTestId("home-watchlist-drag-one-shared");
     expect(handle.props.onStartShouldSetResponderCapture(grantEvent)).toBe(
-      true,
+      true
     );
-    fireEvent(handle, 'responderGrant', grantEvent);
+    fireEvent(handle, "responderGrant", grantEvent);
 
-    expect(screen.getByTestId('home-scroll').props.scrollEnabled).toBe(false);
+    expect(screen.getByTestId("home-scroll").props.scrollEnabled).toBe(false);
     expect(directWatchlistChildIDs(screen).slice(0, 4)).toEqual([
-      'home-watchlist-tile-one-shared',
-      'home-watchlist-placeholder-one::shared',
-      'home-watchlist-tile-two-shared',
-      'home-watchlist-tile-one-office-next',
+      "home-watchlist-tile-one-shared",
+      "home-watchlist-placeholder-one::shared",
+      "home-watchlist-tile-two-shared",
+      "home-watchlist-tile-one-office-next",
     ]);
 
     const moveEvent = panEvent({
@@ -305,24 +338,137 @@ describe('HomeScreen', () => {
       currentY: 250,
       timestamp: 2,
     });
-    handle = screen.getByTestId('home-watchlist-drag-one-shared');
-    fireEvent(handle, 'responderMove', moveEvent);
+    handle = screen.getByTestId("home-watchlist-drag-one-shared");
+    fireEvent(handle, "responderMove", moveEvent);
 
     expect(directWatchlistChildIDs(screen).slice(0, 4)).toEqual([
-      'home-watchlist-tile-one-shared',
-      'home-watchlist-tile-two-shared',
-      'home-watchlist-tile-one-office-next',
-      'home-watchlist-placeholder-one::shared',
+      "home-watchlist-tile-one-shared",
+      "home-watchlist-tile-two-shared",
+      "home-watchlist-tile-one-office-next",
+      "home-watchlist-placeholder-one::shared",
     ]);
 
-    handle = screen.getByTestId('home-watchlist-drag-one-shared');
-    fireEvent(handle, 'responderRelease', moveEvent);
-    expect(screen.getByTestId('home-scroll').props.scrollEnabled).toBe(true);
+    handle = screen.getByTestId("home-watchlist-drag-one-shared");
+    fireEvent(handle, "responderRelease", moveEvent);
+    expect(screen.getByTestId("home-scroll").props.scrollEnabled).toBe(true);
     expect(directWatchlistChildIDs(screen).slice(0, 4)).toEqual([
-      'home-watchlist-tile-two-shared',
-      'home-watchlist-tile-one-office-next',
-      'home-watchlist-tile-one-shared',
-      'home-watchlist-tile-two-laptop-next',
+      "home-watchlist-tile-two-shared",
+      "home-watchlist-tile-one-office-next",
+      "home-watchlist-tile-one-shared",
+      "home-watchlist-tile-two-laptop-next",
     ]);
+  });
+
+  it("renders complete independently truncating fields and one preview fallback", async () => {
+    const screen = renderHome();
+    const recentRoot = await waitFor(() =>
+      screen.getByTestId(`home-recent-one-${longSessionId}`)
+    );
+
+    expect(
+      screen.getByTestId(`home-recent-title-one-${longSessionId}`).props
+        .children
+    ).toBe("A complete session title");
+    expect(
+      screen.getByTestId(`home-recent-subtitle-one-${longSessionId}`).props
+        .children
+    ).toBe("A complete session subtitle");
+    expect(
+      screen.getByTestId(`home-recent-session-id-one-${longSessionId}`).props
+        .children
+    ).toBe(longSessionId);
+
+    const recentConnection = screen.getByTestId(
+      `home-recent-connection-one-${longSessionId}`
+    );
+    const recentTime = screen.getByTestId(
+      `home-recent-time-one-${longSessionId}`
+    );
+    const recentActions = screen.getByTestId(
+      `home-recent-actions-one-${longSessionId}`
+    );
+    expect(recentConnection.props.numberOfLines).toBe(1);
+    expect(recentTime.props.numberOfLines).toBe(1);
+    expect(StyleSheet.flatten(recentConnection.props.style)).toMatchObject({
+      flex: 1,
+      minWidth: 0,
+    });
+    expect(StyleSheet.flatten(recentTime.props.style).flexShrink).toBe(0);
+    expect(StyleSheet.flatten(recentActions.props.style).flexShrink).toBe(0);
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId(`home-recent-dot-one-${longSessionId}`).props.style
+      ).backgroundColor
+    ).toBe(lightTheme.textMuted);
+    expect(
+      StyleSheet.flatten(
+        screen.getByTestId(`home-recent-title-one-${longSessionId}`).props.style
+      )
+    ).toMatchObject({
+      fontSize: lightTheme.typography.fontSize.normal,
+      lineHeight: lightTheme.typography.lineHeight.normal,
+    });
+
+    const orderedFieldIds = recentRoot
+      .findAll(
+        (node) =>
+          typeof node.props.testID === "string" &&
+          ["title", "subtitle", "session-id", "status", "metadata"].some(
+            (field) => node.props.testID.startsWith(`home-recent-${field}-`)
+          )
+      )
+      .map((node) => node.props.testID)
+      .filter((testID) => !testID.endsWith("-dot"))
+      .filter((testID, index, values) => values.indexOf(testID) === index);
+    expect(orderedFieldIds).toEqual([
+      `home-recent-title-one-${longSessionId}`,
+      `home-recent-subtitle-one-${longSessionId}`,
+      `home-recent-session-id-one-${longSessionId}`,
+      `home-recent-status-one-${longSessionId}`,
+      `home-recent-metadata-one-${longSessionId}`,
+    ]);
+
+    fireEvent.press(
+      screen.getByTestId(`home-recent-watch-one-${longSessionId}`)
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId(`home-watchlist-title-one-${longSessionId}`)
+      ).toBeTruthy()
+    );
+    expect(
+      screen.getByTestId(`home-watchlist-session-id-one-${longSessionId}`).props
+        .numberOfLines
+    ).toBe(1);
+    expect(
+      screen.getByTestId(`home-watchlist-time-one-${longSessionId}`).props
+        .numberOfLines
+    ).toBe(1);
+
+    const previewRecent = screen.getByTestId("home-recent-one-shared");
+    expect(
+      previewRecent.findByProps({
+        testID: "home-recent-title-one-shared",
+      }).props.children
+    ).toBe("Office shared session");
+    expect(
+      previewRecent.findAllByProps({
+        testID: "home-recent-subtitle-one-shared",
+      })
+    ).toHaveLength(0);
+    fireEvent.press(screen.getByTestId("home-recent-watch-one-shared"));
+    const previewWatch = await waitFor(() =>
+      screen.getByTestId("home-watchlist-tile-one-shared")
+    );
+    expect(
+      previewWatch.findByProps({
+        testID: "home-watchlist-title-one-shared",
+      }).props.children
+    ).toBe("Office shared session");
+    expect(
+      previewWatch.findAllByProps({
+        testID: "home-watchlist-subtitle-one-shared",
+      })
+    ).toHaveLength(0);
   });
 });

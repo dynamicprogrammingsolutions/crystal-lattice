@@ -66,6 +66,44 @@ def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
     assert "./plugin_sources/tool-compat-shared\n" in local_projects
 
 
+def test_cloud_runtime_plugin_bundle_stages_claude_tool_usage_variants(
+    tmp_path: Path,
+) -> None:
+    """Every selectable claude tool-usage variant referenced by the default
+    config must be staged into the preinstalled plugin layout, so bundled
+    binary/cloud deployments render the "Using your tools" section instead of
+    silently dropping it."""
+    output = tmp_path / "cloud-runtime-plugin-bundle"
+
+    manifest = stage_cloud_runtime_plugin_bundle(
+        plugins_root=ROOT / "plugins",
+        selected_config=(
+            ROOT
+            / "application"
+            / "python"
+            / "agent_terminal_app"
+            / "default_config"
+            / "config.json"
+        ),
+        output=output,
+        local_project_prefix="./plugin_sources",
+    )
+
+    claude_messages_dir = (
+        output / "bundled_plugins" / "claude-tools" / "system_messages" / "claude"
+    )
+    for filename in (
+        "tool-usage.md",
+        "tool-usage-permissive-cd.md",
+        "tool-usage-permissive-cd-no-persistence.md",
+    ):
+        assert (claude_messages_dir / filename).is_file()
+        assert (
+            f"claude-tools/system_messages/claude/{filename}"
+            in manifest["resource_paths"]
+        )
+
+
 def test_builtin_plugin_selection_ignores_disabled_plugin_raw_strings(
     tmp_path: Path,
 ) -> None:

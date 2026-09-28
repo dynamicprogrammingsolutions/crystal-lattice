@@ -9,7 +9,11 @@ from typing import Any, Iterator
 
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
-from anthropic import Anthropic
+
+try:
+    from anthropic import Anthropic
+except ImportError:
+    Anthropic = None
 
 from .content_blocks import (
     object_to_dict,
@@ -146,6 +150,10 @@ class AnthropicProvider(ProviderPlugin):
         return {
             "auth_mode": {"type": "string", "default": "api"},
             "api_key": {"type": "string", "required": False},
+            "provider_transport": {
+                "type": "string",
+                "default": "sdk",
+            },
             "base_url": {
                 "type": "string",
                 "default": "https://api.anthropic.com",
@@ -256,6 +264,22 @@ class AnthropicProvider(ProviderPlugin):
         version = config.get("anthropic_version")
         if isinstance(version, str) and version:
             default_headers.setdefault("anthropic-version", version)
+        if config.get("provider_transport") == "requests":
+            from .requests_transport import RequestsAnthropicClient
+
+            return RequestsAnthropicClient(
+                api_key=api_key or "missing",
+                base_url=str(
+                    config.get("base_url") or "https://api.anthropic.com"
+                ),
+                timeout=float(config.get("timeout") or 300),
+                max_retries=max(0, int(config.get("max_retries") or 0)),
+                default_headers=default_headers,
+            )
+        if Anthropic is None:
+            raise RuntimeError(
+                "The Anthropic SDK is required unless provider_transport is requests"
+            )
         return Anthropic(
             api_key=api_key or "missing",
             base_url=str(config.get("base_url") or "https://api.anthropic.com"),

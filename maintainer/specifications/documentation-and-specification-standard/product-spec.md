@@ -2,10 +2,11 @@
 
 ## Purpose
 
-The repository needs documentation and specification rules that are easy to
-apply during ordinary work, precise enough for agents, reusable outside this
-project, and maintainable without exposing internal workflow machinery to every
-reader.
+The repository needs documentation, specification, requirements, and testing
+guidance that is easy for humans to read and precise enough for agents to
+apply. The public guidance should begin with a concrete structure, explain how
+to write each useful file, adapt to work of different sizes, and avoid exposing
+the internal machinery used to maintain the guidance.
 
 ## Users
 
@@ -13,16 +14,21 @@ reader.
 
 These users need to:
 
-- decide where documentation belongs;
-- identify each document's audience and avoid relying on context that audience
-  cannot access or is not expected to know;
+- understand the available documentation structure before choosing files;
+- write concise README, index, quickstart, user, developer, specification,
+  requirements, testing, and reference content when each is useful;
+- omit files and directories that do not improve the task;
+- use concrete examples and observable results;
 - decide whether a durable specification is justified;
-- identify the package or shared scope that owns a contract;
+- place documentation and specifications without learning unnecessary
+  repository-ownership terminology;
 - update a target specification before implementation;
-- use requirements to understand live implementation and verification state;
-- keep public and maintainer documentation aligned with committed behavior;
-- preserve ownership, source-of-truth, validation, and audience boundaries when
-  the normal workflow is blocked;
+- keep requirements concise and prevent discovered low-priority work from
+  becoming an unapproved completion condition;
+- choose tests that prove important behavior at the appropriate layer without
+  duplicating or overspecifying implementation details;
+- identify the primary evidence that validates each requirement;
+- keep user and developer documentation aligned with available behavior;
 - find the effective repository rules without reading implementation history or
   validation internals.
 
@@ -30,32 +36,43 @@ These users need to:
 
 These users need to:
 
-- distinguish reusable concepts from repository-specific policy;
-- change standards without duplicating rules between output pages;
+- keep the project-independent guide distinct from Crystal Lattice-specific
+  paths and exceptions;
+- change the guidance without duplicating rules between public pages;
 - understand how AGENTS, task guidance, contributor guidance, publication, and
   validation fit together;
 - trace output pages and files to requirements, tasks, tests, and delivery
   evidence;
-- evolve the standards while preserving a clear user-facing result.
+- evaluate whether concise guidance produces useful agent behavior across
+  different models and reasoning efforts.
 
 ## Target experience
 
-An ordinary user starts from repository or package guidance, reaches the
-repository policy, and follows the linked generic standard. The user does not
-need to open `maintainer/` to apply the rules.
+An ordinary user starts from repository or package guidance and reaches one
+documentation and specification guide plus a short Crystal Lattice addendum.
+The user does not need to open `maintainer/` to apply the rules.
 
 A maintainer changing the standards is explicitly routed to this
 meta-specification, its requirements, and the owning task before editing the
 user-facing pages or supporting tooling.
 
-The generic pages remain package-neutral and reusable. The repository pages
-map those rules to actual packages, paths, plugin documentation, task files,
-agent guidance, site assembly, and validation.
+The project-independent guide does not label itself as a reusable standard or
+mention Crystal Lattice. It begins with an annotated file tree, explains each
+file role once, and then gives practical writing, requirements, testing,
+placement, and generated-documentation guidance.
 
-Every output document remains understandable within its own audience. An agent
-may use broader repository context to make a decision, but does not copy task,
-phase, requirement, approval, evidence, or maintainer context into a document
-whose readers do not have that context.
+The Crystal Lattice addendum maps those roles to actual paths, shared plugin
+documentation, cross-package specifications, tasks, AGENTS files, publication,
+and migration. It does not repeat the general explanations or maintain a prose
+inventory of every package.
+
+The structure is optional at every level. A task may correctly update one
+existing page, add one standalone page, use an index and one child page, create
+one specification file, or use a larger specification directory.
+
+User and developer documentation is written for its readers and describes
+available behavior. Planning and implementation tracking stays in
+specifications, requirements, tasks, and temporary development notes.
 
 A human contributor can begin with a rough description and use AI-assisted
 brainstorming to research the repository, compare approaches, and shape the
@@ -107,27 +124,41 @@ documentation and implementation/maintainer documentation describe current
 behavior and normally remain consistent with committed code. A user may
 explicitly request a different commit order.
 
-Simple specification changes are normally committed with their implementation
-or in the immediately preceding commit. Separate target versions are optional
-for major changes when they materially improve clarity.
+Progress notes are allowed in specifications when they briefly clarify a
+meaningful difference between the target and implementation. They point to
+requirements rather than reproducing detailed status.
+
+User documentation may be drafted before implementation on a development
+branch. Target-only text is marked `Not implemented` while under review and is
+not published as current guidance by default. If proposed user-facing text
+must remain durable before implementation, it stays with the specification.
 
 ## Goals
 
-- Establish a reusable generic documentation standard.
-- Establish a reusable generic specification standard.
-- Apply those standards through a concise repository-specific policy.
+- Replace the four substantive guidance pages with one project-independent
+  guide and one concise Crystal Lattice addendum.
+- Introduce the default structure and file roles before abstract placement or
+  workflow rules.
+- Treat every illustrated file and directory as optional according to need.
+- Explain how to write each document type, including concrete examples and
+  observable results.
 - Allow any package to own specifications for behavior it defines, including
   package-specific refinements of broader contracts.
 - Keep shared plugin-authoring rules explicit without making them universal
   package rules.
 - Make every documentation page discoverable from an appropriate entry point.
-- Keep normative contracts, consumer guidance, implementation guidance, and
-  standards-maintenance material distinguishable.
-- Give every document or maintained file an audience and context boundary,
-  define allowed reference directions among document and workflow roles, and
-  translate rather than leak information when it crosses a boundary.
-- Use concrete nouns for documentation, code, specifications, requirements,
-  tasks, tests, and generated output rather than a generic umbrella label.
+- Keep user documentation, developer documentation, specifications,
+  requirements, tasks, and maintainer material distinguishable in plain
+  language.
+- Keep requirements focused on approved outcomes and constraints.
+- Keep primary evidence concise and directly related to requirement
+  validation.
+- Give agents practical guidance for choosing test layers, identifying
+  important crossings, avoiding brittle assertions about implementation
+  details outside the required contract, and recording tests intentionally
+  omitted.
+- Make completion reports emphasize decisive acceptance evidence rather than
+  routine quality-check counts.
 - Preserve scope, ownership, source-of-truth, validation, and publication
   boundaries when a compliant workflow is unavailable.
 - Use requirements as the live traceability record.
@@ -141,67 +172,83 @@ for major changes when they materially improve clarity.
   require current user-documentation updates for consumer-affecting behavior.
 - Make ordinary changes understandable primarily through Git history.
 - Verify that representative agents can apply the authored instructions
-  through reusable maintainer-owned behavioral evaluation while keeping model
+  through maintainer-owned behavioral evaluation while keeping model
   judgment separate from static and human evidence.
-- Demonstrate guidance improvements against the exact pre-change instructions
-  before selecting the shortest general wording that corrects observed
-  boundary failures.
+- Evaluate abstract rule understanding rather than merely checking literal
+  words repeated by the guidance.
+- Exercise requirement restraint and testing choices across supported
+  reasoning-effort settings.
 
 ## Non-goals
 
-- Requiring every package to create the full documentation structure
-  immediately.
+- Requiring any project or package to create the complete illustrated
+  documentation structure.
 - Requiring every change to have a full product/technical/requirements set.
 - Requiring mandatory lifecycle status inside every specification.
+- Banning useful temporary progress notes from specifications.
+- Publishing target-only user documentation as current behavior.
 - Treating a specification as evidence of current implementation.
 - Publishing maintainer specifications or task-guidance evaluation internals
   as ordinary user documentation.
-- Duplicating the full generic standard in the repository policy.
+- Duplicating the project-independent guide in the Crystal Lattice addendum.
 - Reconstructing undocumented behavior across the repository solely to fill a
   target directory shape.
 - Selecting one mandatory versioning format for major specification changes.
+- Requiring `testing-strategy.md` for ordinary low-risk changes.
+- Maximizing test count or requiring the same behavior to be tested at every
+  layer.
+- Treating routine formatting and lint checks as the main verification result.
 - Moving all maintainer tooling as part of creating this approval package.
 - Treating one model response or reviewer score as sole evidence that the
   standards are correct or human verified.
 
 ## Acceptance examples
 
+### Documentation adapted to size
+
+A small package updates one README because it already provides the complete
+first-use path. Another package adds an index and one focused page. A
+substantial feature uses separate specification, requirements, and testing
+strategy files because the additional separation makes review easier. None of
+the omitted files are created as placeholders.
+
 ### Package-specific UX specification
 
 A frontend package may define a substantial platform-specific UX specification
-that refines a broader portable behavior contract. The package specification
-links the broader contract, adds package-owned requirements, and does not
-silently weaken shared semantics.
+that refines broader cross-package behavior. The package specification links
+the broader specification, adds package-owned requirements, and does not
+silently weaken shared behavior.
 
-### Small specification change
+### Requirements restraint
 
-An agent updates a target specification, requirements, implementation, tests,
-and current documentation. The spec and code are committed together or in two
-adjacent commits, or in another order explicitly requested by the user, while
-requirements show the live transition.
+While planning a requested feature, an agent identifies worthwhile telemetry,
+hardening, and future configuration. It records them as risks, recommendations,
+or follow-ups instead of silently adding them to the required completion state.
+Only user-approved outcomes and constraints become requirements.
 
-### Major multi-commit change
+### Balanced testing strategy
 
-The target remains in one specification when clear. A separate target version
-or change document is introduced only when it makes the intended result and
-current implementation easier to distinguish. Temporary progress links the
-task and affected requirement IDs and is removed after verification.
+Tests assert exact values, structures, ordering, or internal calls only when
+those details are required behavior or part of a public, persisted, or
+interoperability contract. For example, a plugin that returns UI configuration
+as JSON should not receive an exact-key snapshot merely because the object is
+easy to compare. If behavior crosses plugin, backend, transport, and frontend
+boundaries, at least one test reaches the important real crossing rather than
+replacing it with mocks.
 
-### Standards maintenance
+### Early user-documentation draft
 
-An agent changing task guidance reads this meta-specification and requirements,
-updates the approved task, modifies the user-facing rules and maintainer
-tooling, and records evidence. An ordinary feature agent reads only the
-effective generic and repository rules.
+An agent drafts a configuration guide before implementation on a development
+branch. Target-only sections are marked `Not implemented`. Before publication,
+the implementation is verified and the temporary marker is removed. If the
+draft must remain before implementation, it is kept with the specification.
 
-### Audience-bound consumer documentation
+### Concise verification report
 
-An agent implementing one phase of a multi-commit target may use tasks,
-requirement IDs, and temporary progress while working. The package README
-describes only current user-visible behavior in public vocabulary. It does not
-mention internal phase names, requirement IDs, task paths, or future targets.
-If a current limitation matters to users, it is translated into a
-self-contained user-domain statement.
+After completing a feature, the agent reports the few tests that directly
+prove the requested behavior and any important manual or unverified boundary.
+Formatting, lint, and broad passing-test counts are grouped as supporting
+checks rather than obscuring the acceptance evidence.
 
 ### Blocked generated-documentation workflow
 
@@ -230,71 +277,3 @@ results become automated tests; human checkpoints focus on perception,
 exploration, product judgment, or a real environment automation does not
 faithfully represent. Findings return through planning before implementation,
 and delivery occurs only after explicit human authorization.
-
-## Approved August 18 calibration extension
-
-### Additional user needs
-
-Contributors and agents applying the rules also need to:
-
-- know when repository guidance requires reading the complete directly
-  relevant routed standard pages before editing;
-- make clear package-local placement decisions without burdening the user with
-  internal ownership jargon or duplicate confirmation;
-- honor an explicit approved documentation or specification layout when it
-  preserves required content and repository boundaries.
-
-### Additional target experience
-
-A documentation task makes required reading proportionate and explicit. Agents
-read the complete directly relevant routed pages before creating, moving, or
-materially restructuring documentation or specifications, while a local
-factual correction does not require unrelated standards research.
-
-When placement is clear, the agent implements it without asking the user to
-confirm an obvious package path or explaining internal ownership terminology.
-When multiple materially different scopes remain plausible, the agent gives a
-short recommendation and asks one focused question.
-
-Recommended file layouts are defaults rather than mandatory schemas. An
-explicit user- or work-item-approved alternative is honored unless it would
-violate audience, authoritative-source, generated-output, discoverability, or
-required-content boundaries.
-
-### Additional goals
-
-- Define explicit and proportional triggers for reading routed standards in
-  full.
-- Use clear placement and authoritative-source language without forcing users
-  to discuss internal ownership mechanics for obvious tasks.
-- Treat standard file layouts as recommended defaults and honor explicit safe
-  alternatives.
-
-### Additional non-goals
-
-- Requiring one mandatory documentation or specification file layout.
-- Requiring user confirmation for an obvious package-local documentation
-  placement.
-
-### Routed documentation reading
-
-An agent asked to create a package documentation structure reads the root and
-nearest package guidance, then reads the relevant repository-policy and generic
-standard pages in full before editing. An agent correcting a factual typo in an
-already-owned page does not load unrelated structure and specification rules.
-
-### Clear package-local placement
-
-An agent asked to document behavior defined by one package creates the
-documentation with that package without asking the user to confirm the obvious
-location or discussing an “honest normative owner.” Its response reports the
-result and paths. If two materially different scopes remain plausible, it
-recommends one and asks a focused question.
-
-### Explicit layout override
-
-An approved specification task requests one `decisions.md` file instead of a
-`decisions/` directory. The agent follows that structure, links the file from
-the specification index, preserves required decision content, and does not
-create both forms or refuse merely because the standard shows a directory as
-the default.

@@ -9,7 +9,6 @@ import Icon from 'react-native-vector-icons/Feather';
 import lowlight from 'lowlight';
 import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
 import { useTheme } from '../theme';
-import type { MarkdownMessageVariant } from './MarkdownMessageContent';
 
 type LowlightNode = {
   type: 'text' | 'element';
@@ -28,7 +27,6 @@ export type CodeToken = {
 export interface SelectableCodeBlockProps {
   code: string;
   language?: string;
-  variant?: MarkdownMessageVariant;
   testID?: string;
 }
 

@@ -29,6 +29,7 @@ import {
 import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import type { SessionOpenMode } from '../settings/desktopGlobalSettings';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 import { MacDragView, type MacDragEvent } from '../native/MacDragView';
 import { DesktopSessionCollectionItem } from './DesktopSessionCollectionItem';
 
@@ -62,6 +63,7 @@ export function DesktopWatchlistGrid({
   onRemove,
   onEditNote,
   onMove,
+  getSessionTabKind,
 }: {
   items: HomeSessionItem[];
   statuses: Readonly<
@@ -74,6 +76,10 @@ export function DesktopWatchlistGrid({
   onRemove: (item: HomeSessionItem) => void;
   onEditNote: (item: HomeSessionItem) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 }): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -244,6 +250,7 @@ export function DesktopWatchlistGrid({
                 selected={selectedKey === item.key}
                 status={statuses[item.connectionId]?.[item.sessionId] ?? null}
                 doubleClickAction={doubleClickAction}
+                tabKind={getSessionTabKind?.(item.connectionId, item.sessionId)}
                 watched
                 onSelect={() => onSelect(item.key)}
                 onOpen={mode => onOpen(item, mode)}

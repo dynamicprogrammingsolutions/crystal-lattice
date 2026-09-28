@@ -1,11 +1,23 @@
-import type { SessionOpenMode } from '../settings/desktopGlobalSettings';
 import { useCallback, useRef } from 'react';
+
+import {
+  complementarySessionOpenMode,
+  type SessionOpenMode,
+} from '../settings/desktopGlobalSettings';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 
 export const SESSION_ITEM_DOUBLE_CLICK_MS = 350;
 
 export interface SessionItemClickMemory {
   key: string;
   atMs: number;
+}
+
+export function resolveExplicitSessionOpenMode(
+  doubleClickAction: SessionOpenMode,
+  tabKind: DesktopSessionTabKind | null,
+): SessionOpenMode {
+  return tabKind ? 'open' : complementarySessionOpenMode(doubleClickAction);
 }
 
 export function resolveSessionItemClick(options: {

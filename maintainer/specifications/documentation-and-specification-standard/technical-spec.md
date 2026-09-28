@@ -1,18 +1,18 @@
 # Documentation and specification standard technical specification
 
-## Architecture
+## Guidance architecture
 
-The target uses three documentation layers with distinct authority and
-audiences:
+The target uses three layers:
 
 | Layer | Purpose | Publication |
 |---|---|---|
-| Generic standards | Reusable, package-neutral documentation and specification concepts | Public |
-| Repository policy | Crystal Lattice paths, profiles, exceptions, and tooling integration | Public |
-| Maintainer material | Specifications, evaluation tooling, and implementation details for evolving the standards | Not public by default |
+| Documentation and specification guide | Project-independent structure, writing, specification, requirements, testing, and verification guidance | Public |
+| Crystal Lattice documentation conventions | Repository paths, shared domains, exceptions, task integration, publication, and migration | Public |
+| Maintainer material | Specifications, requirements, evaluation tooling, and implementation details for evolving the guidance | Not public by default |
 
-The generic standards and repository policy are output pages governed by
-this meta-specification. They do not link back to the meta-specification.
+The two public documents do not explain the maintainer architecture or label
+themselves as reusable standards. They are written for someone doing ordinary
+documentation, specification, and verification work.
 
 ## Target source structure
 
@@ -20,309 +20,215 @@ this meta-specification. They do not link back to the meta-specification.
 docs/
 └── development/
     ├── index.md
-    ├── standards/
-    │   ├── index.md
-    │   ├── documentation.md
-    │   └── specifications.md
-    ├── repository/
-    │   ├── index.md
-    │   ├── documentation.md
-    │   └── specifications.md
+    ├── documentation.md
+    ├── crystal-lattice-documentation.md
     └── specifications/
-        └── <cross-package-capability>/
+        └── <capability>/
 
 maintainer/
 ├── README.md
 ├── specifications/
 │   └── documentation-and-specification-standard/
 │       └── agent-behavior-verification/
-└── <standards-maintenance tooling and tests>
+└── <guidance-maintenance tooling and tests>
 ```
 
-`maintainer/specifications/` intentionally shortens the ordinary
-`<package>/docs/development/specifications/` shape. The whole `maintainer/`
-domain is development-only, so intermediate `docs/development/` indexes would
-not distinguish another audience or source-of-truth boundary.
+`docs/development/index.md` is a short router. The two substantive documents
+are the only public guidance pages created by this work.
 
-## Generic standard boundary
+Existing routes under `docs/development/standards/` and
+`docs/development/repository/` contain minimal non-authoritative compatibility
+pointers. The navigation and compatibility workstream may later replace them
+with redirects. They do not remain parallel editable sources.
 
-The generic pages use package-neutral terms such as:
+## Documentation and specification guide
 
-- repository;
-- package;
-- documentation entry point;
-- package user;
-- package contributor;
-- work item;
-- documentation-site source and generated output.
+`docs/development/documentation.md` is independent of Crystal Lattice names,
+paths, packages, tooling, and maintainer terminology. It starts with a concrete
+default layout so readers understand the available file roles before reading
+placement or workflow rules.
 
-They define:
+The layout is a menu, not a schema. No file or directory shown by the guide is
+universally mandatory. Depending on the task, an existing README, one new page,
+an index plus one page, one specification file, or a larger specification
+directory may all be complete solutions. The guide tells readers to use only
+the files that improve understanding.
 
-- documentation profiles and document roles;
-- audience and context boundaries for every document role;
-- normal, pointer-only, evidence-only, and prohibited reference directions;
-- normative contract, consumer guide, implementation guide, and generated
-  reference distinctions;
-- package-local ownership;
-- generalized specification ownership and package-specific refinements;
-- specifications as targets;
-- requirements as live-state tracking;
-- approval and execution through the repository's work-tracking mechanism;
-- current-state public and maintainer documentation;
-- proportional specification files;
-- anti-duplication and discoverability;
-- boundary preservation and honest partial completion when a compliant
-  documentation workflow is blocked;
-- evidence, verification, and optional decision records.
+The guide uses this order:
 
-They do not name Crystal Lattice packages, `plugins/docs/`, `tasks/`,
-`TASKS-v7`, `docs_site/prepared/`, or repository-specific test harnesses.
+1. **Default structure and adapting it to size**
+   - one annotated repository/package tree;
+   - explicit examples of README-only, one-page, small multi-page, and
+     substantial specification forms;
+   - no package-profile taxonomy before the structure is understood.
+2. **What each file is for and how to write it**
+   - README;
+   - AGENTS;
+   - index;
+   - quickstart;
+   - user documentation;
+   - developer documentation;
+   - specification;
+   - requirements;
+   - optional testing strategy;
+   - optional reference and decision records.
+3. **Writing useful pages**
+   - introduce terms before using them;
+   - write for the reader of the page;
+   - include concrete, verified examples and observable results;
+   - keep one primary maintained explanation and use links or focused
+     summaries elsewhere;
+   - keep user and developer documentation aligned with available behavior.
+4. **Specifications, requirements, tasks, and progress**
+   - specifications describe intended behavior;
+   - requirements track implementation, verification, and documentation;
+   - tasks track approval and execution;
+   - progress notes in specifications are allowed when they clarify a
+     meaningful current/target difference and remain shorter than the
+     requirements they reference.
+5. **Testing and verification**
+   - select the least expensive test that proves the requirement without
+     mocking away the important boundary;
+   - distinguish unit/component, integration, end-to-end, hosted, and manual
+     evidence by what each proves;
+   - record deliberate test exclusions and avoid duplicate coverage without a
+     risk-based reason;
+   - report decision-relevant verification before routine quality checks.
+6. **Placement, links, and generated documentation**
+   - place a page with the package or component whose behavior it explains;
+   - use a shared location only when no single component provides a sensible
+     home;
+   - keep focused pages reachable from a nearby entry point;
+   - edit the maintained source of generated documentation and report a failed
+     refresh honestly.
 
-## Concrete terminology
+The guide uses direct terms such as user documentation, developer
+documentation, specification, requirements, task, testing strategy, reference,
+and generated documentation. It avoids unexplained terms such as normative
+owner, authoritative scope, meta-specification, reusable standard, or
+current-state documentation.
 
-The generic documentation standard owns the reusable terminology rule for
-authored content. The generic specification standard links that rule and
-applies it to specification indexes, requirements, work items, decisions,
-current documentation, source code, and tests.
+The writing guidance is positive: name the page, file, test result, or output
+being discussed. It does not teach concrete language by repeating a forbidden
+umbrella word. User-documentation guidance similarly says to explain available
+behavior in user language instead of listing forbidden planning terms.
 
-Documentation and guidance name the concrete item being discussed. They do not
-use “artifact” as an umbrella label for documentation, code,
-specifications, requirements, tasks, or tests. The term remains available when
-it is an established technical concept, including build, release, test,
-evaluation, or provider-native artifacts and literal paths or APIs such as
-`artifacts/` or `upload-artifact`.
+## Crystal Lattice documentation conventions
 
-## Repository-policy boundary
+`docs/development/crystal-lattice-documentation.md` assumes the first guide has
+already defined the file roles. It adds only Crystal Lattice-specific
+information:
 
-The repository policy maps generic concepts to:
-
-- root and package documentation paths;
-- public-package, small-package, shared-domain, and maintainer profiles;
+- package and root paths;
+- the package-local default;
 - root cross-package specifications;
 - `plugins/docs/` as the shared plugin-authoring documentation domain;
-- individual plugin package ownership;
-- `tasks/` as approval and execution tracking;
-- root and package `AGENTS.md`;
-- `CONTRIBUTING.md`;
-- canonical and bundled `TASKS-v7`;
-- documentation-site registry, assembly, navigation, and deployment;
-- compatibility behavior for relocated public pages;
-- documentation and task-guidance validation.
+- individual plugin documentation;
+- the short `maintainer/` boundary;
+- `tasks/`, requirements, and AGENTS integration;
+- documentation-site sources, generated destinations, registry, and commands;
+- migration and public-route compatibility.
 
-Repository policy extends the generic rules and contains only local mappings,
-exceptions, and operational requirements. It does not restate the complete
-generic explanations.
+It does not repeat the general writing, specification, requirements, or
+testing explanations. It does not maintain a prose inventory of every package;
+the package registry and package entry points provide the current inventory.
 
-Within the shared plugin-authoring domain, a focused page is linked from
-`plugins/docs/index.md`. When it refines one canonical plugin guide, that guide
-also links the focused page so authors encounter the refinement in the ordinary
-topic flow.
+A specification is named after the capability it defines. Cross-package
+placement is a location decision, not a naming convention. Terms such as
+“portable specification” are not added to titles or paths merely because
+several packages implement the behavior.
 
-## Generalized specification ownership
+A package may define a package-specific UX or platform specification when it
+defines additional behavior. A root cross-package specification is used only
+when independently maintained packages must coordinate and no package defines
+the complete behavior.
 
-Every package may define specifications for behavior it owns. A package is not
-limited to documenting implementation merely because it also implements a
-broader contract.
+## Specifications, requirements, and early documentation
 
-Choose the narrowest authoritative scope:
+A specification is a target and may lead implementation. Requirements track
+the live implementation, verification, and documentation state. The task is
+the normal approval and execution record.
 
-1. Behavior owned by one package is specified with that package.
-2. A package-specific refinement is specified with that package and links the
-   broader contract.
-3. A shared abstraction is normally specified with the package that defines
-   it, even when several packages consume it.
-4. A cross-package scope is used when independently owned packages must
-   coordinate and no package provides a clear authoritative home.
+Specifications do not ban progress information. Requirements remain the
+detailed status record, while a specification may contain a short temporary
+implementation note when the target/current difference would otherwise be
+confusing. The note points to relevant requirements rather than copying their
+status table.
 
-A package-specific specification may add or strengthen requirements and define
-allowed platform behavior. It must not silently weaken or contradict a broader
-contract. Approved exceptions are linked from both scopes.
+User documentation may be drafted before implementation on a development
+branch. Target-only sections are visibly marked `Not implemented` while under
+review, and that marker is removed only after the behavior exists and the text
+has been verified. Such a section does not reach published current
+documentation by default. If proposed user-facing text must be retained before
+implementation, it belongs with the specification until it can become current
+documentation.
 
-Before creating a substantial package specification, the agent proposes its
-owning scope, behavior scope, justification, related contracts, and expected
-specification files. The user approves creation through the task workflow
-unless the existing approved task already authorizes it.
+## Requirements and primary evidence
 
-A direct request to create a substantial specification is not by itself
-approval of an owner/scope/overlap proposal that has not yet been presented.
+Each requirement states one necessary outcome or constraint. Failure of the
+requirement means the approved task is incomplete. Supporting explanation,
+implementation work, risks, suggestions, and possible follow-ups do not become
+requirements unless the user approves that scope.
 
-## Target, requirements, task, and current documentation
+Requirements retain separate implementation, verification, and documentation
+states. Their final column is `Primary evidence`, containing the smallest
+direct reference that supports the status. Shared task, pull-request, or commit
+references are recorded once below the table instead of repeated in every row.
+Longer evidence notes are keyed by requirement ID only when one concise cell is
+insufficient.
 
-| Source | Authority |
-|---|---|
-| Specification | Intended target behavior and design |
-| Requirements | Live implementation, verification, documentation, and evidence state |
-| Task | Approval, execution scope, plan, findings, and completion |
-| Public user docs | Current supported behavior |
-| Implementation/maintainer docs | Current implementation and maintenance behavior |
+## Testing strategy and verification reporting
 
-Specifications are updated before implementation. They are not proof that the
-target is currently available.
+`testing-strategy.md` is optional. It is useful when behavior crosses important
+layers, verification is expensive or manual, several approaches are credible,
+or the reason for omitting plausible tests would otherwise be lost. Small work
+keeps its test plan in the task or conversational plan.
 
-For small changes, the specification is normally committed with the code or in
-the immediately preceding commit. New capabilities begin with a specification
-and requirements. Major changes introduce separate target versions only when
-one evolving target would be confusing.
+A testing strategy identifies:
 
-Temporary progress in a specification or its index is used only for work
-expected to span more than one commit when target/current divergence would
-otherwise be unclear. It links the task and affected requirement IDs and is
-removed after all relevant requirements are verified.
+- the important behaviors and risks;
+- the cheapest reliable layer for each;
+- real boundaries that need integration or end-to-end coverage;
+- manual, hosted, or native checks that cannot be represented faithfully at a
+  lower layer;
+- tests intentionally omitted and the reason.
 
-## Audience and context boundaries
+Tests assert exact values, structures, ordering, or internal calls only when
+those details are required behavior or part of a public, persisted, or
+interoperability contract. For example, an implementation that returns UI
+configuration as JSON does not receive an exact-key snapshot merely because
+the object is easy to compare. Conversely, a change crossing a server,
+transport, and frontend boundary does not rely only on isolated unit tests.
 
-Every document or maintained file has an intended audience and role. A
-document may assume only concepts introduced in that document or available
-through documentation intended for the same audience.
+Completion reports lead with the few tests or observations that directly prove
+the requested outcome. Formatting, lint, compilation, and broad test counts
+are grouped as supporting checks or omitted unless they materially affect the
+result.
 
-Access to broader repository context does not transfer that context to the
-document's readers. Information from tasks, specifications, requirements,
-implementation notes, agent instructions, commits, or maintainer material may
-be used to decide what to write, but it is not copied into another document
-unless the destination audience is expected to know it and the destination
-role owns it.
+## Root agent guidance
 
-Cross-audience information is translated into the destination audience's
-vocabulary. Internal phases, requirement IDs, task paths, approval state,
-temporary progress, evidence notation, and maintainer workflow are excluded
-from consumer documentation unless a term is itself a public contract,
-introduced for the reader, and necessary to use the product.
+The root documentation section targets roughly 200–300 words. It contains only:
 
-Reference relationships have four forms:
+- the package-local default and cross-package exception;
+- user versus developer documentation placement;
+- specification, requirements, and task roles;
+- the generated-documentation source rule;
+- incremental adoption without invented baselines;
+- links to the two public guidance documents;
+- the additional maintainer route used only when changing the rules.
 
-- **normal dependency:** the destination may rely on the referenced material;
-- **labeled pointer:** navigation is allowed, but the main content remains
-  understandable without the other audience's context;
-- **evidence reference:** allowed for live-state or delivery traceability;
-- **not allowed by default:** requires an explicitly justified public contract
-  or governance exception.
-
-The generic standard defines reference rules among package entry points,
-consumer guides, public reference, development guides, specifications,
-requirements, agent/contributor guidance, tasks, maintainer material, and
-generated output. Repository policy maps those roles to exact paths.
-
-Consumer documentation normally depends only on other consumer documentation
-and public reference. A clearly labeled development pointer is allowed, but
-installation, supported use, and troubleshooting do not depend on internal
-specifications, requirements, tasks, AGENTS files, or maintainer material.
-
-Development documentation may map current implementation to specifications and
-requirements. Specifications may link related targets, requirements, and
-affected current docs. Requirements may use code, tests, docs, tasks, reviews,
-and commits as evidence. Tasks and maintainer specifications may refer broadly
-within their scope, but output documents do not inherit their context.
-
-## Boundary preservation under blockers
-
-A blocked operation does not expand task scope, change document ownership, or
-authorize bypassing a source-of-truth, audience, validation, or publication
-boundary. These constraints remain part of the required outcome when the normal
-mechanism is unavailable.
-
-When a compliant workflow is blocked, an agent:
-
-1. completes only safe work that remains within scope and ownership;
-2. does not directly edit derived output, substitute another owner, weaken
-   requirements or validation, or create an alternate production path;
-3. reports what was completed, what is blocked, why it is blocked, and the
-   exact remaining action;
-4. requests direction before a workaround that changes scope, ownership,
-   source of truth, validation, public behavior, or persisted state;
-5. does not mark the task or requirement complete while a required step remains
-   blocked.
-
-A request to correct generated output includes updating its maintained source
-and attempting the approved generator unless the user narrows scope. The agent
-does this before reporting the refresh as blocked.
-
-Equivalent local commands and reversible in-scope implementation details do not
-require escalation. A workaround becomes approval-relevant when it crosses an
-established document, ownership, production, or evidence boundary.
-
-## Documentation authority and duplication
-
-Substantive pages fit one authority class:
-
-- normative specification;
-- consumer/user guide;
-- implementation/maintainer guide;
-- generated reference;
-- repository or documentation infrastructure.
-
-Each behavioral contract has one normative owner. Other pages may summarize
-only what their audience needs and do not independently redefine complete
-lifecycle, compatibility, persistence, or protocol semantics. A consumer page
-does not need to expose an internal target specification merely to preserve
-normative ownership; the specification may link the current consumer page for
-maintainer discoverability.
-
-Implementation mapping pages link their target specification and describe
-current code, ownership, invariants, and tests. User guides teach current
-supported use using public concepts that stand alone for their audience.
-Target-only behavior, internal phase names, requirement IDs, task paths, and
-temporary progress remain in specifications, requirements, and work tracking.
-
-## Discoverability
-
-Every page participates in an entry-point chain:
-
-```text
-repository docs index
-  -> development index
-    -> standards, repository policy, or cross-package specification index
-
-package README/AGENTS/docs index
-  -> package development index
-    -> package specification or maintainer page
-
-shared-domain index
-  -> shared consumer guide
-```
-
-Every authored page is reachable within at most two documentation links from
-the nearest repository, package, or shared-domain entry point.
-
-Indexes remain concise but complete:
-
-- every multi-page development scope has an index;
-- every specification index links its authored pages and files;
-- every package development index is linked by a package entry point;
-- specification indexes link primary user guides and implementation mappings
-  where useful;
-- public package docs are registered for site assembly.
+It does not repeat file-role explanations, forbidden-word lists, reference
+matrices, testing taxonomy, or migration procedures.
 
 ## Maintainer boundary
 
-`maintainer/` is not a public documentation source. It owns:
+`maintainer/` owns this specification, live requirements, agent-evaluation
+tooling, fixtures, and review material used to evolve the guidance. It is not
+required reading for ordinary package users or contributors applying the
+public guide.
 
-- meta-specifications for standards and agent workflows;
-- deterministic and real-model evaluation tooling for those workflows;
-- fixtures, review-bundle ordering, and preparation belonging to that tooling;
-- future standards-maintenance utilities whose audience is the maintainers of
-  the rules rather than ordinary package users.
-
-Existing task-guidance evaluation under `test/task_guidance/` and its dedicated
-fixtures are targeted for relocation under the reusable agent-evaluation
-framework's `maintainer/`-owned domain. Subtask 015 creates the framework and
-documentation-standard consumers. The task-guidance alignment subtask then
-moves and adapts the existing task-guidance consumer, updates commands and
-references, and verifies equivalent behavior.
-
-Production/package tests remain with their owning packages. `maintainer/` is
-not a replacement for ordinary shared test infrastructure.
-
-## Agent routing
-
-Root `AGENTS.md` distinguishes:
-
-- **Applying the rules:** read repository policy, generic standards, and the
-  owning package entry points.
-- **Maintaining the rules:** additionally read this meta-specification,
-  requirements, active task, and relevant maintainer tooling documentation.
-
-Ordinary output pages do not expose task chronology, evaluation internals, or
-links to this meta-specification.
+Production and package tests remain with their packages. `maintainer/` is not
+a replacement for ordinary shared test infrastructure.
 
 ## Human-led contributor workflow
 
@@ -423,14 +329,15 @@ Package-local authored files remain sources of truth. Prepared and built site
 trees are generated and never edited directly.
 
 The package registry declares public sources and destinations. `AGENTS.md` and
-`maintainer/` are excluded by default. Repository standards and policy are
-public development guidance unless a page contains explicitly sensitive
-material.
+`maintainer/` are excluded by default. The documentation guide and Crystal
+Lattice conventions are public development guidance unless a page contains
+explicitly sensitive material.
 
-Public user and implementation/maintainer documentation must match committed
-code. A working tree may stage documentation first, but it is committed with
-the implementation that makes new current-state claims true unless the user
-explicitly asks for a different commit order.
+Published user and developer documentation must match available behavior. A
+development branch may draft target-only user text with a visible
+`Not implemented` marker. The marker and target-only wording do not reach
+published current guidance by default. A user may explicitly approve another
+commit or publication order.
 
 Observable examples include a concrete expected result. Before completion,
 each documented result is compared with the current implementation or a test,
@@ -455,7 +362,7 @@ generated examples/reference ownership.
 
 ## Validation
 
-Deterministic validation should cover, in stages:
+Deterministic validation should cover:
 
 - broken relative links;
 - page reachability from owning indexes;
@@ -468,10 +375,9 @@ Deterministic validation should cover, in stages:
 - public docs and navigation paths;
 - normal MkDocs build and newly introduced warnings.
 
-Behavioral instruction validation should additionally exercise whether
-representative supported agents can apply `DOCGEN-*` and `DOCREP-*` rules
-through the programmatic framework specified in
-`maintainer/specifications/agent-evaluation-framework/`.
+Behavioral instruction validation additionally exercises whether representative
+supported agents can apply the guidance through the programmatic framework
+specified in `maintainer/specifications/agent-evaluation-framework/`.
 
 Detailed consumer scenarios are owned by
 [agent-behavior verification](agent-behavior-verification/index.md). They
@@ -494,12 +400,35 @@ Behavioral model results supplement rather than replace:
 - explicit human review.
 
 Behavioral validation deliberately creates boundary pressure. Scenarios may
-give the agent internal context unavailable to the destination audience, point
-the user request at derived output, request current documentation for an
-unimplemented target, or make the compliant generation/verification path
-unavailable. The expected behavior preserves audience, ownership,
-source-of-truth, scope, validation, and completion-honesty boundaries rather
-than optimizing for apparent completion.
+give the agent planning context inappropriate for user documentation, point the
+request at generated output, request current documentation for an
+unimplemented target, or make the normal generation or verification path
+unavailable. The expected behavior preserves the underlying reader,
+maintained-source, scope, verification, and completion boundaries.
+
+Agent-visible candidate guidance states the desired general behavior without
+enumerating the fixture's forbidden words. Test fixtures use held-out planning
+vocabulary and varied examples. Deterministic token checks may remain narrow
+backstops, but the primary assessment asks whether the produced page serves its
+reader and whether headings name their actual contents.
+
+Requirement-restraint scenarios run the same task across supported low,
+medium, and high reasoning-effort settings. Higher effort may identify more
+risks and improvements, but does not silently promote them into completion
+requirements. Useful discoveries remain visible as questions,
+recommendations, supporting details, or follow-ups.
+
+Testing-strategy scenarios use paired pressures:
+
+- an over-specification case where implementation details outside the required
+  contract should not be frozen, initially illustrated by local UI
+  configuration JSON keys;
+- a feature crossing important production layers where isolated unit tests are
+  insufficient.
+
+Verification-report scenarios assess whether the final response foregrounds
+the tests or observations that prove the requested behavior and keeps routine
+formatting, lint, compilation, and broad counts secondary.
 
 New guidance-clarity scenarios use a baseline-first comparison:
 
@@ -523,10 +452,11 @@ uncommitted review draft.
 
 The calibrated suite has a routine group for frequent high-signal guidance
 checks and an extended group for lower-frequency continuations and reverse
-ownership cases. Ordinary guidance changes run the routine group on the
+placement cases. Ordinary guidance changes run the routine group on the
 lower-cost supported model plus a small second-model sentinel set. Material
 changes and final verification run all scenarios on at least one model and use
-additional cross-model coverage when observed variance justifies it.
+additional cross-model or reasoning-effort coverage when observed variance
+justifies it.
 
 After representative runs, a separate calibration review evaluates whether the
 initial seed/test matrix is proportionate and informative. It may recommend
@@ -545,79 +475,6 @@ task decisions before the output standards exist. They are the target for the
 remaining implementation.
 
 The bootstrap does not claim that existing documentation conforms. After the
-generic and repository pages are authored, this meta-specification is reviewed
-once against the resulting standard and adjusted through the task workflow if
-the approved target changed.
-
-## Approved August 18 calibration extension
-
-The generic standards additionally define:
-
-- recommended layout defaults and explicit approved structure overrides;
-- clear documentation-scope and authoritative-source terminology;
-- proportionate agent-routing read triggers.
-
-### Placement decisions and user communication
-
-Documentation placement is normally an implementation decision derived from
-audience, behavior scope, and the authoritative source.
-
-When one package or shared domain is the clear home, the agent:
-
-- chooses that location without asking for confirmation;
-- does not describe the choice using opaque phrases such as “honest owner” or
-  “honest normative owner”;
-- reports the created or changed paths and only includes placement rationale
-  when it helps the user understand a material boundary.
-
-When multiple materially different scopes remain plausible, the agent states
-the ambiguity briefly, recommends one option with its reason, and asks one
-focused question before making a boundary-changing choice.
-
-Approval to create a substantial specification remains separate from routine
-file placement. Existing task or conversational authorization is not repeated
-merely to confirm an obvious package-local path.
-
-### Recommended layouts and explicit overrides
-
-Documentation and specification trees shown by the standards are recommended
-defaults. They communicate common document roles without creating a mandatory
-schema.
-
-An explicit user- or work-item-approved layout is followed when it preserves:
-
-- required content and traceability;
-- audience and authoritative-source boundaries;
-- discoverability from the relevant index or entry point;
-- generated-output and maintained-source boundaries;
-- one maintained source rather than duplicate editable forms.
-
-A safe override does not require duplicate confirmation. If a requested layout
-would omit required information, create competing sources, hide material
-decisions, or cross an audience, ownership, or source-of-truth boundary, the
-agent explains the conflict and recommends the smallest compatible
-alternative.
-
-### Proportional agent routing
-
-Before creating, moving, materially restructuring, or deciding the audience,
-placement, or required file set of documentation or specifications, root
-AGENTS guidance requires the repository-policy and generic-standard indexes and
-the directly relevant pages they route to be read in full.
-
-A local factual correction to an existing page does not require unrelated
-standards reading when the destination audience, maintained source, and
-placement are already clear. Standards-maintenance work additionally reads the
-meta-specification, requirements, active task, and relevant maintainer tooling.
-
-### Behavioral verification extension
-
-Routing-read scenarios deliver applicable AGENTS content while keeping routed
-standard pages available through the repository filesystem, then verify that
-required pages were read before the first mutation. They do not preload routed
-page contents into the instruction merely to make the behavior pass.
-
-Behavioral validation also covers interaction quality and explicit safe
-overrides. Obvious package-local placement does not trigger an ownership
-lecture or confirmation question. A task-approved file shape that differs from
-the recommended default is followed unless it violates a substantive boundary.
+two public guidance documents are authored, this meta-specification is reviewed
+against the result and adjusted through the task workflow if the approved
+target changed.

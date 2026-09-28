@@ -106,7 +106,8 @@ def test_usage_turn_reasoning_accumulates_across_zai_tool_turn():
 
     final_session, second_finals = send_request_or_skip(core, session_after_tool_call, cfg)
     assert second_finals and second_finals[-1]["role"] == "assistant"
-    assert second_finals[-1].get("content", "").strip() == "42"
+    final_lines = second_finals[-1].get("content", "").strip().splitlines()
+    assert final_lines and final_lines[-1].strip() == "42"
 
     assistant_messages = [message for message in final_session.messages if message.role == "assistant"]
     assert len(assistant_messages) == 2

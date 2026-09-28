@@ -19,7 +19,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { useTheme, type Theme } from '../theme';
-import MarkdownMessageContent from './MarkdownMessageContent';
+import ConfiguredMarkdownMessageContent from './ConfiguredMarkdownMessageContent';
 
 export interface ActionDisplayCardProps {
   display: ActionDisplayPayload;
@@ -102,7 +102,7 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
         {display.format === 'text' ? (
           <Text style={styles.bodyText}>{body}</Text>
         ) : (
-          <MarkdownMessageContent text={body} variant="assistant" />
+          <ConfiguredMarkdownMessageContent text={body} variant="assistant" />
         )}
       </ScrollView>
 
@@ -122,6 +122,7 @@ const ActionDisplayCard: React.FC<ActionDisplayCardProps> = ({
             return (
               <TouchableOpacity
                 key={action.id}
+                testID={`action-display-action-${action.id}`}
                 style={[styles.actionButton, loading && styles.actionButtonDisabled]}
                 onPress={() => handleActionPress(action)}
                 disabled={loading}

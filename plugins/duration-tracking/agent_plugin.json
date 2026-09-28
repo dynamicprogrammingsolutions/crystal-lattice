@@ -1,0 +1,12 @@
+{
+  "module": "duration_tracking_plugins",
+  "subdirectory": ".",
+  "entries": [
+    "duration_tracking_plugins.duration_tracking_extension.DurationTrackingExtension",
+    "duration_tracking_plugins.duration_tracking_app_plugin.DurationTrackingAppPlugin"
+  ],
+  "kinds": {
+    "duration_tracking_plugins.duration_tracking_extension.DurationTrackingExtension": "features",
+    "duration_tracking_plugins.duration_tracking_app_plugin.DurationTrackingAppPlugin": "application"
+  }
+}

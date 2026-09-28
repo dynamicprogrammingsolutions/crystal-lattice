@@ -7,6 +7,7 @@ These tests exercise :mod:`agent_app.application_future` and its
 from __future__ import annotations
 
 import json
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List
@@ -21,9 +22,7 @@ from .dummy_tool import DummyCalculator  # noqa: F401  (imported for side effect
 def _make_tool_config(tmp_path: Path) -> Path:
     # Use DummyProvider plus DummyCalculator tool to surface tool_calls.
     cfg = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_tool.DummyCalculator",
@@ -37,7 +36,10 @@ def _make_tool_config(tmp_path: Path) -> Path:
     return path
 
 
-def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
+def test_execute_tool_calls_non_streaming(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     config_path = _make_tool_config(tmp_path)
     session_root = tmp_path / "sessions"
 
@@ -75,6 +77,7 @@ def test_execute_tool_calls_non_streaming(tmp_path: Path) -> None:
     tool_messages = [m for m in messages if getattr(m, "role", None) == "tool"]
     assert tool_messages
     assert "Result:" in str(getattr(tool_messages[-1], "content", ""))
+    assert "context_reserved_key_clash_external" not in capsys.readouterr().out
 
 
 def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
@@ -104,8 +107,7 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
     partial_events = [ev for ev in events if ev.get("type") == "tool_partial"]
     assert partial_events
     assert any(
-        isinstance(ev.get("payload"), dict)
-        and "part" in (ev.get("payload") or {})
+        isinstance(ev.get("payload"), dict) and "part" in (ev.get("payload") or {})
         for ev in partial_events
     )
     assert any(ev.get("type") == "tool_results" for ev in events)

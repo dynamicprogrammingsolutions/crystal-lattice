@@ -1,5 +1,5 @@
-import AppKit
 import XCTest
+import CoreGraphics
 
 final class ConnectionsPanelUITests: XCTestCase {
   private let stateURL = URL(
@@ -11,12 +11,6 @@ final class ConnectionsPanelUITests: XCTestCase {
 
   override func setUpWithError() throws {
     continueAfterFailure = false
-    for application in NSRunningApplication.runningApplications(
-      withBundleIdentifier: "org.reactjs.native.CrystalLatticeControlDesktopRN"
-    ) {
-      application.forceTerminate()
-    }
-    RunLoop.current.run(until: Date().addingTimeInterval(0.3))
     try? FileManager.default.removeItem(at: stateURL)
     try? FileManager.default.removeItem(at: workspaceStateURL)
   }
@@ -75,6 +69,44 @@ final class ConnectionsPanelUITests: XCTestCase {
     ).click()
   }
 
+  private func middleClickCenter(_ element: XCUIElement) {
+    let point = CGPoint(x: element.frame.midX, y: element.frame.midY)
+    let source = CGEventSource(stateID: .hidSystemState)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .mouseMoved,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .otherMouseDown,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
+    CGEvent(
+      mouseEventSource: source,
+      mouseType: .otherMouseUp,
+      mouseCursorPosition: point,
+      mouseButton: .center
+    )?.post(tap: .cghidEventTap)
+  }
+
+  private func assertNoHorizontalOverlap(
+    _ left: XCUIElement,
+    _ right: XCUIElement,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertLessThanOrEqual(
+      left.frame.maxX,
+      right.frame.minX + 2,
+      "Expected \(left) to remain left of \(right)",
+      file: file,
+      line: line
+    )
+  }
+
   private func launchHarness(
     count: Int,
     preset: String = "default"
@@ -131,6 +163,10 @@ final class ConnectionsPanelUITests: XCTestCase {
       return 0
     }
     return value.doubleValue
+  }
+
+  private func sidebarMetrics(_ state: [String: Any]) -> [String: Any]? {
+    return state["sidebarMetrics"] as? [String: Any]
   }
 
   func testNaturalHeightAndBoundedScrollingFollowConnectionCount() throws {
@@ -220,6 +256,14 @@ final class ConnectionsPanelUITests: XCTestCase {
         .waitForExistence(timeout: 10),
       app.debugDescription
     )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tab-request-status-harness-connection:one"
+      )
+        .waitForExistence(timeout: 10),
+      app.debugDescription
+    )
     preview.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
     ).doubleClick()
@@ -242,6 +286,13 @@ final class ConnectionsPanelUITests: XCTestCase {
       ).waitForExistence(timeout: 10),
       app.debugDescription
     )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-session-status-harness-connection-one"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
 
     let firstWatched = workspaceElement(
       app,
@@ -260,7 +311,11 @@ final class ConnectionsPanelUITests: XCTestCase {
       )
     )
     _ = waitForWorkspaceState { state in
-      (state["watchlistOrder"] as? [String]) == ["two", "one"]
+      (state["watchlistOrder"] as? [String])
+        == [
+          "two", "one", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
 
     clickCenter(workspaceElement(app, "desktop-activity-history"))
@@ -299,6 +354,330 @@ final class ConnectionsPanelUITests: XCTestCase {
 
     _ = waitForWorkspaceState { state in
       (state["permanentOrder"] as? [String]) == ["two", "one"]
+    }
+  }
+
+  func testSidebarPointerAndKeyboardResizeStayWithinReportedPolicy() throws {
+    let app = launchWorkspaceHarness()
+    let initialState = waitForWorkspaceState { state in
+      self.sidebarMetrics(state)?["width"] is NSNumber
+    }
+    guard let initialMetrics = sidebarMetrics(initialState) else {
+      XCTFail("Missing initial sidebar metrics: \(initialState)")
+      return
+    }
+    let initialWidth = number(initialMetrics, "width")
+    let step = number(initialMetrics, "adjustmentStep")
+
+    let handle = workspaceElement(app, "desktop-sidebar-resize-handle")
+    XCTAssertTrue(handle.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertEqual(handle.label, "Resize sidebar")
+
+    let source = handle.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    )
+    source.press(
+      forDuration: 0.2,
+      thenDragTo: source.withOffset(CGVector(dx: step * 2, dy: 0))
+    )
+    let draggedState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber else {
+        return false
+      }
+      return width.doubleValue > initialWidth
+    }
+    guard let draggedMetrics = sidebarMetrics(draggedState) else {
+      XCTFail("Missing dragged sidebar metrics: \(draggedState)")
+      return
+    }
+    let draggedWidth = number(draggedMetrics, "width")
+
+    clickCenter(handle)
+    handle.typeKey(.leftArrow, modifierFlags: [])
+    let keyboardState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber else {
+        return false
+      }
+      return abs(width.doubleValue - (draggedWidth - step)) < 0.5
+    }
+    guard let keyboardMetrics = sidebarMetrics(keyboardState) else {
+      XCTFail("Missing keyboard sidebar metrics: \(keyboardState)")
+      return
+    }
+
+    let resizedHandle = workspaceElement(app, "desktop-sidebar-resize-handle")
+    let maximumWidth = number(keyboardMetrics, "maximumWidth")
+    let currentWidth = number(keyboardMetrics, "width")
+    let resizeSource = resizedHandle.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    )
+    resizeSource.press(
+      forDuration: 0.2,
+      thenDragTo: resizeSource.withOffset(
+        CGVector(dx: maximumWidth - currentWidth + step * 2, dy: 0)
+      )
+    )
+    let maximumState = waitForWorkspaceState { state in
+      guard let metrics = self.sidebarMetrics(state),
+            let width = metrics["width"] as? NSNumber,
+            let maximum = metrics["maximumWidth"] as? NSNumber,
+            let mainWidth = metrics["mainWidth"] as? NSNumber,
+            let minimumMain = metrics["minimumMainWidth"] as? NSNumber else {
+        return false
+      }
+      return abs(width.doubleValue - maximum.doubleValue) < 0.5
+        && mainWidth.doubleValue >= minimumMain.doubleValue
+    }
+    guard let maximumMetrics = sidebarMetrics(maximumState) else {
+      XCTFail("Missing maximum sidebar metrics: \(maximumState)")
+      return
+    }
+    XCTAssertGreaterThanOrEqual(
+      number(maximumMetrics, "mainWidth"),
+      number(maximumMetrics, "minimumMainWidth")
+    )
+  }
+
+  func testMiddleClickClosesTabWithoutSelectingOrDragging() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["one", "two"]
+        && (state["active"] as? String) == "harness-connection:preview"
+    }
+    let tab = workspaceElement(
+      app,
+      "desktop-session-tab-harness-connection:one"
+    )
+    XCTAssertTrue(tab.waitForExistence(timeout: 20), app.debugDescription)
+
+    middleClickCenter(tab)
+
+    _ = waitForWorkspaceState { state in
+      (state["permanentOrder"] as? [String]) == ["two"]
+        && (state["active"] as? String) == "harness-connection:preview"
+    }
+  }
+
+  func testHomeAndHistoryPresentationKeepMetadataAndActionsVisible() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])?.count == 5
+    }
+    clickCenter(workspaceElement(app, "desktop-home-tab"))
+
+    let longID =
+      "session-with-a-deliberately-long-identifier-for-native-truncation"
+    let homeScroll = app.scrollViews.firstMatch
+    XCTAssertTrue(homeScroll.waitForExistence(timeout: 20), app.debugDescription)
+
+    let tileTitle = workspaceElement(
+      app,
+      "desktop-tile-title-harness-connection-\(longID)-native"
+    )
+    if !tileTitle.isHittable {
+      homeScroll.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      ).scroll(byDeltaX: 0, deltaY: -homeScroll.frame.height)
+    }
+    XCTAssertTrue(tileTitle.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertEqual(tileTitle.label, "A complete native session title")
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-subtitle-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-session-id-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    let tileConnection = workspaceElement(
+      app,
+      "desktop-tile-connection-harness-connection-\(longID)-native"
+    )
+    let tileTime = workspaceElement(
+      app,
+      "desktop-tile-time-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(tileConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(tileTime.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(tileConnection, tileTime)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-note-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-tile-watch-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+
+    homeScroll.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+    ).scroll(byDeltaX: 0, deltaY: -homeScroll.frame.height * 2)
+    let recentTitle = workspaceElement(
+      app,
+      "desktop-home-recent-title-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(
+      recentTitle.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    let recentConnection = workspaceElement(
+      app,
+      "desktop-home-recent-connection-harness-connection-\(longID)-native"
+    )
+    let recentTime = workspaceElement(
+      app,
+      "desktop-home-recent-time-harness-connection-\(longID)-native"
+    )
+    let recentActions = workspaceElement(
+      app,
+      "desktop-home-recent-note-action-harness-connection-\(longID)"
+    )
+    XCTAssertTrue(recentConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(recentTime.waitForExistence(timeout: 10))
+    XCTAssertTrue(recentActions.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(recentConnection, recentTime)
+    assertNoHorizontalOverlap(recentTime, recentActions)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-home-recent-dot-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertEqual(
+      workspaceElement(
+        app,
+        "desktop-home-recent-title-harness-connection-preview-only-native"
+      ).label,
+      "Preview rendered exactly once"
+    )
+    XCTAssertFalse(
+      workspaceElement(
+        app,
+        "desktop-home-recent-subtitle-harness-connection-preview-only-native"
+      ).exists
+    )
+
+    clickCenter(workspaceElement(app, "desktop-activity-history"))
+    _ = waitForWorkspaceState { state in
+      (state["lowerPanel"] as? String) == "history"
+    }
+    let historyPanel = workspaceElement(app, "desktop-history-panel")
+    let historyTitle = workspaceElement(
+      app,
+      "desktop-panel-history-title-harness-connection-\(longID)-native"
+    )
+    if !historyTitle.isHittable {
+      historyPanel.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      ).scroll(byDeltaX: 0, deltaY: -historyPanel.frame.height)
+    }
+    XCTAssertTrue(
+      historyTitle.waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-subtitle-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10)
+    )
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-session-id-harness-connection-\(longID)-native"
+      ).waitForExistence(timeout: 10)
+    )
+    let historyConnection = workspaceElement(
+      app,
+      "desktop-panel-history-connection-harness-connection-\(longID)-native"
+    )
+    let historyTime = workspaceElement(
+      app,
+      "desktop-panel-history-time-harness-connection-\(longID)-native"
+    )
+    XCTAssertTrue(historyConnection.waitForExistence(timeout: 10))
+    XCTAssertTrue(historyTime.waitForExistence(timeout: 10))
+    assertNoHorizontalOverlap(historyConnection, historyTime)
+    XCTAssertTrue(
+      workspaceElement(
+        app,
+        "desktop-panel-history-note-action-harness-connection-\(longID)"
+      ).waitForExistence(timeout: 10)
+    )
+  }
+
+  func testWatchlistVerticalDragFollowsPointerDirection() throws {
+    let app = launchWorkspaceHarness()
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == [
+          "one", "two", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
+    }
+    clickCenter(workspaceElement(app, "desktop-home-tab"))
+
+    let first = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-one"
+    )
+    let third = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-three"
+    )
+    XCTAssertTrue(first.waitForExistence(timeout: 20), app.debugDescription)
+    XCTAssertTrue(third.waitForExistence(timeout: 10), app.debugDescription)
+
+    first.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).press(
+      forDuration: 0.2,
+      thenDragTo: third.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)
+      )
+    )
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == [
+          "two", "three", "one", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
+    }
+
+    let movedFirst = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-one"
+    )
+    let topLeft = workspaceElement(
+      app,
+      "desktop-tile-session-harness-connection-two"
+    )
+    movedFirst.coordinate(
+      withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+    ).press(
+      forDuration: 0.2,
+      thenDragTo: topLeft.coordinate(
+        withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)
+      )
+    )
+    _ = waitForWorkspaceState { state in
+      (state["watchlistOrder"] as? [String])
+        == [
+          "one", "two", "three", "four",
+          "session-with-a-deliberately-long-identifier-for-native-truncation",
+        ]
     }
   }
 }

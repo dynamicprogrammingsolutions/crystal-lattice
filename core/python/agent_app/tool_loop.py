@@ -103,14 +103,10 @@ class ToolLoopRunner:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _extract_tool_calls(
-        self, messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._core.extract_tool_calls_from_messages(messages)
 
-    def _extract_pending_tool_calls_from_session(
-        self, session: Session
-    ) -> List[Dict[str, Any]]:
+    def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
         We only auto-resume the tool loop when the assistant-with-tool_calls is
@@ -422,21 +418,24 @@ class ToolLoopRunner:
             last_final: Dict[str, Any] | None = None
 
             saw_partial = False
+            # One tool context per call, shared by execution and the append:
+            # the core records the call's framework facts (tool_call_id,
+            # started/finished timestamps) into this context, and reusing it
+            # for add_message lets the append hook see those facts.
+            tool_context = self._app_context.build_tool_context(
+                session=current_session,
+                request_id=self._request_id,
+                base_config=self._base_config,
+                config=config,
+                extra=(
+                    {"cancellation": self._cancellation} if self._cancellation is not None else None
+                ),
+            )
             for item in core.iter_tool_messages(
                 [call],
                 config,
                 cancellation=self._cancellation,
-                context=self._app_context.build_tool_context(
-                    session=current_session,
-                    request_id=self._request_id,
-                    base_config=self._base_config,
-                    config=config,
-                    extra=(
-                        {"cancellation": self._cancellation}
-                        if self._cancellation is not None
-                        else None
-                    ),
-                ),
+                context=tool_context,
             ):
                 if not isinstance(item, dict):
                     continue
@@ -506,17 +505,9 @@ class ToolLoopRunner:
                 content,
                 metadata,
                 config=config,
-                context=self._app_context.build_tool_context(
-                    session=current_session,
-                    request_id=self._request_id,
-                    base_config=self._base_config,
-                    config=config,
-                    extra=(
-                        {"cancellation": self._cancellation}
-                        if self._cancellation is not None
-                        else None
-                    ),
-                ),
+                # Reuse the per-call tool context so the append hook sees
+                # the framework facts recorded during execution.
+                context=tool_context,
                 tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 
@@ -586,9 +577,7 @@ class ToolLoopRunner:
                     }
                     return
 
-                gen = self._apply_tool_calls(
-                    current_session, pending, stream_tools=stream
-                )
+                gen = self._apply_tool_calls(current_session, pending, stream_tools=stream)
                 while True:
                     try:
                         ev = next(gen)
@@ -641,9 +630,7 @@ class ToolLoopRunner:
                     }
                     break
 
-                gen = self._apply_tool_calls(
-                    current_session, tool_calls, stream_tools=stream
-                )
+                gen = self._apply_tool_calls(current_session, tool_calls, stream_tools=stream)
                 while True:
                     try:
                         ev = next(gen)

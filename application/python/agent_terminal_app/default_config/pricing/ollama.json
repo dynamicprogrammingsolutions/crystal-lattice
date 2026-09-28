@@ -1,0 +1,10 @@
+{
+    "_source": "https://ollama.com/cloud (Model pricing table)",
+    "_generated_at": "2026-09-27",
+    "_note": "One-time extraction, USD per million tokens, standard rates (off-peak discounts for deepseek-v4.1-flash and deepseek-v4-pro are not modeled). Keys are the cloud model ids without the ':cloud' tag used in agent model ids. Local models (for example qwen3:0.6b) are free and intentionally have no entry. Refresh manually by re-extracting from the source.",
+    "models": {
+        "glm-5.2": {"input": 1.4, "cached": 0.26, "completion": 4.4},
+        "deepseek-v4-pro": {"input": 1.32, "cached": 0.044, "completion": 3.96},
+        "kimi-k2.6": {"input": 0.95, "cached": 0.16, "completion": 4.0}
+    }
+}

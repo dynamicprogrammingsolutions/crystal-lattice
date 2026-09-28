@@ -13,11 +13,24 @@ from openai_responses_plugins.openai_responses_usage_extension import (
 RAW_USAGE_KEY = "_openai_responses_usage_raw"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_usage_journal_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Keep best-effort ChatGPT journal writes inside tmp.
+
+    ChatGPT-mode tests in this file configure no credentials path, so journal
+    resolution falls back to the Crystal data directory; without this fixture
+    the fallback would be the process working directory.
+    """
+
+    monkeypatch.setenv("CRYSTAL_DATA_DIR", str(tmp_path))
+
+
 def test_usage_config_schema_exposes_footer_visibility_controls() -> None:
     schema = OpenAIResponsesUsageExtension().get_config_schema()
 
     assert schema["show_usage"]["default"] is True
-    assert schema["show_usage_status_total"]["default"] is True
+    assert schema["cost_bucket"]["default"] == "openai-responses"
+    assert "show_usage_status_total" not in schema
     assert schema["usage_message_footer_fields"]["items"]["enum"] == [
         "input",
         "cached",
@@ -117,11 +130,19 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
 
     md = finals[0].get("_metadata") or {}
     assert md.get("usage") == usage
+    assert md.get("usage_bucket") == "openai-responses-api"
     assert md.get("usage_prompt_tokens_formatted") == "1,234"
     assert md.get("usage_cached_tokens_formatted") == "12"
     assert md.get("usage_completion_tokens_formatted") == "56"
     assert md.get("usage_total_cost") == pytest.approx(0.0004178, rel=1e-9)
     assert md.get("usage_total_cost_formatted") == "$0.000418"
+    breakdown = md.get("usage_cost_breakdown")
+    assert isinstance(breakdown, dict) and breakdown
+    assert set(breakdown) <= {"input", "cached", "cache_write", "output"}
+    assert "cached" in breakdown
+    assert sum(breakdown.values()) == pytest.approx(
+        md.get("usage_total_cost"), rel=1e-6
+    )
     assert md.get("usage_total_cost_cumulative") == pytest.approx(0.0004178, rel=1e-9)
     assert md.get("usage_total_cost_cumulative_formatted") == "$0.000418"
     assert md.get("usage_turn_cost_cumulative") == pytest.approx(0.0004178, rel=1e-9)
@@ -145,6 +166,108 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert RAW_USAGE_KEY not in native_md
     assert md.get("usage_effective_auth_mode") == "api"
     assert md.get("usage_effective_auth_mode_label") == "API"
+
+
+def test_usage_persistence_projects_supported_field_paths() -> None:
+    ext = OpenAIResponsesUsageExtension()
+    usage = {
+        "input_tokens": 120,
+        "input_tokens_details": {
+            "cached_tokens": 20,
+            "cache_write_tokens": 3,
+            "future_nested_detail": "discarded",
+        },
+        "output_tokens": 30,
+        "output_tokens_details": {
+            "reasoning_tokens": 5,
+            "future_output_detail": "discarded",
+        },
+        "completion_tokens_details": {
+            "reasoning_tokens": 6,
+            "future_completion_detail": "discarded",
+        },
+        "total_tokens": 150,
+        "future_scalar": "discarded",
+        "future_object": {"payload": "discarded"},
+        "attribution": {
+            "request_fields": {"model": "gpt-test"},
+            "items": [
+                {
+                    "input_tokens": 120,
+                    "output_tokens": 30,
+                    "content": "repeated provider attribution",
+                }
+            ],
+        },
+    }
+    final_messages = [_assistant_output_item("done", response_id="resp_attr")]
+
+    _partials, finals, new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_attr", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=list(final_messages),
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    expected_usage = {
+        "input_tokens": 120,
+        "input_tokens_details": {
+            "cached_tokens": 20,
+            "cache_write_tokens": 3,
+        },
+        "output_tokens": 30,
+        "output_tokens_details": {"reasoning_tokens": 5},
+        "completion_tokens_details": {"reasoning_tokens": 6},
+        "total_tokens": 150,
+    }
+    persisted_metadata = finals[0]["_metadata"]
+    assert persisted_metadata["usage"] == expected_usage
+    assert new_native[0]["_metadata"]["usage"] == expected_usage
+    assert persisted_metadata["usage_prompt_tokens_formatted"] == "120"
+    assert persisted_metadata["usage_completion_tokens_formatted"] == "30"
+    assert persisted_metadata["usage_turn_reasoning_tokens_cumulative"] == 5
+    assert (
+        "future_nested_detail"
+        not in persisted_metadata["usage"]["input_tokens_details"]
+    )
+    assert (
+        "future_output_detail"
+        not in persisted_metadata["usage"]["output_tokens_details"]
+    )
+    assert (
+        "future_completion_detail"
+        not in persisted_metadata["usage"]["completion_tokens_details"]
+    )
+    assert "future_scalar" not in persisted_metadata["usage"]
+    assert "future_object" not in persisted_metadata["usage"]
+    assert "attribution" not in persisted_metadata["usage"]
+
+    rebuilt = ext.from_native_messages(
+        new_native,
+        [
+            {
+                "role": "assistant",
+                "content": "done",
+                "metadata": {
+                    "native_indices": [0],
+                    "phase_messages": [
+                        {
+                            "phase": "final_answer",
+                            "content": "done",
+                            "metadata": {"usage": usage},
+                        }
+                    ],
+                },
+            }
+        ],
+    )
+    rebuilt_metadata = rebuilt[0]["metadata"]
+    assert rebuilt_metadata["usage"] == expected_usage
+    assert rebuilt_metadata["phase_messages"][0]["metadata"]["usage"] == expected_usage
 
 
 def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(
@@ -812,7 +935,6 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_turn_input_tokens_cumulative_formatted",
         "metadata.usage_turn_cached_tokens_cumulative_formatted",
         "metadata.usage_turn_output_tokens_cumulative_formatted",
-        "metadata.usage_total_cost_cumulative_formatted",
     ]
     assert elements[1]["condition"] == {
         "not": {
@@ -1034,6 +1156,14 @@ def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -
     assert md.get("usage_effective_auth_mode") == "chatgpt"
     assert md.get("usage_effective_auth_mode_label") == "ChatGPT"
     assert md.get("usage_total_cost") == pytest.approx(0.000028, rel=1e-9)
+    # ChatGPT per-item costs come from usage + the estimated cached tokens.
+    chatgpt_breakdown = md.get("usage_cost_breakdown")
+    assert isinstance(chatgpt_breakdown, dict) and chatgpt_breakdown
+    assert set(chatgpt_breakdown) <= {"input", "cached", "cache_write", "output"}
+    assert "cached" in chatgpt_breakdown
+    assert sum(chatgpt_breakdown.values()) == pytest.approx(
+        md.get("usage_total_cost"), rel=1e-6
+    )
 
 
 def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate() -> (
@@ -1223,31 +1353,23 @@ def test_usage_ui_elements_can_select_compact_turn_footer() -> None:
         "turn input: {{data}}",
         "turn output: {{data}}",
     ]
+    # The stateless status-bar total was retired; the session total in the
+    # chat status bar is now contributed by the generic cost tracking plugin.
     assert [
-        element["template"]
-        for element in elements
-        if element.get("ui_type") == "status_bar"
-    ] == ["Total: {{data}}"]
+        element for element in elements if element.get("ui_type") == "status_bar"
+    ] == []
 
 
-def test_usage_ui_elements_can_hide_message_footer_or_status_total_independently() -> (
-    None
-):
+def test_usage_ui_elements_contribute_no_status_bar_elements() -> None:
     ext = OpenAIResponsesUsageExtension()
 
-    status_only = ext.get_ui_elements(
+    elements = ext.get_ui_elements(
         config={"usage_message_footer_fields": []},
         tags=["openai_responses"],
         models=[],
     )
-    footer_only = ext.get_ui_elements(
-        config={"show_usage_status_total": False},
-        tags=["openai_responses"],
-        models=[],
-    )
 
-    assert [element.get("ui_type") for element in status_only] == ["status_bar"]
-    assert all(element.get("ui_type") == "message_footer" for element in footer_only)
+    assert all(element.get("ui_type") == "message_footer" for element in elements)
     assert (
         ext.get_ui_elements(
             config={"show_usage": False},
@@ -1540,3 +1662,34 @@ def test_usage_ui_elements_include_cache_write_footer_when_present() -> None:
         "path": "metadata.usage_cache_write_tokens_formatted",
         "exists": True,
     }
+
+
+def test_streaming_usage_stamps_provider_defined_bucket_for_chatgpt() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {"input_tokens": 10, "output_tokens": 2}
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_1", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=list(final_messages),
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+                "cost_bucket": "openai",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_bucket") == "openai-chatgpt"
+    assert md.get("usage_effective_auth_mode") == "chatgpt"

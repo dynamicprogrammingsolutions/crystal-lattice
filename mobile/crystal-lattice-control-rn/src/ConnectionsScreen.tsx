@@ -107,6 +107,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   } | null>(null);
 
   const methodLabel = (kind: ConnectionRecord['kind']) => {
+    if (kind === 'embedded') return 'On device';
     if (kind === 'manual') return 'Manual';
     if (kind === 'discovery') return 'Discovery';
     if (kind === 'cloud') return 'Cloud';

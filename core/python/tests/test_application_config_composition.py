@@ -193,7 +193,60 @@ def test_mixin_root_merge_directive_preserves_legacy_precedence() -> None:
     assert "$merge" not in config
 
 
-def test_nested_mixin_merge_directive_survives_until_provider_agent_merge() -> None:
+def test_mixin_merge_directive_governs_own_merge_action_and_is_consumed() -> None:
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "system-base": {
+                    "system_message": {
+                        "template": "base",
+                        "variables": {"INTRO": "x"},
+                        "enabled": True,
+                    },
+                    "request_options": {
+                        "temperature": 0.2,
+                        "thinking": {"type": "enabled"},
+                    },
+                },
+                "preset": {
+                    "$merge": {"default": "shallow", "deep": ["system_message"]},
+                    "bash_cwd_persistence": True,
+                    "request_options": {"temperature": 0.5},
+                    "system_message": {"template": "preset"},
+                },
+            },
+            "providers": {
+                "dummy": {
+                    "provider": "dummy_provider",
+                }
+            },
+            "agents": {
+                "default": {
+                    "provider": "dummy",
+                    "mixin_refs": ["system-base", "preset"],
+                }
+            },
+        }
+    )
+
+    assert errors == []
+    agent = resolved["agents"]["default"]
+    # The preset's own policy governed its merge: system_message deep-merged
+    # with the base while request_options shallow-replaced it.
+    assert agent["system_message"] == {
+        "template": "preset",
+        "variables": {"INTRO": "x"},
+        "enabled": True,
+    }
+    assert agent["request_options"] == {"temperature": 0.5}
+    assert agent["bash_cwd_persistence"] is True
+    # The mixin-carried directive was consumed and does not persist into the
+    # referrer's resolved configuration.
+    assert "$merge" not in agent
+    assert "$merge" not in agent["system_message"]
+
+
+def test_mixin_nested_merge_directive_is_consumed_at_mixin_merge() -> None:
     resolved, errors = resolve_config_mixins(
         {
             "mixins": {
@@ -224,24 +277,117 @@ def test_nested_mixin_merge_directive_survives_until_provider_agent_merge() -> N
                 "default": {
                     "provider": "dummy",
                     "mixin_refs": ["agent-options"],
-                    "$merge": "deep",
                 }
             },
         }
     )
 
     assert errors == []
-    assert resolved["agents"]["default"]["request_options"]["$merge"] == {
-        "default": "deep",
-        "shallow": ["thinking"],
+    agent = resolved["agents"]["default"]
+    # The mixin's nested directive was consumed by its merge action and does
+    # not survive into the resolved agent.
+    assert "$merge" not in agent
+    assert "$merge" not in agent["request_options"]
+
+    # Without an agent-carried policy, the provider merge uses the default
+    # shallow mode, so the agent's request_options replace the provider's.
+    config = build_agent_config(resolved, "default")
+    assert config["request_options"] == {
+        "thinking": {"type": "adaptive"},
     }
 
+
+def test_agent_nested_merge_directive_governs_provider_merge() -> None:
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "agent-options": {
+                    "request_options": {
+                        "thinking": {"type": "adaptive"},
+                    },
+                }
+            },
+            "providers": {
+                "dummy": {
+                    "provider": "dummy_provider",
+                    "request_options": {
+                        "temperature": 0.2,
+                        "thinking": {
+                            "type": "enabled",
+                            "budget_tokens": 1024,
+                        },
+                    },
+                }
+            },
+            "agents": {
+                "default": {
+                    "provider": "dummy",
+                    "mixin_refs": ["agent-options"],
+                    "$merge": {"default": "shallow", "deep": ["request_options"]},
+                    "request_options": {
+                        "$merge": {
+                            "default": "deep",
+                            "shallow": ["thinking"],
+                        },
+                    },
+                }
+            },
+        }
+    )
+
+    assert errors == []
+    # A nested policy declared on the agent itself governs the later
+    # provider-to-agent merge.
     config = build_agent_config(resolved, "default")
     assert config["request_options"] == {
         "temperature": 0.2,
         "thinking": {"type": "adaptive"},
     }
     assert "$merge" not in config["request_options"]
+
+
+def test_chained_mixin_consumes_inner_directive_and_keeps_own() -> None:
+    resolved, errors = resolve_config_mixins(
+        {
+            "mixins": {
+                "inner": {
+                    "$merge": "deep",
+                    "system_message": {
+                        "template": "inner",
+                        "variables": {"INTRO": "x"},
+                    },
+                },
+                "outer": {
+                    "$merge": {"default": "shallow", "deep": ["system_message"]},
+                    "mixin_refs": ["inner"],
+                    "system_message": {"template": "outer"},
+                },
+            },
+            "providers": {
+                "dummy": {
+                    "provider": "dummy_provider",
+                }
+            },
+            "agents": {
+                "default": {
+                    "provider": "dummy",
+                    "mixin_refs": ["outer"],
+                }
+            },
+        }
+    )
+
+    assert errors == []
+    agent = resolved["agents"]["default"]
+    # The inner mixin's deep directive governed its merge into the outer
+    # mixin and was consumed there; the outer mixin's own policy then
+    # governed its merge into the agent and was consumed as well.
+    assert agent["system_message"] == {
+        "template": "outer",
+        "variables": {"INTRO": "x"},
+    }
+    assert "$merge" not in agent
+    assert "$merge" not in agent["system_message"]
 
 
 def test_legacy_mixin_merge_remains_supported() -> None:

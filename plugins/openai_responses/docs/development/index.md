@@ -13,6 +13,11 @@ This documentation covers implementation and maintenance of the
   effort sets, silent drops, metadata footers, and Pro mode billing.
 - [Cost estimation](cost-estimation.md): pricing snapshot format, token-bucket
   splitting, ChatGPT cached-token estimation, and explicit cache boundaries.
+- [Usage journal](usage-journal.md): append-only ChatGPT usage journal record
+  format, write path, reset markers, date-based inspection, and CSV export.
+- [Usage persistence sanitization](usage-sanitization.md): supported persisted
+  usage field paths and the dry-run/apply maintenance command for older
+  sessions.
 - [Bundle layout](bundle-layout.md): responsibility split across provider and
   extensions, implementation classes, and background compaction notification
   handling.

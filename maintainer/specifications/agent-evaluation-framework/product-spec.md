@@ -255,11 +255,9 @@ from agent_eval.crystal_lattice import (
 
 ROOT = Path(__file__).resolve().parents[3]
 
-STANDARD_FILES = (
-    ROOT / "docs/development/standards/documentation.md",
-    ROOT / "docs/development/standards/specifications.md",
-    ROOT / "docs/development/repository/documentation.md",
-    ROOT / "docs/development/repository/specifications.md",
+GUIDANCE_FILES = (
+    ROOT / "docs/development/documentation.md",
+    ROOT / "docs/development/crystal-lattice-documentation.md",
 )
 
 

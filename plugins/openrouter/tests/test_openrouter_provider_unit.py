@@ -242,8 +242,8 @@ def test_to_native_messages():
     assert native[2] == {"role": "assistant", "content": "Hi there"}
 
 
-def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_extension():
-    """Provider conversion should preserve tool metadata even without tools extension."""
+def test_to_native_and_from_native_roundtrip_preserves_provider_tool_metadata_without_extension():
+    """Provider conversion excludes UI-only display metadata from native history."""
     provider = OpenRouterProvider()
 
     core_messages = [
@@ -284,7 +284,6 @@ def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_ext
     assert native[1]["_metadata"] == {
         "tool_name": "read_file",
         "tool_plugin": "file_reader",
-        "display": "Read x.txt",
     }
 
     rebuilt = provider.from_native_messages(native, {})
@@ -295,7 +294,7 @@ def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_ext
     assert rebuilt[1]["metadata"]["tool_call_id"] == "call_123"
     assert rebuilt[1]["metadata"]["tool_name"] == "read_file"
     assert rebuilt[1]["metadata"]["tool_plugin"] == "file_reader"
-    assert rebuilt[1]["metadata"]["display"] == "Read x.txt"
+    assert "display" not in rebuilt[1]["metadata"]
     assert rebuilt[1]["metadata"]["native_indices"] == [1]
 
 
