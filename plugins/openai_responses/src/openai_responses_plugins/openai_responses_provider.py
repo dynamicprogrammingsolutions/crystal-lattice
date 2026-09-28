@@ -107,6 +107,7 @@ from .openai_responses_codex_models import (
     load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
     merge_model_descriptors as _merge_model_descriptors_shared,
 )
+from .verified_ssl import verified_ssl_context as _verified_ssl_context
 
 log = get_logger("openai_responses_provider")
 
@@ -195,6 +196,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "required": False,
                 "default": "api",
                 "description": "Authentication mode: api, chatgpt, or auto.",
+            },
+            "auth_mode_options": {
+                "type": "array",
+                "required": False,
+                "description": (
+                    "Optional UI subset of api, chatgpt, and auto. "
+                    "Request behavior remains controlled by auth_mode."
+                ),
             },
             "api_key": {
                 "type": "string",
@@ -307,6 +316,28 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 }
             )
 
+        auth_mode_options = [
+            {"value": "api", "label": "API"},
+            {"value": "chatgpt", "label": "ChatGPT"},
+            {"value": "auto", "label": "Auto"},
+        ]
+        configured_auth_modes = (
+            config.get("auth_mode_options") if isinstance(config, dict) else None
+        )
+        if isinstance(configured_auth_modes, list):
+            allowed_auth_modes = {
+                value
+                for value in configured_auth_modes
+                if isinstance(value, str)
+            }
+            filtered = [
+                option
+                for option in auth_mode_options
+                if option["value"] in allowed_auth_modes
+            ]
+            if filtered:
+                auth_mode_options = filtered
+
         return [
             {
                 "ui_type": "config",
@@ -341,11 +372,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "select",
                 "key": "auth_mode",
                 "label": "OpenAI auth mode",
-                "options": [
-                    {"value": "api", "label": "API"},
-                    {"value": "chatgpt", "label": "ChatGPT"},
-                    {"value": "auto", "label": "Auto"},
-                ],
+                "options": auth_mode_options,
                 "default": "api",
             },
             {
@@ -811,7 +838,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = Request(url, headers=headers, method="GET")
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
         try:
-            with urlopen(request, timeout=timeout) as response:
+            with urlopen(
+                request,
+                timeout=timeout,
+                context=_verified_ssl_context(),
+            ) as response:
                 body = response.read().decode("utf-8")
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")

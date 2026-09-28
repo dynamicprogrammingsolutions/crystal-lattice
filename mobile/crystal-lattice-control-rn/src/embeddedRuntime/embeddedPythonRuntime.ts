@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from "react-native";
+import type { ActionDisplayPayload } from "@crystal-lattice/frontend-sdk";
 
 export interface EmbeddedPythonRuntimeInfo {
   status: "ready";
@@ -37,7 +38,7 @@ export interface EmbeddedProviderProfileUpdate {
   enabled?: boolean;
   baseUrl?: string;
   model?: string;
-  authMode?: "api" | "auto" | "chatgpt";
+  authMode?: "api" | "chatgpt";
   tlsCaBundle?: string;
   apiKey?: string;
   clearApiKey?: boolean;
@@ -51,7 +52,7 @@ export interface EmbeddedProviderProfile {
   enabled: boolean;
   baseUrl: string;
   model: string;
-  authMode?: "api" | "auto" | "chatgpt";
+  authMode?: "api" | "chatgpt";
   tlsCaBundle?: string;
   hasApiKey: boolean;
 }
@@ -178,4 +179,37 @@ export async function noteEmbeddedPythonRuntimeAppState(
 
 export async function getEmbeddedPythonRuntimeLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus> {
   return requireNativeRuntime().getLifecycleStatus();
+}
+
+export interface EmbeddedRuntimeApplicationActionResult {
+  display?: ActionDisplayPayload;
+  [key: string]: unknown;
+}
+
+export async function executeEmbeddedRuntimeApplicationAction(options: {
+  pluginId: string;
+  actionId: string;
+  actionOwner?: string;
+  inputs?: Record<string, unknown>;
+}): Promise<EmbeddedRuntimeApplicationActionResult> {
+  const response = await executeEmbeddedRuntimeCommand<{
+    status: "ok" | "error";
+    message?: string;
+    result?: EmbeddedRuntimeApplicationActionResult;
+  }>({
+    method: "POST",
+    path: "/actions",
+    body: {
+      plugin: options.pluginId,
+      action_id: options.actionId,
+      action_owner: options.actionOwner,
+      inputs: options.inputs ?? {},
+    },
+  });
+  if (response.status >= 300 || response.data.status !== "ok") {
+    throw new Error(
+      response.data.message ?? "Embedded application action failed."
+    );
+  }
+  return response.data.result ?? {};
 }

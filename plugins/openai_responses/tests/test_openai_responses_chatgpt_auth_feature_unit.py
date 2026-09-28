@@ -142,6 +142,24 @@ def test_auth_mode_and_endpoint_ui_are_exposed_as_config_elements() -> None:
     assert endpoint_config[0]["default"] == "https://api.openai.com/v1"
 
 
+def test_auth_mode_ui_can_be_restricted_without_changing_provider_modes() -> None:
+    provider = OpenAIResponsesProvider()
+
+    elements = provider.get_ui_elements(
+        config={"auth_mode_options": ["api", "chatgpt"]},
+        tags=["provider:openai_responses"],
+        models=[{"id": "gpt-5-mini"}],
+    )
+
+    auth_config = next(
+        element for element in elements if element.get("key") == "auth_mode"
+    )
+    assert auth_config["options"] == [
+        {"value": "api", "label": "API"},
+        {"value": "chatgpt", "label": "ChatGPT"},
+    ]
+
+
 def test_endpoint_ui_uses_chatgpt_default_when_auto_mode_has_valid_login(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

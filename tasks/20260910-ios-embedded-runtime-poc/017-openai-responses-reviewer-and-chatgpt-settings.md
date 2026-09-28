@@ -25,13 +25,13 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
   protocol to Responses while preserving caller authentication, upstream-key
   replacement, model/service-tier filtering, usage-based pricing, persisted
   budget/cooldown state, and redacted request handling.
-- [ ] On-device OpenAI settings expose exactly two default authentication
+- [x] On-device OpenAI settings expose exactly two default authentication
   choices, **API key** and **ChatGPT**; embedded settings do not expose or
   persist `auto`.
 - [ ] The saved OpenAI authentication choice becomes the provider default,
   remains visible in session settings, and can be overridden per session
   without rewriting the saved default.
-- [ ] On-device settings expose plugin-driven **Sign in**, **Check status**,
+- [x] On-device settings expose plugin-driven **Sign in**, **Check status**,
   **Cancel**, and **Log out** controls and render the action plugin's returned
   URL, code, Open-link, Copy-code, and follow-up actions without reimplementing
   the authorization protocol in React Native.
@@ -172,7 +172,7 @@ URL/code display without a certificate failure.
 
 - [x] Create the approved subtask, correction handoff, parent links, and
   updated dependency boundaries.
-- [ ] Add regression coverage for current reviewer protocol/defaults and the
+- [x] Add regression coverage for current reviewer protocol/defaults and the
   current ChatGPT display/TLS gaps.
 - [x] Split the generic compatible and dedicated reviewer profiles, including
   stable settings persistence/migration and agent/tool-family wiring.
@@ -182,11 +182,11 @@ URL/code display without a certificate failure.
   configuration toward Responses-only inference.
 - [ ] Pass a local HTTPS proxy-backed reviewer Responses tool loop through the
   production embedded backend and Release simulator.
-- [ ] Add verified embedded HTTPS trust for ChatGPT login, polling, token
+- [x] Add verified embedded HTTPS trust for ChatGPT login, polling, token
   exchange, refresh, and related discovery.
-- [ ] Replace embedded `auto` UI/configuration with explicit API-key and
+- [x] Replace embedded `auto` UI/configuration with explicit API-key and
   ChatGPT defaults while retaining provider compatibility outside mobile.
-- [ ] Add the plugin-driven ChatGPT settings action host and generic returned
+- [x] Add the plugin-driven ChatGPT settings action host and generic returned
   display/follow-up handling.
 - [ ] Preserve and test per-session authentication overrides independently of
   the saved default.
@@ -261,3 +261,19 @@ URL/code display without a certificate failure.
   transport tests, 273 mobile tests, TypeScript compilation, Ruff, and the
   Release simulator build pass. Runtime preparation was corrected to preserve
   the tracked public reviewer CA across generated-resource replacement.
+- 2026-09-28: Isolated the apparent API/ChatGPT selector failure against
+  existing modal Detox coverage. With Detox synchronization disabled, iOS
+  drops touches during modal presentation; the existing production-modal
+  pattern waits 600 ms after visibility. Applying the same boundary made the
+  selector pass without a test-only UI path.
+- 2026-09-28: The first real device-code request then exposed the desktop
+  `curl` fallback as incompatible with iOS. OpenAI returned HTTP 530
+  `cf_route_error` to `urllib` while the bundled in-process `requests`
+  transport returned HTTP 200 for the same request. The plugin now retries
+  that specific response with verified Certifi-backed `requests`, declares it
+  as a runtime dependency, and no longer requires process spawning.
+- 2026-09-28: The ungated Release-simulator ChatGPT flow now selects ChatGPT,
+  starts a real OpenAI device-code attempt, renders the plugin-provided
+  Open-link and Copy-code actions, and cancels successfully. The action row
+  wraps on compact screens. The human authorization/tool-request portion
+  remains collected and skipped unless its explicit gate is enabled.

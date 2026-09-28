@@ -1,18 +1,80 @@
 from __future__ import annotations
 
+import io
 import json
+import ssl
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Tuple
+from urllib.error import HTTPError
 from urllib.parse import parse_qs
 
+import chatgpt_auth_app
+import pytest
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from chatgpt_auth_app import ChatGPTAuthAppPlugin, _verified_ssl_context
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_verified_ssl_context_requires_certificate_validation() -> None:
+    context = _verified_ssl_context()
+
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    assert context.get_ca_certs()
+
+
+def test_cloudflare_route_error_retries_with_in_process_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    route_error = json.dumps(
+        {"error": {"type": "cf_route_error", "message": "retry"}}
+    ).encode("utf-8")
+
+    def fake_urlopen(*args: Any, **kwargs: Any) -> Any:
+        _ = (args, kwargs)
+        raise HTTPError(
+            "https://auth.openai.com/device",
+            530,
+            "route error",
+            None,
+            io.BytesIO(route_error),
+        )
+
+    class FakeResponse:
+        status_code = 200
+        text = json.dumps(
+            {
+                "device_auth_id": "device-auth-1",
+                "user_code": "ABCD-EFGH",
+            }
+        )
+
+    request_calls: list[dict[str, Any]] = []
+
+    def fake_post(url: str, **kwargs: Any) -> FakeResponse:
+        request_calls.append({"url": url, **kwargs})
+        return FakeResponse()
+
+    monkeypatch.setattr(chatgpt_auth_app, "urlopen", fake_urlopen)
+    monkeypatch.setattr(chatgpt_auth_app.requests, "post", fake_post)
+
+    status, payload = ChatGPTAuthAppPlugin()._request_payload(
+        url="https://auth.openai.com/device",
+        payload={"client_id": "client"},
+        headers={},
+        encoding="json",
+        timeout=20,
+    )
+
+    assert status == 200
+    assert payload["device_auth_id"] == "device-auth-1"
+    assert request_calls[0]["verify"] == chatgpt_auth_app.certifi.where()
 
 
 class _FakeDeviceCodeHandler(BaseHTTPRequestHandler):

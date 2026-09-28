@@ -119,7 +119,7 @@ async function configureProfile(options: {
   baseUrl: string;
   model: string;
   apiKey: string;
-  authMode: "api" | "auto" | "chatgpt";
+  authMode: "api" | "chatgpt";
 }): Promise<void> {
   await tapById("home-tab");
   await waitFor(element(by.id("home-embedded-settings")))
@@ -171,12 +171,11 @@ async function configureProfile(options: {
 
   await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
   await replaceProfileField(`${prefix}-model`, options.model);
-  if (options.profileId === "openai") {
-    const authModeId = `embedded-provider-openai-auth-${options.authMode}`;
+  if (options.profileId === "openai" && options.authMode === "chatgpt") {
+    const authModeId = "embedded-provider-openai-auth-chatgpt";
     await waitFor(element(by.id(authModeId)))
       .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
+      .withTimeout(30000);
     await tapById(authModeId);
   }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
@@ -210,7 +209,7 @@ describe("embedded provider real API matrix", () => {
     const apiKey = requiredEnvironment("CRYSTAL_EMBEDDED_MATRIX_API_KEY");
     const model = requiredEnvironment("CRYSTAL_EMBEDDED_MATRIX_MODEL");
     const authMode = (process.env.CRYSTAL_EMBEDDED_MATRIX_AUTH_MODE ??
-      "api") as "api" | "auto" | "chatgpt";
+      "api") as "api" | "chatgpt";
     const marker = `MATRIX_${profileId.toUpperCase()}`;
 
     await launchApp(true);

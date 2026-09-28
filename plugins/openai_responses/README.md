@@ -56,9 +56,9 @@ cannot load the SDK's native dependency closure may set:
 }
 ```
 
-The requests transport supports API-key model discovery, ordinary and
-streaming Responses calls, and tool loops. It does not provide file uploads,
-ChatGPT authentication, or async native-compaction calls.
+The requests transport supports API-key and ChatGPT-authenticated model
+discovery, ordinary and streaming Responses calls, and tool loops. It does
+not provide file uploads or async native-compaction calls.
 
 Set `tls_ca_bundle` to a PEM bundle path when a Responses-compatible endpoint
 uses a private or self-signed CA. This option applies only to
@@ -71,6 +71,10 @@ omitted from config when the env var is present.
 When `auth_mode: "chatgpt"` is selected, or when `auth_mode: "auto"` resolves
 to ChatGPT because a valid saved login exists, the provider reads a saved
 credential file instead of requiring `OPENAI_API_KEY`.
+
+ChatGPT credential refresh and direct discovery calls use an explicit
+Certifi-backed SSL context, which is important in fixed Python runtimes that
+do not have an operating-system OpenSSL default trust path.
 
 When credentials and network access are available, API-key mode fetches the
 real OpenAI model list through the OpenAI Python SDK. For ChatGPT auth, the

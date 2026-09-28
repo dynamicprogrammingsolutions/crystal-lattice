@@ -53,9 +53,25 @@ package-owned requests transport and sends `/responses`, not
 `/chat/completions`. Provider API requests send user messages, provider
 history, and relevant tool inputs/results to the selected external service.
 
-OpenAI Responses supports `api`, `auto`, and `chatgpt` authentication modes.
+The reusable OpenAI Responses provider supports `api`, `auto`, and `chatgpt`
+authentication modes. The embedded mobile profile deliberately exposes only
+**API key** and **ChatGPT**. Existing mobile `auto` values migrate to `api`;
+the selected mobile default remains visible and can still be overridden in
+session settings.
+
 The bundle includes `chatgpt-auth-app` and the Responses ChatGPT auth feature.
-Login uses ordinary application/session actions and the generic action UI.
+The OpenAI authentication card in On-device Provider Settings invokes the
+plugin's ordinary **Sign in**, **Check status**, **Cancel**, and **Log out**
+actions. The generic action display renders the returned login URL, user code,
+Open-link, Copy-code, and follow-up status action. React Native does not
+implement the authorization protocol itself.
+
+ChatGPT HTTPS calls use the bundled Certifi roots with verification enabled.
+OpenAI's device-auth endpoint can return a Cloudflare route error to
+`urllib`; the plugin retries that response with the bundled in-process
+`requests` client. It does not depend on `curl` or any other subprocess on
+iOS. The same verified CA setup covers login polling, token exchange,
+credential refresh, and ChatGPT/Codex discovery requests.
 
 The reviewer profile is preconfigured with the Ireland HTTPS URL,
 `gpt-5.6-luna`, and a custom CA bundle. The App Review build includes the
@@ -122,11 +138,17 @@ On iOS:
    **Connections**.
 2. From Home, open **On-device providers** in the Home actions bar or
    **On-device Provider Settings** in the Home menu.
-3. Enable a profile and set its URL, model, and API key. Choose the default
-   agent used when callers do not specify one.
-4. **Test** validates a candidate without replacing saved settings. **Save
+3. For ordinary OpenAI Responses, choose **API key** or **ChatGPT** in the
+   OpenAI authentication card. API-key mode uses the profile's key field.
+   ChatGPT mode enables the plugin-driven login/status controls in the same
+   settings window.
+4. Enable a profile and set its URL, model, and credentials when required.
+   Choose the default agent used when callers do not specify one. The
+   reviewer URL, model, and CA are already filled; App Review supplies only
+   its private caller key.
+5. **Test** validates a candidate without replacing saved settings. **Save
    Settings** writes non-secrets to preferences and keys to Keychain.
-5. Open the built-in connection, create a session with an available agent, and
+6. Open the built-in connection, create a session with an available agent, and
    use the ordinary Sessions and Messages screens.
 
 The legacy new-connection reviewer setup remains compatible. A failed
@@ -283,12 +305,27 @@ Run the Release simulator API matrix separately:
 npm run test:ios:embedded-providers:detox:api
 ```
 
-The ChatGPT action flow is collected but manually gated:
+The default ChatGPT simulator command starts a real device-code login, proves
+that the plugin-driven URL/code actions are displayed, and cancels the
+attempt. It does not require a human account:
+
+```bash
+npm run test:ios:embedded-providers:detox:chatgpt
+```
+
+The human authorization, real Responses tool request, and relaunch portion is
+separately gated:
 
 ```bash
 CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
   npm run test:ios:embedded-providers:detox:chatgpt
 ```
+
+For the focused physical-device check, open On-device Provider Settings,
+select **ChatGPT**, and press **Sign in with ChatGPT**. Acceptance for that
+check is the **ChatGPT Login** display with an Open-link and Copy-code action;
+`CERTIFICATE_VERIFY_FAILED` must not appear. The broader capability acceptance
+remains the Release simulator flow.
 
 ## Current limits
 

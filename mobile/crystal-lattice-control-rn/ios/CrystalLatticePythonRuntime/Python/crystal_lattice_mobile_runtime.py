@@ -388,6 +388,7 @@ def _config_payload(
                     "provider": "openai_responses",
                     "provider_transport": "requests",
                     "auth_mode": "api",
+                    "auth_mode_options": ["api"],
                     "reasoning_effort": "low",
                     "reasoning_summary": "concise",
                 }
@@ -401,6 +402,7 @@ def _config_payload(
                     "provider": "openai_responses",
                     "provider_transport": "requests",
                     "auth_mode": profile["auth_mode"],
+                    "auth_mode_options": ["api", "chatgpt"],
                     "chatgpt_credentials_path": application_config[
                         "chatgpt_auth"
                     ]["credentials_path"],

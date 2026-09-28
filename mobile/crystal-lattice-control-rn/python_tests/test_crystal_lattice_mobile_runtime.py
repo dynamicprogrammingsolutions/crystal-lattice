@@ -328,8 +328,13 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     assert runtime_config["providers"]["reviewer"]["provider_transport"] == (
         "requests"
     )
+    assert runtime_config["providers"]["reviewer"]["auth_mode_options"] == ["api"]
     assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
     assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
+    assert runtime_config["providers"]["openai"]["auth_mode_options"] == [
+        "api",
+        "chatgpt",
+    ]
     assert runtime_config["providers"]["openrouter"]["provider"] == "openrouter"
     assert runtime_config["providers"]["anthropic"]["provider"] == "anthropic"
     assert runtime_config["providers"]["anthropic"]["provider_transport"] == (
@@ -443,6 +448,19 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
     assert runtime_config["application"]["chatgpt_auth"]["credentials_path"].endswith(
         "/config/auth/chatgpt-auth.json"
     )
+    normalized_auto = module._normalized_runtime_configuration(
+        {
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5.6-luna",
+                    "auth_mode": "auto",
+                }
+            }
+        }
+    )
+    assert normalized_auto["providers"]["openai"]["auth_mode"] == "api"
 
 
 def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
@@ -538,6 +556,23 @@ def test_application_plugins_actions_snapshots_and_settings_routes(
         assert ("generate_title", "generate_title_for_session") in action_pairs
         assert ("session_title", "set_session_title") in action_pairs
         assert ("session_archive", "toggle_session_archived") in action_pairs
+
+        chatgpt_status = call(
+            module,
+            tmp_path,
+            "POST",
+            "/actions",
+            {
+                "plugin": "chatgpt_auth",
+                "action_id": "check_status",
+                "inputs": {},
+            },
+        )
+        assert chatgpt_status["status"] == "ok"
+        assert (
+            chatgpt_status["result"]["display"]["title"]
+            == "ChatGPT Login Status"
+        )
 
         application_ui = call(
             module,

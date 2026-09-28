@@ -20,31 +20,13 @@ def run(command: list[str], env: dict[str, str]) -> None:
 def main() -> int:
     load_repo_root_env()
     env = os.environ.copy()
-    if env.get("CRYSTAL_RUN_CHATGPT_LOGIN_E2E") != "1":
-        run(["npm", "run", "detox:test:embedded-chatgpt-login:ios"], env)
-        print(
-            "ChatGPT login Detox was collected but not run; set "
-            "CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 to enable the manual flow."
-        )
-        return 0
-
-    env.update(
-        {
-            "CRYSTAL_EMBEDDED_MATRIX_AUTH_MODE": "auto",
-            "CRYSTAL_EMBEDDED_MATRIX_SKIP_PROVIDER_REQUEST": "1",
-        }
-    )
-    run(
-        [
-            sys.executable,
-            "scripts/run_embedded_provider_detox_matrix.py",
-            "--row",
-            "openai",
-            "--skip-build",
-        ],
-        env,
-    )
     run(["npm", "run", "detox:test:embedded-chatgpt-login:ios"], env)
+    if env.get("CRYSTAL_RUN_CHATGPT_LOGIN_E2E") != "1":
+        print(
+            "ChatGPT login start passed; the human authorization/tool request "
+            "was collected but not run. Set CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 "
+            "to enable the manual flow."
+        )
     return 0
 
 

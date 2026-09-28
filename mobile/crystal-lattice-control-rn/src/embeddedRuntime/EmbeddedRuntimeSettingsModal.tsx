@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Linking,
   StyleSheet,
   Switch,
   Text,
@@ -7,11 +8,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
+import type {
+  ActionDisplayFollowupAction,
+  ActionDisplayPayload,
+} from "@crystal-lattice/frontend-sdk";
 
+import ActionDisplayCard from "../components/ActionDisplayCard";
 import PanelModalFrame from "../components/PanelModalFrame";
 import { useTheme, type Theme } from "../theme";
 import {
   configureEmbeddedPythonRuntime,
+  executeEmbeddedRuntimeApplicationAction,
   getEmbeddedPythonRuntimeConfiguration,
   validateEmbeddedPythonRuntimeConfiguration,
   type EmbeddedProviderProfile,
@@ -21,9 +29,9 @@ import {
 } from "./embeddedPythonRuntime";
 
 const PROFILE_ORDER: EmbeddedProviderProfileId[] = [
-  "compatible",
-  "reviewer",
   "openai",
+  "reviewer",
+  "compatible",
   "openrouter",
   "anthropic",
 ];
@@ -107,6 +115,9 @@ const EmbeddedRuntimeSettingsModal: React.FC<
   const [validation, setValidation] = useState<
     Partial<Record<EmbeddedProviderProfileId, ValidationState>>
   >({});
+  const [chatGPTDisplay, setChatGPTDisplay] =
+    useState<ActionDisplayPayload | null>(null);
+  const [chatGPTActionId, setChatGPTActionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -121,6 +132,8 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         setDrafts(draftsFromConfiguration(loaded));
         setDefaultAgent(loaded.defaultAgent);
         setValidation({});
+        setChatGPTDisplay(null);
+        setChatGPTActionId(null);
         setStatus({ tone: "idle", message: "" });
       })
       .catch((error) => {
@@ -211,6 +224,59 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     }
   };
 
+  const runChatGPTAction = async (
+    actionId: string,
+    options?: {
+      pluginId?: string;
+      actionOwner?: string;
+      inputs?: Record<string, unknown>;
+    }
+  ): Promise<void> => {
+    setChatGPTActionId(actionId);
+    try {
+      const result = await executeEmbeddedRuntimeApplicationAction({
+        pluginId: options?.pluginId ?? "chatgpt_auth",
+        actionId,
+        actionOwner: options?.actionOwner,
+        inputs: options?.inputs,
+      });
+      setChatGPTDisplay(result.display ?? null);
+      setStatus({ tone: "idle", message: "" });
+    } catch (error) {
+      setStatus({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "ChatGPT action failed.",
+      });
+    } finally {
+      setChatGPTActionId(null);
+    }
+  };
+
+  const followChatGPTDisplayAction = async (
+    action: ActionDisplayFollowupAction
+  ): Promise<void> => {
+    if (action.kind === "dismiss") {
+      setChatGPTDisplay(null);
+      return;
+    }
+    if (action.kind === "open_url") {
+      await Linking.openURL(action.url);
+      return;
+    }
+    if (action.kind === "copy_text") {
+      Clipboard.setString(action.text);
+      return;
+    }
+    if (action.kind === "run_action") {
+      await runChatGPTAction(action.action_id, {
+        pluginId: action.plugin,
+        actionOwner: action.action_owner,
+        inputs: action.fixed_params as Record<string, unknown> | undefined,
+      });
+    }
+  };
+
   return (
     <PanelModalFrame
       visible={visible}
@@ -227,6 +293,96 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     >
       {drafts && configuration ? (
         <>
+          <View style={styles.profile} testID="embedded-openai-auth-settings">
+            <Text style={styles.profileTitle}>OpenAI authentication</Text>
+            <Text style={styles.profileMeta}>
+              Choose the default for new OpenAI Responses sessions. Individual
+              sessions can override it.
+            </Text>
+            <View style={styles.choiceRow}>
+              {(["api", "chatgpt"] as const).map((authMode) => {
+                const selected =
+                  (drafts.openai.authMode ?? "api") === authMode;
+                return (
+                  <TouchableOpacity
+                    key={authMode}
+                    testID={`embedded-provider-openai-auth-${authMode}`}
+                    style={[
+                      styles.choiceButton,
+                      selected && styles.choiceButtonSelected,
+                    ]}
+                    onPress={() =>
+                      updateDraft("openai", { authMode })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.choiceButtonText,
+                        selected && styles.choiceButtonTextSelected,
+                      ]}
+                    >
+                      {authMode === "api" ? "API key" : "ChatGPT"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text
+              testID="embedded-provider-openai-auth-selected"
+              style={styles.profileMeta}
+            >
+              Selected authentication: {drafts.openai.authMode ?? "api"}
+            </Text>
+            <View style={styles.chatGPTPanel}>
+              <Text style={styles.label}>ChatGPT account</Text>
+              {(drafts.openai.authMode ?? "api") !== "chatgpt" ? (
+                <Text style={styles.profileMeta}>
+                  Choose ChatGPT above to manage account login.
+                </Text>
+              ) : null}
+              <View style={styles.actions}>
+                {[
+                  ["login_start", "Sign in with ChatGPT"],
+                  ["check_status", "Check status"],
+                  ["cancel_login", "Cancel"],
+                  ["logout", "Log out"],
+                ].map(([actionId, label]) => {
+                  const disabled =
+                    (drafts.openai.authMode ?? "api") !== "chatgpt" ||
+                    chatGPTActionId !== null;
+                  return (
+                    <TouchableOpacity
+                      key={actionId}
+                      testID={`embedded-provider-openai-chatgpt-${actionId}`}
+                      style={[
+                        styles.secondaryButton,
+                        disabled && styles.buttonDisabled,
+                      ]}
+                      disabled={disabled}
+                      onPress={() => void runChatGPTAction(actionId)}
+                    >
+                      <Text style={styles.secondaryButtonText}>
+                        {chatGPTActionId === actionId ? "Working…" : label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {chatGPTDisplay ? (
+                <ActionDisplayCard
+                  display={chatGPTDisplay}
+                  activeActionId={chatGPTActionId}
+                  bodyTestID="embedded-provider-openai-chatgpt-display"
+                  onDismiss={() => setChatGPTDisplay(null)}
+                  onFollowupAction={(action) =>
+                    void followChatGPTDisplayAction(action)
+                  }
+                  compact
+                  bounded
+                />
+              ) : null}
+            </View>
+          </View>
           {PROFILE_ORDER.map((profileId) => {
             const draft = drafts[profileId];
             const validationState = validation[profileId];
@@ -293,42 +449,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   autoCorrect={false}
                 />
 
-                {profileId === "openai" ? (
-                  <>
-                    <Text style={styles.label}>Authentication mode</Text>
-                    <View style={styles.choiceRow}>
-                      {(["api", "auto", "chatgpt"] as const).map(
-                        (authMode) => {
-                          const selected =
-                            (draft.authMode ?? "api") === authMode;
-                          return (
-                            <TouchableOpacity
-                              key={authMode}
-                              testID={`embedded-provider-openai-auth-${authMode}`}
-                              style={[
-                                styles.choiceButton,
-                                selected && styles.choiceButtonSelected,
-                              ]}
-                              onPress={() =>
-                                updateDraft(profileId, { authMode })
-                              }
-                            >
-                              <Text
-                                style={[
-                                  styles.choiceButtonText,
-                                  selected && styles.choiceButtonTextSelected,
-                                ]}
-                              >
-                                {authMode}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        }
-                      )}
-                    </View>
-                  </>
-                ) : null}
-
                 {profileId === "reviewer" ? (
                   <>
                     <Text style={styles.label}>TLS CA bundle path</Text>
@@ -347,27 +467,32 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   </>
                 ) : null}
 
-                <Text style={styles.label}>API key</Text>
-                <TextInput
-                  testID={`embedded-provider-${profileId}-api-key`}
-                  style={styles.input}
-                  value={draft.apiKey}
-                  onChangeText={(apiKey) =>
-                    updateDraft(profileId, {
-                      apiKey,
-                      clearApiKey: apiKey ? false : draft.clearApiKey,
-                    })
-                  }
-                  placeholder={
-                    draft.hasApiKey && !draft.clearApiKey
-                      ? "Saved in Keychain — leave blank to keep"
-                      : "Enter API key"
-                  }
-                  placeholderTextColor={theme.textSecondary}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                {profileId !== "openai" ||
+                (draft.authMode ?? "api") === "api" ? (
+                  <>
+                    <Text style={styles.label}>API key</Text>
+                    <TextInput
+                      testID={`embedded-provider-${profileId}-api-key`}
+                      style={styles.input}
+                      value={draft.apiKey}
+                      onChangeText={(apiKey) =>
+                        updateDraft(profileId, {
+                          apiKey,
+                          clearApiKey: apiKey ? false : draft.clearApiKey,
+                        })
+                      }
+                      placeholder={
+                        draft.hasApiKey && !draft.clearApiKey
+                          ? "Saved in Keychain — leave blank to keep"
+                          : "Enter API key"
+                      }
+                      placeholderTextColor={theme.textSecondary}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </>
+                ) : null}
 
                 <View style={styles.actions}>
                   <TouchableOpacity
@@ -497,13 +622,18 @@ const createStyles = (theme: Theme) =>
     },
     actions: {
       flexDirection: "row",
+      flexWrap: "wrap",
       alignItems: "center",
       gap: 10,
       marginTop: 10,
     },
+    chatGPTPanel: {
+      gap: 10,
+    },
     choiceRow: {
       flexDirection: "row",
       gap: 8,
+      marginTop: 10,
     },
     choiceButton: {
       borderRadius: 8,
@@ -523,6 +653,9 @@ const createStyles = (theme: Theme) =>
     },
     choiceButtonTextSelected: {
       color: theme.textOnPrimary,
+    },
+    buttonDisabled: {
+      opacity: 0.45,
     },
     secondaryButton: {
       borderRadius: 8,

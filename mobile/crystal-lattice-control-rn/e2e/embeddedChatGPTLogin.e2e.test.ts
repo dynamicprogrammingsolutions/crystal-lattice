@@ -21,6 +21,10 @@ async function tapById(testId: string, timeoutMs = 15000): Promise<void> {
   }
 }
 
+async function settleAfterModalTransition(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 600));
+}
+
 async function waitForMatrixReady(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -44,50 +48,125 @@ async function waitForMatrixReady(timeoutMs: number): Promise<void> {
   throw new Error("ChatGPT provider diagnostic did not complete.");
 }
 
-gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
-  it("uses existing login actions and completes a real tool request", async () => {
-    await device.launchApp({
-      newInstance: true,
-      delete: false,
-      launchArgs: { detoxEnableSynchronization: "0" },
-    });
-    await device.disableSynchronization();
-    await tapById("connections-tab");
-    await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
-      .toBeVisible()
-      .withTimeout(30000);
-    await tapById("connection-card-embedded-ios-runtime");
-    await waitFor(element(by.id("sessions-actions-menu")))
-      .toBeVisible()
-      .withTimeout(120000);
-    await tapById("sessions-actions-menu");
-    await tapById("actions-menu-action-newSession");
-    await waitFor(element(by.id("new-session-agent-openai-codex")))
-      .toBeVisible()
-      .withTimeout(30000);
-    await element(
-      by.label("Create session with openai-codex")
-    ).performAccessibilityAction("activate");
-    await waitFor(element(by.id("session-actions-menu")))
-      .toBeVisible()
-      .withTimeout(120000);
-    await tapById("session-actions-menu");
+async function readText(testId: string): Promise<string> {
+  const attributes = (await element(by.id(testId)).getAttributes()) as {
+    text?: string;
+    label?: string;
+    value?: string;
+  };
+  return String(attributes.text ?? attributes.label ?? attributes.value ?? "");
+}
+
+async function waitForChatGPTLogin(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await tapById("action-display-action-check-chatgpt-login-status");
+    const status = await readText(
+      "embedded-provider-openai-chatgpt-display"
+    );
+    if (status.includes("ChatGPT login is active.")) return;
+    if (status.includes("ChatGPT login failed.")) {
+      throw new Error(status);
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("ChatGPT device login was not completed.");
+}
+
+async function openChatGPTSettings(deleteData: boolean): Promise<void> {
+  await device.launchApp({
+    newInstance: true,
+    delete: deleteData,
+    launchArgs: { detoxEnableSynchronization: "0" },
+  });
+  await device.disableSynchronization();
+  await waitFor(element(by.id("home-tab")))
+    .toBeVisible()
+    .withTimeout(30000);
+  await tapById("home-tab");
+  await tapById("home-embedded-settings");
+  await waitFor(element(by.id("embedded-runtime-settings")))
+    .toBeVisible()
+    .withTimeout(30000);
+  await settleAfterModalTransition();
+  await waitFor(element(by.id("embedded-provider-openai-auth-chatgpt")))
+    .toBeVisible()
+    .withTimeout(30000);
+  await tapById("embedded-provider-openai-auth-chatgpt");
+  await waitFor(element(by.id("embedded-provider-openai-auth-selected")))
+    .toHaveText("Selected authentication: chatgpt")
+    .withTimeout(30000);
+  await waitFor(
+    element(by.id("embedded-provider-openai-chatgpt-login_start"))
+  )
+    .toBeVisible()
+    .withTimeout(30000);
+}
+
+describe("embedded OpenAI Responses ChatGPT login start", () => {
+  it("shows a real device-login URL and code and can cancel", async () => {
+    await openChatGPTSettings(true);
+    await tapById("embedded-provider-openai-chatgpt-login_start");
     await waitFor(
-      element(by.id("actions-menu-action-chatgpt_auth_login_start"))
+      element(by.id("action-display-action-open-chatgpt-login-link"))
     )
       .toBeVisible()
       .withTimeout(30000);
-    await tapById("actions-menu-action-chatgpt_auth_login_start");
-    await waitFor(element(by.id("session-action-result-modal")))
+    await waitFor(
+      element(by.id("action-display-action-copy-chatgpt-login-code"))
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(element(by.text("ChatGPT Login")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await tapById("embedded-provider-openai-chatgpt-cancel_login");
+    await waitFor(element(by.text("The background ChatGPT login attempt was canceled.")))
+      .toBeVisible()
+      .withTimeout(30000);
+  }, 120000);
+});
+
+gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
+  it("logs in from settings and completes a real tool request", async () => {
+    await openChatGPTSettings(true);
+    const scroll = by.id("embedded-runtime-settings-scroll");
+    await waitFor(
+      element(by.id("embedded-provider-openai-chatgpt-login_start"))
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await tapById("embedded-provider-openai-chatgpt-login_start");
+    await waitFor(
+      element(by.id("action-display-action-open-chatgpt-login-link"))
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(
+      element(by.id("action-display-action-copy-chatgpt-login-code"))
+    )
       .toBeVisible()
       .withTimeout(30000);
 
     console.log(
-      "Complete the ChatGPT device login shown in the simulator, return to the app, and tap Check status."
+      "Use the displayed Open link and code to complete ChatGPT login, then return to the simulator."
     );
-    await waitFor(element(by.text("ChatGPT login is active.")))
+    await waitForChatGPTLogin(900000);
+    await waitFor(element(by.id("embedded-provider-openai-enabled")))
       .toBeVisible()
-      .withTimeout(900000);
+      .whileElement(scroll)
+      .scroll(150, "down");
+    await tapById("embedded-provider-openai-enabled");
+    await waitFor(element(by.id("embedded-provider-openai-default")))
+      .toBeVisible()
+      .whileElement(scroll)
+      .scroll(100, "down");
+    await tapById("embedded-provider-openai-default");
+    await element(scroll).scrollTo("bottom");
+    await tapById("embedded-runtime-settings-save");
+    await waitFor(element(by.text("Provider settings saved.")))
+      .toBeVisible()
+      .withTimeout(30000);
 
     await device.terminateApp();
     await device.launchApp({

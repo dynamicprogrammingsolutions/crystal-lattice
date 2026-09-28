@@ -808,7 +808,12 @@ def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails
                 }
             ).encode("utf-8")
 
-    def _fake_urlopen(request: Any, timeout: float) -> _FakeHttpResponse:
+    def _fake_urlopen(
+        request: Any,
+        timeout: float,
+        context: Any,
+    ) -> _FakeHttpResponse:
+        assert context is not None
         captured["url"] = request.full_url
         captured["headers"] = dict(request.header_items())
         captured["timeout"] = timeout

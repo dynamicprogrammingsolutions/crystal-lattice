@@ -122,10 +122,11 @@ As of September 10, 2026:
 - The first proof of concept needs only a fixed OpenAI-compatible endpoint plus
   a basic API-key entry path. Production-grade credential provenance and
   polished settings remain separate hardening.
-- The current ChatGPT device-code plugin is useful follow-up research, but its
-  filesystem credential storage, `curl` subprocess fallback, polling
-  lifecycle, and production authorization assumptions require iOS-specific
-  work. It is not part of the initial proof of concept.
+- The ChatGPT device-code plugin remains outside the initial proof of concept,
+  but follow-up subtask `017` now supplies app-sandbox credential storage,
+  plugin-driven settings actions, verified bundled CA roots, and an
+  in-process HTTP fallback suitable for iOS. Human authorization and the real
+  hosted tool request remain separately gated acceptance.
 - A developer-operated reviewer proxy changes the completed privacy premise
   that no developer service receives user traffic. Before external review,
   privacy answers and the published policy must be reassessed for the actual
@@ -238,9 +239,11 @@ is complete. It delivered:
 - bounded native lifecycle state and delayed background continuation;
 - production-screen, real-model, persistence, and background simulator tests.
 
-The completed foundation does not deliver the public reviewer service,
-ChatGPT authorization, on-device model fallback, Tavily, restricted Python,
-privacy reconciliation, or external TestFlight review package.
+The completed `010` foundation does not itself deliver the public reviewer
+service, ChatGPT authorization, on-device model fallback, Tavily, restricted
+Python, privacy reconciliation, or external TestFlight review package.
+Follow-up `017` has since verified real ChatGPT login start and cancellation
+in the Release simulator, while human authorization remains gated.
 
 ## App Review and completion notes
 

@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import EmbeddedRuntimeSettingsModal from "../src/embeddedRuntime/EmbeddedRuntimeSettingsModal";
 import {
   configureEmbeddedPythonRuntime,
+  executeEmbeddedRuntimeApplicationAction,
   getEmbeddedPythonRuntimeConfiguration,
   validateEmbeddedPythonRuntimeConfiguration,
   type EmbeddedRuntimePublicConfiguration,
@@ -12,6 +13,7 @@ import { lightTheme, ThemeProvider } from "../src/theme";
 
 jest.mock("../src/embeddedRuntime/embeddedPythonRuntime", () => ({
   configureEmbeddedPythonRuntime: jest.fn(),
+  executeEmbeddedRuntimeApplicationAction: jest.fn(),
   getEmbeddedPythonRuntimeConfiguration: jest.fn(),
   validateEmbeddedPythonRuntimeConfiguration: jest.fn(),
 }));
@@ -118,6 +120,37 @@ beforeEach(() => {
       },
     },
   });
+  jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValue({
+    display: {
+      format: "markdown",
+      title: "ChatGPT Login",
+      body: "Open the login URL and enter `ABCD-EFGH`.",
+      presentation: "inline",
+      actions: [
+        {
+          kind: "open_url",
+          id: "open-chatgpt-login-link",
+          label: "Open link",
+          url: "https://auth.openai.test/device",
+        },
+        {
+          kind: "copy_text",
+          id: "copy-chatgpt-login-code",
+          label: "Copy code",
+          text: "ABCD-EFGH",
+        },
+        {
+          kind: "run_action",
+          id: "check-chatgpt-login-status",
+          label: "Check status",
+          plugin: "chatgpt_auth",
+          action_id: "check_status",
+          fixed_params: {},
+          preserve_display: true,
+        },
+      ],
+    },
+  });
 });
 
 test("tests a candidate before saving and persists the selected default", async () => {
@@ -130,7 +163,6 @@ test("tests a candidate before saving and persists the selected default", async 
     screen.getByTestId("embedded-provider-openai-api-key"),
     "temporary-key"
   );
-  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-auto"));
   fireEvent.press(screen.getByTestId("embedded-provider-openai-test"));
 
   await waitFor(() =>
@@ -142,7 +174,7 @@ test("tests a candidate before saving and persists the selected default", async 
           openai: expect.objectContaining({
             enabled: true,
             apiKey: "temporary-key",
-            authMode: "auto",
+            authMode: "api",
           }),
         }),
       })
@@ -171,6 +203,52 @@ test("tests a candidate before saving and persists the selected default", async 
     )
   );
   await waitFor(() => expect(onSaved).toHaveBeenCalled());
+});
+
+test("runs plugin-driven ChatGPT login actions from provider settings", async () => {
+  const { screen } = renderModal();
+  await waitFor(() =>
+    expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy()
+  );
+
+  expect(
+    screen.queryByTestId("embedded-provider-openai-auth-auto")
+  ).toBeNull();
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-chatgpt"));
+
+  expect(
+    screen.queryByTestId("embedded-provider-openai-api-key")
+  ).toBeNull();
+  fireEvent.press(
+    screen.getByTestId("embedded-provider-openai-chatgpt-login_start")
+  );
+
+  await waitFor(() =>
+    expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenCalledWith({
+      pluginId: "chatgpt_auth",
+      actionId: "login_start",
+      actionOwner: undefined,
+      inputs: undefined,
+    })
+  );
+  expect(
+    screen.getByTestId("action-display-action-open-chatgpt-login-link")
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId("action-display-action-copy-chatgpt-login-code")
+  ).toBeTruthy();
+
+  fireEvent.press(
+    screen.getByTestId("action-display-action-check-chatgpt-login-status")
+  );
+  await waitFor(() =>
+    expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenLastCalledWith({
+      pluginId: "chatgpt_auth",
+      actionId: "check_status",
+      actionOwner: undefined,
+      inputs: {},
+    })
+  );
 });
 
 test("shows candidate validation failure without persisting it", async () => {
