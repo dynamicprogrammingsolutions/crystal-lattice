@@ -90,6 +90,7 @@ from .configuration import (  # noqa: E402
     DEFAULT_BUNDLE,
     SCENARIOS_ROOT,
     agent_config_file,
+    assessment_cell_or_history,
     assessment_cell,
     negative_control,
     plan_variants,
@@ -2438,7 +2439,7 @@ def _collect_per_subject_assessment(
     judgment_seen: Counter[tuple[Any, Any, Any, Any]] = Counter()
 
     scenario_id = scenario.scenario_id
-    assessor_name, effort = assessment_cell(
+    assessor_name, effort = assessment_cell_or_history(
         _assessment_category(scenario, name), f"{name}-assessment"
     )
     first_run_record: dict[str, Any] | None = None
@@ -3063,6 +3064,7 @@ def _plan_content_judgment_markdown(
         if not isinstance(entry, Mapping):
             continue
         finding = str(entry.get("finding") or "").replace("|", "\\|")
+        finding = finding.replace("`", "'")
         lines.append(f"| {requirement_id} | {entry.get('grade')} | {finding} |")
     missed = assessment.get("missed_requirements") or []
     if missed:
@@ -3072,6 +3074,24 @@ def _plan_content_judgment_markdown(
     if isinstance(summary, str) and summary.strip():
         lines.extend(["", summary, ""])
     return lines
+
+
+def _plain_finding_text(value: Any) -> str:
+    """A model-written prose field rendered as safe plain text."""
+
+    return " ".join(str(value or "").replace("`", "'").split())
+
+
+def _inline_snippet(value: Any, limit: int = 80) -> str:
+    """A model-written string as safe inline code.
+
+    Backticks and line breaks would break the code span, so they are
+    removed; the snippet stays a verbatim prefix of the finding.
+    """
+
+    cleaned = str(value or "").replace("`", "'").split()
+    joined = " ".join(cleaned)
+    return joined[:limit]
 
 
 def _file_fidelity_judgment_markdown(
@@ -3108,9 +3128,9 @@ def _file_fidelity_judgment_markdown(
         for finding in item.get("findings") or []:
             if isinstance(finding, Mapping):
                 lines.append(
-                    f"- {dimension} — {finding.get('where')}:"
-                    f" {finding.get('why')}"
-                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                    f"- {dimension} — {_inline_snippet(finding.get('where'))}:"
+                    f" {_plain_finding_text(finding.get('why'))}"
+                    f" (`{_inline_snippet(finding.get('quote'))}`)"
                 )
     mistakes = assessment.get("mistakes") or []
     if mistakes:
@@ -3118,8 +3138,9 @@ def _file_fidelity_judgment_markdown(
         for mistake in mistakes:
             if isinstance(mistake, Mapping):
                 lines.append(
-                    f"- {mistake.get('where')}: {mistake.get('why')}"
-                    f" (`{str(mistake.get('quote', ''))[:80]}`)"
+                    f"- {_inline_snippet(mistake.get('where'))}:"
+                    f" {_plain_finding_text(mistake.get('why'))}"
+                    f" (`{_inline_snippet(mistake.get('quote'))}`)"
                 )
     summary = assessment.get("summary")
     if isinstance(summary, str) and summary.strip():
@@ -3162,17 +3183,17 @@ def _file_readability_judgment_markdown(
         for finding in entry.get("findings") or []:
             if isinstance(finding, Mapping):
                 lines.append(
-                    f"- {title} — {finding.get('where')}:"
-                    f" {finding.get('why')}"
-                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                    f"- {title} — {_inline_snippet(finding.get('where'))}:"
+                    f" {_plain_finding_text(finding.get('why'))}"
+                    f" (`{_inline_snippet(finding.get('quote'))}`)"
                 )
     if isinstance(navigation, Mapping):
         for finding in navigation.get("findings") or []:
             if isinstance(finding, Mapping):
                 lines.append(
-                    f"- navigation — {finding.get('where')}:"
-                    f" {finding.get('why')}"
-                    f" (`{str(finding.get('quote', ''))[:80]}`)"
+                    f"- navigation — {_inline_snippet(finding.get('where'))}:"
+                    f" {_plain_finding_text(finding.get('why'))}"
+                    f" (`{_inline_snippet(finding.get('quote'))}`)"
                 )
     mistakes = assessment.get("mistakes") or []
     if mistakes:
@@ -3180,8 +3201,9 @@ def _file_readability_judgment_markdown(
         for mistake in mistakes:
             if isinstance(mistake, Mapping):
                 lines.append(
-                    f"- {mistake.get('where')}: {mistake.get('why')}"
-                    f" (`{str(mistake.get('quote', ''))[:80]}`)"
+                    f"- {_inline_snippet(mistake.get('where'))}:"
+                    f" {_plain_finding_text(mistake.get('why'))}"
+                    f" (`{_inline_snippet(mistake.get('quote'))}`)"
                 )
     summary = assessment.get("summary")
     if isinstance(summary, str) and summary.strip():

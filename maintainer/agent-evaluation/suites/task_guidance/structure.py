@@ -240,6 +240,7 @@ def profile_file_sections(title: str, text: str) -> dict[str, Any]:
         entries.append(
             {
                 "title": section["title"],
+                "key": f"{title} — {section['title']}",
                 "words": _words(body),
                 "paragraph_count": len(paragraphs),
                 "longest_paragraph_words": max(

@@ -84,11 +84,36 @@ def plan_variants(category: str) -> tuple[str, ...]:
     return tuple(stage_config(category, "handoff-plan")["variants"])
 
 
+# Retired assessment stages and the judge declaration they ran with.
+# Historical frozen datasets still collect into packages, so their
+# assessor provenance stays resolvable after the stage leaves the live
+# configuration.
+RETIRED_ASSESSMENT_STAGES = {
+    "task-quality-assessment": {"agent": "glm", "effort": "max"},
+}
+
+
 def assessment_cell(category: str, stage: str) -> tuple[str, str]:
     """The (agent, effort) one assessment stage declares as its judge."""
 
     config = stage_config(category, stage)
     return config["agent"], config["effort"]
+
+
+def assessment_cell_or_history(category: str, stage: str) -> tuple[str, str]:
+    """The judge of a live or retired assessment stage.
+
+    Collection of historical packages resolves retired stages through
+    the history table; live stages always win.
+    """
+
+    try:
+        return assessment_cell(category, stage)
+    except KeyError:
+        config = RETIRED_ASSESSMENT_STAGES.get(stage)
+        if config is None:
+            raise
+        return config["agent"], config["effort"]
 
 
 def negative_control(category: str) -> dict | None:

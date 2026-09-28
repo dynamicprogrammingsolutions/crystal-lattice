@@ -1362,8 +1362,11 @@ def test_collect_renders_file_fidelity_and_readability_beside_subjects(
         "subject": {"profile": "glm", "reasoning_effort": "max", "sample_index": 0},
         "assessment": {
             "sections": {
-                "Requirements checklist": {"grade": "readable", "findings": []},
-                "Supporting details": {
+                f"tasks/synthetic-{HANDOFF_SCENARIO_ID}.md — Requirements checklist": {
+                    "grade": "readable",
+                    "findings": [],
+                },
+                f"tasks/synthetic-{HANDOFF_SCENARIO_ID}.md — Supporting details": {
                     "grade": "partial",
                     "findings": [
                         {

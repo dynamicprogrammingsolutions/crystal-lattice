@@ -758,6 +758,80 @@ old ceiling dimensions still grade complete on b0 files under the new
 rubric the dimensions are broken; if per-section readability
 discriminates b0 from B1v3 the rubric is fixed.
 
+THEME C BASELINE (September 27, 2026; c1): 28 judgments over 26
+subject cells (labels b1v3-r1 + b1v3-k1; two multi-sample cells), judge
+glm-5.3-flash:cloud max; frozen dataset `task-guidance-file-quality-c1-20260927`;
+package `results/20260927-file-fidelity-readability/` (check passed;
+generated-view links clean). Results page
+`20260927-file-fidelity-readability-results.md`.
+
+- READABILITY CEILING BROKE: old `findability` 28/28 complete on these
+  subjects → per-section readability 222/249 (89%) readable with 27
+  partial sections each carrying findings + 159 presentation mistakes.
+  Model split: GLM 55/70 (79%) vs GPT 167/179 (93%).
+- Fidelity: plan_design_completeness 25 complete / 3 partial;
+  durable_context 24/4; section_appropriateness 27/1;
+  plan_justification 23 justified / 5 not_applicable; task_kind_fit
+  28 fits; 45 mistakes harvested (13 GLM + 32 GPT).
+- CALIBRATION QUESTION: the tg04 events did NOT reproduce — old 2
+  `fabricated` now `justified`, old 2 `missing` now `fits`. Either GLM
+  judge variance or signal lost in the reworked prompt (target excerpt
+  instead of full target). Mistake harvest still flags tg04 content;
+  verify with a contrast probe before relying on `plan_justification`
+  in the next calibration.
+- Retirement executed: `task-quality-assessment` left the live
+  configuration (no live cases, no expected sets); historical
+  collection resolves its judge through
+  `RETIRED_ASSESSMENT_STAGES`; the quality unit tests and old records
+  and packages stay as history.
+
+GATE RESULTS (September 27, 2026): BOTH PASSED. Artifacts
+`tmp/file_quality_gate.{py,json}` (judge glm-5.3-flash:cloud max;
+probes: natural tg02 glm producer from b1v3-r1, hand-built good
+version, deliberately bad steps-only version with an invented
+migration constraint).
+
+- Fidelity: natural 5/5 top (1 mistake); good 4/5 top — the partial
+  (`plan_design_completeness`) carried a CORRECT finding (the good
+  probe's design sits in one run-on paragraph); bad 0/5 top —
+  poor/poor/poor/fabricated/missing with 10 harvested mistakes, the
+  fabricated grade catching the invented migration.
+- Readability: the natural B1v3 file graded 2/4 sections readable
+  with precise findings (a list item packing six facts; the
+  load-bearing rule buried in a clause) — the old `findability`
+  dimension graded the same files 28/28 complete, so THE CEILING
+  BROKE. Good probe 3/4 readable (fair partial); bad probe 1/3
+  readable with navigation partial and the exact expected findings
+  (checklist with no checklist; contradictory ordering appended after
+  the step list).
+
+B0 LENIENCY VERDICT (September 27, 2026; artifacts
+`tmp/b0_leniency_check.{py,json}`, 18 dev cells × 2 assessments, 2
+retries recovered, 0 skips):
+
+- Fidelity DISCRIMINATES where b0 is actually weak:
+  `plan_design_completeness` 16/18 top, `durable_context_preservation`
+  15/18 top (33 mistakes harvested). `section_appropriateness`,
+  `plan_justification`, `task_kind_fit` are flat-at-top on b0 — but
+  plausibly CORRECTLY: b0 producers did plan in-conversation and used
+  kind-appropriate evidence; their defects were structure and dropped
+  detail, which the first two dimensions catch. Fabrication events
+  remain rarer (B1v3's two fabricated judgments show the dimension
+  can fire).
+- Readability FINDS A UNIT CONFOUND: b0 grades 242/271 (89%) sections
+  readable, navigation 18/18 — BETTER than the B1v3 gate probes
+  (50–75% readable). Cause: b0 task sets are MULTI-FILE with many
+  small sections (tg05: 85 sections; tg06: 91), and short sections
+  trivially grade readable, while B1v3 single files carry big sections
+  (a 1085-word plan graded partial). Per-section readability measures
+  section size as much as guidance quality when comparing different
+  decompositions. CAVEAT all cross-corpus comparisons; RECOMMENDED
+  follow-up: a whole-file reading-effort grade (beyond navigation), or
+  word-weighted aggregation, decided with the B1v3 re-judge numbers in
+  hand.
+- Net: the rubric is fixed enough to baseline (gates + fidelity
+  discrimination), with readability cross-corpus comparison caveated.
+
 Execution steps: excerpt builder + contract module (unit tests);
 fidelity assessment wiring (stage, consolidation, package tables);
 readability assessment wiring (same, plus per-section facts from the

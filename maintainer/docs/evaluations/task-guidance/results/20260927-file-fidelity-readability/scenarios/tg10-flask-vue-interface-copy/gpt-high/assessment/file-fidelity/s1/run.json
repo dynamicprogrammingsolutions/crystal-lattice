@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-high-s1",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T213823.851778Z-task-guidance-file-fidelity-tg10-flask-vue-interface-copy-gpt-high-s1-86c972f6",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6",
+    "original_sha256": "9aee92bf456416ec83445cc4a1c1c62ed9e3227161a905216d9a31f6fbb724c1",
+    "path": "shared/system-messages/glm-assessor-3d0be6dc03e9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

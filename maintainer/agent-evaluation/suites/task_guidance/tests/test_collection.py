@@ -26,7 +26,6 @@ from ..evaluation.matrix import (
     plan_content_cases,
     task_creation_assessment_cases,
     task_creation_cases,
-    task_quality_assessment_cases,
 )
 
 
@@ -47,10 +46,6 @@ def _expected_ids() -> set[str]:
             for case in task_creation_assessment_cases()
         ),
         *(f"test_handoff_assessment[{case.id}]" for case in handoff_assessment_cases()),
-        *(
-            f"test_task_quality_assessment[{case.id}]"
-            for case in task_quality_assessment_cases()
-        ),
         *(f"test_plan_content_assessment[{case.id}]" for case in plan_content_cases()),
         *(
             f"test_file_fidelity_assessment[{case.id}]"

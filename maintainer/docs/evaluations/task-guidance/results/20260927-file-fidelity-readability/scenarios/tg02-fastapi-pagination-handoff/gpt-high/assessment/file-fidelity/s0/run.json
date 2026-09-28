@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-high-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194509.571465Z-task-guidance-file-fidelity-tg02-fastapi-pagination-handoff-gpt-high-s0-fca121c1",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "893136f20e32fe2886f509f65e943f9766c8b290e68453f2e4aae70f307c93ca",
+    "original_sha256": "c04f3640f5052725a382e02ca52d6ae75ab88e74f4fd1c3c83c06662efc558b0",
+    "path": "shared/system-messages/glm-assessor-893136f20e32.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

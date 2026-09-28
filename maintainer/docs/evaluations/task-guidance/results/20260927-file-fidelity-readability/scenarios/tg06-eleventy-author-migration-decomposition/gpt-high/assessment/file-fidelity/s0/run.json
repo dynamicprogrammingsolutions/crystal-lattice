@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-high-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T195209.968258Z-task-guidance-file-fidelity-tg06-eleventy-author-migration-decomposition-gpt-high-s0-d2d4f50d",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6",
+    "original_sha256": "0767665329e409581927af5c64453f6828a4bb953f4fdd9f74cac056bbf2e6fa",
+    "path": "shared/system-messages/glm-assessor-3d0be6dc03e9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

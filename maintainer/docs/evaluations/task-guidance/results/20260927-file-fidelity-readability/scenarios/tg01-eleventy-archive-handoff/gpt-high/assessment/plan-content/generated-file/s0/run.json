@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "plan-content-assessment-gpt-high-generated-file-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260927T230923.108575Z-task-guidance-plan-content-tg01-eleventy-archive-handoff-generated-file-gpt-high-s0-7d167afc",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6",
+    "original_sha256": "47baec32e728d3c76c24c9ff689fcd6edef2a41546b1c693f25ea3e37dfcafb1",
+    "path": "shared/system-messages/glm-assessor-3d0be6dc03e9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

@@ -461,8 +461,10 @@ Return JSON only:
   }
 }
 
-`sections` contains exactly the top-level section titles listed in the
-measured facts, keyed by their exact titles.
+`sections` contains exactly the top-level sections listed in the
+measured facts, keyed by the exact Section values of that table
+(`<file path> — <section title>`), so multi-file task sets stay
+addressable.
 
 What these files are for:
 
@@ -490,7 +492,7 @@ def _render_structure_facts(task_files: Mapping[str, str]) -> str:
         lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for section in entry["sections"]:
             lines.append(
-                f"| {section['title']} | {section['words']}"
+                f"| {section['key']} | {section['words']}"
                 f" | {section['paragraph_count']}"
                 f" | {section['longest_paragraph_words']}"
                 f" | {section['list_item_count']}"
@@ -519,13 +521,19 @@ def _readability_context_excerpt(scenario: TaskGuidanceScenario) -> str:
     return "\n".join(lines)
 
 
-def expected_section_titles(task_files: Mapping[str, str]) -> tuple[str, ...]:
-    """Every top-level section title across the files, in file order."""
+def expected_section_keys(task_files: Mapping[str, str]) -> tuple[str, ...]:
+    """Every top-level section key across the files, in file order.
 
-    titles: list[str] = []
+    Keys are `<file path> — <section title>`: with multi-file task sets
+    the same section title appears in several files, so the file path
+    keeps every judged section addressable and the response contract
+    deterministic.
+    """
+
+    keys: list[str] = []
     for entry in profile_sections(task_files):
-        titles.extend(section["title"] for section in entry["sections"])
-    return tuple(titles)
+        keys.extend(section["key"] for section in entry["sections"])
+    return tuple(keys)
 
 
 def file_readability_prompt(
@@ -564,7 +572,7 @@ def normalize_file_readability(
     raw = assessment.get("sections")
     if not isinstance(raw, Mapping):
         raise ValueError("readability assessment has no sections object")
-    expected = expected_section_titles(record.get("task_files", {}))
+    expected = expected_section_keys(record.get("task_files", {}))
     if not expected:
         raise ValueError("readability assessment requires sections to judge")
     if set(raw) != set(expected):

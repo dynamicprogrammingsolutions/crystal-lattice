@@ -95,11 +95,11 @@ def _readability_response(
     **overrides: object,
 ) -> dict[str, object]:
     resolved_sections = sections or {
-        title: {"grade": "readable", "findings": []}
-        for title in (
-            "Requirements checklist",
-            "Supporting details",
-            "Implementation plan",
+        key: {"grade": "readable", "findings": []}
+        for key in (
+            "tasks/notes-pagination.md — Requirements checklist",
+            "tasks/notes-pagination.md — Supporting details",
+            "tasks/notes-pagination.md — Implementation plan",
         )
     }
     assessment = {
@@ -141,7 +141,7 @@ def test_readability_prompt_carries_facts_and_no_conversation() -> None:
     prompt = file_readability_prompt(SCENARIO, _subject_record())
 
     assert "| Section | Words |" in prompt
-    assert "| Requirements checklist |" in prompt
+    assert "| tasks/notes-pagination.md — Requirements checklist |" in prompt
     assert "tasks/notes-pagination.md" in prompt
     # The conversation is deliberately absent.
     assert "We decided the query contract" not in prompt
@@ -241,20 +241,35 @@ def test_readability_normalize_matches_actual_sections() -> None:
     )
     validate_file_readability(value)
     assert set(value["sections"]) == {
-        "Requirements checklist",
-        "Supporting details",
-        "Implementation plan",
+        "tasks/notes-pagination.md — Requirements checklist",
+        "tasks/notes-pagination.md — Supporting details",
+        "tasks/notes-pagination.md — Implementation plan",
     }
 
 
 def test_readability_rejects_unknown_section() -> None:
     sections = {
-        "Requirements checklist": {"grade": "readable", "findings": []},
-        "Invented section": {"grade": "readable", "findings": []},
-        "Supporting details": {"grade": "readable", "findings": []},
-        "Implementation plan": {"grade": "readable", "findings": []},
+        "tasks/notes-pagination.md — Requirements checklist": {
+            "grade": "readable",
+            "findings": [],
+        },
+        "tasks/notes-pagination.md — Invented section": {
+            "grade": "readable",
+            "findings": [],
+        },
+        "tasks/notes-pagination.md — Supporting details": {
+            "grade": "readable",
+            "findings": [],
+        },
+        "tasks/notes-pagination.md — Implementation plan": {
+            "grade": "readable",
+            "findings": [],
+        },
     }
-    with pytest.raises(ValueError, match=r"unexpected=\['Invented section'\]"):
+    with pytest.raises(
+        ValueError,
+        match=r"unexpected=\['tasks/notes-pagination.md — Invented section'\]",
+    ):
         normalize_file_readability(
             _readability_response(sections=sections),
             scenario=SCENARIO,
@@ -264,8 +279,11 @@ def test_readability_rejects_unknown_section() -> None:
 
 def test_readability_requires_findings_for_non_top() -> None:
     sections = {
-        "Requirements checklist": {"grade": "readable", "findings": []},
-        "Supporting details": {
+        "tasks/notes-pagination.md — Requirements checklist": {
+            "grade": "readable",
+            "findings": [],
+        },
+        "tasks/notes-pagination.md — Supporting details": {
             "grade": "unreadable",
             "findings": [
                 {
@@ -275,7 +293,10 @@ def test_readability_requires_findings_for_non_top() -> None:
                 }
             ],
         },
-        "Implementation plan": {"grade": "readable", "findings": []},
+        "tasks/notes-pagination.md — Implementation plan": {
+            "grade": "readable",
+            "findings": [],
+        },
     }
     value = normalize_file_readability(
         _readability_response(sections=sections),
@@ -285,7 +306,10 @@ def test_readability_requires_findings_for_non_top() -> None:
     validate_file_readability(value)
     bad = {
         **sections,
-        "Supporting details": {"grade": "partial", "findings": []},
+        "tasks/notes-pagination.md — Supporting details": {
+            "grade": "partial",
+            "findings": [],
+        },
     }
     with pytest.raises(ValueError, match="without findings"):
         normalize_file_readability(

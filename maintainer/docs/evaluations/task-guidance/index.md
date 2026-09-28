@@ -22,6 +22,7 @@ Read these pages in order:
 6. [Task-mechanics candidate v3 results](20260926-task-mechanics-b1v3-results.md)
    — the structure-choice rewording; strongest task-creation results so far.
 7. [Task-quality coverage results](20260926-task-quality-coverage-results.md)
+8. [File fidelity and readability rework results](20260927-file-fidelity-readability-results.md)
    — the quality-assessment and generated-file planning stages on the v3
    outputs; two fabricated plans found, fresh-agent planning confirmed.
 8. [Task-kind baseline results](20260926-task-kind-baseline-results.md)

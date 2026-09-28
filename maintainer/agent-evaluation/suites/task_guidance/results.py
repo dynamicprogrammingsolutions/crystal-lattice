@@ -303,9 +303,13 @@ def consolidate_results(
         "plan_content_records": plan_content_values,
         "plan_content_summary": aggregate_plan_content(plan_content_values),
         "file_fidelity_records": file_fidelity_values,
-        "file_fidelity_summary": aggregate_file_fidelity(file_fidelity_values),
+        "file_fidelity_summary": aggregate_file_fidelity(
+            [record.get("assessment") or {} for record in file_fidelity_values]
+        ),
         "file_readability_records": file_readability_values,
-        "file_readability_summary": aggregate_file_readability(file_readability_values),
+        "file_readability_summary": aggregate_file_readability(
+            [record.get("assessment") or {} for record in file_readability_values]
+        ),
         "provider_blocker_records": provider_blocker_values,
         "status": {
             "producers": _status(

@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-high-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194505.730385Z-task-guidance-file-fidelity-tg01-eleventy-archive-handoff-gpt-high-s0-ea9aeff8",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "9d51f13ec1a63380db62624d0d9ffc31022855b471f926084484629ca7a35f8e",
+    "original_sha256": "8afa2610a06b5201d362a1fe77fda7925934578078bf9ffe4e6e7de074d1cdee",
+    "path": "shared/system-messages/glm-assessor-9d51f13ec1a6.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

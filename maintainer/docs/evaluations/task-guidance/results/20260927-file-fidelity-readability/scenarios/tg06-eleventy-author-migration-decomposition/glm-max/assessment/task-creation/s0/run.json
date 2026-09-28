@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "task-creation-assessment-glm-max-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T224314.930050Z-task-guidance-semantic-tg06-eleventy-author-migration-decomposition-glm-max-s0-4b2f9dd1",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6",
+    "original_sha256": "94d030a57598dd2fbe910377fd506349ec4456ebdc4b00f5aacf94ed9402e88f",
+    "path": "shared/system-messages/glm-assessor-3d0be6dc03e9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

@@ -1,0 +1,25 @@
+# Results — `tg01-eleventy-archive-handoff`
+
+- [Scenario index](index.md) · [Reviewed target](target.md) · [Quality matrix](../../matrix.md)
+
+Every number for this scenario, one hop from the evidence it was computed from.
+
+## Producer samples
+
+| Cell | Sample | Status | Task-creation overall | Task-file quality grades | Fidelity | Readability |
+|---|---|---|---|---|---|---|
+| [`glm-max`](glm-max/index.md) | [`s0`](glm-max/s0/session.md) ([assessment](glm-max/s0/assessment.md)) | valid | 100% | design complete · context complete · findability complete · placement complete · justification justified · kind-fit fits | design complete · context complete · kind-fit fits · mistakes 0 | 6/7 readable · navigation navigable · mistakes 5 |
+| [`gpt-high`](gpt-high/index.md) | [`s0`](gpt-high/s0/session.md) ([assessment](gpt-high/s0/assessment.md)) | valid | 100% | design complete · context complete · findability complete · placement complete · justification justified · kind-fit fits | design complete · context complete · kind-fit fits · mistakes 0 | 4/5 readable · navigation navigable · mistakes 7 |
+
+## Plan stages
+
+| Cell | Stage | Sample | Status | Handoff score | Coverage | Broad rediscovery | Plan content |
+|---|---|---|---|---:|---|---|---|
+| [`glm-max`](glm-max/index.md) | `plan-retain` | [`s0`](glm-max/plan-retain/s0/session.md) ([assessment](glm-max/plan-retain/s0/assessment.md)) | valid | 94 | complete | False | 82% |
+| [`glm-max`](glm-max/index.md) | `plan-omit` | [`s0`](glm-max/plan-omit/s0/session.md) ([assessment](glm-max/plan-omit/s0/assessment.md)) | valid | 95 | complete | False | 100% |
+| [`glm-max`](glm-max/index.md) | `continuation` | [`s0`](glm-max/continuation/s0/session.md) ([assessment](glm-max/continuation/s0/assessment.md)) | valid | 96 | complete | False | 88% |
+| [`glm-max`](glm-max/index.md) | `generated-plan` | [`s0`](glm-max/generated-plan/s0/session.md) ([assessment](glm-max/generated-plan/s0/assessment.md)) | valid | 95 | complete | False | 76% |
+| [`gpt-high`](gpt-high/index.md) | `plan-retain` | [`s0`](gpt-high/plan-retain/s0/session.md) ([assessment](gpt-high/plan-retain/s0/assessment.md)) | valid | 95 | complete | False | 76% |
+| [`gpt-high`](gpt-high/index.md) | `plan-omit` | [`s0`](gpt-high/plan-omit/s0/session.md) ([assessment](gpt-high/plan-omit/s0/assessment.md)) | valid | 92 | complete | False | 82% |
+| [`gpt-high`](gpt-high/index.md) | `continuation` | [`s0`](gpt-high/continuation/s0/session.md) ([invalid](gpt-high/continuation/s0/invalid.md)) | invalid | — | — | — | — |
+| [`gpt-high`](gpt-high/index.md) | `generated-plan` | [`s0`](gpt-high/generated-plan/s0/session.md) ([assessment](gpt-high/generated-plan/s0/assessment.md)) | valid | 91 | complete | False | 88% |

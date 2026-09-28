@@ -60,10 +60,6 @@
           "agent": "glm",
           "effort": "max"
         },
-        "task-quality-assessment": {
-          "agent": "glm",
-          "effort": "max"
-        },
         "file-fidelity-assessment": {
           "agent": "glm",
           "effort": "max"
@@ -109,10 +105,6 @@
           "agent": "glm",
           "effort": "max"
         },
-        "task-quality-assessment": {
-          "agent": "glm",
-          "effort": "max"
-        },
         "file-fidelity-assessment": {
           "agent": "glm",
           "effort": "max"
@@ -143,10 +135,6 @@
       "stages": {
         "task-creation": {},
         "task-creation-assessment": {
-          "agent": "glm",
-          "effort": "max"
-        },
-        "task-quality-assessment": {
           "agent": "glm",
           "effort": "max"
         },
