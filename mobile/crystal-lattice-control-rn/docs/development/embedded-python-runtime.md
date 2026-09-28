@@ -305,6 +305,20 @@ Run the Release simulator API matrix separately:
 npm run test:ios:embedded-providers:detox:api
 ```
 
+For a local reviewer HTTPS fixture, point the reviewer row at the TLS endpoint
+and set `REVIEWER_PROXY_TLS_CA_SOURCE` to its public PEM certificate. The test
+copies only that certificate into the simulator data container and enters the
+resulting app-sandbox path through the production reviewer CA setting. The
+private key stays on the host:
+
+```bash
+REVIEWER_PROXY_URL=https://127.0.0.1:3444/v1 \
+REVIEWER_PROXY_API_KEY=replace-with-local-caller-key \
+REVIEWER_PROXY_TLS_CA_SOURCE=/absolute/path/to/local-reviewer-ca.pem \
+python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_detox_matrix.py \
+  --row reviewer --skip-build
+```
+
 The default ChatGPT simulator command starts a real device-code login, proves
 that the plugin-driven URL/code actions are displayed, and cancels the
 attempt. It does not require a human account:

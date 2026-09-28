@@ -28,7 +28,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
 - [x] On-device OpenAI settings expose exactly two default authentication
   choices, **API key** and **ChatGPT**; embedded settings do not expose or
   persist `auto`.
-- [ ] The saved OpenAI authentication choice becomes the provider default,
+- [x] The saved OpenAI authentication choice becomes the provider default,
   remains visible in session settings, and can be overridden per session
   without rewriting the saved default.
 - [x] On-device settings expose plugin-driven **Sign in**, **Check status**,
@@ -180,7 +180,7 @@ URL/code display without a certificate failure.
   transport and preserve ordinary public-CA behavior.
 - [x] Add configurable proxy endpoint allowlisting and update the Ireland
   configuration toward Responses-only inference.
-- [ ] Pass a local HTTPS proxy-backed reviewer Responses tool loop through the
+- [x] Pass a local HTTPS proxy-backed reviewer Responses tool loop through the
   production embedded backend and Release simulator.
 - [x] Add verified embedded HTTPS trust for ChatGPT login, polling, token
   exchange, refresh, and related discovery.
@@ -188,7 +188,7 @@ URL/code display without a certificate failure.
   ChatGPT defaults while retaining provider compatibility outside mobile.
 - [x] Add the plugin-driven ChatGPT settings action host and generic returned
   display/follow-up handling.
-- [ ] Preserve and test per-session authentication overrides independently of
+- [x] Preserve and test per-session authentication overrides independently of
   the saved default.
 - [ ] Rebuild the iOS bundle and run focused provider, proxy, mobile, bundle,
   TypeScript, documentation, and simulator verification.
@@ -288,3 +288,15 @@ URL/code display without a certificate failure.
   boundary; that still requires a simulator-trusted local test certificate or
   the separately gated Ireland deployment. A repeat run passed with an
   explicit `embedded-provider-matrix-tools == apply_patch` assertion.
+- 2026-09-28: Completed the local HTTPS boundary with a temporary self-signed
+  certificate whose public PEM was copied into the simulator app data
+  container and entered through the production reviewer CA setting. The
+  private key remained host-only. The Release simulator again passed
+  `reviewer-codex` plus `apply_patch`, persisted-session relaunch, five
+  `/v1/models` responses, and two `/v1/responses` calls; all proxy responses
+  were HTTP 200 and the cost ledger recorded `$0.000486`.
+- 2026-09-28: Added stable session-setting auth-choice identifiers and
+  selected accessibility state. Runtime coverage proves a saved ChatGPT
+  default remains unchanged while one session overrides it to API using its
+  available API key, then returns to the saved ChatGPT default using stored
+  credentials.

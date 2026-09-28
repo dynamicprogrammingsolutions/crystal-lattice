@@ -1,5 +1,9 @@
 /// <reference types="detox" />
 
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import * as detox from "detox";
 
 const detoxExpect = detox.expect;
@@ -10,6 +14,9 @@ type ProfileId =
   | "openai"
   | "openrouter"
   | "anthropic";
+
+const APP_BUNDLE_ID =
+  "com.dynamicprogrammingsolutions.crystallatticecontrolrn";
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -61,6 +68,35 @@ async function scrollUntilVisible(
     }
   }
   throw new Error(`${testId} never became visible`);
+}
+
+function installSimulatorTlsCa(sourcePath: string): string {
+  if (device.getPlatform() !== "ios") {
+    throw new Error("The embedded reviewer TLS fixture is iOS-only.");
+  }
+  const container = execFileSync(
+    "/usr/bin/xcrun",
+    [
+      "simctl",
+      "get_app_container",
+      device.id,
+      APP_BUNDLE_ID,
+      "data",
+    ],
+    { encoding: "utf-8" }
+  ).trim();
+  const destinationDirectory = path.join(
+    container,
+    "Library",
+    "Application Support",
+    "CrystalLatticeEmbeddedRuntime",
+    "config",
+    "test-certs"
+  );
+  fs.mkdirSync(destinationDirectory, { recursive: true });
+  const destination = path.join(destinationDirectory, "reviewer-local-ca.pem");
+  fs.copyFileSync(sourcePath, destination);
+  return destination;
 }
 
 async function readText(testId: string): Promise<string> {
@@ -139,6 +175,7 @@ async function configureProfile(options: {
   model: string;
   apiKey: string;
   authMode: "api" | "chatgpt";
+  tlsCaBundle?: string;
 }): Promise<void> {
   await tapById("home-tab");
   await waitFor(element(by.id("home-embedded-settings")))
@@ -180,6 +217,12 @@ async function configureProfile(options: {
 
   await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
   await replaceProfileField(`${prefix}-model`, options.model);
+  if (options.profileId === "reviewer" && options.tlsCaBundle) {
+    await replaceProfileField(
+      "embedded-provider-reviewer-tls-ca-bundle",
+      options.tlsCaBundle
+    );
+  }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
   await scrollUntilVisible(scrollId, `${prefix}-test`);
   await tapById(`${prefix}-test`);
@@ -209,9 +252,14 @@ describe("embedded provider real API matrix", () => {
     const model = requiredEnvironment("CRYSTAL_EMBEDDED_MATRIX_MODEL");
     const authMode = (process.env.CRYSTAL_EMBEDDED_MATRIX_AUTH_MODE ??
       "api") as "api" | "chatgpt";
+    const tlsCaSource =
+      process.env.CRYSTAL_EMBEDDED_MATRIX_TLS_CA_SOURCE ?? null;
     const marker = `MATRIX_${profileId.toUpperCase()}`;
 
     await launchApp(true);
+    const tlsCaBundle = tlsCaSource
+      ? installSimulatorTlsCa(tlsCaSource)
+      : undefined;
     await openEmbeddedConnection();
     await createSession("local");
     await detoxExpect(element(by.id("session-chat-error"))).not.toExist();
@@ -223,6 +271,7 @@ describe("embedded provider real API matrix", () => {
       model,
       apiKey,
       authMode,
+      tlsCaBundle,
     });
 
     await tapById("messages-tab");

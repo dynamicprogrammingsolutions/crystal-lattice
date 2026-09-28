@@ -27,6 +27,7 @@ class MatrixRow:
     base_url: str
     api_key: str
     model: str
+    tls_ca_source: str | None = None
 
 
 def required_env(name: str) -> str:
@@ -122,6 +123,7 @@ def matrix_rows(requested: set[str]) -> Iterator[MatrixRow]:
             base_url=reviewer_url,
             api_key=reviewer_key,
             model=os.environ.get("REVIEWER_PROXY_MODEL", "gpt-5.6-luna"),
+            tls_ca_source=os.environ.get("REVIEWER_PROXY_TLS_CA_SOURCE"),
         )
 
 
@@ -160,6 +162,10 @@ def main() -> int:
                 ),
             }
         )
+        if row.tls_ca_source:
+            env["CRYSTAL_EMBEDDED_MATRIX_TLS_CA_SOURCE"] = row.tls_ca_source
+        else:
+            env.pop("CRYSTAL_EMBEDDED_MATRIX_TLS_CA_SOURCE", None)
         print(f"Running embedded provider Detox row: {row.name}")
         run(
             [

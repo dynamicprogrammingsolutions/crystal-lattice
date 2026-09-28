@@ -463,6 +463,84 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
     assert normalized_auto["providers"]["openai"]["auth_mode"] == "api"
 
 
+def test_chatgpt_saved_default_and_session_override_are_independent(
+    tmp_path: Path,
+) -> None:
+    module = load_runtime_module()
+    runtime_root = tmp_path / "runtime"
+    credentials_path = runtime_root / "config" / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2099-01-01T00:00:00Z",
+                "account_id": "account-1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime = module.MobileRuntime(
+        str(runtime_root),
+        {
+            "version": 3,
+            "default_agent": "openai-codex",
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "openai-api-key",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5.6-luna",
+                    "auth_mode": "chatgpt",
+                }
+            },
+        },
+    )
+    try:
+        session = runtime.create_session(agent_id="openai-codex")
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        _core, base_config, stored_session = loaded
+        assert base_config["auth_mode"] == "chatgpt"
+        assert runtime.runtime_configuration["providers"]["openai"]["auth_mode"] == (
+            "chatgpt"
+        )
+
+        runtime.application.patch_session_settings(
+            session.session_id,
+            {"auth_mode": "api"},
+        )
+        assert runtime.application.get_session_settings(session.session_id) == {
+            "auth_mode": "api"
+        }
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        _core, base_config, stored_session = loaded
+        assert base_config["auth_mode"] == "chatgpt"
+        assert runtime.application.resolve_effective_config(
+            base_config,
+            stored_session,
+        )["auth_mode"] == "api"
+
+        runtime.application.delete_session_setting(
+            session.session_id,
+            "auth_mode",
+        )
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        _core, base_config, stored_session = loaded
+        assert runtime.application.get_session_settings(session.session_id) == {}
+        assert runtime.application.resolve_effective_config(
+            base_config,
+            stored_session,
+        )["auth_mode"] == "chatgpt"
+        assert runtime.runtime_configuration["providers"]["openai"]["auth_mode"] == (
+            "chatgpt"
+        )
+    finally:
+        runtime.application.close()
+
+
 def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
     module = load_runtime_module()
 
