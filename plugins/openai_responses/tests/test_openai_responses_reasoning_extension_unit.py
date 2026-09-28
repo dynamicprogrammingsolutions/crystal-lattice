@@ -396,6 +396,55 @@ def test_get_ui_elements_gpt_6_astra_options() -> None:
     ]
 
 
+def test_get_ui_elements_gpt_6_sol_options_match_astra() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6-sol"}],
+    )
+
+    assert _effort_options(elements) == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra",
+    ]
+
+
+def test_get_ui_elements_gpt_6_luna_options_exclude_ultra() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6-luna"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6-luna"}],
+    )
+
+    assert _effort_options(elements) == ["low", "medium", "high", "xhigh", "max"]
+
+
+def test_gpt_6_sol_and_luna_offer_pro_mode_and_context() -> None:
+    """The GPT-6 family shares the gated effort tuples, so Pro reasoning
+    mode and reasoning context are offered for gpt-6-sol (and, through its
+    low-through-max tuple, gpt-6-luna) as well."""
+    ext = OpenAIResponsesReasoningExtension()
+
+    for model in ("gpt-6-sol", "gpt-6-luna"):
+        elements = ext.get_ui_elements(
+            config={"model": model},
+            tags=["supports_reasoning"],
+            models=[{"id": model}],
+        )
+
+        keys = [element.get("key") for element in elements]
+        assert "reasoning_mode" in keys, model
+        assert "reasoning_context" in keys, model
+
+
 def test_get_ui_elements_gpt_6_astra_offers_pro_mode_and_context() -> None:
     """gpt-6-astra shares the GPT-5.6 effort set, so Pro reasoning mode and
     reasoning context are offered for it as well."""
@@ -610,6 +659,49 @@ def test_initialize_request_injects_ultra_for_gpt_6_astra() -> None:
 
     request_options = new_state["config"]["request_options"]
     assert request_options["reasoning"] == {"effort": "ultra"}
+
+
+def test_initialize_request_injects_ultra_for_gpt_6_sol() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-6-sol",
+        "reasoning_effort": "ultra",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    request_options = new_state["config"]["request_options"]
+    assert request_options["reasoning"] == {"effort": "ultra"}
+
+
+def test_init_drops_ultra_for_gpt_6_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-6-luna",
+        "reasoning_effort": "ultra",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    assert "_openai_responses_reasoning" not in state
+
+
+def test_initialize_request_injects_max_for_gpt_6_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    request_options = new_state["config"]["request_options"]
+    assert request_options["reasoning"] == {"effort": "max"}
 
 
 def test_initialize_request_preserves_unrelated_existing_reasoning_fields() -> None:

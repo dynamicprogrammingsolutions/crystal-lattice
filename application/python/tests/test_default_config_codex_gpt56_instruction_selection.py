@@ -58,6 +58,13 @@ GPT_56_TERRA_LUNA_20260713_SHA256 = (
 GPT_56_20260718_SHA256 = (
     "cbefa6b0bede0e332d957fca70ccacf9f12f4c0ecdf81b819e5cbe1a3b16e265"
 )
+# 2026-09-23 upstream refresh (commit 24462234b2ae, #47397): one-line
+# heading change ("# Destructive Actions" -> "# Destructive actions").
+# Imported as the dated 20260923 files; still one shared template.
+GPT_56_20260923_SHA256 = (
+    "a91357a1cd2727a0be06d461248d6e3a7274746e38108f548a3adf2cc2430415"
+)
+GPT_56_20260923_HEADING = "# Destructive actions"
 GPT_56_DISTINCTIVE_SUBSTRING = "You are Codex, an agent based on GPT-5"
 # Sol-specific paragraph in the 2026-07-13 template, removed upstream by the
 # 2026-07-18 refresh.
@@ -99,7 +106,7 @@ def _file_sha256(path: Path) -> str:
 def test_gpt_56_sol_selects_dated_instruction_asset() -> None:
     text = _instruction_text("gpt-5.6-sol")
     expected = (
-        CODEX_DIR / "gpt-5.6-sol" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-sol" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
     assert text == expected
 
@@ -107,7 +114,7 @@ def test_gpt_56_sol_selects_dated_instruction_asset() -> None:
 def test_gpt_56_terra_selects_dated_instruction_asset() -> None:
     text = _instruction_text("gpt-5.6-terra")
     expected = (
-        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
     assert text == expected
 
@@ -115,7 +122,7 @@ def test_gpt_56_terra_selects_dated_instruction_asset() -> None:
 def test_gpt_56_luna_selects_dated_instruction_asset() -> None:
     text = _instruction_text("gpt-5.6-luna")
     expected = (
-        CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
     assert text == expected
 
@@ -128,7 +135,7 @@ def test_openai_prefixed_gpt_56_ids_select_correctly() -> None:
     ):
         text = _instruction_text(model)
         expected = (
-            CODEX_DIR / expected_dir / "instructions_default.20260718.md"
+            CODEX_DIR / expected_dir / "instructions_default.20260923.md"
         ).read_text(encoding="utf-8")
         assert text == expected, (model, expected_dir)
 
@@ -136,7 +143,7 @@ def test_openai_prefixed_gpt_56_ids_select_correctly() -> None:
 def test_bare_gpt_56_alias_does_not_select_gpt_56_template() -> None:
     text = _instruction_text("gpt-5.6")
     for model_dir in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
-        gpt_56 = (CODEX_DIR / model_dir / "instructions_default.20260718.md").read_text(
+        gpt_56 = (CODEX_DIR / model_dir / "instructions_default.20260923.md").read_text(
             encoding="utf-8"
         )
         assert text != gpt_56, model_dir
@@ -147,13 +154,13 @@ def test_bare_gpt_56_alias_does_not_select_gpt_56_template() -> None:
 
 
 def test_gpt_56_family_shares_one_template_since_20260718() -> None:
-    sol = (CODEX_DIR / "gpt-5.6-sol" / "instructions_default.20260718.md").read_text(
+    sol = (CODEX_DIR / "gpt-5.6-sol" / "instructions_default.20260923.md").read_text(
         encoding="utf-8"
     )
     terra = (
-        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
-    luna = (CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260718.md").read_text(
+    luna = (CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260923.md").read_text(
         encoding="utf-8"
     )
     assert sol == terra == luna
@@ -162,8 +169,8 @@ def test_gpt_56_family_shares_one_template_since_20260718() -> None:
 
 
 def test_terra_and_luna_mappings_are_both_present() -> None:
-    assert (CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260718.md").is_file()
-    assert (CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260718.md").is_file()
+    assert (CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260923.md").is_file()
+    assert (CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260923.md").is_file()
     raw_config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     raw_rows = raw_config["mixins"]["codex_developer_message"][
         "codex_developer_messages"
@@ -180,8 +187,8 @@ def test_terra_and_luna_mappings_are_both_present() -> None:
     assert luna_row is not None, "gpt-5.6-luna config row missing"
     assert "gpt-5.6-terra" in terra_row["text"]
     assert "gpt-5.6-luna" in luna_row["text"]
-    assert "20260718" in terra_row["text"]
-    assert "20260718" in luna_row["text"]
+    assert "20260923" in terra_row["text"]
+    assert "20260923" in luna_row["text"]
     # Verify the resolved text matches the dated file content
     resolved_rows = _load_codex_rows()
     resolved_terra = next(
@@ -202,10 +209,10 @@ def test_terra_and_luna_mappings_are_both_present() -> None:
     )
     assert resolved_terra is not None and resolved_luna is not None
     terra_file = (
-        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-terra" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
     luna_file = (
-        CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260718.md"
+        CODEX_DIR / "gpt-5.6-luna" / "instructions_default.20260923.md"
     ).read_text(encoding="utf-8")
     assert resolved_terra["text"] == terra_file
     assert resolved_luna["text"] == luna_file
@@ -213,8 +220,17 @@ def test_terra_and_luna_mappings_are_both_present() -> None:
 
 def test_gpt_56_dated_files_match_upstream_sha256() -> None:
     for model_dir in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
-        sha = _file_sha256(CODEX_DIR / model_dir / "instructions_default.20260718.md")
-        assert sha == GPT_56_20260718_SHA256, model_dir
+        sha = _file_sha256(CODEX_DIR / model_dir / "instructions_default.20260923.md")
+        assert sha == GPT_56_20260923_SHA256, model_dir
+        # The 2026-09-23 refresh changed only the Destructive-actions heading.
+        text_2026 = (
+            CODEX_DIR / model_dir / "instructions_default.20260923.md"
+        ).read_text(encoding="utf-8")
+        assert GPT_56_20260923_HEADING in text_2026, model_dir
+        old_sha = _file_sha256(
+            CODEX_DIR / model_dir / "instructions_default.20260718.md"
+        )
+        assert old_sha == GPT_56_20260718_SHA256, model_dir
 
 
 def test_gpt_56_previous_version_files_are_retained() -> None:
@@ -243,7 +259,7 @@ def test_personality_selection_resolves_to_same_template() -> None:
     none_text = _instruction_text("gpt-5.6-luna", None)
     assert default_text == friendly_text == pragmatic_text == none_text
     template = (
-        CODEX_DIR / "gpt-5.6-luna" / "model_messages.instructions_template.20260718.md"
+        CODEX_DIR / "gpt-5.6-luna" / "model_messages.instructions_template.20260923.md"
     ).read_text(encoding="utf-8")
     assert default_text == template
 

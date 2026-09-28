@@ -572,9 +572,10 @@ def test_merge_pricing_entry_renames_priority_for_off_page_models() -> None:
     assert tiers["fast"]["output_per_1m"] == 20.0
 
 
-def test_checked_in_snapshot_has_gpt_6_astra_and_no_priority_tiers() -> None:
-    """The refreshed checked-in snapshot contains gpt-6-astra with current
-    prices, updated GPT-5.6 prices, and no obsolete ``priority`` tier keys."""
+def test_checked_in_snapshot_has_gpt_6_family_and_no_priority_tiers() -> None:
+    """The refreshed checked-in snapshot contains the GPT-6 family with
+    current prices, updated GPT-5.6 prices, and no obsolete ``priority``
+    tier keys."""
     from openai_responses_plugins.openai_responses_pricing import (
         default_snapshot_path,
     )
@@ -597,6 +598,24 @@ def test_checked_in_snapshot_has_gpt_6_astra_and_no_priority_tiers() -> None:
     assert models["gpt-5.6-terra"]["pricing"]["output_per_1m"] == 12.0
     assert models["gpt-5.6-luna"]["pricing"]["input_per_1m"] == 0.2
     assert models["gpt-5.6-luna"]["pricing"]["output_per_1m"] == 1.2
+
+    # GPT-6 Sol and Luna (published 2026-09-27 pricing page).
+    sol = models["gpt-6-sol"]
+    assert sol["pricing"] == {
+        "input_per_1m": 2.0,
+        "cached_input_per_1m": 0.2,
+        "cache_write_per_1m": 2.5,
+        "output_per_1m": 10.0,
+    }
+    assert sol["service_tiers"]["fast"]["output_per_1m"] == 20.0
+    luna = models["gpt-6-luna"]
+    assert luna["pricing"] == {
+        "input_per_1m": 0.1,
+        "cached_input_per_1m": 0.01,
+        "cache_write_per_1m": 0.125,
+        "output_per_1m": 0.5,
+    }
+    assert luna["service_tiers"]["fast"]["output_per_1m"] == 1.0
 
     for model, entry in models.items():
         tiers = entry.get("service_tiers") or {}

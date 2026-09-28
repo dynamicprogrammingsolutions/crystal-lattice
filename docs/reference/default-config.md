@@ -67,20 +67,28 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-6-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-sol/instructions_default.20260922.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-luna/instructions_default.20260922.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-6-astra$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-astra/instructions_default.20260904.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-astra/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.6-sol$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.20260718.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.6-terra$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.20260718.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.6-luna$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.20260718.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.5$",

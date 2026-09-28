@@ -501,7 +501,8 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
-  - GPT-6-Astra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-6 Astra and Sol: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
@@ -511,11 +512,11 @@ loaded.
   - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
     `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
-- `reasoning_mode`: optional string enum `["pro"]`, GPT-6-Astra and the
-  GPT-5.6 family (Sol, Terra, Luna, and the bare `gpt-5.6` alias). API-only:
-  hidden when `auth_mode` is `chatgpt`.
+- `reasoning_mode`: optional string enum `["pro"]`, the GPT-6 family
+  (Astra, Sol, Luna) and the GPT-5.6 family (Sol, Terra, Luna, and the
+  bare `gpt-5.6` alias). API-only: hidden when `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, GPT-6-Astra and the GPT-5.6 family only.
+  "all_turns"]`, the GPT-6 and GPT-5.6 families only.
 - `show_reasoning_context_footer`: set to `false` to keep reasoning-context
   behavior and metadata while hiding its assistant-message footer.
 

@@ -10,8 +10,11 @@ Sources:
 - Repository: `https://github.com/openai/codex`
 - File (current): `codex-rs/models-manager/models.json`
 - File (historical, pre-`models-manager`): `codex-rs/core/models.json`
-- Commit for the `gpt-6-astra` import and the GPT-5.6 / `gpt-5.5` /
-  `gpt-5.4` template refresh: `e9633d7a0226eac91c7a791dc4f92cf8f25df2ae`
+- Commit for the `gpt-6-sol` / `gpt-6-luna` import, the `gpt-6-astra` and
+  GPT-5.6 2026-09-23 template refresh, and the earlier `gpt-5.5` /
+  `gpt-5.4` refresh: `ea647275560ffbcd4cf240d048eab44aa66ba9ae`
+  (2026-09-27)
+- Commit for the original `gpt-6-astra` import: `e9633d7a0226eac91c7a791dc4f92cf8f25df2ae`
   (2026-09-14)
 - Commit for the original `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
   import: `2f7d89b1419bf7064346855b0acde23514b1ebc5` (2026-07-13)
@@ -80,13 +83,44 @@ The placeholders used by the bundled templates are:
   - Upstream renders it literally (it is not a runtime substitution), so it
     is kept verbatim in the imported files.
 
-## GPT-6-Astra notes
+## GPT-6 family notes
 
-The `gpt-6-astra` subfolder was imported from upstream commit
-`e9633d7a0226eac91c7a791dc4f92cf8f25df2ae` (2026-09-14). The template
-content was introduced upstream on 2026-09-04
-(`83b62a02fab5c0fc797cbc9896c332148f1fd9d0`, #42836), so the dated files
-carry `20260904`:
+The GPT-6 family currently comprises `gpt-6-sol`, `gpt-6-luna`, and
+`gpt-6-astra`. All three follow the same import shape: templates open with
+`You are Codex, an agent based on GPT-6`, contain the literal
+`{{connector_id}}` text (see Placeholder behavior), have no personality
+placeholder, empty `instructions_variables`, and a shared 5737-char
+persistent-mode block (provenance copies only). Their
+`codex_developer_messages` rows omit the `personality` field, so every
+personality resolves to the same dated file. The bare `gpt-6` alias is
+intentionally not mapped; the authoritative Codex catalog publishes only
+the three explicit family IDs.
+
+### gpt-6-sol and gpt-6-luna
+
+Imported from upstream commit `ea647275560ffbcd4cf240d048eab44aa66ba9ae`
+(2026-09-27); template content introduced 2026-09-22
+(`49e95cc73f4e`, #47332), so the dated files carry `20260922`:
+
+- `gpt-6-sol`: 18992 chars, sha256
+  `b1dd8718c037906c53a305c5cbccb4a4be35ccbb7837461ec349bfc495412f0d`
+  ("Workhorse model for coding and everyday work.").
+- `gpt-6-luna`: 18037 chars, sha256
+  `b707476816bfe5e571a1bd2179f130fff2b132da5ab8e61063acdb7fd24daf12`
+  ("Fast and affordable model for easier tasks.").
+
+### gpt-6-astra
+
+Originally imported from upstream commit
+`e9633d7a0226eac91c7a791dc4f92cf8f25df2ae` (2026-09-14) as dated
+`20260904` files (template introduced 2026-09-04 by
+`83b62a02fab5c0fc797cbc9896c332148f1fd9d0`, #42836). On 2026-09-27 the
+drifted template was refreshed as dated `20260923` files (template
+introduced 2026-09-23 by `24462234b2ae`, #47397; 21420 chars, sha256
+`35bd51b5f577cb7b24cd5f4629e49e37cb724ab57754ce6f8f202001635bab8a`).
+The refresh changed exactly one line: the tool-messaging authorization
+sentence now allows explicitly-invoked skills/plugins and asks the model
+to name and link them. The `20260904` files are retained.
 
 - `instructions_default.20260904.md` — effective developer message
   (sha256 `152dfaeeb552876190962be1c12c93d426840ff12691f648261554a7675a6698`,
@@ -98,17 +132,6 @@ carry `20260904`:
   persistent-mode block
   (sha256 `30747e79e50efb64f91cfff3d5ef1882e347081e81448918d5f7d5358e98c523`,
   5737 chars), kept for provenance only.
-
-The template opens with `You are Codex, an agent based on GPT-6` and adds
-the `# When to ask the user for permission`, `# Autonomy and persistence`,
-`# Apps (Connectors)`, and `# Plugins` sections. The `{{connector_id}}`
-placeholder is literal text (see Placeholder behavior).
-
-The default-config `codex_developer_messages` row for `gpt-6-astra` omits
-the `personality` field, so all personality selections resolve to the same
-dated file via the fallback path in `select_codex_developer_message.py`.
-The bare `gpt-6` alias is intentionally not mapped; the authoritative Codex
-catalog publishes only `gpt-6-astra`.
 
 ## GPT-5.6 family notes
 
@@ -137,11 +160,16 @@ Key differences from older templated models:
   in `select_codex_developer_message.py`.
 
 Since the 2026-07-18 upstream refresh, all three GPT-5.6 models share one
-byte-identical template
-(sha256 `cbefa6b0bede0e332d957fca70ccacf9f12f4c0ecdf81b819e5cbe1a3b16e265`,
-17730 chars); `gpt-5.6-sol` no longer has a distinct variant. The three
-directories are kept separate so a future upstream divergence is not
-hidden. The 2026-07-13 import's distinct Sol template
+byte-identical template; `gpt-5.6-sol` no longer has a distinct variant. The
+three directories are kept separate so a future upstream divergence is not
+hidden. On 2026-09-27 the drifted template was refreshed as dated
+`20260923` files (introduced 2026-09-23 by `24462234b2ae`, #47397; 17730
+chars, sha256
+`a91357a1cd2727a0be06d461248d6e3a7274746e38108f548a3adf2cc2430415`) —
+a one-line heading change (`# Destructive Actions` →
+`# Destructive actions`). The `20260718` files (sha256
+`cbefa6b0bede0e332d957fca70ccacf9f12f4c0ecdf81b819e5cbe1a3b16e265`) are
+retained. The 2026-07-13 import's distinct Sol template
 (sha256 `e9778714d505f3dd04d44db4394024c5fab5bf6554fc9faa3cdf9cf776b63bb9`)
 and the shared Terra/Luna template
 (sha256 `78a2fc84e1bffa421d865c1a2ade4185d3d33ef38e6a15157f0ff1a89b7d52ec`)

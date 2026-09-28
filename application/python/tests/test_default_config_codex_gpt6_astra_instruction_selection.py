@@ -55,11 +55,13 @@ HELPER_PATH = (
     / "select_codex_developer_message.py"
 )
 
-# Upstream commit e9633d7a0226eac91c7a791dc4f92cf8f25df2ae (2026-09-14);
-# template content introduced 2026-09-04 by 83b62a02fab5c0fc797cbc9896c332148f1fd9d0.
-GPT_6_ASTRA_DATE = "20260904"
+# Upstream commit ea647275560ffbcd4cf240d048eab44aa66ba9ae (2026-09-27);
+# template content introduced 2026-09-23 by 24462234b2ae (#47397). The
+# previous version (introduced 2026-09-04 by 83b62a02fab5c0fc797cbc9896c332148f1fd9d0)
+# is retained in the 20260904 dated files.
+GPT_6_ASTRA_DATE = "20260923"
 GPT_6_ASTRA_TEMPLATE_SHA256 = (
-    "152dfaeeb552876190962be1c12c93d426840ff12691f648261554a7675a6698"
+    "35bd51b5f577cb7b24cd5f4629e49e37cb724ab57754ce6f8f202001635bab8a"
 )
 GPT_6_ASTRA_PERSISTENT_SHA256 = (
     "30747e79e50efb64f91cfff3d5ef1882e347081e81448918d5f7d5358e98c523"

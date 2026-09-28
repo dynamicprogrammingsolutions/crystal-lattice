@@ -51,8 +51,12 @@ _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
 ] = (
     (re.compile(r"^gpt-5-pro(?:-|$)"), ("high",)),
     (
-        re.compile(r"^gpt-6-astra(?:-|$)"),
+        re.compile(r"^gpt-6-(?:astra|sol)(?:-|$)"),
         ("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
+    (
+        re.compile(r"^gpt-6-luna(?:-|$)"),
+        ("low", "medium", "high", "xhigh", "max"),
     ),
     (
         re.compile(r"^gpt-5\.6-(?:sol|terra)(?:-|$)"),
@@ -71,9 +75,9 @@ _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
     (re.compile(r"^gpt-5(?:-|$)"), ("minimal", "low", "medium", "high")),
 )
 
-# Effort tuples produced by the GPT-5.6 and GPT-6-Astra patterns above. Used
-# to gate Pro reasoning mode without re-scanning the patterns. Kept in sync
-# with the ``_MODEL_REASONING_EFFORT_PATTERNS`` entries that offer the
+# Effort tuples produced by the GPT-5.6 and GPT-6 family patterns above.
+# Used to gate Pro reasoning mode without re-scanning the patterns. Kept in
+# sync with the ``_MODEL_REASONING_EFFORT_PATTERNS`` entries that offer the
 # ``max``/``ultra`` efforts.
 _GPT_5_6_REASONING_EFFORTS = frozenset(
     {
