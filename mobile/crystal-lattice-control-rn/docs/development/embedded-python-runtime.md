@@ -12,7 +12,8 @@ enabled and has a key, URL, and model:
 
 | Agent | Provider | Tool family |
 | --- | --- | --- |
-| `reviewer-claude` | generic OpenAI-compatible reviewer endpoint | Claude-like |
+| `compatible-claude` | generic OpenAI-compatible endpoint, including Ollama | Claude-like |
+| `reviewer-codex` | preconfigured Ireland OpenAI Responses reviewer | Codex-like |
 | `openai-codex` | OpenAI Responses | Codex-like |
 | `openrouter-claude` | OpenRouter | Claude-like |
 | `anthropic-claude` | official Anthropic Messages API | Claude-like |
@@ -26,7 +27,9 @@ sessions created before configuration remain loadable. A successfully tested
 real profile becomes the default for subsequent sessions.
 
 Provider URLs, models, enabled flags, and the default agent are stored in a
-versioned iOS preference document. Each provider API key is stored as a
+versioned iOS preference document. Version 3 splits the old overloaded
+reviewer profile into generic-compatible and dedicated Responses reviewer
+profiles. Each provider API key is stored as a
 separate iOS Keychain generic-password item. JavaScript receives only
 `hasApiKey`; keys are not written to connection records or AsyncStorage. The
 old single reviewer key is migrated from `UserDefaults` to Keychain.
@@ -44,17 +47,21 @@ SDKs and native dependencies such as `jiter` and `pydantic-core` are not
 bundled. The embedded dependency list pins the requests/certificate closure,
 and the Release simulator smoke constructs both provider clients.
 
-OpenRouter and the reviewer provider use their existing `requests`
-implementations. Provider API requests send user messages, provider history,
-and relevant tool inputs/results to the selected external service.
+OpenRouter and the generic compatible provider use their existing `requests`
+implementations. The dedicated reviewer uses OpenAI Responses through the
+package-owned requests transport and sends `/responses`, not
+`/chat/completions`. Provider API requests send user messages, provider
+history, and relevant tool inputs/results to the selected external service.
 
 OpenAI Responses supports `api`, `auto`, and `chatgpt` authentication modes.
 The bundle includes `chatgpt-auth-app` and the Responses ChatGPT auth feature.
 Login uses ordinary application/session actions and the generic action UI.
 
-The reviewer profile accepts a custom CA bundle. The App Review build includes
-the public Ireland reviewer certificate and retains TLS verification; private
-certificate keys and API credentials are not bundled.
+The reviewer profile is preconfigured with the Ireland HTTPS URL,
+`gpt-5.6-luna`, and a custom CA bundle. The App Review build includes the
+public Ireland reviewer certificate and retains TLS verification; private
+certificate keys and API credentials are not bundled. Runtime preparation
+preserves the tracked public certificate when regenerating resources.
 
 At runtime, mutable data lives under:
 
@@ -289,7 +296,7 @@ CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
 - Fixed provider and tool-family profiles rather than arbitrary plugin
   installation or runtime-defined agents.
 - Profiles without complete enabled settings are omitted from the live agent
-  list; `auto`/`chatgpt` OpenAI profiles may use saved ChatGPT credentials.
+  list; ChatGPT OpenAI profiles may use saved ChatGPT credentials.
 - Ollama runs behind an external proxy; no model runs inside the app.
 - No Tavily search, restricted Python executor, email integration, dynamic
   plugin installation, or arbitrary user-selected workspace.

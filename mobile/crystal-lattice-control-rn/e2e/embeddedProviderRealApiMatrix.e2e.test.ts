@@ -4,7 +4,12 @@ import * as detox from "detox";
 
 const detoxExpect = detox.expect;
 
-type ProfileId = "reviewer" | "openai" | "openrouter" | "anthropic";
+type ProfileId =
+  | "compatible"
+  | "reviewer"
+  | "openai"
+  | "openrouter"
+  | "anthropic";
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];

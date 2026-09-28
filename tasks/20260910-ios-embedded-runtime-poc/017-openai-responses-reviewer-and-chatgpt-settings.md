@@ -174,11 +174,11 @@ URL/code display without a certificate failure.
   updated dependency boundaries.
 - [ ] Add regression coverage for current reviewer protocol/defaults and the
   current ChatGPT display/TLS gaps.
-- [ ] Split the generic compatible and dedicated reviewer profiles, including
+- [x] Split the generic compatible and dedicated reviewer profiles, including
   stable settings persistence/migration and agent/tool-family wiring.
-- [ ] Add explicit custom-CA support to the OpenAI Responses requests
+- [x] Add explicit custom-CA support to the OpenAI Responses requests
   transport and preserve ordinary public-CA behavior.
-- [ ] Add configurable proxy endpoint allowlisting and update the Ireland
+- [x] Add configurable proxy endpoint allowlisting and update the Ireland
   configuration toward Responses-only inference.
 - [ ] Pass a local HTTPS proxy-backed reviewer Responses tool loop through the
   production embedded backend and Release simulator.
@@ -249,3 +249,15 @@ URL/code display without a certificate failure.
   previously proposed ChatGPT TLS/settings corrections belong in the same
   follow-up. Local implementation is authorized. Ireland/AWS mutation remains
   separately confirmation-gated.
+- 2026-09-28: Added settings schema version 3 with separate
+  `compatible-claude` and `reviewer-codex` profiles. The reviewer is
+  preconfigured for Ireland/Luna, uses the OpenAI Responses requests transport
+  with explicit CA verification, and receives Codex-like tools. Legacy V2
+  settings migrate local reviewer values and Keychain credentials to the
+  compatible profile while preserving known Ireland reviewer values.
+- 2026-09-28: Added configurable proxy endpoint allowlisting and changed the
+  checked-in Ireland configuration to permit only `/models` and `/responses`.
+  Thirteen proxy tests, 12 embedded runtime tests, three focused Responses
+  transport tests, 273 mobile tests, TypeScript compilation, Ruff, and the
+  Release simulator build pass. Runtime preparation was corrected to preserve
+  the tracked public reviewer CA across generated-resource replacement.

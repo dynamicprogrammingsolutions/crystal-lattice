@@ -376,9 +376,9 @@ async function jsonRequest(
   });
 }
 
-test("configured proxy filters models, replaces auth, charges usage, and restores cooldown", async () => {
+test("configured Responses proxy restricts endpoints, replaces auth, charges usage, and restores cooldown", async () => {
   let receivedAuthorization = null;
-  let receivedCompletionBody = null;
+  let receivedResponseBody = null;
   let targetRequests = 0;
   const target = http.createServer(async (req, res) => {
     targetRequests += 1;
@@ -396,19 +396,19 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
       );
       return;
     }
-    if (req.url === "/v1/chat/completions") {
+    if (req.url === "/v1/responses") {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
-      receivedCompletionBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      receivedResponseBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     }
     res.end(
       JSON.stringify({
-        id: "chatcmpl-test",
-        choices: [{ message: { role: "assistant", content: "ok" } }],
+        id: "resp-test",
+        output: [],
         usage: {
-          prompt_tokens: 100,
-          prompt_tokens_details: { cached_tokens: 20 },
-          completion_tokens: 10,
+          input_tokens: 100,
+          input_tokens_details: { cached_tokens: 20 },
+          output_tokens: 10,
         },
       }),
     );
@@ -426,14 +426,14 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
         base_url: `http://127.0.0.1:${targetPort}/v1`,
         api_key_env: "UPSTREAM_TEST_KEY",
       },
-      routing: { base_path: "/v1" },
+      routing: {
+        base_path: "/v1",
+        allowed_endpoints: ["models", "responses"],
+      },
       client_auth: { api_key_env: "REVIEWER_TEST_KEY" },
       models: {
         allowed: ["gpt-luna"],
         allowed_service_tiers: ["standard"],
-        request_overrides: {
-          chat_completions: { reasoning_effort: "none" },
-        },
       },
       budget: {
         limit_usd: 0.000001,
@@ -487,29 +487,40 @@ test("configured proxy filters models, replaces auth, charges usage, and restore
 
     const invalidModel = await jsonRequest(
       proxyPort,
-      "/v1/chat/completions",
+      "/v1/responses",
       {
         method: "POST",
-        body: { model: "other-model", messages: [] },
+        body: { model: "other-model", input: [] },
       },
     );
     assert.equal(invalidModel.status, 400);
     assert.equal(targetRequests, 1);
 
-    const completion = await jsonRequest(
+    const rejectedChatCompletions = await jsonRequest(
       proxyPort,
       "/v1/chat/completions",
+      {
+        method: "POST",
+        body: { model: "gpt-luna", messages: [] },
+      },
+    );
+    assert.equal(rejectedChatCompletions.status, 404);
+    assert.equal(targetRequests, 1);
+
+    const completion = await jsonRequest(
+      proxyPort,
+      "/v1/responses",
       {
         method: "POST",
         body: {
           model: "gpt-luna",
           service_tier: "standard",
-          messages: [{ role: "user", content: "hello" }],
+          input: [{ role: "user", content: "hello" }],
         },
       },
     );
     assert.equal(completion.status, 200);
-    assert.equal(receivedCompletionBody.reasoning_effort, "none");
+    assert.equal(receivedResponseBody.model, "gpt-luna");
     assert.equal(receivedAuthorization, "Bearer upstream-secret");
     assert.equal(targetRequests, 2);
 

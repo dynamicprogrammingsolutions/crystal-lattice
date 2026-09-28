@@ -60,6 +60,11 @@ The requests transport supports API-key model discovery, ordinary and
 streaming Responses calls, and tool loops. It does not provide file uploads,
 ChatGPT authentication, or async native-compaction calls.
 
+Set `tls_ca_bundle` to a PEM bundle path when a Responses-compatible endpoint
+uses a private or self-signed CA. This option applies only to
+`provider_transport: "requests"` and keeps verification enabled. Without it,
+requests uses its ordinary public CA trust behavior.
+
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
 

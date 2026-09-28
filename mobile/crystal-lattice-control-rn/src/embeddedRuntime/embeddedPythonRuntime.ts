@@ -27,6 +27,7 @@ export interface EmbeddedRuntimeResponse<T = any> {
 }
 
 export type EmbeddedProviderProfileId =
+  | "compatible"
   | "reviewer"
   | "openai"
   | "openrouter"
@@ -56,7 +57,7 @@ export interface EmbeddedProviderProfile {
 }
 
 export interface EmbeddedRuntimeConfiguration {
-  version?: 2;
+  version?: 3;
   defaultAgent?: string;
   providers?: Partial<
     Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate>
@@ -69,7 +70,7 @@ export interface EmbeddedRuntimeConfiguration {
 }
 
 export interface EmbeddedRuntimePublicConfiguration {
-  version: 2;
+  version: 3;
   defaultAgent: string;
   providers: Record<EmbeddedProviderProfileId, EmbeddedProviderProfile>;
   // Legacy reviewer setup aliases.

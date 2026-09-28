@@ -47,16 +47,22 @@ class EmbeddedSmokeProvider(ProviderPlugin):
 
 
 PROFILE_ORDER = (
+    "compatible",
     "reviewer",
     "openai",
     "openrouter",
     "anthropic",
 )
 PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "reviewer": {
-        "enabled": True,
+    "compatible": {
+        "enabled": False,
         "base_url": "http://127.0.0.1:3000/v1",
         "model": "qwen3.5:0.8b",
+    },
+    "reviewer": {
+        "enabled": True,
+        "base_url": "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+        "model": "gpt-5.6-luna",
         "tls_ca_bundle": "",
     },
     "openai": {
@@ -77,7 +83,8 @@ PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
     },
 }
 PROFILE_AGENTS = {
-    "reviewer": "reviewer-claude",
+    "compatible": "compatible-claude",
+    "reviewer": "reviewer-codex",
     "openai": "openai-codex",
     "openrouter": "openrouter-claude",
     "anthropic": "anthropic-claude",
@@ -132,11 +139,13 @@ def _normalized_profile(
             or defaults["base_url"]
         ).strip(),
         "model": str(source.get("model") or defaults["model"]).strip(),
-        "auth_mode": str(
+        "auth_mode": (
+            lambda mode: mode if mode in {"api", "chatgpt"} else "api"
+        )(str(
             source.get("auth_mode")
             or defaults.get("auth_mode")
             or "api"
-        ).strip().lower(),
+        ).strip().lower()),
         "tls_ca_bundle": str(
             source.get("tls_ca_bundle")
             or defaults.get("tls_ca_bundle")
@@ -157,7 +166,7 @@ def _normalized_runtime_configuration(
         source.get(key) for key in ("api_key", "model", "proxy_url")
     ):
         profiles_source = {
-            "reviewer": {
+            "compatible": {
                 "enabled": True,
                 "api_key": source.get("api_key"),
                 "model": source.get("model"),
@@ -207,7 +216,7 @@ def _runtime_provider_mode(configuration: dict[str, Any]) -> str:
         if isinstance(profiles.get(profile_id), dict)
         and _profile_is_ready(profiles[profile_id])
     ]
-    if configured == ["reviewer"]:
+    if configured == ["compatible"]:
         return "openai-compatible"
     return "multi-provider" if configured else "smoke"
 
@@ -277,7 +286,7 @@ def _config_payload(
     ]
 
     provider_plugins: dict[str, list[str]] = {
-        "reviewer": [
+        "compatible": [
             (
                 "reference_openai_compatible_provider.provider."
                 "OpenAICompatibleProvider"
@@ -285,6 +294,24 @@ def _config_payload(
             (
                 "reference_openai_compatible_provider.tools_extension."
                 "OpenAICompatibleToolsExtension"
+            ),
+        ],
+        "reviewer": [
+            (
+                "openai_responses_plugins.openai_responses_provider."
+                "OpenAIResponsesProvider"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_tools_extension."
+                "OpenAIResponsesToolsExtension"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_reasoning_extension."
+                "OpenAIResponsesReasoningExtension"
+            ),
+            (
+                "openai_responses_plugins.openai_responses_usage_extension."
+                "OpenAIResponsesUsageExtension"
             ),
         ],
         "openai": [
@@ -352,11 +379,22 @@ def _config_payload(
             "working_directory": str(workspace_root),
             "allowed_paths": [str(workspace_root)],
         }
-        if profile_id == "reviewer":
+        if profile_id == "compatible":
             provider_config["provider"] = "reference_openai_compatible"
+            tool_plugins = CLAUDE_TOOL_PLUGINS
+        elif profile_id == "reviewer":
+            provider_config.update(
+                {
+                    "provider": "openai_responses",
+                    "provider_transport": "requests",
+                    "auth_mode": "api",
+                    "reasoning_effort": "low",
+                    "reasoning_summary": "concise",
+                }
+            )
             if profile["tls_ca_bundle"]:
                 provider_config["tls_ca_bundle"] = profile["tls_ca_bundle"]
-            tool_plugins = CLAUDE_TOOL_PLUGINS
+            tool_plugins = CODEX_TOOL_PLUGINS
         elif profile_id == "openai":
             provider_config.update(
                 {
@@ -394,7 +432,11 @@ def _config_payload(
             "plugins": list(tool_plugins),
             "working_directory": str(workspace_root),
             "allowed_paths": [str(workspace_root)],
-            "tool_family": "codex-like" if profile_id == "openai" else "claude-like",
+            "tool_family": (
+                "codex-like"
+                if profile_id in {"reviewer", "openai"}
+                else "claude-like"
+            ),
         }
         for plugin in provider_plugins[profile_id]:
             if plugin not in plugins:
@@ -1442,13 +1484,13 @@ def _handle_request(
         }
         if profile.get("tls_ca_bundle"):
             provider_config["tls_ca_bundle"] = profile["tls_ca_bundle"]
-        if requested_profile_id == "reviewer":
+        if requested_profile_id == "compatible":
             from reference_openai_compatible_provider.provider import (
                 OpenAICompatibleProvider,
             )
 
             provider = OpenAICompatibleProvider()
-        elif requested_profile_id == "openai":
+        elif requested_profile_id in {"reviewer", "openai"}:
             from openai_responses_plugins.openai_responses_provider import (
                 OpenAIResponsesProvider,
             )
@@ -1456,7 +1498,11 @@ def _handle_request(
             provider_config.update(
                 {
                     "provider_transport": "requests",
-                    "auth_mode": profile.get("auth_mode") or "api",
+                    "auth_mode": (
+                        profile.get("auth_mode")
+                        if requested_profile_id == "openai"
+                        else "api"
+                    ),
                 }
             )
             provider = OpenAIResponsesProvider()

@@ -295,7 +295,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         },
         tmp_path / "workspace",
     )
-    assert legacy_config["agents"]["reviewer-claude"]["plugins"] == [
+    assert legacy_config["agents"]["compatible-claude"]["plugins"] == [
         "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
         "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
         "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
@@ -305,7 +305,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     ]
 
     full_configuration = {
-        "version": 2,
+        "version": 3,
         "default_agent": "openai-codex",
         "providers": {
             profile_id: {
@@ -321,8 +321,12 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         full_configuration,
         tmp_path / "workspace",
     )
-    assert runtime_config["providers"]["reviewer"]["provider"] == (
+    assert runtime_config["providers"]["compatible"]["provider"] == (
         "reference_openai_compatible"
+    )
+    assert runtime_config["providers"]["reviewer"]["provider"] == "openai_responses"
+    assert runtime_config["providers"]["reviewer"]["provider_transport"] == (
+        "requests"
     )
     assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
     assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
@@ -334,8 +338,11 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     assert runtime_config["agents"]["openai-codex"]["plugins"] == (
         module.CODEX_TOOL_PLUGINS
     )
+    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == (
+        module.CODEX_TOOL_PLUGINS
+    )
     for agent_id in (
-        "reviewer-claude",
+        "compatible-claude",
         "openrouter-claude",
         "anthropic-claude",
     ):
@@ -370,10 +377,11 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     try:
         assert runtime.application.list_agents() == [
             "anthropic-claude",
+            "compatible-claude",
             "local",
             "openai-codex",
             "openrouter-claude",
-            "reviewer-claude",
+            "reviewer-codex",
         ]
         default_session = runtime.create_session()
         assert default_session.metadata["agent_id"] == "openai-codex"
@@ -401,7 +409,7 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
     module = load_runtime_module()
     runtime_config = module._config_payload(
         {
-            "version": 2,
+            "version": 3,
             "default_agent": "openai-codex",
             "providers": {
                 "reviewer": {
@@ -425,6 +433,10 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
 
     assert runtime_config["providers"]["reviewer"]["tls_ca_bundle"] == (
         "/runtime/reviewer-ca.pem"
+    )
+    assert runtime_config["providers"]["reviewer"]["provider"] == "openai_responses"
+    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == (
+        module.CODEX_TOOL_PLUGINS
     )
     assert runtime_config["providers"]["openai"]["auth_mode"] == "chatgpt"
     assert "openai-codex" in runtime_config["agents"]
@@ -473,14 +485,14 @@ def test_local_session_remains_usable_after_provider_enable(
     configured_runtime = module.MobileRuntime(
         str(root),
         {
-            "version": 2,
-            "default_agent": "reviewer-claude",
+            "version": 3,
+            "default_agent": "compatible-claude",
             "providers": {
-                "reviewer": {
+                "compatible": {
                     "enabled": True,
-                    "api_key": "reviewer-key",
-                    "base_url": "https://reviewer.test/v1",
-                    "model": "reviewer-model",
+                    "api_key": "compatible-key",
+                    "base_url": "https://compatible.test/v1",
+                    "model": "compatible-model",
                 }
             },
         },

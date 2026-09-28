@@ -18,23 +18,34 @@ final class CrystalLatticePythonRuntime: NSObject {
   private static let lifecycleDefaultsKey =
     "clcEmbeddedRuntimeLifecycleStatus"
   private static let providerSettingsDefaultsKey =
+    "clcEmbeddedProviderSettingsV3"
+  private static let legacyProviderSettingsDefaultsKey =
     "clcEmbeddedProviderSettingsV2"
   private static let providerKeychainService =
     "com.dynamicprogrammingsolutions.crystallattice.embedded-provider-key"
   private static let providerOrder = [
+    "compatible",
     "reviewer",
     "openai",
     "openrouter",
     "anthropic",
   ]
   private static let providerDefinitions: [String: [String: String]] = [
-    "reviewer": [
-      "agentId": "reviewer-claude",
+    "compatible": [
+      "agentId": "compatible-claude",
       "baseUrl": "http://127.0.0.1:3000/v1",
-      "label": "OpenAI-compatible reviewer",
+      "label": "OpenAI-compatible",
       "model": "qwen3.5:0.8b",
-      "tlsCaBundle": "",
       "toolFamily": "claude-like",
+    ],
+    "reviewer": [
+      "agentId": "reviewer-codex",
+      "baseUrl":
+        "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+      "label": "OpenAI Responses reviewer",
+      "model": "gpt-5.6-luna",
+      "tlsCaBundle": "",
+      "toolFamily": "codex-like",
     ],
     "openai": [
       "agentId": "openai-codex",
@@ -381,8 +392,8 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     return [
-      "version": 2,
-      "defaultAgent": "reviewer-claude",
+      "version": 3,
+      "defaultAgent": "reviewer-codex",
       "providers": providers,
     ]
   }
@@ -425,7 +436,7 @@ final class CrystalLatticePythonRuntime: NSObject {
         (rawProfile["authMode"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
           .lowercased()
-      let authMode = ["api", "auto", "chatgpt"].contains(
+      let authMode = ["api", "chatgpt"].contains(
         requestedAuthMode ?? ""
       )
         ? requestedAuthMode!
@@ -455,15 +466,15 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     let requestedDefault =
-      rawSettings["defaultAgent"] as? String ?? "reviewer-claude"
+      rawSettings["defaultAgent"] as? String ?? "reviewer-codex"
     let validAgents = Set(
       providerDefinitions.values.compactMap { $0["agentId"] }
     )
     return [
-      "version": 2,
+      "version": 3,
       "defaultAgent": validAgents.contains(requestedDefault)
         ? requestedDefault
-        : "reviewer-claude",
+        : "reviewer-codex",
       "providers": providers,
     ]
   }
@@ -475,32 +486,88 @@ final class CrystalLatticePythonRuntime: NSObject {
     ) {
       return normalizedProviderSettings(stored)
     }
+    if let stored = defaults.dictionary(
+      forKey: legacyProviderSettingsDefaultsKey
+    ) {
+      let migrated = migrateLegacyProviderSettings(stored)
+      saveProviderSettings(migrated)
+      return migrated
+    }
 
     var settings = defaultProviderSettings()
     var providers = settings["providers"] as? [String: Any] ?? [:]
-    var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
+    var compatible = providers["compatible"] as? [String: Any] ?? [:]
     if let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL"),
       !legacyUrl.isEmpty
     {
-      reviewer["baseUrl"] = legacyUrl
+      compatible["baseUrl"] = legacyUrl
     }
     if let legacyModel = defaults.string(forKey: "clcEmbeddedModel"),
       !legacyModel.isEmpty
     {
-      reviewer["model"] = legacyModel
+      compatible["model"] = legacyModel
     }
-    reviewer["enabled"] = true
-    providers["reviewer"] = reviewer
+    compatible["enabled"] = true
+    providers["compatible"] = compatible
     settings["providers"] = providers
+    settings["defaultAgent"] = "compatible-claude"
     saveProviderSettings(settings)
 
     if let legacyKey = defaults.string(
       forKey: "clcEmbeddedProxyAPIKey"
     ), !legacyKey.isEmpty {
-      try? setAPIKey(legacyKey, profileId: "reviewer")
+      try? setAPIKey(legacyKey, profileId: "compatible")
     }
     defaults.removeObject(forKey: "clcEmbeddedProxyAPIKey")
     return settings
+  }
+
+  private static func migrateLegacyProviderSettings(
+    _ legacy: [String: Any]
+  ) -> [String: Any] {
+    var migrated = defaultProviderSettings()
+    let legacyProviders = legacy["providers"] as? [String: Any] ?? [:]
+    var providers = migrated["providers"] as? [String: Any] ?? [:]
+    for profileId in ["openai", "openrouter", "anthropic"] {
+      if let profile = legacyProviders[profileId] as? [String: Any] {
+        providers[profileId] = profile
+      }
+    }
+
+    let legacyReviewer =
+      legacyProviders["reviewer"] as? [String: Any] ?? [:]
+    let legacyBaseUrl =
+      legacyReviewer["baseUrl"] as? String ?? ""
+    let wasExternalReviewer = legacyBaseUrl.contains(
+      "ireland-s1.dynamicprogrammingsolutions.com"
+    )
+    let targetProfileId = wasExternalReviewer ? "reviewer" : "compatible"
+    var target = providers[targetProfileId] as? [String: Any] ?? [:]
+    for key in ["enabled", "baseUrl", "model"] {
+      if let value = legacyReviewer[key] {
+        target[key] = value
+      }
+    }
+    if wasExternalReviewer, let value = legacyReviewer["tlsCaBundle"] {
+      target["tlsCaBundle"] = value
+    }
+    providers[targetProfileId] = target
+    migrated["providers"] = providers
+
+    let legacyDefault = legacy["defaultAgent"] as? String
+    migrated["defaultAgent"] =
+      legacyDefault == "reviewer-claude"
+        ? (wasExternalReviewer ? "reviewer-codex" : "compatible-claude")
+        : legacyDefault ?? "reviewer-codex"
+
+    if !wasExternalReviewer {
+      let legacyKey = apiKey(profileId: "reviewer")
+      if !legacyKey.isEmpty {
+        try? setAPIKey(legacyKey, profileId: "compatible")
+        try? setAPIKey(nil, profileId: "reviewer")
+      }
+    }
+    return normalizedProviderSettings(migrated)
   }
 
   private static func saveProviderSettings(_ settings: [String: Any]) {
@@ -550,7 +617,7 @@ final class CrystalLatticePythonRuntime: NSObject {
           let normalized = authMode.trimmingCharacters(
             in: .whitespacesAndNewlines
           ).lowercased()
-          guard ["api", "auto", "chatgpt"].contains(normalized) else {
+          guard ["api", "chatgpt"].contains(normalized) else {
             throw RuntimeError.invalidConfiguration
           }
           profile["authMode"] = normalized
@@ -575,16 +642,16 @@ final class CrystalLatticePythonRuntime: NSObject {
       else {
         throw RuntimeError.invalidConfiguration
       }
-      var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
-      reviewer["enabled"] = true
-      reviewer["baseUrl"] = proxyUrl.trimmingCharacters(
+      var compatible = providers["compatible"] as? [String: Any] ?? [:]
+      compatible["enabled"] = true
+      compatible["baseUrl"] = proxyUrl.trimmingCharacters(
         in: .whitespacesAndNewlines
       )
-      reviewer["model"] = model.trimmingCharacters(
+      compatible["model"] = model.trimmingCharacters(
         in: .whitespacesAndNewlines
       )
-      providers["reviewer"] = reviewer
-      settings["defaultAgent"] = "reviewer-claude"
+      providers["compatible"] = compatible
+      settings["defaultAgent"] = "compatible-claude"
     }
     settings["providers"] = providers
     if let defaultAgent = configuration["defaultAgent"] as? String {
@@ -615,7 +682,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     } else if let apiKey = configuration["apiKey"] as? String,
       !apiKey.isEmpty
     {
-      overrides["reviewer"] = apiKey
+      overrides["compatible"] = apiKey
     }
     return overrides
   }
@@ -716,9 +783,9 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     return [
-      "version": 2,
+      "version": 3,
       "default_agent": normalized["defaultAgent"] as? String
-        ?? "reviewer-claude",
+        ?? "reviewer-codex",
       "providers": providers,
     ]
   }
@@ -761,18 +828,18 @@ final class CrystalLatticePythonRuntime: NSObject {
       }
       providers[profileId] = profile
     }
-    let reviewer = providers["reviewer"] as? [String: Any] ?? [:]
+    let compatible = providers["compatible"] as? [String: Any] ?? [:]
     return [
-      "version": 2,
+      "version": 3,
       "defaultAgent": settings["defaultAgent"] as? String
-        ?? "reviewer-claude",
+        ?? "reviewer-codex",
       "providers": providers,
-      "hasApiKey": reviewer["hasApiKey"] as? Bool ?? false,
+      "hasApiKey": compatible["hasApiKey"] as? Bool ?? false,
       "inspectionOnly": UserDefaults.standard.bool(
         forKey: "clcEmbeddedInspectionOnly"
       ),
-      "model": reviewer["model"] as? String ?? "",
-      "proxyUrl": reviewer["baseUrl"] as? String ?? "",
+      "model": compatible["model"] as? String ?? "",
+      "proxyUrl": compatible["baseUrl"] as? String ?? "",
     ]
   }
 

@@ -27,6 +27,7 @@ RUNTIME_ROOT = APP_ROOT / "ios" / "CrystalLatticePythonRuntime"
 PYTHON_APP_SOURCE = RUNTIME_ROOT / "Python"
 VENDOR_DIR = RUNTIME_ROOT / "Vendor"
 RESOURCES_DIR = RUNTIME_ROOT / "Resources"
+REVIEWER_CA_PATH = RESOURCES_DIR / "reviewer-proxy-ca.pem"
 MARKER_PATH = RUNTIME_ROOT / ".prepared-python-runtime"
 CACHE_DIR = (
     Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
@@ -158,6 +159,9 @@ def source_digest() -> str:
             digest.update(path.read_bytes())
     for requirement in PURE_DEPENDENCIES:
         digest.update(requirement.encode("utf-8"))
+    if REVIEWER_CA_PATH.is_file():
+        digest.update(REVIEWER_CA_PATH.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
+        digest.update(REVIEWER_CA_PATH.read_bytes())
     return digest.hexdigest()
 
 
@@ -352,16 +356,17 @@ def prepare_runtime(archive: Path) -> None:
         staged_resources = extracted / "staged-resources"
         shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
         create_application_archive(staged_resources / "crystal_lattice_app.zip")
+        if REVIEWER_CA_PATH.is_file():
+            shutil.copy2(
+                REVIEWER_CA_PATH,
+                staged_resources / REVIEWER_CA_PATH.name,
+            )
 
         shutil.rmtree(VENDOR_DIR, ignore_errors=True)
         shutil.rmtree(RESOURCES_DIR, ignore_errors=True)
         VENDOR_DIR.parent.mkdir(parents=True, exist_ok=True)
-        RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.move(staged_vendor, VENDOR_DIR)
-        shutil.move(
-            staged_resources / "crystal_lattice_app.zip",
-            RESOURCES_DIR / "crystal_lattice_app.zip",
-        )
+        shutil.move(staged_resources, RESOURCES_DIR)
 
     MARKER_PATH.write_text(expected_marker, encoding="utf-8")
     print(f"Prepared iOS Python runtime at {RUNTIME_ROOT}")

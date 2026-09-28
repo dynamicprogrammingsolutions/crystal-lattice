@@ -64,8 +64,8 @@ def matrix_rows(requested: set[str]) -> Iterator[MatrixRow]:
     if wanted("ollama") and ollama_available(ollama_base_url):
         yield MatrixRow(
             name="ollama",
-            profile="reviewer",
-            agent="reviewer-claude",
+            profile="compatible",
+            agent="compatible-claude",
             base_url=ollama_base_url,
             api_key="ollama-local",
             model=os.environ.get("OLLAMA_OPENAI_MODEL", "qwen3.5:0.8b"),
@@ -118,7 +118,7 @@ def matrix_rows(requested: set[str]) -> Iterator[MatrixRow]:
         yield MatrixRow(
             name="reviewer",
             profile="reviewer",
-            agent="reviewer-claude",
+            agent="reviewer-codex",
             base_url=reviewer_url,
             api_key=reviewer_key,
             model=os.environ.get("REVIEWER_PROXY_MODEL", "gpt-5.6-luna"),

@@ -17,21 +17,32 @@ jest.mock("../src/embeddedRuntime/embeddedPythonRuntime", () => ({
 }));
 
 const configuration: EmbeddedRuntimePublicConfiguration = {
-  version: 2,
-  defaultAgent: "reviewer-claude",
+  version: 3,
+  defaultAgent: "reviewer-codex",
   proxyUrl: "http://127.0.0.1:3000/v1",
   model: "qwen3.5:0.8b",
   hasApiKey: true,
   providers: {
-    reviewer: {
-      id: "reviewer",
-      label: "OpenAI-compatible reviewer",
-      agentId: "reviewer-claude",
+    compatible: {
+      id: "compatible",
+      label: "OpenAI-compatible",
+      agentId: "compatible-claude",
       toolFamily: "claude-like",
-      enabled: true,
+      enabled: false,
       baseUrl: "http://127.0.0.1:3000/v1",
       model: "qwen3.5:0.8b",
-      tlsCaBundle: "",
+      hasApiKey: false,
+    },
+    reviewer: {
+      id: "reviewer",
+      label: "OpenAI Responses reviewer",
+      agentId: "reviewer-codex",
+      toolFamily: "codex-like",
+      enabled: true,
+      baseUrl:
+        "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+      model: "gpt-5.6-luna",
+      tlsCaBundle: "/runtime/reviewer-proxy-ca.pem",
       hasApiKey: true,
     },
     openai: {
@@ -125,7 +136,7 @@ test("tests a candidate before saving and persists the selected default", async 
   await waitFor(() =>
     expect(validateEmbeddedPythonRuntimeConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({
-        defaultAgent: "reviewer-claude",
+        defaultAgent: "reviewer-codex",
         profileId: "openai",
         providers: expect.objectContaining({
           openai: expect.objectContaining({

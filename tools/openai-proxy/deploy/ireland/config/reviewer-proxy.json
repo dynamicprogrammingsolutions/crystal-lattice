@@ -8,7 +8,11 @@
     "api_key_env": "OPENAI_UPSTREAM_API_KEY"
   },
   "routing": {
-    "base_path": "/v1"
+    "base_path": "/v1",
+    "allowed_endpoints": [
+      "models",
+      "responses"
+    ]
   },
   "client_auth": {
     "api_key_env": "REVIEWER_PROXY_API_KEY"
@@ -20,12 +24,7 @@
     "allowed_service_tiers": [
       "auto",
       "default"
-    ],
-    "request_overrides": {
-      "chat_completions": {
-        "reasoning_effort": "none"
-      }
-    }
+    ]
   },
   "budget": {
     "enabled": true,
@@ -60,6 +59,7 @@
   "responses": {
     "blocked_status": 429,
     "unauthorized_status": 401,
-    "invalid_model_status": 400
+    "invalid_model_status": 400,
+    "unsupported_endpoint_status": 404
   }
 }

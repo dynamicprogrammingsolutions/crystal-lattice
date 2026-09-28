@@ -207,6 +207,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "default": "sdk",
                 "description": "HTTP client implementation: sdk or requests.",
             },
+            "tls_ca_bundle": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional CA bundle path used by provider_transport=requests."
+                ),
+            },
             "base_url": {
                 "type": "string",
                 "required": False,

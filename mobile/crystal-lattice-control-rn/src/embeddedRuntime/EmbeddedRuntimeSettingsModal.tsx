@@ -21,6 +21,7 @@ import {
 } from "./embeddedPythonRuntime";
 
 const PROFILE_ORDER: EmbeddedProviderProfileId[] = [
+  "compatible",
   "reviewer",
   "openai",
   "openrouter",
@@ -98,7 +99,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     EmbeddedProviderProfileId,
     ProfileDraft
   > | null>(null);
-  const [defaultAgent, setDefaultAgent] = useState("reviewer-claude");
+  const [defaultAgent, setDefaultAgent] = useState("reviewer-codex");
   const [status, setStatus] = useState<ValidationState>({
     tone: "idle",
     message: "",
@@ -161,7 +162,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     }));
     try {
       const result = await validateEmbeddedPythonRuntimeConfiguration({
-        version: 2,
+        version: 3,
         defaultAgent,
         profileId,
         providers: updatesFromDrafts(drafts, profileId),
@@ -192,7 +193,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     setStatus({ tone: "busy", message: "Saving provider settings…" });
     try {
       const saved = await configureEmbeddedPythonRuntime({
-        version: 2,
+        version: 3,
         defaultAgent,
         providers: updatesFromDrafts(drafts),
       });
