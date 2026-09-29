@@ -36,7 +36,7 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] Provider packages intended for the embedded ZIP pass their existing unit
   and integration suites while imported from that ZIP, and the root
   `package.json` exposes the important bundle and Detox matrix commands.
-- [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible,
+- [x] Release-simulator real-API Detox covers the generic OpenAI-compatible,
   OpenAI Responses API-key, OpenAI Responses ChatGPT-action login, OpenRouter,
   Anthropic, and external reviewer paths.
 - [x] An externally reachable, authenticated, model-limited, cost-limited

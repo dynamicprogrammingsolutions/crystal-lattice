@@ -39,7 +39,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
   device-code start, polling, token exchange, credential refresh, and related
   discovery requests; verification remains enabled and an untrusted
   certificate is still rejected.
-- [ ] The manually gated simulator flow completes a real ChatGPT login, a real
+- [x] The manually gated simulator flow completes a real ChatGPT login, a real
   OpenAI Responses Codex-like tool request, credential reuse after relaunch,
   and reports an ungated skip as not run rather than success.
 - [ ] A focused human check on a physical iOS device confirms that starting
@@ -194,7 +194,7 @@ URL/code display without a certificate failure.
   TypeScript, documentation, and simulator verification.
 - [x] Obtain exact-command approval, update/redeploy Ireland, and pass the
   external reviewer Responses row.
-- [ ] Run the manually gated real ChatGPT simulator flow through tool use and
+- [x] Run the manually gated real ChatGPT simulator flow through tool use and
   relaunch.
 - [ ] Obtain human confirmation of the focused physical-device login-start
   check.
@@ -373,3 +373,10 @@ URL/code display without a certificate failure.
   `apply_patch`/relaunch Detox row passed. The full ChatGPT-authenticated
   tool/relaunch run still requires a fresh human authorization and remains
   incomplete.
+- 2026-09-29: The user ran the manually gated Release-simulator Detox flow
+  with fresh browser approval and reported a passing suite (one test passed,
+  one start/cancel test intentionally skipped). After login and Save, the
+  test closed settings, relaunched without deleting app data, and verified
+  `openai-codex`, the real `apply_patch` tool result, and `MATRIX_OPENAI`.
+  This completes the ChatGPT simulator requirement; the separate
+  physical-device TLS check still needs human confirmation.
