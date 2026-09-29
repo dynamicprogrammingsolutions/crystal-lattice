@@ -1338,6 +1338,23 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
     }
 
 
+def test_get_ui_elements_can_hide_auth_mode_for_embedding_owned_settings() -> None:
+    provider = OpenAIResponsesProvider()
+
+    elements = provider.get_ui_elements(
+        config={"auth_mode_options": []},
+        tags=["openai_responses"],
+        models=[],
+    )
+
+    assert not any(element.get("key") == "auth_mode" for element in elements)
+    assert any(element.get("key") == "model" for element in elements)
+    assert any(
+        element.get("key") == "openai_responses:attachment:image"
+        for element in elements
+    )
+
+
 def test_get_ui_elements_keeps_custom_dropdown_when_models_are_unavailable() -> None:
     provider = OpenAIResponsesProvider()
 

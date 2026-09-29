@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "11"
+RUNTIME_LAYOUT_VERSION = "12"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -57,6 +57,24 @@ APP_PLUGIN_PACKAGES = (
     ("session-timestamp-meta-app", "session_timestamp_meta_app"),
     ("session-title-app", "session_title_app"),
     ("session-asset-attachments", "session_asset_attachments"),
+    ("feature-system-message", "feature_system_message"),
+    ("feature-request-options", "feature_request_options"),
+    ("timestamp-extension", "timestamp_extension"),
+    ("summarize-range-app", "summarize_range_app"),
+    ("rebuild-native-app", "rebuild_native_app"),
+    ("cost-tracking", "cost_tracking_plugins"),
+)
+EMBEDDED_CONFIG_ROOT = (
+    REPO_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+    / "embedded-ios"
+)
+EMBEDDED_CONFIG_PATH = EMBEDDED_CONFIG_ROOT / "config.json"
+APPLICATION_PACKAGE_INIT = (
+    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "__init__.py"
 )
 
 
@@ -159,6 +177,9 @@ def source_digest() -> str:
             digest.update(path.read_bytes())
     for requirement in PURE_DEPENDENCIES:
         digest.update(requirement.encode("utf-8"))
+    for path in (APPLICATION_PACKAGE_INIT, EMBEDDED_CONFIG_PATH):
+        digest.update(path.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
     if REVIEWER_CA_PATH.is_file():
         digest.update(REVIEWER_CA_PATH.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
         digest.update(REVIEWER_CA_PATH.read_bytes())
@@ -305,6 +326,17 @@ def create_application_archive(destination: Path) -> None:
                 REPO_ROOT / "plugins" / project / "src" / package,
                 Path(package),
             )
+        archive.write(
+            APPLICATION_PACKAGE_INIT,
+            Path("agent_terminal_app") / "__init__.py",
+        )
+        archive.write(
+            EMBEDDED_CONFIG_PATH,
+            Path("agent_terminal_app")
+            / "default_config"
+            / "embedded-ios"
+            / "config.json",
+        )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (
             "certifi",

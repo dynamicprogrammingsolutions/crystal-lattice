@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.resources import files
 import json
 from pathlib import Path
 from typing import Any, Iterator
@@ -8,6 +9,11 @@ import uuid
 
 from agent_app.application_future import AgentApplication, ReadonlySessionViewError
 from agent_app.application_notifications import InMemoryApplicationNotificationStore
+from agent_app.config import (
+    resolve_config_includes,
+    resolve_config_mixins,
+    resolve_placeholders,
+)
 from agent_app.plugin_sources.dotted import DottedClassSource
 from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core.types import ProviderPlugin, Session
@@ -89,42 +95,6 @@ PROFILE_AGENTS = {
     "openrouter": "openrouter-claude",
     "anthropic": "anthropic-claude",
 }
-CLAUDE_TOOL_PLUGINS = [
-    "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
-    "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
-    "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
-    "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
-    "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
-    "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool",
-]
-CODEX_TOOL_PLUGINS = [
-    "embedded_codex_tools.sed_tool.CodexLikeSedTool",
-    "embedded_codex_tools.rg_tool.CodexLikeRgTool",
-    "embedded_codex_tools.find_tool.CodexLikeFindTool",
-    "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
-    "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool",
-]
-APPLICATION_PLUGINS = [
-    "chatgpt_auth_app.ChatGPTAuthAppPlugin",
-    "generate_title_app.GenerateTitleAppPlugin",
-    "session_actions_app.SessionActionsAppPlugin",
-    "session_archive_app.SessionArchiveAppPlugin",
-    "session_main_search_app.SessionMainSearchAppPlugin",
-    "session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
-    "session_ordering_buckets_app.SessionOrderingBucketsAppPlugin",
-    "session_pinned_app.SessionPinnedAppPlugin",
-    "session_status_app.SessionStatusAppPlugin",
-    "session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
-    "session_title_app.SessionTitleAppPlugin",
-    "session_asset_attachments.SessionAssetAttachmentsAppPlugin",
-]
-APPLICATION_CONFIG = {
-    "generate_title_max_messages": 999,
-    "session_actions": {"allow_delete": True},
-    "session_status_show_in_session_list_footer": True,
-}
-
-
 def _normalized_profile(
     profile_id: str,
     raw_profile: Any,
@@ -187,8 +157,9 @@ def _normalized_runtime_configuration(
     if default_agent not in PROFILE_AGENTS.values():
         default_agent = PROFILE_AGENTS["reviewer"]
     return {
-        "version": 2,
+        "version": 3,
         "default_agent": default_agent,
+        "reviewer_visible": bool(source.get("reviewer_visible", False)),
         "providers": profiles,
     }
 
@@ -215,6 +186,10 @@ def _runtime_provider_mode(configuration: dict[str, Any]) -> str:
         for profile_id in PROFILE_ORDER
         if isinstance(profiles.get(profile_id), dict)
         and _profile_is_ready(profiles[profile_id])
+        and (
+            profile_id != "reviewer"
+            or configuration.get("reviewer_visible") is True
+        )
     ]
     if configured == ["compatible"]:
         return "openai-compatible"
@@ -229,233 +204,93 @@ def _default_profile_id(configuration: dict[str, Any]) -> str:
     return "reviewer"
 
 
+def _embedded_config_text() -> str:
+    return (
+        files("agent_terminal_app")
+        .joinpath("default_config")
+        .joinpath("embedded-ios")
+        .joinpath("config.json")
+        .read_text(encoding="utf-8")
+    )
+
+
+def _embedded_config_environment(
+    runtime_configuration: dict[str, Any] | None = None,
+    workspace_root: Path | None = None,
+) -> dict[str, str]:
+    configuration = _normalized_runtime_configuration(runtime_configuration)
+    profiles = configuration["providers"]
+    if workspace_root is None:
+        raise ValueError("workspace_root is required for configured providers")
+    auth_root = workspace_root.parent / "config" / "auth"
+    reviewer_enabled = (
+        configuration.get("reviewer_visible") is True
+        and _profile_is_ready(profiles["reviewer"])
+    )
+    enabled = {
+        profile_id: _profile_is_ready(profiles[profile_id])
+        and (profile_id != "reviewer" or reviewer_enabled)
+        for profile_id in PROFILE_ORDER
+    }
+    return {
+        "EMBEDDED_WORKSPACE_DIR": str(workspace_root),
+        "EMBEDDED_SMOKE_ENABLED": "true",
+        "EMBEDDED_COMPATIBLE_ENABLED": str(enabled["compatible"]).lower(),
+        "EMBEDDED_COMPATIBLE_API_KEY": profiles["compatible"]["api_key"],
+        "EMBEDDED_COMPATIBLE_BASE_URL": profiles["compatible"]["base_url"],
+        "EMBEDDED_COMPATIBLE_MODEL": profiles["compatible"]["model"],
+        "EMBEDDED_REVIEWER_ENABLED": str(reviewer_enabled).lower(),
+        "EMBEDDED_REVIEWER_API_KEY": profiles["reviewer"]["api_key"],
+        "EMBEDDED_REVIEWER_CA_BUNDLE": profiles["reviewer"]["tls_ca_bundle"],
+        "EMBEDDED_OPENAI_ENABLED": str(enabled["openai"]).lower(),
+        "EMBEDDED_OPENAI_API_KEY": profiles["openai"]["api_key"],
+        "EMBEDDED_OPENAI_BASE_URL": profiles["openai"]["base_url"],
+        "EMBEDDED_OPENAI_MODEL": profiles["openai"]["model"],
+        "EMBEDDED_OPENAI_AUTH_MODE": profiles["openai"]["auth_mode"],
+        "EMBEDDED_OPENROUTER_ENABLED": str(enabled["openrouter"]).lower(),
+        "EMBEDDED_OPENROUTER_API_KEY": profiles["openrouter"]["api_key"],
+        "EMBEDDED_OPENROUTER_BASE_URL": profiles["openrouter"]["base_url"],
+        "EMBEDDED_OPENROUTER_MODEL": profiles["openrouter"]["model"],
+        "EMBEDDED_ANTHROPIC_ENABLED": str(enabled["anthropic"]).lower(),
+        "EMBEDDED_ANTHROPIC_API_KEY": profiles["anthropic"]["api_key"],
+        "EMBEDDED_ANTHROPIC_BASE_URL": profiles["anthropic"]["base_url"],
+        "EMBEDDED_ANTHROPIC_MODEL": profiles["anthropic"]["model"],
+        "EMBEDDED_CHATGPT_CREDENTIALS_PATH": str(
+            auth_root / "chatgpt-auth.json"
+        ),
+        "EMBEDDED_CHATGPT_RATE_LIMITS_PATH": str(
+            auth_root / "chatgpt-rate-limits.json"
+        ),
+        "EMBEDDED_COST_TRACKING_DB_PATH": str(
+            workspace_root.parent / "cost-tracking" / "cost-tracking.sqlite3"
+        ),
+    }
+
+
 def _config_payload(
     runtime_configuration: dict[str, Any] | None = None,
     workspace_root: Path | None = None,
 ) -> dict[str, Any]:
-    configuration = _normalized_runtime_configuration(runtime_configuration)
-    profiles = configuration["providers"]
-    application_config = dict(APPLICATION_CONFIG)
-    if workspace_root is not None:
-        auth_root = workspace_root.parent / "config" / "auth"
-        application_config["chatgpt_auth"] = {
-            "credentials_path": str(auth_root / "chatgpt-auth.json"),
-            "rate_limits_path": str(auth_root / "chatgpt-rate-limits.json"),
-        }
-    ready_profiles = [
-        profile_id
-        for profile_id in PROFILE_ORDER
-        if _profile_is_ready(profiles[profile_id])
-    ]
-    if not ready_profiles:
-        return {
-            "plugin_policy": {
-                "allow_bash_tools": False,
-                "allow_dynamic_plugin_install": False,
-                "allow_node_tools": False,
-                "allow_remote": False,
-            },
-            "providers": {
-                "embedded": {
-                    "provider": "embedded_smoke_provider",
-                    "model": "embedded-smoke",
-                }
-            },
-            "plugins": [
-                "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
-                *APPLICATION_PLUGINS,
-            ],
-            "agents": {"local": {"provider": "embedded"}},
-            "application": application_config,
-        }
-    if workspace_root is None:
-        raise ValueError("workspace_root is required for configured providers")
-
-    default_agent = configuration["default_agent"]
-    default_profile = next(
-        (
-            profile_id
-            for profile_id in ready_profiles
-            if PROFILE_AGENTS[profile_id] == default_agent
-        ),
-        ready_profiles[0],
+    environment = _embedded_config_environment(
+        runtime_configuration,
+        workspace_root,
     )
-    ordered_profiles = [
-        default_profile,
-        *[profile_id for profile_id in ready_profiles if profile_id != default_profile],
+    raw = json.loads(_embedded_config_text())
+    resolved, errors = resolve_placeholders(raw, env=environment)
+    resolved, include_errors = resolve_config_includes(
+        resolved,
+        config_dir=Path(environment["EMBEDDED_WORKSPACE_DIR"]).parent,
+    )
+    resolved, mixin_errors = resolve_config_mixins(resolved)
+    all_errors = [*errors, *include_errors, *mixin_errors]
+    fatal = [
+        error
+        for error in all_errors
+        if error.get("severity") != "warning"
     ]
-
-    provider_plugins: dict[str, list[str]] = {
-        "compatible": [
-            (
-                "reference_openai_compatible_provider.provider."
-                "OpenAICompatibleProvider"
-            ),
-            (
-                "reference_openai_compatible_provider.tools_extension."
-                "OpenAICompatibleToolsExtension"
-            ),
-        ],
-        "reviewer": [
-            (
-                "openai_responses_plugins.openai_responses_provider."
-                "OpenAIResponsesProvider"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_tools_extension."
-                "OpenAIResponsesToolsExtension"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_reasoning_extension."
-                "OpenAIResponsesReasoningExtension"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_usage_extension."
-                "OpenAIResponsesUsageExtension"
-            ),
-        ],
-        "openai": [
-            (
-                "openai_responses_plugins.openai_responses_provider."
-                "OpenAIResponsesProvider"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_tools_extension."
-                "OpenAIResponsesToolsExtension"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_reasoning_extension."
-                "OpenAIResponsesReasoningExtension"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_usage_extension."
-                "OpenAIResponsesUsageExtension"
-            ),
-            (
-                "openai_responses_plugins.openai_responses_chatgpt_auth_feature."
-                "OpenAIResponsesChatGPTAuthFeature"
-            ),
-        ],
-        "openrouter": [
-            "openrouter_plugins.openrouter_provider.OpenRouterProvider",
-            (
-                "openrouter_plugins.openrouter_tools_extension."
-                "OpenRouterToolsExtension"
-            ),
-            (
-                "openrouter_plugins.openrouter_reasoning_extension."
-                "OpenRouterReasoningExtension"
-            ),
-            (
-                "openrouter_plugins.openrouter_usage_extension."
-                "OpenRouterUsageExtension"
-            ),
-        ],
-        "anthropic": [
-            "anthropic_plugins.provider.AnthropicProvider",
-            "anthropic_plugins.tools_extension.AnthropicToolsExtension",
-            "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
-            "anthropic_plugins.usage_extension.AnthropicUsageExtension",
-        ],
-    }
-    providers: dict[str, dict[str, Any]] = {
-        "embedded": {
-            "provider": "embedded_smoke_provider",
-            "model": "embedded-smoke",
-        }
-    }
-    agents: dict[str, dict[str, Any]] = {"local": {"provider": "embedded"}}
-    plugins: list[str] = [
-        "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
-        *APPLICATION_PLUGINS,
-    ]
-    for profile_id in ordered_profiles:
-        profile = profiles[profile_id]
-        provider_config: dict[str, Any] = {
-            "api_key": profile["api_key"],
-            "base_url": profile["base_url"],
-            "model": profile["model"],
-            "timeout": 180,
-            "working_directory": str(workspace_root),
-            "allowed_paths": [str(workspace_root)],
-        }
-        if profile_id == "compatible":
-            provider_config["provider"] = "reference_openai_compatible"
-            tool_plugins = CLAUDE_TOOL_PLUGINS
-        elif profile_id == "reviewer":
-            provider_config.update(
-                {
-                    "provider": "openai_responses",
-                    "provider_transport": "requests",
-                    "auth_mode": "api",
-                    "auth_mode_options": ["api"],
-                    "reasoning_effort": "low",
-                    "reasoning_summary": "concise",
-                }
-            )
-            if profile["tls_ca_bundle"]:
-                provider_config["tls_ca_bundle"] = profile["tls_ca_bundle"]
-            tool_plugins = CODEX_TOOL_PLUGINS
-        elif profile_id == "openai":
-            provider_config.update(
-                {
-                    "provider": "openai_responses",
-                    "provider_transport": "requests",
-                    "auth_mode": profile["auth_mode"],
-                    "auth_mode_options": ["api", "chatgpt"],
-                    "chatgpt_credentials_path": application_config[
-                        "chatgpt_auth"
-                    ]["credentials_path"],
-                    "chatgpt_rate_limits_path": application_config[
-                        "chatgpt_auth"
-                    ]["rate_limits_path"],
-                    "reasoning_effort": "low",
-                    "reasoning_summary": "concise",
-                }
-            )
-            tool_plugins = CODEX_TOOL_PLUGINS
-        elif profile_id == "openrouter":
-            provider_config["provider"] = "openrouter"
-            tool_plugins = CLAUDE_TOOL_PLUGINS
-        else:
-            provider_config.update(
-                {
-                    "provider": "anthropic",
-                    "provider_transport": "requests",
-                    "max_tokens": 4096,
-                }
-            )
-            tool_plugins = CLAUDE_TOOL_PLUGINS
-
-        providers[profile_id] = provider_config
-        agent_id = PROFILE_AGENTS[profile_id]
-        agents[agent_id] = {
-            "provider": profile_id,
-            "plugins": list(tool_plugins),
-            "working_directory": str(workspace_root),
-            "allowed_paths": [str(workspace_root)],
-            "tool_family": (
-                "codex-like"
-                if profile_id in {"reviewer", "openai"}
-                else "claude-like"
-            ),
-        }
-        for plugin in provider_plugins[profile_id]:
-            if plugin not in plugins:
-                plugins.append(plugin)
-
-    return {
-        "plugin_policy": {
-            "allow_bash_tools": False,
-            "allow_dynamic_plugin_install": False,
-            "allow_node_tools": False,
-            "allow_remote": False,
-        },
-        "providers": providers,
-        "plugins": plugins,
-        "agents": agents,
-        "application": application_config,
-    }
+    if fatal:
+        raise ValueError(f"Embedded config resolution failed: {fatal}")
+    return resolved
 
 
 def _provider_import_smoke() -> list[str]:
@@ -527,15 +362,12 @@ class MobileRuntime:
 
         self.config_path = self.config_dir / "config.json"
         self.config_path.write_text(
-            json.dumps(
-                _config_payload(
-                    self.runtime_configuration,
-                    self.workspace_dir,
-                ),
-                indent=2,
-            )
-            + "\n",
+            _embedded_config_text(),
             encoding="utf-8",
+        )
+        self.config_environment = _embedded_config_environment(
+            self.runtime_configuration,
+            self.workspace_dir,
         )
         self.application = AgentApplication(
             self.config_path,
@@ -544,6 +376,7 @@ class MobileRuntime:
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 self.sessions_dir / ".snapshots"
             ),
+            config_env=self.config_environment,
             plugin_sources=[DottedClassSource()],
         )
 

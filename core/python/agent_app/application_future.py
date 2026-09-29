@@ -488,7 +488,17 @@ class AgentApplication:
                     self._config_errors,
                 )
 
-        agents = self._config.get("agents") or {}
+        configured_agents = self._config.get("agents") or {}
+        agents = (
+            {
+                agent_id: agent_cfg
+                for agent_id, agent_cfg in configured_agents.items()
+                if isinstance(agent_cfg, dict)
+                and self._config_entry_is_enabled(agent_cfg)
+            }
+            if isinstance(configured_agents, dict)
+            else {}
+        )
         agent_plugin_specs: Dict[str, List[Any]] = {}
         agent_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(agents, dict):
@@ -772,6 +782,17 @@ class AgentApplication:
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _config_entry_is_enabled(config: Dict[str, Any]) -> bool:
+        raw = config.get("enabled", True)
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, str):
+            return raw.strip().lower() not in {"", "0", "false", "no", "off"}
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        return bool(raw)
 
     @contextmanager
     def acquire_session_lock(self, session_id: str) -> Iterator[None]:

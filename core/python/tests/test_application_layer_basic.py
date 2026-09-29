@@ -64,6 +64,32 @@ def test_add_message_updates_session(tmp_path: Path) -> None:
     assert as_dict["messages"][0]["content"] == "Hello"
 
 
+def test_disabled_agents_are_not_available_or_forwarded_to_runtime_config(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    config = __import__("json").loads(config_path.read_text(encoding="utf-8"))
+    config["agents"] = {
+        "enabled": {"provider": "dummy", "enabled": "${env:ENABLED_AGENT}"},
+        "disabled": {"provider": "dummy", "enabled": "${env:DISABLED_AGENT}"},
+    }
+    config_path.write_text(__import__("json").dumps(config), encoding="utf-8")
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        config_env={
+            "ENABLED_AGENT": "true",
+            "DISABLED_AGENT": "false",
+        },
+    )
+
+    assert app.list_agents() == ["enabled"]
+    _core, base_config, _session = app.create_session("enabled")
+    assert "enabled" not in base_config
+
+
 def test_send_request_non_streaming(tmp_path: Path) -> None:
     config_path = _make_config(tmp_path)
     session_root = tmp_path / "sessions"

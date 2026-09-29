@@ -18,6 +18,9 @@ RUNTIME_MODULE = (
     / "crystal_lattice_mobile_runtime.py"
 )
 CORE_PYTHON = Path(__file__).resolve().parents[3] / "core" / "python"
+APPLICATION_PYTHON = (
+    Path(__file__).resolve().parents[3] / "application" / "python"
+)
 EMBEDDED_TOOLS_SHARED = (
     Path(__file__).resolve().parents[3]
     / "plugins"
@@ -75,6 +78,12 @@ APPLICATION_PLUGIN_SOURCES = tuple(
         "session-timestamp-meta-app",
         "session-title-app",
         "session-asset-attachments",
+        "feature-system-message",
+        "feature-request-options",
+        "timestamp-extension",
+        "summarize-range-app",
+        "rebuild-native-app",
+        "cost-tracking",
     )
 )
 
@@ -82,6 +91,7 @@ APPLICATION_PLUGIN_SOURCES = tuple(
 def load_runtime_module():
     for path in (
         CORE_PYTHON,
+        APPLICATION_PYTHON,
         EMBEDDED_TOOLS_SHARED,
         EMBEDDED_CLAUDE_TOOLS,
         EMBEDDED_CODEX_TOOLS,
@@ -495,6 +505,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     full_configuration = {
         "version": 3,
         "default_agent": "openai-codex",
+        "reviewer_visible": True,
         "providers": {
             profile_id: {
                 "enabled": True,
@@ -516,31 +527,24 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     assert runtime_config["providers"]["reviewer"]["provider_transport"] == (
         "requests"
     )
-    assert runtime_config["providers"]["reviewer"]["auth_mode_options"] == ["api"]
+    assert runtime_config["providers"]["reviewer"]["auth_mode_options"] == []
     assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
     assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
-    assert runtime_config["providers"]["openai"]["auth_mode_options"] == [
-        "api",
-        "chatgpt",
-    ]
+    assert runtime_config["providers"]["openai"]["auth_mode_options"] == []
     assert runtime_config["providers"]["openrouter"]["provider"] == "openrouter"
     assert runtime_config["providers"]["anthropic"]["provider"] == "anthropic"
     assert runtime_config["providers"]["anthropic"]["provider_transport"] == (
         "requests"
     )
-    assert runtime_config["agents"]["openai-codex"]["plugins"] == (
-        module.CODEX_TOOL_PLUGINS
-    )
-    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == (
-        module.CODEX_TOOL_PLUGINS
-    )
+    codex_tools = runtime_config["agents"]["openai-codex"]["plugins"]
+    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == codex_tools
     for agent_id in (
         "compatible-claude",
         "openrouter-claude",
         "anthropic-claude",
     ):
         assert runtime_config["agents"][agent_id]["plugins"] == (
-            module.CLAUDE_TOOL_PLUGINS
+            runtime_config["agents"]["compatible-claude"]["plugins"]
         )
     assert (
         "openai_responses_plugins.openai_responses_chatgpt_auth_feature."
@@ -584,26 +588,42 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             "chatgpt_auth",
             "generate_title",
             "session_actions",
+            "summarize_range",
             "session_archive",
             "session_main_search",
             "session_message_count_meta",
             "session_ordering_buckets",
             "session_pinned",
+            "rebuild_native",
             "session_status",
             "session_timestamp_meta",
             "session_title",
             "session_asset_attachments",
+            "cost_tracking_app",
         }
+        plugin_ids = {
+            plugin["id"] for plugin in runtime.application.list_plugins()
+        }
+        assert {
+            "system_message",
+            "request_options",
+            "timestamp_extension",
+            "duration_extension",
+            "cost_tracking",
+        }.issubset(plugin_ids)
     finally:
         runtime.application.close()
 
 
-def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> None:
+def test_chatgpt_profile_and_reviewer_ca_use_maintained_config(
+    tmp_path: Path,
+) -> None:
     module = load_runtime_module()
     runtime_config = module._config_payload(
         {
             "version": 3,
             "default_agent": "openai-codex",
+            "reviewer_visible": True,
             "providers": {
                 "reviewer": {
                     "enabled": True,
@@ -628,9 +648,11 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
         "/runtime/reviewer-ca.pem"
     )
     assert runtime_config["providers"]["reviewer"]["provider"] == "openai_responses"
-    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == (
-        module.CODEX_TOOL_PLUGINS
+    assert runtime_config["providers"]["reviewer"]["base_url"] == (
+        "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1"
     )
+    assert runtime_config["providers"]["reviewer"]["model"] == "gpt-5.6-luna"
+    assert runtime_config["agents"]["reviewer-codex"]["enabled"] == "true"
     assert runtime_config["providers"]["openai"]["auth_mode"] == "chatgpt"
     assert "openai-codex" in runtime_config["agents"]
     assert runtime_config["application"]["chatgpt_auth"]["credentials_path"].endswith(

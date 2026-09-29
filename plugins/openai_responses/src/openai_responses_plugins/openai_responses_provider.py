@@ -324,7 +324,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         configured_auth_modes = (
             config.get("auth_mode_options") if isinstance(config, dict) else None
         )
+        show_auth_mode = True
         if isinstance(configured_auth_modes, list):
+            if not configured_auth_modes:
+                show_auth_mode = False
             allowed_auth_modes = {
                 value
                 for value in configured_auth_modes
@@ -338,7 +341,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if filtered:
                 auth_mode_options = filtered
 
-        return [
+        elements = [
             {
                 "ui_type": "config",
                 "type": "dropdown",
@@ -367,14 +370,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     "default_pinned": True,
                 },
             },
-            {
+        ]
+        if show_auth_mode:
+            elements.append(
+                {
                 "ui_type": "config",
                 "type": "select",
                 "key": "auth_mode",
                 "label": "OpenAI auth mode",
                 "options": auth_mode_options,
                 "default": "api",
-            },
+                }
+            )
+        elements.extend(
+            [
             {
                 "ui_type": "config",
                 "type": "checkbox",
@@ -398,7 +407,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "label": "Image",
                 "icon": "image",
             },
-        ]
+            ]
+        )
+        return elements
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:

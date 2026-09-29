@@ -176,8 +176,8 @@ and collect those decisions for user confirmation.
 
 - [ ] Add regression tests for Reviewer/Qwen, visibility, hidden fields,
   autosave, and duplicate auth controls.
-- [ ] Add and package the Python-owned embedded JSON configuration.
-- [ ] Replace generated graph construction with placeholder overrides.
+- [x] Add and package the Python-owned embedded JSON configuration.
+- [x] Replace generated graph construction with placeholder overrides.
 - [ ] Add the settled default-config plugin subset and focused integration
   coverage.
 - [ ] Implement Reviewer opt-in visibility, last placement, and hidden fixed
@@ -221,3 +221,26 @@ and collect those decisions for user confirmation.
   failures without losing the current draft.
 - Run `git diff --check`, focused Ruff, TypeScript, documentation preparation,
   and the selected provider-package tests from the immutable ZIP.
+
+## Implementation Notes
+
+- 2026-09-29: Added the maintained embedded JSON under the Python application
+  at `agent_terminal_app/default_config/embedded-ios/config.json`. The iOS
+  packaging script now stages that config and the newly selected pure-Python
+  plugins into the immutable archive.
+- 2026-09-29: The embedded Python adapter now copies the maintained JSON
+  unchanged into app support and supplies a config-only placeholder map for
+  provider values, credentials, workspace paths, agent availability, ChatGPT
+  storage, and cost storage. It no longer builds provider/agent/plugin
+  topology in `_config_payload()`.
+- 2026-09-29: `AgentApplication` now supports config-disabled agents, including
+  string values supplied by environment placeholders, and removes the control
+  key from effective runtime configuration. Focused core tests pass.
+- 2026-09-29: Added system-message, request-options, timestamp/duration,
+  summarize-range, rebuild-native, and cost-tracking packages to the embedded
+  configuration and bundle input. Embedded runtime tests prove the maintained
+  graph loads the new feature/application plugin ids.
+- 2026-09-29: An explicit empty OpenAI Responses `auth_mode_options` list now
+  suppresses the provider's session auth selector while preserving the model,
+  retry, and attachment UI. The generic provider retains its existing UI when
+  the option is absent.
