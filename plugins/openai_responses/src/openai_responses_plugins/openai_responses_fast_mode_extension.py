@@ -69,6 +69,11 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = tags, models
+        effective_config = config if isinstance(config, dict) else {}
+        if effective_config.get("show_fast_mode_ui") is False:
+            return []
+        if self._effective_auth_mode({"config": effective_config}) == "chatgpt":
+            return []
         return [
             {
                 "type": "checkbox",

@@ -222,9 +222,9 @@ and collect those decisions for user confirmation.
 - [x] Run source, immutable ZIP, component, TypeScript, and Release-simulator
   regression coverage.
 - [x] Present unresolved product and optional-plugin decisions for approval.
-- [ ] Register and configure the applicable OpenAI Responses and OpenRouter
+- [x] Register and configure the applicable OpenAI Responses and OpenRouter
   provider-native extensions.
-- [ ] Add transport-aware attachment UI and auth-aware API-control coverage.
+- [x] Add transport-aware attachment UI and auth-aware API-control coverage.
 - [ ] Run focused source, immutable-ZIP, mobile component, and Release-simulator
   verification for native search and attachment availability.
 - [ ] Update documentation, requirement evidence, and completion notes.
@@ -333,3 +333,9 @@ and collect those decisions for user confirmation.
   OpenAI Responses and OpenRouter native web-search, attachment, and API
   extensions. OpenAI requests-transport attachment UI will initially remain
   inline-image-only; Flex remains direct-API-only and excluded from Reviewer.
+- 2026-09-29: Registered OpenAI Responses attachments, Flex, Fast mode, native
+  compaction, prompt caching, native web search, and verbosity plus OpenRouter
+  attachments, Claude caching, native web search, and verbosity. Focused
+  provider tests passed (71), and the embedded runtime/config tests passed
+  (25), including direct-API, ChatGPT, Reviewer, and OpenRouter UI-schema
+  boundaries.

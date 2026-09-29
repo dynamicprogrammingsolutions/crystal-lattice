@@ -595,6 +595,23 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         assert not any(
             element.get("key") == "auth_mode" for element in ui_elements
         )
+        ui_keys = {
+            element.get("key")
+            for element in ui_elements
+            if isinstance(element, dict)
+        }
+        assert {
+            "enable_web_search",
+            "enable_flex_processing",
+            "enable_fast_mode",
+        }.issubset(ui_keys)
+        assert any(
+            element.get("ui_type") == "composer_attachment"
+            and element.get("attachment_type") == "image"
+            and element.get("attachment_action_plugin")
+            == "openai_responses_attachments"
+            for element in ui_elements
+        )
         assert any(
             element.get("id") == "show_compiled_system_message"
             for element in ui_elements
@@ -617,6 +634,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             "session_title",
             "session_asset_attachments",
             "cost_tracking_app",
+            "openai_responses_native_compaction_app",
         }
         plugin_ids = {
             plugin["id"] for plugin in runtime.application.list_plugins()
@@ -628,6 +646,41 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             "duration_extension",
             "cost_tracking",
         }.issubset(plugin_ids)
+
+        reviewer_session = runtime.create_session(agent_id="reviewer-codex")
+        reviewer_loaded = runtime.application.load_session(
+            reviewer_session.session_id
+        )
+        assert reviewer_loaded is not None
+        reviewer_core, reviewer_config, _reviewer_session = reviewer_loaded
+        reviewer_ui = reviewer_core.get_ui_schema(reviewer_config)
+        reviewer_keys = {
+            element.get("key")
+            for element in reviewer_ui
+            if isinstance(element, dict)
+        }
+        assert "enable_web_search" in reviewer_keys
+        assert "enable_flex_processing" not in reviewer_keys
+        assert "enable_fast_mode" not in reviewer_keys
+        assert "use_chatgpt_auth_for_compaction" not in reviewer_keys
+
+        openrouter_session = runtime.create_session(agent_id="openrouter-claude")
+        openrouter_loaded = runtime.application.load_session(
+            openrouter_session.session_id
+        )
+        assert openrouter_loaded is not None
+        openrouter_core, openrouter_config, _openrouter_session = openrouter_loaded
+        openrouter_ui = openrouter_core.get_ui_schema(openrouter_config)
+        assert any(
+            element.get("key") == "enable_web_search"
+            for element in openrouter_ui
+        )
+        assert any(
+            element.get("ui_type") == "composer_attachment"
+            and element.get("attachment_type") == "image"
+            and element.get("attachment_action_plugin") == "openrouter_attachments"
+            for element in openrouter_ui
+        )
     finally:
         runtime.application.close()
 
@@ -781,7 +834,7 @@ def test_chatgpt_saved_default_and_session_override_are_independent(
         session = runtime.create_session(agent_id="openai-codex")
         loaded = runtime.application.load_session(session.session_id)
         assert loaded is not None
-        _core, base_config, stored_session = loaded
+        core, base_config, stored_session = loaded
         assert base_config["auth_mode"] == "chatgpt"
         assert runtime.runtime_configuration["providers"]["openai"]["auth_mode"] == (
             "chatgpt"
@@ -791,9 +844,20 @@ def test_chatgpt_saved_default_and_session_override_are_independent(
             session.session_id,
             {"auth_mode": "api"},
         )
-        assert runtime.application.get_session_settings(session.session_id) == {
-            "auth_mode": "api"
+        session_settings = runtime.application.get_session_settings(
+            session.session_id
+        )
+        assert session_settings["auth_mode"] == "api"
+        assert session_settings["prompt_cache_key"].startswith("opcache_")
+        chatgpt_ui = core.get_ui_schema(base_config)
+        chatgpt_ui_keys = {
+            element.get("key")
+            for element in chatgpt_ui
+            if isinstance(element, dict)
         }
+        assert "enable_web_search" in chatgpt_ui_keys
+        assert "enable_flex_processing" not in chatgpt_ui_keys
+        assert "enable_fast_mode" not in chatgpt_ui_keys
         loaded = runtime.application.load_session(session.session_id)
         assert loaded is not None
         _core, base_config, stored_session = loaded
@@ -810,7 +874,11 @@ def test_chatgpt_saved_default_and_session_override_are_independent(
         loaded = runtime.application.load_session(session.session_id)
         assert loaded is not None
         _core, base_config, stored_session = loaded
-        assert runtime.application.get_session_settings(session.session_id) == {}
+        remaining_settings = runtime.application.get_session_settings(
+            session.session_id
+        )
+        assert set(remaining_settings) == {"prompt_cache_key"}
+        assert remaining_settings["prompt_cache_key"].startswith("opcache_")
         assert runtime.application.resolve_effective_config(
             base_config,
             stored_session,

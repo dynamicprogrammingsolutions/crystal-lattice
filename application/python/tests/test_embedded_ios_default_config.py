@@ -92,7 +92,25 @@ def test_embedded_ios_config_resolves_selected_plugins_and_agents(
         "timestamp_extension.timestamp_extension.TimestampExtension",
         "timestamp_extension.duration_extension.DurationExtension",
         "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
+        "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
+        "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
+        "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
+        "openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin",
+        "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
+        "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
+        "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
+        "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension",
+        "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension",
+        "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension",
+        "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
+        "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension",
         "summarize_range_app.SummarizeRangeAppPlugin",
         "rebuild_native_app.RebuildNativeAppPlugin",
         "cost_tracking_plugins.cost_tracking_app_plugin.CostTrackingAppPlugin",
     }.issubset(set(resolved["plugins"]))
+
+    assert resolved["providers"]["reviewer"]["show_flex_processing_ui"] is False
+    assert resolved["providers"]["reviewer"]["show_fast_mode_ui"] is False
+    assert resolved["providers"]["reviewer"]["native_compaction_enabled"] is False
+    assert resolved["providers"]["reviewer"]["image_attachment_mode"] == "inline"
+    assert resolved["providers"]["openai"]["image_attachment_mode"] == "inline"

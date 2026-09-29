@@ -67,6 +67,15 @@ def test_get_ui_elements_exposes_fast_mode_toggle() -> None:
     ]
 
 
+def test_get_ui_elements_hides_fast_mode_for_chatgpt_or_explicitly_disabled_ui() -> None:
+    ext = OpenAIResponsesFastModeExtension()
+
+    assert ext.get_ui_elements(config={"auth_mode": "chatgpt"}) == []
+    assert ext.get_ui_elements(
+        config={"auth_mode": "api", "show_fast_mode_ui": False}
+    ) == []
+
+
 def test_init_and_initialize_request_are_noops_when_fast_mode_disabled() -> None:
     ext = OpenAIResponsesFastModeExtension()
     state = {
