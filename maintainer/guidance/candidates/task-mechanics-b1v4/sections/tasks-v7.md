@@ -40,7 +40,8 @@ Each kind of content has one owning place:
 | Decisions made while planning | The plan's Implementation decisions and open questions |
 | Discoveries, deviations, the completion entry, and later corrections | Implementation notes |
 | A follow-up's added plan | A follow-up plan section appended below earlier plans |
-| A follow-up's added requirements | New unchecked items appended to the Requirements checklist |
+| A follow-up's own requirements | Within the follow-up plan, or new unchecked items appended to the Requirements checklist |
+| An approved change to an existing requirement | Made only after user approval, recorded with the follow-up entry |
 
 When a task file follows planning, decide from the request and the recorded planning how much of the plan to include; do not ask merely whether to include a plan.
 
@@ -56,6 +57,7 @@ Creating a task file does not itself authorize execution.
 - Mark a requirement complete only when supported by evidence such as a test, build, inspection, or human confirmation.
 - Identify requirements needing human verification and leave them incomplete until that verification is confirmed.
 - Update execution tasks throughout completion, not only at the end.
+- A follow-up never modifies approved requirements on its own. When its change invalidates or alters an approved requirement — its outcome, constraint, or completion evidence — ask first; apply the update only after the user approves it, and record the approved change with the follow-up entry.
 - Task creation is planning, not implementation. Inspect only what is needed to write the plan; do not install dependencies or create scratch implementations in the repository. Use a temporary location for diagnostics that must write files, and remove incidental changes before handoff. Leave only the requested task-file changes.
 
 ### Questions and decisions
@@ -157,6 +159,6 @@ Before approval, store the complete `Draft` plan, then summarize outcome, scope,
 4. Mark the plan `Approved`, then execute and continuously update its task checklist.
 5. Keep requirement evidence and parent status current. Record discoveries and plan changes in `## Implementation notes` as they happen; ask about high-impact ambiguities or material changes. Clear, safe, in-scope fixes may be made and then reported.
 6. At completion, append a clearly marked completion entry covering the outcome, requirement evidence, verification performed or blocked, plan deviations and findings, and unresolved or deferred scope.
-7. Handle later work additively: corrections append as new entries in `## Implementation notes`; earlier plans and entries are never rewritten. A follow-up may stay in this file or become a new task — ask when the choice is material. An in-file follow-up appends a `## Follow-up plan: <title> (<YYYYMMDD>)` section below the earlier plans, with the same Status semantics and closing sections as any plan; requirements it adds append to the Requirements checklist as new unchecked items; its execution and completion append to `## Implementation notes` like any other entries.
+7. Handle later work additively: corrections append as new entries in `## Implementation notes`; earlier plans and entries are never rewritten. A follow-up may stay in this file or become a new task — ask when the choice is material. An in-file follow-up appends a `## Follow-up plan: <title> (<YYYYMMDD>)` section below the earlier plans, with the same Status semantics and closing sections as any plan; its execution and completion append to `## Implementation notes` like any other entries. Its own requirements are carried in the follow-up plan or appended to the Requirements checklist as new unchecked items; existing requirement items are never modified by a follow-up on its own. When no approved requirement is invalidated, present the follow-up plan and proceed on approval.
 
 Approval authorizes execution only when the original request includes execution or completion and the agent explicitly said execution would begin after approval. Steps 2–4 do not require duplicate approval when the user has already approved the plan, asked execution to start, and asks for a task file only to track that execution.

@@ -186,9 +186,14 @@ directories and connections; the matrix command set stays unchanged.
   rewritten). Follow-ups are ADDITIVE and may stay in the same file: a
   `## Follow-up plan: <title> (<YYYYMMDD>)` section appends below
   earlier plans with the full plan format, added requirements append to
-  the Requirements checklist as unchecked items, and execution records
-  append to the notes; a separate task file remains an option (ask when
-  the choice is material). Compile-checked against the crystal-lattice target
+  the Requirements checklist as unchecked items (or live in the
+  follow-up plan itself), and execution records append to the notes; a
+  separate task file remains an option (ask when the choice is
+  material). Existing requirements are never modified silently: when a
+  follow-up invalidates or alters an approved requirement — outcome,
+  constraint, or completion evidence — asking is mandatory and the
+  update lands only after user approval (Status tracking bullet + step
+  7 + taxonomy rows). Compile-checked against the crystal-lattice target
   (output hash equals the source section). Suite compatibility:
   `assert_draft_execution_plan` accepts both headings (new unit test),
   tg07 acceptance wording and tg08–tg10 `applicable_sections` name the

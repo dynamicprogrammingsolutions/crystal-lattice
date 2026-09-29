@@ -51,10 +51,14 @@ Relative to v3 it changes exactly these rules:
    clearly marked completion entry, later corrections as new entries).
    Later follow-ups stay additive and may remain in the same file: a
    `## Follow-up plan: <title> (<date>)` section is appended below the
-   earlier plans with the full plan format, added requirements append to
-   the Requirements checklist as unchecked items, and execution records
-   append to the notes; earlier plans and entries are never rewritten. A
-   separate task file remains an option when the user prefers it.
+   earlier plans with the full plan format, and execution records append
+   to the notes; earlier plans and entries are never rewritten. A
+   follow-up's own requirements live in its plan or append to the
+   Requirements checklist as unchecked items, and an existing
+   requirement is modified only after the user approves the change —
+   asking is mandatory whenever the change invalidates or alters an
+   approved requirement. A separate task file remains an option when
+   the user prefers it.
 
 Everything else — the structure and decomposition rules, the decisive-check
 rule, status semantics, subtask naming, and every other current section — is
