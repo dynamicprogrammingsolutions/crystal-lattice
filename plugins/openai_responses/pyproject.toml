@@ -47,6 +47,7 @@ python_files = ["test_*.py"]
 addopts = "-m 'not integration and not manual_integration'"
 markers = [
   "integration: integration tests that call real services",
+  "provider_integration: direct provider/extension integration tests eligible for preinstalled-bundle validation",
   "api: hosted API integration tests requiring credentials and potentially incurring cost",
   "slow_integration: slow integration tests that should be run selectively",
   "openai: tests requiring OpenAI credentials",

@@ -2485,6 +2485,32 @@ def cancel_request(
     return response
 
 
+@app.post("/requests/{request_id}/soft-cancel")
+def soft_cancel_request(
+    request_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Stop a request after its active foreground tool finishes."""
+
+    scope = f"POST /requests/{request_id}/soft-cancel"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
+    try:
+        app_instance.soft_cancel_request(request_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {
+        "request_id": request_id,
+        "status": "soft_cancel_requested",
+    }
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
 @app.get("/agents")
 def list_agents(
     app_instance: AgentApplication = Depends(get_agent_app),

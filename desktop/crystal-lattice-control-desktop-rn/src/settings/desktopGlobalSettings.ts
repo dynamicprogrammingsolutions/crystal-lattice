@@ -1,4 +1,5 @@
 import {
+  DEFAULT_HUMAN_TIME_PLUGIN_ID,
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DEFAULT_RECENT_SESSIONS_WINDOW,
   normalizeMarkdownBaseFontSize,
@@ -18,7 +19,12 @@ export interface DesktopGlobalSettings {
   sessionDoubleClickAction: SessionOpenMode;
   sessionsFollowActiveTabEnabled: boolean;
   switchConnectionWithActiveTabEnabled: boolean;
+  timeTrackingEnabled: boolean;
+  timeTrackingPluginId: string;
+  timeTrackingInactivitySeconds: number;
 }
+
+export const DEFAULT_TIME_TRACKING_INACTIVITY_SECONDS = 30;
 
 export const DEFAULT_DESKTOP_GLOBAL_SETTINGS: DesktopGlobalSettings = {
   baseFontSize: DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize,
@@ -27,6 +33,9 @@ export const DEFAULT_DESKTOP_GLOBAL_SETTINGS: DesktopGlobalSettings = {
   sessionDoubleClickAction: 'preview',
   sessionsFollowActiveTabEnabled: true,
   switchConnectionWithActiveTabEnabled: false,
+  timeTrackingEnabled: false,
+  timeTrackingPluginId: DEFAULT_HUMAN_TIME_PLUGIN_ID,
+  timeTrackingInactivitySeconds: DEFAULT_TIME_TRACKING_INACTIVITY_SECONDS,
 };
 
 export function normalizeSessionOpenMode(value: unknown): SessionOpenMode {
@@ -65,5 +74,17 @@ export function normalizeDesktopGlobalSettings(
         : DEFAULT_DESKTOP_GLOBAL_SETTINGS.sessionsFollowActiveTabEnabled,
     switchConnectionWithActiveTabEnabled:
       record.switchConnectionWithActiveTabEnabled === true,
+    timeTrackingEnabled: record.timeTrackingEnabled === true,
+    timeTrackingPluginId:
+      typeof record.timeTrackingPluginId === 'string' &&
+      record.timeTrackingPluginId.trim()
+        ? record.timeTrackingPluginId.trim()
+        : DEFAULT_HUMAN_TIME_PLUGIN_ID,
+    timeTrackingInactivitySeconds:
+      typeof record.timeTrackingInactivitySeconds === 'number' &&
+      Number.isFinite(record.timeTrackingInactivitySeconds) &&
+      record.timeTrackingInactivitySeconds > 0
+        ? record.timeTrackingInactivitySeconds
+        : DEFAULT_TIME_TRACKING_INACTIVITY_SECONDS,
   };
 }

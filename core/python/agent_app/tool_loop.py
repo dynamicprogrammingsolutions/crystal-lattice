@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable, Dict, Iterator, List
+from typing import Any, Callable, Dict, Iterator, List, Literal
 import traceback  # Add this import at the beginning of your file
 
 
@@ -11,8 +11,11 @@ from agent_core.types import ProviderRequestCancelled
 from .app_context import ApplicationContext
 
 
-class RequestCancellation:
-    """Thread-safe request cancellation controller with live callbacks."""
+CancellationMode = Literal["soft", "hard"]
+
+
+class _CancellationSignal:
+    """Thread-safe cancellable signal with live callbacks."""
 
     def __init__(self, *, cancelled: bool = False) -> None:
         self._event = threading.Event()
@@ -51,6 +54,52 @@ class RequestCancellation:
     def remove_callback(self, token: int) -> None:
         with self._lock:
             self._callbacks.pop(token, None)
+
+
+class RequestCancellation:
+    """Request stop state with provider and hard-only tool interruption."""
+
+    def __init__(self, *, cancelled: bool = False) -> None:
+        self._stop_event = threading.Event()
+        self._mode_lock = threading.Lock()
+        self._mode: CancellationMode | None = None
+        self._provider_signal = _CancellationSignal()
+        self._tool_signal = _CancellationSignal()
+        if cancelled:
+            self.cancel()
+
+    def is_cancelled(self) -> bool:
+        return self._stop_event.is_set()
+
+    def cancellation_mode(self) -> CancellationMode | None:
+        with self._mode_lock:
+            return self._mode
+
+    @property
+    def tool_cancellation(self) -> _CancellationSignal:
+        return self._tool_signal
+
+    def soft_cancel(self) -> None:
+        self._stop_event.set()
+        with self._mode_lock:
+            if self._mode is None:
+                self._mode = "soft"
+        self._provider_signal.cancel()
+
+    def cancel(self) -> None:
+        self._stop_event.set()
+        with self._mode_lock:
+            self._mode = "hard"
+        self._provider_signal.cancel()
+        self._tool_signal.cancel()
+
+    def add_callback(self, callback: Any) -> int:
+        """Register provider interruption for either cancellation mode."""
+
+        return self._provider_signal.add_callback(callback)
+
+    def remove_callback(self, token: int) -> None:
+        self._provider_signal.remove_callback(token)
 
 
 class ToolLoopCheckpointError(RuntimeError):
@@ -103,14 +152,10 @@ class ToolLoopRunner:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _extract_tool_calls(
-        self, messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._core.extract_tool_calls_from_messages(messages)
 
-    def _extract_pending_tool_calls_from_session(
-        self, session: Session
-    ) -> List[Dict[str, Any]]:
+    def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
         We only auto-resume the tool loop when the assistant-with-tool_calls is
@@ -153,6 +198,20 @@ class ToolLoopRunner:
             return bool(cb())
         except Exception:
             return False
+
+    def _request_cancelled_event(self, session: Session) -> Dict[str, Any]:
+        cancellation = getattr(self, "_cancellation", None)
+        mode = (
+            cancellation.cancellation_mode()
+            if cancellation is not None
+            else "hard"
+        )
+        return {
+            "type": "request_cancelled",
+            "session_id": session.session_id,
+            "request_id": self._request_id,
+            "cancellation_mode": mode or "hard",
+        }
 
     def _refresh_runtime(self, session: Session) -> Session:
         session_for_phase = getattr(self, "_session_for_phase", None)
@@ -205,11 +264,7 @@ class ToolLoopRunner:
 
         if not stream:
             if self._is_cancelled():
-                yield {
-                    "type": "request_cancelled",
-                    "session_id": session.session_id,
-                    "request_id": rid,
-                }
+                yield self._request_cancelled_event(session)
                 return session, []
 
             try:
@@ -232,11 +287,7 @@ class ToolLoopRunner:
                     ),
                 )
             except ProviderRequestCancelled:
-                yield {
-                    "type": "request_cancelled",
-                    "session_id": session.session_id,
-                    "request_id": rid,
-                }
+                yield self._request_cancelled_event(session)
                 return session, []
 
             # Emit the public final event first so that external
@@ -290,11 +341,7 @@ class ToolLoopRunner:
                 ),
             ):
                 if self._is_cancelled():
-                    yield {
-                        "type": "request_cancelled",
-                        "session_id": current_session.session_id,
-                        "request_id": rid,
-                    }
+                    yield self._request_cancelled_event(current_session)
                     return current_session, []
 
                 ctype = chunk.get("type")
@@ -366,11 +413,7 @@ class ToolLoopRunner:
                         "session": checkpoint_session,
                     }
         except ProviderRequestCancelled:
-            yield {
-                "type": "request_cancelled",
-                "session_id": current_session.session_id,
-                "request_id": rid,
-            }
+            yield self._request_cancelled_event(current_session)
             return current_session, []
 
         return (
@@ -411,6 +454,11 @@ class ToolLoopRunner:
         }
 
         tool_messages: List[Dict[str, Any]] = []
+        tool_cancellation = (
+            self._cancellation.tool_cancellation
+            if self._cancellation is not None
+            else None
+        )
 
         for call in tool_calls:
             try:
@@ -422,21 +470,26 @@ class ToolLoopRunner:
             last_final: Dict[str, Any] | None = None
 
             saw_partial = False
+            # One tool context per call, shared by execution and the append:
+            # the core records the call's framework facts (tool_call_id,
+            # started/finished timestamps) into this context, and reusing it
+            # for add_message lets the append hook see those facts.
+            tool_context = self._app_context.build_tool_context(
+                session=current_session,
+                request_id=self._request_id,
+                base_config=self._base_config,
+                config=config,
+                extra=(
+                    {"cancellation": tool_cancellation}
+                    if tool_cancellation is not None
+                    else None
+                ),
+            )
             for item in core.iter_tool_messages(
                 [call],
                 config,
-                cancellation=self._cancellation,
-                context=self._app_context.build_tool_context(
-                    session=current_session,
-                    request_id=self._request_id,
-                    base_config=self._base_config,
-                    config=config,
-                    extra=(
-                        {"cancellation": self._cancellation}
-                        if self._cancellation is not None
-                        else None
-                    ),
-                ),
+                cancellation=tool_cancellation,
+                context=tool_context,
             ):
                 if not isinstance(item, dict):
                     continue
@@ -506,17 +559,9 @@ class ToolLoopRunner:
                 content,
                 metadata,
                 config=config,
-                context=self._app_context.build_tool_context(
-                    session=current_session,
-                    request_id=self._request_id,
-                    base_config=self._base_config,
-                    config=config,
-                    extra=(
-                        {"cancellation": self._cancellation}
-                        if self._cancellation is not None
-                        else None
-                    ),
-                ),
+                # Reuse the per-call tool context so the append hook sees
+                # the framework facts recorded during execution.
+                context=tool_context,
                 tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 
@@ -565,11 +610,7 @@ class ToolLoopRunner:
 
         try:
             if self._is_cancelled():
-                yield {
-                    "type": "request_cancelled",
-                    "session_id": current_session.session_id,
-                    "request_id": self._request_id,
-                }
+                yield self._request_cancelled_event(current_session)
                 return
 
             # Handle any pending tool_calls already present in the session history
@@ -586,9 +627,7 @@ class ToolLoopRunner:
                     }
                     return
 
-                gen = self._apply_tool_calls(
-                    current_session, pending, stream_tools=stream
-                )
+                gen = self._apply_tool_calls(current_session, pending, stream_tools=stream)
                 while True:
                     try:
                         ev = next(gen)
@@ -600,11 +639,7 @@ class ToolLoopRunner:
             # Main LLM + tool loop
             while True:
                 if self._is_cancelled():
-                    yield {
-                        "type": "request_cancelled",
-                        "session_id": current_session.session_id,
-                        "request_id": self._request_id,
-                    }
+                    yield self._request_cancelled_event(current_session)
                     break
 
                 # Run a single LLM phase, yielding events as they arrive
@@ -641,9 +676,7 @@ class ToolLoopRunner:
                     }
                     break
 
-                gen = self._apply_tool_calls(
-                    current_session, tool_calls, stream_tools=stream
-                )
+                gen = self._apply_tool_calls(current_session, tool_calls, stream_tools=stream)
                 while True:
                     try:
                         ev = next(gen)

@@ -753,6 +753,11 @@ Run hosted API integration tests:
 pytest plugins/openai_responses/tests -m 'integration and api and not slow_integration and openai' -q
 ```
 
+Tests carrying `provider_integration` directly exercise provider/extension
+classes without `AgentApplication`. The iOS bundle runner positively selects
+that marker and supplies the embedded requests-transport configuration from a
+prebuilt ZIP; ordinary source runs retain the package's normal SDK defaults.
+
 Run manual ChatGPT-auth integration tests separately:
 
 ```bash

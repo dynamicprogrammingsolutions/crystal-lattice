@@ -21,7 +21,7 @@ from openrouter_plugins.openrouter_usage_extension import OpenRouterUsageExtensi
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = "https://openrouter.ai/api/v1"
-pytestmark = pytest.mark.api
+pytestmark = [pytest.mark.api, pytest.mark.provider_integration]
 
 
 @pytest.fixture(scope="module")

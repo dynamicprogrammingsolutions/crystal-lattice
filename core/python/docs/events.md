@@ -78,7 +78,7 @@ normally completed loop with `request_completed`.
 | Type | Additional fields | Meaning |
 |---|---|---|
 | `request_started` | `session_id`, `request_id`, `stream` | The effective request mode has been resolved and request processing is starting |
-| `request_cancelled` | `session_id`, `request_id` | Cooperative cancellation was observed |
+| `request_cancelled` | `session_id`, `request_id`, `cancellation_mode` | Soft or hard cooperative cancellation was observed |
 | `error` | `session_id`, `request_id`, `detail` | A fatal request, tool-loop, preparation, or persistence error |
 | `request_completed` | `session_id`, `request_id` | The logical request reached its terminal application event |
 
@@ -98,6 +98,10 @@ An `error` can be followed by `request_completed`. A cancellation observed
 before the loop starts can terminate after `request_cancelled`; consumers
 should therefore treat both `request_completed` and `request_cancelled` as
 terminal request-state signals.
+
+`request_cancelled.cancellation_mode` is `soft` when an active tool was
+allowed to finish before the request stopped and `hard` when active
+cooperative work was interrupted immediately.
 
 ### Assistant messages
 

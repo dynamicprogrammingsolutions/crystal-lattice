@@ -365,7 +365,11 @@ export type {
   StreamingRow,
   RequestErrorState,
 } from "./chat/chatController";
-export { ChatController } from "./chat/chatController";
+export {
+  ChatController,
+  DEFAULT_HISTORY_RANGE,
+  isRangeSelectsNoMessagesError,
+} from "./chat/chatController";
 
 export {
   selectLastAssistantMessage,

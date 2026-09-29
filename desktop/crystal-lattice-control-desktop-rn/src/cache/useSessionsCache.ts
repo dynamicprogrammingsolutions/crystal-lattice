@@ -9,16 +9,30 @@ import type { SessionsCache } from './types';
 export interface UseSessionsCacheResult {
   sessionsCache: SessionsCache;
   hydrated: boolean;
-  updateSessionsCache: (connectionId: string, sessions: SessionSummary[]) => void;
+  updateSessionsCache: (
+    connectionId: string,
+    sessions: SessionSummary[],
+  ) => void;
   deleteConnectionSessionsCache: (connectionId: string) => void;
   clearSessionsCache: () => void;
 }
 
-export function useSessionsCache(store: KeyValueStore): UseSessionsCacheResult {
-  const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
-  const [hydrated, setHydrated] = useState(false);
+export interface UseSessionsCacheOptions {
+  initialCache?: SessionsCache;
+  skipHydration?: boolean;
+}
+
+export function useSessionsCache(
+  store: KeyValueStore,
+  options: UseSessionsCacheOptions = {},
+): UseSessionsCacheResult {
+  const [sessionsCache, setSessionsCache] = useState<SessionsCache>(
+    options.initialCache ?? {},
+  );
+  const [hydrated, setHydrated] = useState(options.skipHydration === true);
 
   useEffect(() => {
+    if (options.skipHydration) return;
     const load = async () => {
       try {
         const raw = await store.get(STORAGE_KEY_SESSIONS_CACHE);
@@ -36,22 +50,24 @@ export function useSessionsCache(store: KeyValueStore): UseSessionsCacheResult {
     };
 
     load();
-  }, [store]);
+  }, [options.skipHydration, store]);
 
   useEffect(() => {
     if (!hydrated) return;
     const save = async () => {
       try {
-        await store.set(STORAGE_KEY_SESSIONS_CACHE, JSON.stringify(sessionsCache));
-      } catch {
-      }
+        await store.set(
+          STORAGE_KEY_SESSIONS_CACHE,
+          JSON.stringify(sessionsCache),
+        );
+      } catch {}
     };
     save();
   }, [hydrated, sessionsCache, store]);
 
   const updateSessionsCache = useMemo(() => {
     return (connectionId: string, sessions: SessionSummary[]) => {
-      setSessionsCache((prev) => ({
+      setSessionsCache(prev => ({
         ...prev,
         [connectionId]: {
           connectionId,
@@ -64,7 +80,7 @@ export function useSessionsCache(store: KeyValueStore): UseSessionsCacheResult {
 
   const deleteConnectionSessionsCache = useMemo(() => {
     return (connectionId: string) => {
-      setSessionsCache((prev) => {
+      setSessionsCache(prev => {
         if (!(connectionId in prev)) {
           return prev;
         }

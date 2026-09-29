@@ -49,10 +49,16 @@ authoritative notification record.
 `NotificationUiEffectObserver` deduplicates notification effects by scope,
 notification identity, and revision and ignores terminal revisions.
 `uiEffects.ts` stores backend-keyed pending session and session-list
-invalidations. Matching mobile and desktop consumers claim one invalidation,
-reload authoritative data, and acknowledge only after success. A failed or
-deferred reload releases the claim while retaining the invalidation for a
-later subscription.
+invalidations. Matching mobile and desktop consumers claim one invalidation
+and reload authoritative data. An invalidation is consumed after a single
+reload attempt regardless of outcome: a successful reload acknowledges it,
+and a failed or rejected reload also removes it so a persistently failing
+reload is never replayed. This matters because pending invalidations are
+replayed to new subscribers, and consumers routinely resubscribe when their
+reload callbacks change identity across renders; replaying failed
+invalidations turns any persistent reload failure (for example a message
+range that no longer selects messages after session compaction) into an
+infinite retry and error-alert loop.
 
 Claims live in backend-scoped SDK state rather than component-local state.
 This prevents React rerender or resubscription from starting duplicate reloads

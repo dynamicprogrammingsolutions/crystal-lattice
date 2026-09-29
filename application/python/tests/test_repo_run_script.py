@@ -39,6 +39,10 @@ WRAPPED_SCRIPTS = {
     "test:plugins:claude",
     "test:plugins:web-fetch-shared",
     "test:plugins:tool-compat-shared",
+    "test:ios:embedded-providers:bundle",
+    "test:ios:embedded-providers:bundle:api",
+    "test:ios:embedded-providers:detox:api",
+    "test:ios:embedded-providers:detox:chatgpt",
     "lint",
     "lint:fix",
     "format",
@@ -201,6 +205,14 @@ def test_python_tooling_scripts_run_through_repo_run():
     assert (
         scripts["docs:build"]
         == "cd docs_site && python ../scripts/repo_run.py mkdocs build"
+    )
+
+
+def test_ios_embedded_provider_bundle_build_targets_mobile_prepare():
+    scripts = _load_scripts()
+
+    assert scripts["build:ios:embedded-providers:bundle"] == (
+        "npm --prefix mobile/crystal-lattice-control-rn run ios:prepare-python"
     )
 
 

@@ -5,8 +5,10 @@ Adds a ``timestamp`` field to message metadata and exposes it as a
 
 This feature only *allocates* new timestamps in two places:
 
-- When a new core message is appended and converted to provider-native
-  form (``to_native_messages`` for the single appended message).
+- When a new core message is appended to a session
+  (``prepare_appended_message``, dispatched by ``AgentCore.add_message``
+  before the message is converted to provider-native form — so the
+  timestamp persists into native ``_metadata`` through the conversion).
 - When an assistant message is received from the provider
   (``finalize`` for provider-native final assistant messages).
 
@@ -47,50 +49,27 @@ class TimestampExtension(FeaturePlugin):
             }
         ]
 
-    def to_native_messages(
+    def prepare_appended_message(
         self,
-        messages: List[Dict[str, Any]],
-        native_messages: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """Attach a timestamp to a single newly-appended message.
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Allocate a timestamp on a message about to be appended.
 
-        The core calls this hook both for full-history conversions and
-        for single-message conversions (when appending via
-        :meth:`AgentCore.add_message`). This feature only annotates the
-        *single* appended message and otherwise leaves history unchanged
-        to avoid index-misalignment bugs when provider-native history
-        contains synthetic messages.
+        Runs inside :meth:`AgentCore.add_message` for end-of-session
+        appends, before the message is converted to provider-native form,
+        so the timestamp persists into native ``_metadata`` through the
+        provider conversion and survives native-history rebuilds.
+        Existing timestamps are preserved; no timestamp is fabricated
+        for messages that already carry one.
         """
-
-        if len(messages) != 1 or not native_messages:
-            return native_messages
-
-        core_md = messages[0].get("metadata") or {}
-        if not isinstance(core_md, dict):
-            core_md = {}
-
-        # Messages already in a session with native history carry
-        # native_indices; do not allocate timestamps during request
-        # preparation.
-        if "native_indices" in core_md:
-            return native_messages
-
-        ts = core_md.get("timestamp")
-        if not isinstance(ts, str) or not ts:
-            ts = datetime.now(timezone.utc).isoformat()
-
-        out: List[Dict[str, Any]] = []
-        for native in native_messages:
-            meta = native.get("_metadata") or {}
-            if not isinstance(meta, dict):
-                meta = {}
-
-            if not isinstance(meta.get("timestamp"), str) or not meta.get("timestamp"):
-                meta = {**meta, "timestamp": ts}
-
-            out.append({**native, "_metadata": meta})
-
-        return out
+        metadata = message.get("metadata")
+        merged: Dict[str, Any] = dict(metadata) if isinstance(metadata, dict) else {}
+        if not isinstance(merged.get("timestamp"), str) or not merged.get("timestamp"):
+            merged["timestamp"] = datetime.now(timezone.utc).isoformat()
+        return {**message, "metadata": merged}, state if isinstance(state, dict) else {}
 
     def from_native_messages(
         self,

@@ -74,6 +74,8 @@ using namespace facebook::react;
 
 - (void)setTextProgrammatically:(NSString *)text;
 - (void)focusInput;
+- (void)setInputAccessibilityIdentifier:(NSString *)identifier;
+- (void)setInputAccessibilityLabel:(NSString *)label;
 - (void)resetForRecycle;
 
 @end
@@ -296,7 +298,17 @@ using namespace facebook::react;
 
 - (void)focusInput
 {
-  [[self window] makeFirstResponder:self];
+  [[self window] makeFirstResponder:_textView];
+}
+
+- (void)setInputAccessibilityIdentifier:(NSString *)identifier
+{
+  _textView.accessibilityIdentifier = identifier;
+}
+
+- (void)setInputAccessibilityLabel:(NSString *)label
+{
+  _textView.accessibilityLabel = label;
 }
 
 - (void)setInitialText:(NSString *)initialText
@@ -320,6 +332,7 @@ using namespace facebook::react;
   _editable = editable;
   _textView.editable = editable;
   _textView.selectable = YES;
+  _textView.accessibilityEnabled = editable;
   _textView.textColor = self.textColor;
   _textView.insertionPointColor = self.textColor;
 }
@@ -615,6 +628,10 @@ using namespace facebook::react;
   _macTextViewContentView.placeholderTextColor =
       RCTUIColorFromSharedColor(newProps.placeholderTextColor);
   _macTextViewContentView.fontSize = newProps.fontSize;
+  [_macTextViewContentView
+      setInputAccessibilityIdentifier:RCTNSStringFromString(newProps.testId)];
+  [_macTextViewContentView
+      setInputAccessibilityLabel:RCTNSStringFromString(newProps.accessibilityLabel)];
 
   [super updateProps:props oldProps:oldProps];
 }

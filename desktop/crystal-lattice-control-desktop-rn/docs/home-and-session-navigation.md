@@ -20,6 +20,13 @@ Recent Sessions includes cached sessions modified in the selected timeframe:
 The same collection is available in the Home workspace and the History side
 panel. A watched session can also appear in Recent Sessions.
 
+Watchlist cards and Recent timeline rows show title, an optional subtitle or
+distinct message preview, session ID, request status when available, local
+note, connection name, and relative modification time. Connection name and
+session ID truncate independently while time and actions remain available.
+Preview-only sessions show their message preview once. Recent entries use a
+neutral gray timeline rail; request-status colors keep their semantic meaning.
+
 Local notes are keyed by session ID. Home, History, Sessions, and Chat can edit
 the same note. In Sessions and Chat, Local note is in the ellipsis Session
 actions menu and may be pinned. Removing a Watchlist entry or deleting a
@@ -32,6 +39,12 @@ The narrow activity rail has three controls:
 - Connections at the top independently shows or hides the Connections section.
 - Sessions at the bottom shows the focused connection's Sessions panel.
 - History at the bottom shows recent sessions across connections.
+
+Drag the divider between the side panel and main workspace to resize the
+panel. The selected width is stored locally. The divider can also be focused
+and adjusted with the Left and Right Arrow keys, or through its accessibility
+Make Sidebar Narrower and Make Sidebar Wider actions. Resizing is bounded so
+the sidebar remains useful without consuming the main workspace.
 
 ## Preview and permanent tabs
 
@@ -50,6 +63,16 @@ of creating a duplicate.
 Double-click an italic preview tab to make it permanent. Starting a request or
 another session mutation also makes the preview permanent before the operation
 begins. Permanent tabs can be dragged to reorder them.
+
+Middle-click any session tab to close it without selecting it. A three-finger
+click has the same behavior when macOS or a pointing-device utility maps that
+gesture to middle-click.
+
+Session-action pin choices are connection-scoped. Pinning or unpinning an
+action updates the other currently mounted tabs for that connection
+immediately; an older tab restored into the warm set reads the same persisted
+choice. Program actions are listed before plugin-contributed actions in the
+complete menu.
 
 Permanent order, the current preview, and the active Home or session workspace
 are restored after relaunch. Selecting or restoring a session tab attempts to

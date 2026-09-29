@@ -64,11 +64,43 @@ When `AgentCore.get_ui_schema()` is called, the core:
 3. Normalizes each element:
    - Sets `ui_type` to `"config"` if missing or falsy
    - Adds `plugin` field with the contributing plugin name
+   - Stamps an effective `order` (see [Element ordering](#element-ordering) below)
    - For `session_action`/`message_action` elements from extensions/features, sets `action_owner` field automatically
 4. **Deduplicates config elements**: Elements with `ui_type == "config"` are collected by `key` and only the last definition for each key is kept
-5. Appends deduplicated config elements at the end
+5. Returns all elements sorted by effective `order` (stable)
 
 This deduplication means later plugins can override earlier config elements with the same key.
+
+`AgentApplication.get_application_ui_schema()` applies the same
+normalization to application-plugin elements (app-plugin band, see below).
+
+## Element ordering
+
+Every UI element may carry an optional numeric `order`. The owner
+(core for provider/extension/feature/tool elements, application layer for
+application-plugin elements) stamps an effective order on every element
+and returns the list sorted by it, so consumers that render elements in
+list order need no sorting of their own.
+
+- **Explicit order wins**: if the element sets a finite numeric `order`,
+  it is kept as-is.
+- **Defaults preserve the current aggregation order**: provider band
+  1000, provider extension band 2000, feature band 3000, tool band 4000,
+  application plugin band 5000. Within a band the Nth plugin (in the
+  current iteration order) defaults to `band + N * 10` — e.g. the first
+  extension defaults to 2010, the second to 2020.
+- Elements from one plugin share the plugin's default, and the sort is
+  stable, so a plugin's declared element order is preserved.
+- Explicit orders position elements on the same scale across bands:
+  `order: 1990` sorts before every extension element; `order: 2015`
+  lands between the first (2010) and second (2020) extension plugins.
+
+The `order` field applies to all element types — config/settings
+elements, message footers, status bar fields, session/message actions,
+session-list fields and actions alike. Consumers that additionally sort
+a subset by `order` (for example session-list actions in the frontend
+SDK) do so idempotently: every element already carries its effective
+order.
 
 ### Automatic `action_owner` assignment
 

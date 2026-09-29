@@ -116,7 +116,20 @@ test("mobile composer keeps one draft across inline and maximized editing", asyn
         ? [(child as any).props.testID]
         : []
     )
-  ).toEqual(["composer-cancel-request", "composer-send"]);
+  ).toEqual(["composer-primary-action-resend", "composer-send"]);
+});
+
+test("primary composer action follows live request state", async () => {
+  const rendered = render(<MobileRichSessionUiHarness />);
+
+  await screen.findByTestId("composer-primary-action-resend");
+
+  rendered.rerender(
+    <MobileRichSessionUiHarness activeRequestId="request-active" />
+  );
+
+  await screen.findByTestId("composer-cancel-request");
+  expect(screen.queryByTestId("composer-primary-action-resend")).toBeNull();
 });
 
 test("active requests show progress without locking unrelated composer actions", async () => {
@@ -158,7 +171,12 @@ test("active requests show progress without locking unrelated composer actions",
   expect(
     await screen.findByTestId("actions-menu-state-config:web_search_enabled")
   ).toHaveTextContent("On");
-  expect(screen.queryByTestId("actions-menu-action-cancel")).toBeNull();
+  expect(
+    screen.getByTestId("actions-menu-action-cancel").props.disabled
+  ).not.toBe(true);
+  expect(
+    screen.getByTestId("actions-menu-action-softCancel").props.disabled
+  ).not.toBe(true);
   expect(screen.getByTestId("actions-menu-action-resend")).toBeTruthy();
   expect(screen.getByTestId("actions-menu-action-append")).toBeTruthy();
   expect(screen.getByTestId("actions-menu-action-appendAs")).toBeTruthy();

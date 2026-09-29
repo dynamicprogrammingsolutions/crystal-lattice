@@ -219,4 +219,5 @@ def test_get_tags_are_conservative_about_reasoning_support():
         "provider:openai_compatible",
         "supports_streaming",
         "supports_tools",
+        "cost_tracking",
     ]

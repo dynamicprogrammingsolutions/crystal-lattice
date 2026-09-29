@@ -1,0 +1,13 @@
+{
+    "_source": "https://fireworks.ai/pricing (serverless inference table)",
+    "_generated_at": "2026-09-27",
+    "_note": "One-time extraction, USD per million tokens, keyed by model id (page display names: GLM 5.3 Flash, GLM 5.3, Qwen 3.8 27B, Kimi K3, DeepSeek V4 Flash 0731, Muse Glimmer 30B). The default fireworks agent runs fireworks/gpt-oss-20b, which the current pricing table no longer lists, so it matches no entry and stays unestimated. Refresh manually by re-extracting from the source.",
+    "models": {
+        "glm-5.3-flash": {"input": 2.96, "cached": 0.593, "completion": 7.41},
+        "glm-5.3": {"input": 4.86, "cached": 0.972, "completion": 12.15},
+        "qwen-3.8-27b": {"input": 1.86, "cached": 0.372, "completion": 5.595},
+        "kimi-k3": {"input": 10.87, "cached": 2.17, "completion": 27.11},
+        "deepseek-v4-flash-0731": {"input": 1.74, "cached": 0.35, "completion": 4.33},
+        "muse-glimmer-30b": {"input": 1.96, "cached": 0.39, "completion": 4.88}
+    }
+}

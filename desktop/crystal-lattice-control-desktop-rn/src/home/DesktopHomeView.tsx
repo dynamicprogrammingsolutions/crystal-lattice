@@ -87,7 +87,7 @@ export function DesktopHomeView({
         </Text>
       ) : (
         <View style={styles.historyList} testID="desktop-home-history">
-          {collections.recent.map(item => {
+          {collections.recent.map((item, index) => {
             const watched = collections.watchlist.some(
               candidate => candidate.key === item.key,
             );
@@ -105,6 +105,8 @@ export function DesktopHomeView({
                 onOpen={mode => onOpenSession(item, mode)}
                 onToggleWatch={() => onToggleWatch(item, watched)}
                 onEditNote={() => onEditNote(item)}
+                isLast={index === collections.recent.length - 1}
+                presentationScope="home-recent"
               />
             );
           })}
@@ -149,10 +151,7 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       marginTop: 12,
     },
     historyList: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 12,
-      overflow: 'hidden',
+      paddingTop: 2,
     },
     empty: {
       paddingVertical: 18,

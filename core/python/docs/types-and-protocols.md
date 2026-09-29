@@ -146,6 +146,42 @@ Features do not run once per provider chunk. See
 [plugin execution order](../../../plugins/docs/plugin-execution-order.md) for
 the complete enablement and ordering model.
 
+## Tool-call and message-append hooks
+
+Provider extensions and features can participate in tool-call execution and
+session appends through three optional protocol hooks:
+`prepare_tool_call`, `finalize_tool_call`, and `prepare_appended_message`.
+
+```text
+per tool call (AgentCore.iter_tool_messages / execute_tool_calls):
+  inspect the call
+    → prepare_tool_call: extensions → features (may transform the call;
+      the transformed call is re-inspected before handler resolution)
+    → execute the tool
+    → finalize_tool_call: extensions → features, exactly once per call,
+      on the single final message every call yields (synthesized error
+      results included, with a tool_error context fact)
+
+per end-append (AgentCore.add_message with a config):
+  prepare_appended_message: extensions → features, before the message is
+    converted to provider-native form (so stamped metadata persists into
+    native _metadata)
+```
+
+The framework provides only raw facts through the context: the call
+descriptor, `started_at`/`started_at_mono` and `finished_at`/
+`finished_at_mono` timestamps, `session_id`/`request_id`, and `tool_error`
+for synthesized results. It never computes durations or stamps messages —
+plugins own any measurement derived from these facts. Shared provider state
+is threaded through each chain so chained plugins can read each other's
+state. The hooks dispatch only when the full plugin context resolves (a
+provider is registered and selected); bare-core tool execution without a
+provider keeps its current behavior.
+
+See the [feature plugin hooks](../../../plugins/docs/feature-plugins.md)
+and [provider extension hooks](../../../plugins/docs/provider-extensions.md)
+for authoring guidance.
+
 ## Discovery and enablement
 
 `AgentCore` registers providers, extensions, features, and tools as classes.

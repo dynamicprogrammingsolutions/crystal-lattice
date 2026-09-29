@@ -662,9 +662,15 @@ editable source checkout but failed when imported from
 
 ### Follow-up requirements checklist
 
-- [ ] The existing unit and integration tests in each provider package
-  intended for the embedded ZIP run with that provider imported from the
-  generated ZIP rather than from an editable/source installation.
+- [x] Selected direct provider integration tests, including hosted real-API
+  tests, in `plugins/openai_responses/tests` and
+  `plugins/openrouter/tests` run with their provider/runtime modules imported
+  from the prebuilt iOS ZIP; `AgentApplication` and plugin-installation tests
+  are outside this boundary.
+- [x] Provider bundle tests use an isolated test-only dependency overlay that
+  is not copied into any product bundle, does not install either provider
+  project, and cannot replace provider/runtime modules supplied by the iOS
+  ZIP.
 - [x] Root `package.json` provides discoverable commands for the important
   embedded-provider bundle suites, automated real-API Detox matrix, manually
   gated ChatGPT-action Detox path, and reviewer-proxy tests.
@@ -702,6 +708,11 @@ editable source checkout but failed when imported from
 ### Approved testing amendment
 
 Status: Approved
+
+The provider-package portion of this amendment was found too broad during
+execution and is superseded for remaining work by the Draft correction below.
+The already delivered Detox, ChatGPT gate, reviewer proxy, and deployment
+parts remain approved historical work.
 
 - Build the iOS application ZIP before provider tests.
 - Run the existing tests from
@@ -980,6 +991,203 @@ configuration data so it can be updated without changing proxy code.
 - Verify repository, app logs, server logs, Compose output, and task evidence
   contain no secret values.
 
+## Provider-package bundle validation correction
+
+Status: Approved
+
+This correction narrows bundle-package verification to the direct integration
+tests owned by the two selected provider packages:
+
+- `plugins/openai_responses/tests`;
+- `plugins/openrouter/tests`.
+
+It includes their selected non-API integration tests and hosted real-API
+integration tests. It excludes tests whose subject is `AgentApplication`,
+application configuration, local-path plugin installation, terminal/server
+behavior, or the mobile UI. Those boundaries retain their ordinary source,
+distribution, or Detox coverage.
+
+The tests run from the repository, but provider/runtime imports come from an
+already-built `crystal_lattice_app.zip`. The test command must not rebuild,
+rewrite, or expand the ZIP.
+
+### Feasibility and approach
+
+Use environmental facts rather than a source/computer/iOS mode enum. The test
+orchestrator provides:
+
+- the prebuilt ZIP path;
+- preinstalled provider/runtime module names and expected archive origin;
+- the provider project and tests directory;
+- a temporary dependency-overlay directory;
+- distributions already supplied by the artifact;
+- credentials and ordinary test marker gates.
+
+Provider tests receive plain imported provider classes from the ZIP and
+register them directly with `AgentCore`. They do not construct local
+`{"path": ..., "entry": ...}` provider entries and do not instantiate
+`AgentApplication`.
+
+Add a positive `provider_integration` marker to existing tests that directly
+exercise provider/extension behavior. Module-level marking is appropriate for
+files containing only direct provider tests; mixed files mark eligible tests
+individually. This is intentionally positive selection so a future
+`AgentApplication` test cannot enter the bundle lane merely because it also
+has `integration` and `api`.
+
+The two bundle commands select:
+
+```text
+provider_integration and integration and not api and not manual_integration
+provider_integration and integration and api and not slow_integration and not manual_integration
+```
+
+OpenAI Responses bundle tests use the requests transport and only provider
+extensions/runtime dependencies present in the iOS ZIP. SDK-object mutation,
+SDK-only transport, and extensions absent from the embedded closure remain
+ordinary provider source tests. OpenRouter already uses its requests-based
+provider path.
+
+Build one ephemeral virtual environment per selected provider. A test-only
+overlay builder reads that plugin's declared `dev` requirement strings from
+`pyproject.toml` and installs the requirement strings individually; it never
+installs the provider project or invokes `<project>[dev]`. Requirements
+declared as already supplied by the ZIP, currently including `agent-core`, are
+excluded by test input. The ZIP is placed before overlay site-packages, and
+provider/runtime modules are imported and provenance-checked before pytest is
+loaded from the overlay.
+
+The feasibility probe on September 15, 2026 demonstrated this layout:
+
+- pytest and dotenv imported from a temporary virtual environment;
+- `agent_core`, `requests`, `openai_responses_plugins`, and
+  `openrouter_plugins` imported from the unchanged iOS ZIP;
+- neither `openai_responses` nor `openrouter-plugins` was installed in the
+  overlay;
+- attempting to install the raw `dev` list without artifact-provided
+  exclusions correctly failed because `agent-core` is not published on the
+  configured package index.
+
+Update provider-package `conftest.py` behavior so setting the prebuilt ZIP
+prevents reinsertion of that provider's `src/` directory. Add before/after
+provenance checks for every loaded provider submodule and the runtime modules
+the lane claims to obtain from the ZIP. Fail if source, editable, plugin-cache,
+or overlay copies replace them.
+
+The bundle runner no longer calls the iOS runtime preparation script. It fails
+with a clear message when the requested prebuilt ZIP is absent, and reports
+the tested archive path/hash.
+
+### Current test inventory
+
+OpenAI Responses currently has direct provider integration coverage for model
+discovery, requests transport, streaming/non-streaming conversion,
+cancellation, tools, reasoning, usage, pricing, caching, compaction,
+verbosity, web search, and attachments. During marking:
+
+- include tests that can execute using the iOS requests transport and the
+  provider/extensions present in the embedded ZIP;
+- adapt shared provider config fixtures to consume the supplied
+  `provider_transport=requests` fact instead of silently using the SDK;
+- retain SDK-specific object-mutation tests and tests for extensions outside
+  the embedded closure in ordinary source CI;
+- exclude all tests that instantiate `AgentApplication`, including the two
+  apply-patch application tests that triggered local-path source installation.
+
+OpenRouter's direct provider integration files cover basic requests, model
+discovery, multipart conversion, reasoning, tools, usage, verbosity, and web
+search. Mark the direct provider cases and exclude its AgentApplication
+apply-patch/puzzle/config tests and application-backed image-generation cases.
+
+Do not add duplicate provider behavior tests merely for the bundle. Existing
+tests and their shared configuration helpers may be corrected or
+parameterized so the same provider validation can run against source in
+ordinary package CI and against the prebuilt ZIP in this lane.
+
+### Implementation decisions and open questions
+
+- **Decision:** no artifact-layout enum. Tests consume concrete paths,
+  preinstalled-module/provenance facts, cache policy, transport configuration,
+  and dependency-overlay inputs.
+- **Decision:** only OpenAI Responses and OpenRouter participate in this
+  provider-package bundle lane.
+- **Decision:** only positively marked direct provider integration tests run;
+  unit tests and all `AgentApplication` tests are excluded.
+- **Decision:** the ZIP is immutable and prebuilt. Preparation/build remains a
+  separate command or CI step.
+- **Decision:** dev/test dependencies live only in per-provider temporary
+  environments. Product bundles remain unchanged and contain no dev
+  dependencies.
+- **Decision:** provider project source is never installed into the overlay.
+  Runtime modules claimed from the ZIP are protected by provenance checks.
+- **Recommendation:** begin with the direct integration files already known to
+  pass using requests transport, then mark/adapt additional direct tests only
+  when their asserted provider capability is present in the embedded closure.
+- No unresolved requirement question blocks approval.
+
+### Documentation
+
+- Correct the embedded-runtime testing page to describe the prebuilt,
+  immutable ZIP boundary, the two selected providers, direct integration-test
+  marker, test-only overlay, and excluded AgentApplication boundary.
+- Correct root command descriptions so they no longer claim unit tests or all
+  four providers run from the bundle.
+- Document that hosted credentials are supplied only to the test process and
+  that short tracebacks/redaction remain required.
+
+### Task checklist
+
+- [x] Add the fact-based provider bundle test environment and per-provider
+  ephemeral overlay builder.
+- [x] Read dev requirement strings from each selected plugin's metadata,
+  exclude artifact-provided distributions from test input, and install only
+  those requirement strings into the overlay.
+- [x] Make OpenAI Responses and OpenRouter test bootstrap/conftest behavior
+  preserve ZIP precedence without reintroducing provider source.
+- [x] Add the positive `provider_integration` marker to eligible existing
+  direct provider integration tests and register the marker in both packages.
+- [x] Remove AgentApplication, local-path installation, SDK-only, and
+  non-embedded-extension tests from the bundle selection without removing
+  them from ordinary provider CI.
+- [x] Make eligible OpenAI Responses tests consume the iOS requests-transport
+  configuration while retaining their ordinary source-mode coverage.
+- [x] Change the bundle runner to require a prebuilt ZIP, select only OpenAI
+  Responses and OpenRouter provider integrations, and enforce before/after
+  module provenance.
+- [x] Update root commands and documentation to match the narrowed boundary.
+- [x] Run the selected non-API provider integration lane from the prebuilt ZIP.
+- [x] Run the credential-gated hosted provider integration lane from the
+  prebuilt ZIP with secret-safe output.
+
+### Requirement verification
+
+- Prebuilt artifact: record the ZIP path/hash before and after both lanes and
+  show that it is unchanged.
+- Test selection: collected tests are from the two selected provider packages,
+  carry `provider_integration`, and contain no AgentApplication boundary.
+- Runtime provenance: all loaded selected-provider, `agent_core`, and
+  `requests` modules resolve from the ZIP before and after every test.
+- Overlay isolation: pytest/dev helpers resolve from a temporary
+  provider-specific environment; neither provider distribution is installed
+  there, and no overlay file is copied into a product bundle.
+- Non-API lane: selected deterministic/local integration tests collect and
+  pass against the prebuilt ZIP.
+- Hosted lane: selected OpenAI Responses and OpenRouter real-API integration
+  tests collect and pass against the same prebuilt ZIP with gated credentials.
+
+### Additional implementation verification
+
+- Assert provider `src/`, editable finders, repository plugin paths, and
+  mutable plugin-cache paths cannot satisfy selected provider imports.
+- Assert the iOS ZIP does not contain pytest, dotenv, package test files, or
+  other declared dev-only modules.
+- Assert the overlay contains no installed OpenAI Responses or OpenRouter
+  provider distribution and cannot shadow modules claimed from the ZIP.
+- Run ordinary source package integration slices after changing shared test
+  fixtures or markers so source validation remains intact.
+- Keep API-key fixtures redacted and use short tracebacks for all hosted
+  bundle runs.
+
 ## Post-completion follow-up implementation notes
 
 - 2026-09-13: The user approved the testing and reviewer-proxy execution plan
@@ -1093,3 +1301,31 @@ configuration data so it can be updated without changing proxy code.
   value. The local log was removed and future bundle runs use short
   tracebacks, but the upstream OpenAI key must be rotated and the server
   `.env` updated before treating that credential as private.
+- 2026-09-15: Replaced the broad four-provider/unit-test bundle lane with
+  positive `provider_integration` selection for direct OpenAI Responses and
+  OpenRouter integration tests only. AgentApplication, plugin-installation,
+  SDK-only, and non-embedded-extension tests remain in ordinary package lanes.
+- 2026-09-15: The runner now requires a prebuilt immutable ZIP, records and
+  rechecks its SHA-256, rejects dev/test trees in the artifact, and creates one
+  disposable virtual environment per provider. It reads each plugin's declared
+  dev requirements, excludes artifact-provided `agent-core`, installs
+  requirement strings without installing either provider project, and removes
+  the environment afterward.
+- 2026-09-15: Provider, `agent_core`, and `requests` modules are preimported
+  from the ZIP and checked before/after every selected test. Provider
+  conftests no longer reinsert source in bundle mode, and marked files
+  containing `AgentApplication` are rejected before collection.
+- 2026-09-15: Two stale OpenRouter source assumptions surfaced during
+  selection. The multiple-model row now has configurable proven defaults. The
+  independently failing multipart/image row remains unchanged in ordinary
+  source coverage and is outside embedded-closure validation.
+- 2026-09-15: The non-API prebuilt-ZIP lane passed two direct OpenRouter tests.
+  The hosted lane passed six OpenAI Responses tests using the embedded requests
+  transport and nine OpenRouter tests. Both lanes retained ZIP hash
+  `e7ab499d18b8798fc825e4a38f7aacb376be12a28546fc4c1933737a6789764e`.
+  Ordinary source suites also passed: OpenAI Responses 428 tests, OpenRouter
+  135 tests, and the selected hosted source slices six plus nine tests.
+- 2026-09-15: Added root
+  `build:ios:embedded-providers:bundle` as the discoverable artifact-build
+  entry. It delegates to the mobile `ios:prepare-python` command, while both
+  root bundle test entries continue to require and preserve the prebuilt ZIP.

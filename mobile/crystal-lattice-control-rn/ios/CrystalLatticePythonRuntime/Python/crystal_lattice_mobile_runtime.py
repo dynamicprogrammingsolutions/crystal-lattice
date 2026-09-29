@@ -1589,6 +1589,15 @@ def _handle_request(
         if path_parts[2] == "cancel" and method == "POST":
             application.cancel_request(path_parts[1])
             return _response(200, {"status": "ok"})
+        if path_parts[2] == "soft-cancel" and method == "POST":
+            application.soft_cancel_request(path_parts[1])
+            return _response(
+                200,
+                {
+                    "request_id": path_parts[1],
+                    "status": "soft_cancel_requested",
+                },
+            )
 
     if path_parts == ["application", "actions"] and method == "GET":
         plugin = (query.get("plugin") or [None])[-1]

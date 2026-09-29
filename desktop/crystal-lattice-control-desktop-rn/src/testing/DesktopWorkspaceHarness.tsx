@@ -8,6 +8,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 import type {
   ConnectionRecord,
+  KeyValueStore,
   SessionRequestStatus,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
@@ -16,7 +17,10 @@ import {
   DesktopActivityRail,
   type DesktopLowerPanel,
 } from '../layout/DesktopActivityRail';
-import { DesktopShell } from '../layout/DesktopShell';
+import {
+  DesktopShell,
+  type DesktopSidebarMetrics,
+} from '../layout/DesktopShell';
 import { DesktopHomeView } from '../home/DesktopHomeView';
 import { HistoryPanel } from '../panels/HistoryPanel';
 import { SessionTabs } from '../tabs/SessionTabs';
@@ -24,13 +28,27 @@ import type { DesktopSessionTab } from '../tabs/desktopWorkspaceState';
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 
+export const DESKTOP_HOME_LONG_SESSION_ID =
+  'session-with-a-deliberately-long-identifier-for-native-truncation';
+
 const connection = {
   id: 'harness-connection',
   kind: 'manual',
-  name: 'Harness server',
+  name: 'Harness server with a deliberately long display name',
   host: '127.0.0.1',
   port: 9000,
 } as ConnectionRecord;
+
+const sidebarStoreValues = new Map<string, string>();
+const sidebarWidthStore: KeyValueStore = {
+  get: async key => sidebarStoreValues.get(key) ?? null,
+  set: async (key, value) => {
+    sidebarStoreValues.set(key, value);
+  },
+  delete: async key => {
+    sidebarStoreValues.delete(key);
+  },
+};
 
 const summaries: SessionSummary[] = [
   {
@@ -57,6 +75,21 @@ const summaries: SessionSummary[] = [
     session_id: 'four',
     modified: Date.now() / 1000 - 40,
     preview: 'Fourth session',
+  },
+  {
+    session_id: DESKTOP_HOME_LONG_SESSION_ID,
+    modified: Date.now() / 1000 - 25,
+    preview: 'A distinct native message preview',
+    presentation: {
+      title: 'A complete native session title',
+      subtitle: 'A complete native session subtitle',
+      meta: null,
+    },
+  },
+  {
+    session_id: 'preview-only',
+    modified: Date.now() / 1000 - 35,
+    preview: 'Preview rendered exactly once',
   },
 ];
 
@@ -95,11 +128,17 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
   const [homeActive, setHomeActive] = useState(false);
   const [connectionsVisible, setConnectionsVisible] = useState(true);
   const [lowerPanel, setLowerPanel] = useState<DesktopLowerPanel>('sessions');
+  const [sidebarMetrics, setSidebarMetrics] =
+    useState<DesktopSidebarMetrics | null>(null);
   const [watchlist, setWatchlist] = useState([
     { connectionId: connection.id, sessionId: 'one' },
     { connectionId: connection.id, sessionId: 'two' },
     { connectionId: connection.id, sessionId: 'three' },
     { connectionId: connection.id, sessionId: 'four' },
+    {
+      connectionId: connection.id,
+      sessionId: DESKTOP_HOME_LONG_SESSION_ID,
+    },
   ]);
   const collections = useMemo(
     () =>
@@ -118,6 +157,9 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
     [connection.id]: {
       one: runningStatus('one'),
       preview: runningStatus('preview'),
+      [DESKTOP_HOME_LONG_SESSION_ID]: runningStatus(
+        DESKTOP_HOME_LONG_SESSION_ID,
+      ),
     },
   };
 
@@ -129,6 +171,7 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
       connectionsVisible,
       lowerPanel,
       watchlistOrder: watchlist.map(item => item.sessionId),
+      sidebarMetrics,
     });
   }, [
     active,
@@ -137,12 +180,15 @@ export function DesktopWorkspaceHarness(): React.JSX.Element {
     lowerPanel,
     permanentTabs,
     previewTab,
+    sidebarMetrics,
     watchlist,
   ]);
 
   return (
     <ThemeProvider theme={theme}>
       <DesktopShell
+        sidebarWidthStore={sidebarWidthStore}
+        onSidebarMetricsChange={setSidebarMetrics}
         activityRail={
           <DesktopActivityRail
             connectionsVisible={connectionsVisible}

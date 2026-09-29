@@ -343,18 +343,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         label: "Server settings",
         iconName: "settings",
         kind: "builtin",
+        testID: "sessions-header-action-server-settings",
       },
       {
         key: "refreshSessions",
         label: "Refresh sessions",
         iconName: "refresh-cw",
         kind: "builtin",
+        testID: "sessions-header-action-refresh",
       },
       {
         key: "newSession",
         label: "New session",
         iconName: "plus",
         kind: "builtin",
+        testID: "sessions-header-action-new-session",
       },
       ...applicationActions.map((element) => ({
         key: applicationActionKey(element.plugin, element.id),
@@ -839,7 +842,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         key={s.session_id}
         style={styles.sessionItem}
         testID={`session-row-${s.session_id}`}
-        onPress={() => navigateToSession(s.session_id)}
+        onPress={() => {
+          navigateToSession(s.session_id);
+        }}
       >
         <View style={styles.sessionHeaderRow}>
           {headerLeadingAction ? (
@@ -1124,6 +1129,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       )}
 
       <FlatList
+        testID="sessions-list"
         style={styles.list}
         data={filteredSessions}
         keyExtractor={(item) => item.session_id}

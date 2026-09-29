@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
+import re
 import subprocess
-import sys
+import tempfile
+import tomllib
+import venv
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,41 +23,51 @@ ARCHIVE = (
     / "crystal_lattice_app.zip"
 )
 BOOTSTRAP = REPO_ROOT / "test" / "run_pytest_from_embedded_bundle.py"
+PROVIDED_DISTRIBUTIONS = frozenset({"agent-core"})
+FORBIDDEN_ARCHIVE_PREFIXES = ("pytest/", "_pytest/", "dotenv/", "tests/")
 
 
 @dataclass(frozen=True)
 class ProviderSuite:
     project: str
     module: str
-    integration_marker: str
-    hosted_api: bool = True
+    distribution: str
+    has_non_api: bool
+
+    @property
+    def root(self) -> Path:
+        return REPO_ROOT / "plugins" / self.project
 
     @property
     def tests(self) -> Path:
-        return REPO_ROOT / "plugins" / self.project / "tests"
+        return self.root / "tests"
+
+    def marked_test_files(self) -> list[Path]:
+        selected: list[Path] = []
+        for path in sorted(self.tests.glob("test_*.py")):
+            source = path.read_text("utf-8")
+            if "provider_integration" not in source:
+                continue
+            if "AgentApplication" in source:
+                raise RuntimeError(
+                    f"Provider bundle test imports AgentApplication: {path}"
+                )
+            selected.append(path)
+        return selected
 
 
 SUITES = (
     ProviderSuite(
-        "reference-openai-compatible-provider",
-        "reference_openai_compatible_provider",
-        "integration and not api and not slow_integration",
-        False,
-    ),
-    ProviderSuite(
         "openai_responses",
         "openai_responses_plugins",
-        "integration and not api and not slow_integration and not manual_integration",
+        "openai_responses",
+        False,
     ),
     ProviderSuite(
         "openrouter",
         "openrouter_plugins",
-        "integration and not api and not slow_integration",
-    ),
-    ProviderSuite(
-        "anthropic-compatible",
-        "anthropic_plugins",
-        "integration and not api and not slow_integration",
+        "openrouter-plugins",
+        True,
     ),
 )
 
@@ -60,78 +76,163 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "mode",
-        choices=("default", "api", "manual"),
+        choices=("default", "api"),
         nargs="?",
         default="default",
     )
     parser.add_argument("--provider", action="append", default=[])
-    parser.add_argument("--skip-install", action="store_true")
+    parser.add_argument("--archive", type=Path, default=ARCHIVE)
     return parser.parse_args()
 
 
-def run(command: list[str]) -> None:
-    subprocess.run(command, cwd=REPO_ROOT, check=True)
+def normalized_distribution_name(requirement: str) -> str:
+    name = re.split(r"[<>=!~;\[ ]", requirement, maxsplit=1)[0]
+    return name.strip().lower().replace("_", "-")
 
 
-def pytest_command(suite: ProviderSuite, marker: str) -> list[str]:
+def dev_requirements(suite: ProviderSuite) -> list[str]:
+    payload = tomllib.loads((suite.root / "pyproject.toml").read_text("utf-8"))
+    configured = payload["project"]["optional-dependencies"]["dev"]
     return [
-        sys.executable,
+        requirement
+        for requirement in configured
+        if normalized_distribution_name(requirement) not in PROVIDED_DISTRIBUTIONS
+    ]
+
+
+def venv_python(environment_root: Path) -> Path:
+    if os.name == "nt":
+        return environment_root / "Scripts" / "python.exe"
+    return environment_root / "bin" / "python"
+
+
+def prepare_overlay(suite: ProviderSuite, environment_root: Path) -> Path:
+    venv.EnvBuilder(with_pip=True, clear=True).create(environment_root)
+    python = venv_python(environment_root)
+    requirements = dev_requirements(suite)
+    if requirements:
+        subprocess.run(
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                *requirements,
+            ],
+            cwd=REPO_ROOT,
+            check=True,
+        )
+    return python
+
+
+def archive_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def assert_archive_excludes_dev_content(path: Path) -> None:
+    with zipfile.ZipFile(path) as archive:
+        names = archive.namelist()
+    forbidden = [
+        name
+        for name in names
+        if any(name.startswith(prefix) for prefix in FORBIDDEN_ARCHIVE_PREFIXES)
+    ]
+    if forbidden:
+        raise RuntimeError(
+            f"Prebuilt iOS provider archive contains dev/test content: {forbidden[:10]}"
+        )
+
+
+def pytest_marker(mode: str) -> str:
+    if mode == "api":
+        return (
+            "provider_integration and integration and api "
+            "and not slow_integration and not manual_integration"
+        )
+    return (
+        "provider_integration and integration and not api "
+        "and not slow_integration and not manual_integration"
+    )
+
+
+def run_suite(
+    suite: ProviderSuite,
+    *,
+    archive: Path,
+    mode: str,
+    environment_root: Path,
+) -> None:
+    python = prepare_overlay(suite, environment_root)
+    command = [
+        str(python),
         str(BOOTSTRAP),
         "--archive",
-        str(ARCHIVE),
+        str(archive),
         "--module",
         suite.module,
+        "--runtime-module",
+        "agent_core",
+        "--runtime-module",
+        "requests",
+        "--forbid-distribution",
+        suite.distribution,
         "--",
-        str(suite.tests),
+        *(str(path) for path in suite.marked_test_files()),
         "-q",
         "--tb=short",
         "-m",
-        marker,
+        pytest_marker(mode),
     ]
+    subprocess.run(command, cwd=REPO_ROOT, check=True)
 
 
 def main() -> int:
     args = parse_args()
-    run(
-        [
-            sys.executable,
-            str(MOBILE_ROOT / "scripts" / "prepare_ios_python_runtime.py"),
-        ]
-    )
+    archive = args.archive.resolve()
+    if not archive.is_file():
+        raise SystemExit(
+            f"Prebuilt iOS provider archive does not exist: {archive}. "
+            "Build it before running provider bundle tests."
+        )
+
+    requested = set(args.provider)
     selected = [
         suite
         for suite in SUITES
-        if not args.provider or suite.project in set(args.provider)
+        if not requested or suite.project in requested
     ]
     if not selected:
         raise SystemExit("No embedded provider suites matched --provider")
 
+    before = archive_digest(archive)
+    assert_archive_excludes_dev_content(archive)
+    print(f"embedded-provider-archive:{archive}")
+    print(f"embedded-provider-archive-sha256:{before}")
+
     for suite in selected:
-        if not args.skip_install:
-            run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "-e",
-                    f"{REPO_ROOT / 'plugins' / suite.project}[dev]",
-                ]
+        if args.mode == "default" and not suite.has_non_api:
+            continue
+        with tempfile.TemporaryDirectory(
+            prefix=f"crystal-{suite.project}-bundle-tests-"
+        ) as temporary:
+            run_suite(
+                suite,
+                archive=archive,
+                mode=args.mode,
+                environment_root=Path(temporary) / "venv",
             )
-        if args.mode == "default":
-            run(pytest_command(suite, "not integration"))
-            run(pytest_command(suite, suite.integration_marker))
-        elif args.mode == "api":
-            if not suite.hosted_api:
-                continue
-            run(
-                pytest_command(
-                    suite,
-                    "integration and api and not slow_integration and not manual_integration",
-                )
-            )
-        else:
-            run(pytest_command(suite, "manual_integration"))
+
+    after = archive_digest(archive)
+    if after != before:
+        raise SystemExit(
+            f"Prebuilt iOS provider archive changed during tests: {before} -> {after}"
+        )
+    print(f"embedded-provider-archive-unchanged:{after}")
     return 0
 
 

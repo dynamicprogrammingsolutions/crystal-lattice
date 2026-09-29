@@ -7,5 +7,9 @@ module.exports = {
   moduleNameMapper: {
     '^react$': '<rootDir>/node_modules/react',
   },
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/__integration__/'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/__integration__/',
+    '<rootDir>/__native__/',
+  ],
 };

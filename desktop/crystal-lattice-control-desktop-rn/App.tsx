@@ -11,7 +11,10 @@ import {
   type RecentSessionsWindow,
 } from '@crystal-lattice/frontend-rn-components';
 
-import { DesktopRoot } from './src/DesktopRoot';
+import {
+  DesktopRoot,
+  type DesktopHumanTimeNativeFixture,
+} from './src/DesktopRoot';
 import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
 import { DesktopMarkdownGeometryHarness } from './src/testing/DesktopMarkdownGeometryHarness';
 import { useDesktopTheme } from './src/theme/useDesktopTheme';
@@ -32,6 +35,7 @@ export interface AppProps {
   initialSessionDoubleClickAction?: SessionOpenMode;
   enableScrollTestHarness?: boolean;
   enableMarkdownGeometryHarness?: boolean;
+  humanTimeNativeFixture?: DesktopHumanTimeNativeFixture;
 }
 
 export default function App(props: AppProps) {
@@ -82,6 +86,11 @@ export default function App(props: AppProps) {
             }
             initialSessionDoubleClickAction={
               (props as any)?.initialSessionDoubleClickAction
+            }
+            humanTimeNativeFixture={
+              (props as any)?.humanTimeNativeFixture as
+                | DesktopHumanTimeNativeFixture
+                | undefined
             }
           />
         )}

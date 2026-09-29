@@ -17,7 +17,7 @@ except ImportError:
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 
-pytestmark = pytest.mark.openrouter
+pytestmark = [pytest.mark.openrouter, pytest.mark.provider_integration]
 
 
 @pytest.mark.integration

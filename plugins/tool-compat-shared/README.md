@@ -39,7 +39,11 @@ formatting functions (precedent violations — see note above).
 
 ### `shell_engine.py`
 
-Shell command execution, background process support, output truncation.
+Shell command execution, foreground process-tree cancellation, background
+process support, and output truncation. Foreground execution accepts an
+optional hard-cancellation signal and reports cancellation separately from
+timeout. Once a background command is successfully handed off, request
+cancellation no longer owns that process.
 
 ### `web_search_engine.py`
 

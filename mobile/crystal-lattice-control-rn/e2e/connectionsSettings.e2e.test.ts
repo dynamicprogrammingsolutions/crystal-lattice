@@ -49,6 +49,7 @@ async function launchHarness(deleteData: boolean): Promise<void> {
 
 describe('mobile Connections and markdown settings', () => {
   it('uses production actions, modals, persistence, and native geometry', async () => {
+    const platform = device.getPlatform();
     await launchHarness(true);
     await element(by.id('connections-tab')).tap();
 
@@ -106,11 +107,40 @@ describe('mobile Connections and markdown settings', () => {
     );
     jestExpect(previewFrame.width).toBeLessThanOrEqual(rootFrame.width);
     jestExpect(initialHeadingFrame.height).toBeGreaterThan(initialBodyFrame.height);
+    await detoxExpect(
+      element(
+        by.id(
+          'markdown-preview-h1-renderer-react-native-markdown-display',
+        ),
+      ),
+    ).toExist();
+    await detoxExpect(
+      element(
+        by.id(
+          platform === 'ios'
+            ? 'markdown-code-renderer-selectable-native'
+            : 'markdown-code-renderer-syntax-highlighter',
+        ),
+      ),
+    ).toExist();
 
     await element(by.id('connections-global-settings')).tap();
     await waitFor(element(by.id('global-settings-modal'))).toBeVisible().withTimeout(10000);
+    await detoxExpect(
+      element(by.id('global-settings-markdown-renderer-value')),
+    ).toHaveText('React Native Markdown Display');
+    await detoxExpect(
+      element(by.id('global-settings-code-renderer-value')),
+    ).toHaveText('Selectable native code');
+    if (platform === 'android') {
+      await detoxExpect(
+        element(by.id('global-settings-renderer-fallback')),
+      ).toHaveText(
+        'Code renderer unavailable; using Syntax highlighter.',
+      );
+    }
     await element(by.id('global-settings-base-font-size')).tap();
-    await element(by.id('options-picker-option-16')).tap();
+    await element(by.id('options-picker-declared-16')).tap();
     await detoxExpect(element(by.id('global-settings-base-font-size-value'))).toHaveText('16');
     await element(by.id('global-settings-modal-close')).tap();
 
@@ -121,9 +151,9 @@ describe('mobile Connections and markdown settings', () => {
 
     await element(by.id('connections-global-settings')).tap();
     await element(by.id('global-settings-base-font-size')).tap();
-    await element(by.id('options-picker-option-17')).tap();
+    await element(by.id('options-picker-declared-17')).tap();
     await element(by.id('global-settings-markdown-headers')).tap();
-    await element(by.id('options-picker-option-small')).tap();
+    await element(by.id('options-picker-declared-small')).tap();
     await detoxExpect(element(by.id('global-settings-base-font-size-value'))).toHaveText('17');
     await detoxExpect(element(by.id('global-settings-markdown-headers-value'))).toHaveText('Small');
     await element(by.id('global-settings-modal-close')).tap();
@@ -138,6 +168,31 @@ describe('mobile Connections and markdown settings', () => {
     jestExpect(largeBodyFrame.height).toBeGreaterThan(initialBodyFrame.height);
     jestExpect(smallHeadingFrame.width).toBeLessThanOrEqual(previewFrame.width);
     jestExpect(largeBodyFrame.width).toBeLessThanOrEqual(previewFrame.width);
+
+    await element(by.id('connections-global-settings')).tap();
+    await element(by.id('global-settings-markdown-renderer')).tap();
+    await element(
+      by.id('options-picker-declared-react-native-enriched-markdown'),
+    ).tap();
+    await element(by.id('global-settings-code-renderer')).tap();
+    await element(by.id('options-picker-declared-syntax-highlighter')).tap();
+    await detoxExpect(
+      element(by.id('global-settings-markdown-renderer-value')),
+    ).toHaveText('Enriched Markdown (experimental)');
+    await detoxExpect(
+      element(by.id('global-settings-code-renderer-value')),
+    ).toHaveText('Syntax highlighter');
+    await element(by.id('global-settings-modal-close')).tap();
+    await detoxExpect(
+      element(
+        by.id(
+          'markdown-preview-h1-renderer-react-native-enriched-markdown',
+        ),
+      ),
+    ).toExist();
+    await detoxExpect(
+      element(by.id('markdown-code-renderer-syntax-highlighter')),
+    ).toExist();
 
     await element(by.id('connection-health-check')).tap();
     await waitFor(element(by.id('health-check-modal'))).toBeVisible().withTimeout(10000);
@@ -177,7 +232,23 @@ describe('mobile Connections and markdown settings', () => {
     await element(by.id('connections-global-settings')).tap();
     await detoxExpect(element(by.id('global-settings-base-font-size-value'))).toHaveText('17');
     await detoxExpect(element(by.id('global-settings-markdown-headers-value'))).toHaveText('Small');
+    await detoxExpect(
+      element(by.id('global-settings-markdown-renderer-value')),
+    ).toHaveText('Enriched Markdown (experimental)');
+    await detoxExpect(
+      element(by.id('global-settings-code-renderer-value')),
+    ).toHaveText('Syntax highlighter');
     await element(by.id('global-settings-modal-close')).tap();
+    await detoxExpect(
+      element(
+        by.id(
+          'markdown-preview-h1-renderer-react-native-enriched-markdown',
+        ),
+      ),
+    ).toExist();
+    await detoxExpect(
+      element(by.id('markdown-code-renderer-syntax-highlighter')),
+    ).toExist();
 
     await element(by.id('connections-new-connection')).tap();
     await detoxExpect(element(by.id('connections-harness-last-action'))).toHaveText('newConnection');

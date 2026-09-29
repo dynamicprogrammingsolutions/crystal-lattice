@@ -19,16 +19,19 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
-import {
-  useTheme,
-  type Theme,
-} from '@crystal-lattice/frontend-rn-components';
+import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 
-import type { OpenConnectionsById, OpenConnectionStatus } from '../connections/useOpenConnections';
+import type {
+  OpenConnectionsById,
+  OpenConnectionStatus,
+} from '../connections/useOpenConnections';
 import { KebabMenu } from '../ui/KebabMenu';
 import { PanelHeader } from '../ui/PanelHeader';
 
-export type ConnectionRowClickBehavior = 'focusOnly' | 'focusAndOpen' | 'focusAndToggleOpen';
+export type ConnectionRowClickBehavior =
+  | 'focusOnly'
+  | 'focusAndOpen'
+  | 'focusAndToggleOpen';
 
 const MAX_NATURAL_CONNECTION_ROWS = 3;
 const LIST_VERTICAL_PADDING = 6;
@@ -50,8 +53,7 @@ export function getConnectionsListMaxHeight(theme: Theme): number {
   const standardRowHeight =
     Math.max(textColumnHeight, openButtonHeight) + ROW_VERTICAL_PADDING * 2;
   return (
-    LIST_VERTICAL_PADDING * 2 +
-    standardRowHeight * MAX_NATURAL_CONNECTION_ROWS
+    LIST_VERTICAL_PADDING * 2 + standardRowHeight * MAX_NATURAL_CONNECTION_ROWS
   );
 }
 
@@ -84,7 +86,10 @@ export interface ConnectionsPanelProps {
   onOpenEditConnectionEditor: (record: ConnectionRecord) => void;
 }
 
-function getStatus(openConnectionsById: OpenConnectionsById, connectionId: string): {
+function getStatus(
+  openConnectionsById: OpenConnectionsById,
+  connectionId: string,
+): {
   status: OpenConnectionStatus;
   errorMessage?: string;
 } {
@@ -118,8 +123,7 @@ export function ConnectionsPanel({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [expanded, setExpanded] = useState(true);
-  const hasBoundedList =
-    connectionRecords.length > MAX_NATURAL_CONNECTION_ROWS;
+  const hasBoundedList = connectionRecords.length > MAX_NATURAL_CONNECTION_ROWS;
   const [showBottomFade, setShowBottomFade] = useState(hasBoundedList);
   const scrollMetricsRef = useRef({
     offsetY: 0,
@@ -135,9 +139,7 @@ export function ConnectionsPanel({
       };
       scrollMetricsRef.current = metrics;
       setShowBottomFade(
-        expanded &&
-          hasBoundedList &&
-          hasMoreConnectionListContent(metrics),
+        expanded && hasBoundedList && hasMoreConnectionListContent(metrics),
       );
     },
     [expanded, hasBoundedList],
@@ -152,7 +154,8 @@ export function ConnectionsPanel({
   }, [connectionRecords.length, expanded, hasBoundedList]);
 
   const openCount = useMemo(() => {
-    return Object.values(openConnectionsById).filter((c) => c.status === 'open').length;
+    return Object.values(openConnectionsById).filter(c => c.status === 'open')
+      .length;
   }, [openConnectionsById]);
 
   const menuItems = useMemo(() => {
@@ -170,7 +173,11 @@ export function ConnectionsPanel({
             'This removes saved connections and clears local caches.',
             [
               { text: 'Cancel', style: 'cancel' },
-              { text: 'Clear', style: 'destructive', onPress: onClearConnections },
+              {
+                text: 'Clear',
+                style: 'destructive',
+                onPress: onClearConnections,
+              },
             ],
           );
         },
@@ -178,7 +185,7 @@ export function ConnectionsPanel({
     ];
   }, [connectionRecords.length, onClearConnections, onOpenNewConnectionEditor]);
 
-  const connectionRows = connectionRecords.map((record) => {
+  const connectionRows = connectionRecords.map(record => {
     const isFocused = focusedConnectionId === record.id;
     const { status, errorMessage } = getStatus(openConnectionsById, record.id);
     const isConnecting = status === 'connecting';
@@ -187,8 +194,8 @@ export function ConnectionsPanel({
       status === 'open'
         ? theme.success
         : status === 'error'
-          ? theme.danger
-          : theme.textSecondary;
+        ? theme.danger
+        : theme.textSecondary;
 
     const handleRowPress = () => {
       onFocusConnection(record.id);
@@ -213,8 +220,9 @@ export function ConnectionsPanel({
       <Pressable
         key={record.id}
         testID={`connection-row-${record.id}`}
+        accessibilityRole="button"
         accessibilityLabel={`Connection ${record.name}`}
-        style={(state) => {
+        style={state => {
           const hovered = (state as any).hovered as boolean | undefined;
           return [
             styles.row,
@@ -229,14 +237,27 @@ export function ConnectionsPanel({
             <Text style={styles.rowTitle} numberOfLines={1}>
               {record.name}
             </Text>
-            <Text style={[styles.status, { color: statusColor }]} numberOfLines={1}>
+            <Text
+              testID={`connection-status-${record.id}`}
+              accessibilityLabel={`Connection status ${
+                status === 'closed'
+                  ? 'Closed'
+                  : status === 'connecting'
+                  ? 'Connecting'
+                  : status === 'open'
+                  ? 'Open'
+                  : 'Error'
+              }`}
+              style={[styles.status, { color: statusColor }]}
+              numberOfLines={1}
+            >
               {status === 'closed'
                 ? 'Closed'
                 : status === 'connecting'
-                  ? 'Connecting'
-                  : status === 'open'
-                    ? 'Open'
-                    : 'Error'}
+                ? 'Connecting'
+                : status === 'open'
+                ? 'Open'
+                : 'Error'}
             </Text>
           </View>
           <Text style={styles.rowMeta} numberOfLines={1}>
@@ -250,10 +271,13 @@ export function ConnectionsPanel({
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.openButton, pressed && styles.openButtonPressed]}
+          style={({ pressed }) => [
+            styles.openButton,
+            pressed && styles.openButtonPressed,
+          ]}
           disabled={isConnecting}
           accessibilityLabel={`${isOpen ? 'Close' : 'Open'} ${record.name}`}
-          onPress={(event) => {
+          onPress={event => {
             (event as any)?.stopPropagation?.();
             if (isOpen) {
               onCloseConnection(record.id);
@@ -268,13 +292,22 @@ export function ConnectionsPanel({
               { color: isOpen ? theme.textSecondary : theme.primary },
             ]}
           >
-            {isConnecting ? '…' : isOpen ? 'Close' : status === 'error' ? 'Retry' : 'Open'}
+            {isConnecting
+              ? '…'
+              : isOpen
+              ? 'Close'
+              : status === 'error'
+              ? 'Retry'
+              : 'Open'}
           </Text>
         </Pressable>
 
         <KebabMenu
           items={[
-            { label: 'Edit…', onPress: () => onOpenEditConnectionEditor(record) },
+            {
+              label: 'Edit…',
+              onPress: () => onOpenEditConnectionEditor(record),
+            },
             {
               label: 'Delete',
               variant: 'danger',
@@ -307,16 +340,16 @@ export function ConnectionsPanel({
       {connectionRecords.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No saved connections.</Text>
-          <Text style={styles.emptyMeta}>Use “New connection…” to add one.</Text>
+          <Text style={styles.emptyMeta}>
+            Use “New connection…” to add one.
+          </Text>
         </View>
       ) : null}
       {connectionRows}
     </>
   );
 
-  const handleScroll = (
-    event: NativeSyntheticEvent<NativeScrollEvent>,
-  ) => {
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nativeEvent = event.nativeEvent;
     updateBottomFade({
       offsetY: nativeEvent.contentOffset.y,
@@ -336,7 +369,7 @@ export function ConnectionsPanel({
       <PanelHeader
         title="Connections"
         subtitle={`${connectionRecords.length} saved • ${openCount} open`}
-        right={(
+        right={
           <Pressable
             testID="connections-collapse-toggle"
             accessibilityRole="button"
@@ -344,14 +377,14 @@ export function ConnectionsPanel({
               expanded ? 'Collapse connections' : 'Expand connections'
             }
             accessibilityState={{ expanded }}
-            style={(state) => {
+            style={state => {
               const hovered = (state as any).hovered as boolean | undefined;
               return [
                 styles.disclosureButton,
                 (hovered || state.pressed) && styles.disclosureButtonHovered,
               ];
             }}
-            onPress={() => setExpanded((current) => !current)}
+            onPress={() => setExpanded(current => !current)}
           >
             <Icon
               name={expanded ? 'chevron-up' : 'chevron-down'}
@@ -359,8 +392,9 @@ export function ConnectionsPanel({
               color={theme.textSecondary}
             />
           </Pressable>
-        )}
+        }
         menuLabel="⋯"
+        menuTestID="connections-menu"
         menuItems={menuItems}
       />
 

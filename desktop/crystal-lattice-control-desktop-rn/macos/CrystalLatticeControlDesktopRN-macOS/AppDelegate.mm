@@ -5,6 +5,7 @@
 #import <React/RCTRootView.h>
 #import <React/RCTDevLoadingViewSetEnabled.h>
 #import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
+#import <math.h>
 
 static NSString *const kTabStripStyleDefaultsKey = @"CrystalLattice.TabStripStyle";
 static NSString *const kTabStripStyleToolbarTabs = @"toolbarTabs";
@@ -31,6 +32,13 @@ static NSString *const kSessionDoubleClickActionDefaultsKey =
     @"CrystalLattice.SessionDoubleClickAction";
 static NSString *const kSessionDoubleClickActionPreview = @"preview";
 static NSString *const kSessionDoubleClickActionOpen = @"open";
+static NSString *const kTimeTrackingEnabledDefaultsKey =
+    @"CrystalLattice.TimeTrackingEnabled";
+static NSString *const kTimeTrackingPluginIdDefaultsKey =
+    @"CrystalLattice.TimeTrackingPluginId";
+static NSString *const kTimeTrackingInactivitySecondsDefaultsKey =
+    @"CrystalLattice.TimeTrackingInactivitySeconds";
+static NSString *const kDefaultTimeTrackingPluginId = @"duration_tracking_app";
 
 static BOOL EnvironmentFlagEnabled(NSString *name)
 {
@@ -146,7 +154,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   NSString *recentSessionsWindow = [self loadRecentSessionsWindowPreference];
   NSString *sessionDoubleClickAction =
       [self loadSessionDoubleClickActionPreference];
-  self.initialProps = @{
+  NSMutableDictionary *initialProps = [@{
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
     @"initialSwitchConnectionWithActiveTabEnabled" : @(switchConnectionEnabled),
@@ -164,7 +172,20 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"transcriptScrollListImplementation" : [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_SCROLL_LIST_IMPLEMENTATION"] ?: @"scrollView",
     @"progressiveScrollBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"initialRestoreReady" : @(!EnvironmentFlagEnabled(@"CLC_TRANSCRIPT_SCROLL_RESTORE_READY_FALSE")),
-  };
+  } mutableCopy];
+  if (LaunchArgumentPresent(@"--human-time-native-test")) {
+    NSString *fixtureJson =
+        [NSProcessInfo processInfo].environment[@"CLC_HUMAN_TIME_NATIVE_FIXTURE_JSON"];
+    NSData *fixtureData = [fixtureJson dataUsingEncoding:NSUTF8StringEncoding];
+    if (fixtureData != nil) {
+      id fixture =
+          [NSJSONSerialization JSONObjectWithData:fixtureData options:0 error:nil];
+      if ([fixture isKindOfClass:[NSDictionary class]]) {
+        initialProps[@"humanTimeNativeFixture"] = fixture;
+      }
+    }
+  }
+  self.initialProps = initialProps;
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
   [super applicationDidFinishLaunching:notification];
@@ -714,6 +735,57 @@ static BOOL LaunchArgumentPresent(NSString *argument)
                       object:nil
                     userInfo:@{
                       CLCSwitchConnectionWithActiveTabEnabledUserInfoKey : @(enabled)
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"timeTrackingEnabled"] &&
+      [value respondsToSelector:@selector(boolValue)]) {
+    BOOL enabled = [value boolValue];
+    [[NSUserDefaults standardUserDefaults] setBool:enabled
+                                           forKey:kTimeTrackingEnabledDefaultsKey];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCTimeTrackingEnabledDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCTimeTrackingEnabledUserInfoKey : @(enabled)
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"timeTrackingPluginId"] &&
+      [value isKindOfClass:[NSString class]]) {
+    NSString *pluginId =
+        [(NSString *)value stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (pluginId.length == 0) {
+      pluginId = kDefaultTimeTrackingPluginId;
+    }
+    [[NSUserDefaults standardUserDefaults] setObject:pluginId
+                                              forKey:kTimeTrackingPluginIdDefaultsKey];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCTimeTrackingPluginIdDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCTimeTrackingPluginIdUserInfoKey : pluginId
+                    }];
+    return;
+  }
+
+  if ([key isEqualToString:@"timeTrackingInactivitySeconds"] &&
+      [value respondsToSelector:@selector(doubleValue)]) {
+    double seconds = [value doubleValue];
+    if (!isfinite(seconds) || seconds <= 0) {
+      seconds = 30.0;
+    }
+    [[NSUserDefaults standardUserDefaults]
+        setDouble:seconds
+           forKey:kTimeTrackingInactivitySecondsDefaultsKey];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:CLCTimeTrackingInactivitySecondsDidChangeNotification
+                      object:nil
+                    userInfo:@{
+                      CLCTimeTrackingInactivitySecondsUserInfoKey : @(seconds)
                     }];
   }
 }

@@ -44,7 +44,8 @@ persisted.
 | `/agent` | Select the active agent |
 | `/send` | Send a request using the current history |
 | `/append` | Append a message without starting a request |
-| `/cancel` | Cancel the active request |
+| `/cancel` | Hard-cancel the active request immediately |
+| `/soft-cancel` | Stop after the active tool finishes |
 | `/list` | Print message history or one message in full |
 | `/modify` | Load a message into the prompt for editing |
 | `/delete` | Delete a message or range |

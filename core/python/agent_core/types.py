@@ -409,9 +409,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Process a streaming chunk from the provider on the hot path.
 
         Note:
@@ -460,9 +458,7 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Returns: (final_messages, native_messages, new_state)
 
-    def to_display_format(
-        self, message: Dict[str, Any], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Convert a message to a display-friendly format for UIs.
 
         Args:
@@ -516,9 +512,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Make a non-streaming API call with provider-native messages.
 
         Args:
@@ -804,9 +798,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
-    ]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Observe/modify provider outputs for a streaming chunk.
 
         Called on the hot path for each provider-native chunk. May be called with
@@ -850,6 +842,109 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
         return final_messages, native_messages, state
+
+    def prepare_tool_call(
+        self,
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Observe or transform a tool call before execution; update state.
+
+        Runs once per inspectable tool call, immediately before the owning
+        tool plugin executes it. Extensions run before features (mirroring
+        the request pipeline); within each kind, plugins run in priority
+        order (lower first). The framework re-inspects the returned call
+        before resolving the handler, so sanitizing and interception are
+        supported; a transformed call that no longer inspects follows the
+        existing synthesized-error path. Transformers own correlation: the
+        tool-result message's ``tool_call_id`` reflects the transformed call.
+
+        The context carries framework-owned facts only: ``tool_call_id``,
+        ``tool_name``, ``tool_plugin``, ``started_at`` (ISO 8601 UTC) and
+        ``started_at_mono`` captured immediately before execution, plus the
+        caller's context (``session_id``, ``request_id``). The framework
+        never computes durations or stamps messages.
+
+        Args:
+            tool_call: The inspected tool call about to execute.
+            state: Current shared provider state.
+            context: Tool-call context with framework facts.
+
+        Returns:
+            Tuple of (tool_call, new_state). Return the input tool_call
+            unchanged unless the plugin intentionally transforms the call.
+        """
+        return tool_call, state
+
+    def finalize_tool_call(
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Act on the final tool message after a tool call execution.
+
+        Runs once per tool call after execution, before the final core
+        ``tool`` message is yielded to the caller (and therefore before
+        the application tool loop appends it or emits tool events). Also
+        runs for synthesized results (failed inspection, no handler,
+        stream error); the context carries a ``tool_error`` fact in those
+        cases. Extensions run before features; priority order within
+        each kind.
+
+        Plugins own any measurement computed here (e.g. duration from the
+        context-carried timestamp facts) and stamp it onto the returned
+        message; the framework never computes or stamps.
+
+        Args:
+            tool_message: Final core ``tool`` message for this call.
+            state: Current shared provider state.
+            context: Tool-call context with framework facts (the prepare
+                facts plus ``finished_at``/``finished_at_mono``).
+
+        Returns:
+            Tuple of (tool_message, new_state). Return the input message
+            unchanged when the plugin stamps nothing.
+        """
+        return tool_message, state
+
+    def prepare_appended_message(
+        self,
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Transform a message immediately before it is appended to a session.
+
+        Runs inside :meth:`AgentCore.add_message` for end-of-session
+        appends, before the message is converted to provider-native form,
+        so metadata stamped here persists into native ``_metadata``.
+        Assistant finals do not pass through this hook (they enter via
+        the request pipeline, where ``finalize`` runs); ``after_index``
+        inserts do not trigger it.
+
+        Extensions run before features; priority order within each kind.
+        State is threaded through the chain so chained plugins can read
+        each other's state. For appended tool results, the context
+        carries the tool-call execution facts in addition to the append
+        facts.
+
+        Args:
+            message: Core message dict (``role``, ``content``, ``metadata``,
+                ...) about to be appended.
+            state: Shared provider state when available.
+            context: Append context with ``session_id``/``request_id`` when
+                available, and tool-call facts for tool results.
+
+        Returns:
+            Tuple of (message, new_state). Return the input message
+            unchanged when the plugin stamps nothing.
+        """
+        return message, state if isinstance(state, dict) else {}
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions for this extension.
@@ -1157,6 +1252,109 @@ class FeaturePlugin(BasePlugin, Protocol):
             Tuple of (final_messages, native_messages, new_state), all provider-native.
         """
         return final_messages, native_messages, state
+
+    def prepare_tool_call(
+        self,
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Observe or transform a tool call before execution; update state.
+
+        Runs once per inspectable tool call, immediately before the owning
+        tool plugin executes it. Extensions run before features (mirroring
+        the request pipeline); within each kind, plugins run in priority
+        order (lower first). The framework re-inspects the returned call
+        before resolving the handler, so sanitizing and interception are
+        supported; a transformed call that no longer inspects follows the
+        existing synthesized-error path. Transformers own correlation: the
+        tool-result message's ``tool_call_id`` reflects the transformed call.
+
+        The context carries framework-owned facts only: ``tool_call_id``,
+        ``tool_name``, ``tool_plugin``, ``started_at`` (ISO 8601 UTC) and
+        ``started_at_mono`` captured immediately before execution, plus the
+        caller's context (``session_id``, ``request_id``). The framework
+        never computes durations or stamps messages.
+
+        Args:
+            tool_call: The inspected tool call about to execute.
+            state: Current shared provider state.
+            context: Tool-call context with framework facts.
+
+        Returns:
+            Tuple of (tool_call, new_state). Return the input tool_call
+            unchanged unless the plugin intentionally transforms the call.
+        """
+        return tool_call, state
+
+    def finalize_tool_call(
+        self,
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Act on the final tool message after a tool call execution.
+
+        Runs once per tool call after execution, before the final core
+        ``tool`` message is yielded to the caller (and therefore before
+        the application tool loop appends it or emits tool events). Also
+        runs for synthesized results (failed inspection, no handler,
+        stream error); the context carries a ``tool_error`` fact in those
+        cases. Extensions run before features; priority order within
+        each kind.
+
+        Plugins own any measurement computed here (e.g. duration from the
+        context-carried timestamp facts) and stamp it onto the returned
+        message; the framework never computes or stamps.
+
+        Args:
+            tool_message: Final core ``tool`` message for this call.
+            state: Current shared provider state.
+            context: Tool-call context with framework facts (the prepare
+                facts plus ``finished_at``/``finished_at_mono``).
+
+        Returns:
+            Tuple of (tool_message, new_state). Return the input message
+            unchanged when the plugin stamps nothing.
+        """
+        return tool_message, state
+
+    def prepare_appended_message(
+        self,
+        message: Dict[str, Any],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Transform a message immediately before it is appended to a session.
+
+        Runs inside :meth:`AgentCore.add_message` for end-of-session
+        appends, before the message is converted to provider-native form,
+        so metadata stamped here persists into native ``_metadata``.
+        Assistant finals do not pass through this hook (they enter via
+        the request pipeline, where ``finalize`` runs); ``after_index``
+        inserts do not trigger it.
+
+        Extensions run before features; priority order within each kind.
+        State is threaded through the chain so chained plugins can read
+        each other's state. For appended tool results, the context
+        carries the tool-call execution facts in addition to the append
+        facts.
+
+        Args:
+            message: Core message dict (``role``, ``content``, ``metadata``,
+                ...) about to be appended.
+            state: Shared provider state when available.
+            context: Append context with ``session_id``/``request_id`` when
+                available, and tool-call facts for tool results.
+
+        Returns:
+            Tuple of (message, new_state). Return the input message
+            unchanged when the plugin stamps nothing.
+        """
+        return message, state if isinstance(state, dict) else {}
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions for this feature.

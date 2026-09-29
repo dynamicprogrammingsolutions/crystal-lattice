@@ -1,29 +1,9 @@
-# Markdown display and Connections hosting
+# Connections screen
 
-Mobile loads one versioned markdown display preference record from
-AsyncStorage before leaving the application loading boundary. The application
-supplies the normalized value through the shared markdown preference provider.
-Global Settings uses the standard `PanelModalFrame` and option-picker surfaces
-to update the 14, 15 (Default), 16, or 17 font size and Normal/Small headers.
-Legacy 13 and 19 records migrate to 14 and 17 and are rewritten in normalized
-form.
-
-The application overlays the selected shared typography preset on its
-light/dark color theme. Message, footer, reasoning, tool, composer, settings,
-actions, and code consumers use responsive semantic font-size and line-height
-tokens; explicit card/screen/modal titles and layout dimensions remain fixed.
-Both the enriched selectable renderer and the legacy markdown renderer map the
-shared semantic body and H1–H6 metrics to their renderer-specific style keys.
-Syntax-highlighted fallback code blocks pass the semantic `code` font size and
-line height directly to the `feature/native-line-height` branch of the
-`ferenci84/react-native-syntax-highlighter` fork.
-
-Session cards use semantic typography from the selected preset: `large` for
-the title, `normal` for the subtitle or preview, `small` for the session ID,
-and `tiny` for metadata. Each field uses the corresponding semantic line
-height. Component and native geometry tests obtain expectations from the
-selected preset or compare rendered bounds; they do not copy the preset's
-numeric entries.
+This page describes the mobile Connections screen: saved-card actions,
+navigation, responsive headers, settings-modal composition, and focused
+verification. Bridge transport construction and recovery are documented
+separately in [Bridge connection integration](bridge-connection-integration.md).
 
 The Connections header uses the shared pinnable action bar for Global Settings
 and New Connection. Saved connection cards share a separate pin preference.
@@ -63,23 +43,9 @@ native modal. Do not present the picker as a second nested React Native
 `Modal`; iOS does not reliably present a second modal while the first remains
 active.
 
-Native verification uses `MobileConnectionsSettingsHarness`, which mounts the
-production connected navigation root, Connections screen, settings modals,
-pinnable actions, persistence owners, message footer, and markdown renderer
-with deterministic connection data. The focused Detox scenario runs on iOS
-and Android and verifies card versus Open-action navigation, action
-applicability, modal transitions, preference and pin persistence, and
-screenshot-derived prose/header/footer geometry. The bridge-transport Detox
-scenario separately verifies
-that the production New Connection action still enters the connection wizard.
-
 Maintainer entry points:
 
 - `App.tsx`
-- `src/useMarkdownDisplayPreferences.ts`
-- `src/components/GlobalSettingsModal.tsx`
-- `src/components/SelectableMarkdownMessageContent.tsx`
-- `src/components/MarkdownMessageContent.tsx`
 - `src/ConnectedRoot.tsx`
 - `src/ConnectionsScreen.tsx`
 - `src/SessionsScreen.tsx`
@@ -88,3 +54,10 @@ Maintainer entry points:
 - `src/testing/MobileConnectionsSettingsHarness.tsx`
 - `e2e/sessionList.e2e.test.ts`
 - `e2e/connectionsSettings.e2e.test.ts`
+
+`MobileConnectionsSettingsHarness` mounts the production connected navigation
+root, Connections screen, settings modals, pinnable actions, and persistence
+owners with deterministic connection data. The focused Detox scenario verifies
+card versus Open-action navigation, action applicability, and modal
+transitions. The bridge-transport Detox scenario separately verifies that the
+production New Connection action still enters the connection wizard.

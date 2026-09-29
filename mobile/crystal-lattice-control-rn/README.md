@@ -371,6 +371,22 @@ npm run detox:test:website-visual:ios
 npm run detox:test:website-visual:android
 ```
 
+The focused human-time telemetry suite runs the real release app against a
+spawned backend and verifies that foreground time with a real session open
+reaches the duration-tracking SQLite store:
+
+```bash
+npm run detox:build:ios
+npm run detox:test:human-time:ios
+
+npm run detox:build:android
+npm run detox:test:human-time:android
+```
+
+See [Human time telemetry](docs/development/human-time-telemetry.md) for the
+two-tier coverage split, Python/plugin prerequisites, and the focused
+real-backend integration command.
+
 The Connections/Settings harness renders the production Connections screen,
 global and server settings modals, action menus, and markdown renderer. It
 verifies native action applicability, modal transitions, persisted display and
@@ -722,7 +738,7 @@ mobile/crystal-lattice-control-rn/
 ## Related Documentation
 
 - [Home, Watchlist, and recent sessions](docs/home.md)
-- [Mobile frontend hosting](docs/development/frontend-hosting.md)
+- [Mobile development documentation](docs/development/index.md)
 - [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)
 - [react-native-zeroconf GitHub](https://github.com/balthazar/react-native-zeroconf)

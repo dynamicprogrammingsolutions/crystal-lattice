@@ -4,7 +4,7 @@ import React, {
   useMemo,
   useRef,
   useState,
-} from 'react';
+} from "react";
 import {
   Animated,
   type GestureResponderEvent,
@@ -19,27 +19,27 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
+} from "react-native";
+import Icon from "react-native-vector-icons/Feather";
 import type {
   ConnectionRecord,
   SessionRequestStatus,
-} from '@crystal-lattice/frontend-sdk';
+} from "@crystal-lattice/frontend-sdk";
 import {
   ActionsMenuBar,
   type ActionDefinition,
-} from '@crystal-lattice/frontend-rn-components';
+} from "@crystal-lattice/frontend-rn-components";
 
-import type { SessionsCache } from '../App';
-import { useHomeWorkspace } from './HomeWorkspaceContext';
+import type { SessionsCache } from "../App";
+import { useHomeWorkspace } from "./HomeWorkspaceContext";
 import {
   deriveHomeSessionCollections,
   type HomeSessionItem,
-} from './homeWorkspaceState';
-import { usePersistentPinnedActions } from './usePersistentPinnedActions';
-import { useTheme, type Theme } from './theme';
-import SessionNoteModal from './components/SessionNoteModal';
-import SessionRequestStatusBadge from './components/SessionRequestStatusBadge';
+} from "./homeWorkspaceState";
+import { usePersistentPinnedActions } from "./usePersistentPinnedActions";
+import { useTheme, type Theme } from "./theme";
+import SessionNoteModal from "./components/SessionNoteModal";
+import SessionRequestStatusBadge from "./components/SessionRequestStatusBadge";
 import {
   applyWatchlistKeyOrder,
   buildWatchlistRenderSlots,
@@ -47,22 +47,23 @@ import {
   resolveWatchlistDropTranslation,
   resolveWatchlistDropTarget,
   type WatchlistTileFrame,
-} from './watchlistDrag';
+} from "./watchlistDrag";
+import { resolveMobileHomeSessionPresentation } from "./homeSessionPresentation";
 
 interface HomeActionDefinition extends ActionDefinition {
   iconName: string;
 }
 
 const HOME_ACTIONS: HomeActionDefinition[] = [
-  { key: 'settings', label: 'Global settings', iconName: 'settings' },
+  { key: "settings", label: "Global settings", iconName: "settings" },
   {
-    key: 'embeddedSettings',
-    label: 'On-device providers',
-    iconName: 'cpu',
-    testID: 'home-embedded-settings',
+    key: "embeddedSettings",
+    label: "On-device providers",
+    iconName: "cpu",
+    testID: "home-embedded-settings",
   },
-  { key: 'newConnection', label: 'New connection', iconName: 'wifi' },
-  { key: 'newSession', label: 'New session', iconName: 'plus' },
+  { key: "newConnection", label: "New connection", iconName: "wifi" },
+  { key: "newSession", label: "New session", iconName: "plus" },
 ];
 
 interface HomeScreenProps {
@@ -78,22 +79,6 @@ interface HomeScreenProps {
   onNewConnection: () => void;
   onNewSession: () => void;
   onSelectSession: (connectionId: string, sessionId: string) => void;
-}
-
-function sessionTitle(item: HomeSessionItem): string {
-  return (
-    item.summary.presentation?.title ||
-    item.summary.preview?.split('\n')[0]?.trim() ||
-    item.sessionId
-  );
-}
-
-function relativeModified(modified: number): string {
-  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - modified));
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 const WatchlistTile: React.FC<{
@@ -133,6 +118,10 @@ const WatchlistTile: React.FC<{
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const presentation = useMemo(
+    () => resolveMobileHomeSessionPresentation(item),
+    [item]
+  );
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -145,7 +134,7 @@ const WatchlistTile: React.FC<{
         },
         onPanResponderMove: (
           event: GestureResponderEvent,
-          gesture: PanResponderGestureState,
+          gesture: PanResponderGestureState
         ) => {
           const pageY = event.nativeEvent.pageY;
           onDragMove(gesture, Number.isFinite(pageY) ? pageY : null);
@@ -155,7 +144,7 @@ const WatchlistTile: React.FC<{
         onPanResponderTerminationRequest: () => false,
         onShouldBlockNativeResponder: () => true,
       }),
-    [item.key, onDragCancel, onDragMove, onDragRelease, onDragStart],
+    [item.key, onDragCancel, onDragMove, onDragRelease, onDragStart]
   );
 
   return (
@@ -168,7 +157,7 @@ const WatchlistTile: React.FC<{
         isDragging &&
           dragFrame &&
           dragTranslation && {
-            position: 'absolute',
+            position: "absolute",
             left: dragFrame.x,
             top: dragFrame.y,
             width: dragFrame.width,
@@ -181,15 +170,15 @@ const WatchlistTile: React.FC<{
         <View
           testID={`home-watchlist-drag-${item.connectionId}-${item.sessionId}`}
           accessibilityRole="adjustable"
-          accessibilityLabel={`Reorder ${sessionTitle(item)}`}
+          accessibilityLabel={`Reorder ${presentation.title}`}
           accessibilityActions={[
-            { name: 'increment', label: 'Move later' },
-            { name: 'decrement', label: 'Move earlier' },
+            { name: "increment", label: "Move later" },
+            { name: "decrement", label: "Move earlier" },
           ]}
           onAccessibilityAction={(event) => {
-            if (event.nativeEvent.actionName === 'increment') {
+            if (event.nativeEvent.actionName === "increment") {
               onMove(index, Math.min(itemCount - 1, index + 1));
-            } else if (event.nativeEvent.actionName === 'decrement') {
+            } else if (event.nativeEvent.actionName === "decrement") {
               onMove(index, Math.max(0, index - 1));
             }
           }}
@@ -202,13 +191,13 @@ const WatchlistTile: React.FC<{
           <TouchableOpacity
             testID={`home-watchlist-note-${item.connectionId}-${item.sessionId}`}
             accessibilityLabel={
-              item.note ? 'Edit session note' : 'Add session note'
+              item.note ? "Edit session note" : "Add session note"
             }
             style={styles.iconButton}
             onPress={onEditNote}
           >
             <Icon
-              name={item.note ? 'edit-3' : 'file-plus'}
+              name={item.note ? "edit-3" : "file-plus"}
               size={16}
               color={theme.primary}
             />
@@ -228,11 +217,32 @@ const WatchlistTile: React.FC<{
         style={styles.tileBody}
         onPress={onPress}
       >
-        <Text style={styles.watchTitle} numberOfLines={2}>
-          {sessionTitle(item)}
+        <Text
+          testID={`home-watchlist-title-${item.connectionId}-${item.sessionId}`}
+          accessibilityLabel={presentation.title}
+          style={styles.watchTitle}
+          numberOfLines={2}
+        >
+          {presentation.title}
         </Text>
-        <Text style={styles.connectionName} numberOfLines={1}>
-          {item.connection.name}
+        {presentation.subtitle ? (
+          <Text
+            testID={`home-watchlist-subtitle-${item.connectionId}-${item.sessionId}`}
+            accessibilityLabel={presentation.subtitle}
+            style={styles.sessionSubtitle}
+            numberOfLines={2}
+          >
+            {presentation.subtitle}
+          </Text>
+        ) : null}
+        <Text
+          testID={`home-watchlist-session-id-${item.connectionId}-${item.sessionId}`}
+          accessibilityLabel={`Session ID ${presentation.sessionId}`}
+          style={styles.sessionId}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {presentation.sessionId}
         </Text>
         <SessionRequestStatusBadge
           status={status}
@@ -247,16 +257,35 @@ const WatchlistTile: React.FC<{
             {item.note}
           </Text>
         ) : null}
-        <Text style={styles.relativeTime}>
-          {relativeModified(item.summary.modified)}
-        </Text>
+        <View
+          testID={`home-watchlist-metadata-${item.connectionId}-${item.sessionId}`}
+          style={[styles.metadataRow, styles.watchMetadataRow]}
+        >
+          <Text
+            testID={`home-watchlist-connection-${item.connectionId}-${item.sessionId}`}
+            accessibilityLabel={`Connection ${presentation.connectionName}`}
+            style={styles.metadataConnection}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {presentation.connectionName}
+          </Text>
+          <Text
+            testID={`home-watchlist-time-${item.connectionId}-${item.sessionId}`}
+            accessibilityLabel={`Modified ${presentation.relativeTime}`}
+            style={styles.metadataTime}
+            numberOfLines={1}
+          >
+            {presentation.relativeTime}
+          </Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
 };
 
 interface ActiveWatchlistDrag {
-  phase: 'dragging' | 'settling';
+  phase: "dragging" | "settling";
   key: string;
   sourceKeys: string[];
   sourceIndex: number;
@@ -283,7 +312,7 @@ const DRAG_EDGE_SCROLL_STEP = 18;
 
 function sameKeyOrder(
   left: readonly string[],
-  right: readonly string[],
+  right: readonly string[]
 ): boolean {
   return (
     left.length === right.length &&
@@ -318,8 +347,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     removeSessionNote,
   } = useHomeWorkspace();
   const { pinned, setPinned } = usePersistentPinnedActions<string>(
-    'clc_pinned_home_actions_v1',
-    ['settings', 'embeddedSettings', 'newConnection'],
+    "clc_pinned_home_actions_v1",
+    ["settings", "embeddedSettings", "newConnection"]
   );
   const derivedCollections = useMemo(
     () =>
@@ -330,12 +359,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         notes,
         recentSessionsWindow,
       }),
-    [connections, notes, recentSessionsWindow, sessionsCache, watchlist],
+    [connections, notes, recentSessionsWindow, sessionsCache, watchlist]
   );
   const [menuVisible, setMenuVisible] = useState(false);
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveWatchlistDrag | null>(
-    null,
+    null
   );
   const [settledWatchlistOrder, setSettledWatchlistOrder] =
     useState<SettledWatchlistOrder | null>(null);
@@ -346,11 +375,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             ...derivedCollections,
             watchlist: applyWatchlistKeyOrder(
               derivedCollections.watchlist,
-              settledWatchlistOrder.targetKeys,
+              settledWatchlistOrder.targetKeys
             ),
           }
         : derivedCollections,
-    [derivedCollections, settledWatchlistOrder],
+    [derivedCollections, settledWatchlistOrder]
   );
   useEffect(() => {
     if (!settledWatchlistOrder) return;
@@ -361,7 +390,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     ) {
       setSettledWatchlistOrder(null);
       setActiveDrag((current) =>
-        current?.phase === 'settling' ? null : current,
+        current?.phase === "settling" ? null : current
       );
     }
   }, [derivedCollections.watchlist, settledWatchlistOrder]);
@@ -378,10 +407,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       activeDrag
         ? applyWatchlistKeyOrder(
             derivedCollections.watchlist,
-            activeDrag.sourceKeys,
+            activeDrag.sourceKeys
           )
         : collections.watchlist,
-    [activeDrag, collections.watchlist, derivedCollections.watchlist],
+    [activeDrag, collections.watchlist, derivedCollections.watchlist]
   );
   const collectionsRef = useRef({
     ...collections,
@@ -406,7 +435,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         current.slotFrames,
         current.sourceIndex,
         gestureX,
-        translationY,
+        translationY
       );
       const next = {
         ...current,
@@ -417,7 +446,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       activeDragRef.current = next;
       if (targetIndex !== current.targetIndex) setActiveDrag(next);
     },
-    [dragTranslation],
+    [dragTranslation]
   );
 
   const startWatchlistDrag = useCallback(
@@ -425,7 +454,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       const currentItems = collectionsRef.current.watchlist;
       const sourceIndex = currentItems.findIndex((item) => item.key === key);
       const slotFrames = currentItems.map(
-        (item) => tileFramesRef.current[item.key],
+        (item) => tileFramesRef.current[item.key]
       );
       const sourceFrame = slotFrames[sourceIndex];
       if (
@@ -437,7 +466,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       }
       const measuredSlotFrames = slotFrames as WatchlistTileFrame[];
       const next: ActiveWatchlistDrag = {
-        phase: 'dragging',
+        phase: "dragging",
         key,
         sourceKeys: currentItems.map((item) => item.key),
         sourceIndex,
@@ -452,7 +481,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       activeDragRef.current = next;
       setActiveDrag(next);
     },
-    [dragTranslation],
+    [dragTranslation]
   );
 
   const autoScrollForDrag = useCallback((pageY: number | null) => {
@@ -460,7 +489,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (pageY === null || !viewport) return;
     const maxOffset = Math.max(
       0,
-      scrollContentHeightRef.current - viewport.height,
+      scrollContentHeightRef.current - viewport.height
     );
     let delta = 0;
     if (pageY < viewport.y + DRAG_EDGE_SIZE) {
@@ -471,7 +500,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     if (delta === 0) return;
     const nextOffset = Math.max(
       0,
-      Math.min(maxOffset, scrollOffsetRef.current + delta),
+      Math.min(maxOffset, scrollOffsetRef.current + delta)
     );
     if (nextOffset === scrollOffsetRef.current) return;
     scrollViewRef.current?.scrollTo({ y: nextOffset, animated: false });
@@ -482,7 +511,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       updateDragPosition(gesture.dx, gesture.dy);
       autoScrollForDrag(pageY);
     },
-    [autoScrollForDrag, updateDragPosition],
+    [autoScrollForDrag, updateDragPosition]
   );
 
   const releaseWatchlistDrag = useCallback(
@@ -495,18 +524,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         const targetKeys = moveWatchlistValues(
           sourceKeys,
           settled.sourceIndex,
-          settled.targetIndex,
+          settled.targetIndex
         );
         dragTranslation.setValue(
           resolveWatchlistDropTranslation(
             settled.slotFrames,
             settled.sourceIndex,
-            settled.targetIndex,
-          ),
+            settled.targetIndex
+          )
         );
         setActiveDrag({
           ...settled,
-          phase: 'settling',
+          phase: "settling",
           targetIndex: settled.targetIndex,
         });
         setSettledWatchlistOrder({ sourceKeys, targetKeys });
@@ -515,7 +544,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         setActiveDrag(null);
       }
     },
-    [dragTranslation, moveWatchlistItem, updateDragPosition],
+    [dragTranslation, moveWatchlistItem, updateDragPosition]
   );
 
   const cancelWatchlistDrag = useCallback(() => {
@@ -527,7 +556,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     (key: string, event: LayoutChangeEvent) => {
       tileFramesRef.current[key] = event.nativeEvent.layout;
     },
-    [],
+    []
   );
 
   const handleHomeScroll = useCallback(
@@ -538,7 +567,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         updateDragPosition(current.gestureX, current.gestureY);
       }
     },
-    [updateDragPosition],
+    [updateDragPosition]
   );
 
   const measureScrollViewport = useCallback(() => {
@@ -567,20 +596,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         ? buildWatchlistRenderSlots(
             watchlistItems,
             activeDrag.sourceIndex,
-            activeDrag.targetIndex,
+            activeDrag.targetIndex
           )
         : watchlistItems.map((item) => ({
-            kind: 'item' as const,
+            kind: "item" as const,
             item,
           })),
-    [activeDrag, watchlistItems],
+    [activeDrag, watchlistItems]
   );
   const recentWindowLabel =
-    recentSessionsWindow === '24h'
-      ? 'Last 24 hours'
-      : recentSessionsWindow === '1w'
-      ? 'Last week'
-      : 'Last 3 days';
+    recentSessionsWindow === "24h"
+      ? "Last 24 hours"
+      : recentSessionsWindow === "1w"
+      ? "Last week"
+      : "Last 3 days";
 
   if (!hydrated) {
     return (
@@ -608,8 +637,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             baseActions={HOME_ACTIONS}
             availableActions={
               onOpenEmbeddedSettings
-                ? ['settings', 'embeddedSettings', 'newConnection', 'newSession']
-                : ['settings', 'newConnection', 'newSession']
+                ? [
+                    "settings",
+                    "embeddedSettings",
+                    "newConnection",
+                    "newSession",
+                  ]
+                : ["settings", "newConnection", "newSession"]
             }
             pinned={pinned}
             onChangePinned={setPinned}
@@ -622,13 +656,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
             menuButtonTestID="home-actions-menu"
             isActionDisabled={(key) =>
-              key === 'newSession' && !hasActiveBackend
+              key === "newSession" && !hasActiveBackend
             }
             onAction={(key) => {
-              if (key === 'settings') onOpenGlobalSettings();
-              if (key === 'embeddedSettings') onOpenEmbeddedSettings?.();
-              if (key === 'newConnection') onNewConnection();
-              if (key === 'newSession') onNewSession();
+              if (key === "settings") onOpenGlobalSettings();
+              if (key === "embeddedSettings") onOpenEmbeddedSettings?.();
+              if (key === "newConnection") onNewConnection();
+              if (key === "newSession") onNewSession();
             }}
           />
         </View>
@@ -658,7 +692,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         ) : (
           <View style={styles.watchGrid} testID="home-watchlist-grid">
             {watchlistRenderSlots.map((slot, slotIndex) => {
-              if (slot.kind === 'placeholder') {
+              if (slot.kind === "placeholder") {
                 return activeDrag ? (
                   <View
                     key={`placeholder-${activeDrag.key}`}
@@ -673,7 +707,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   />
                 ) : null;
               }
-              if (slot.kind === 'dragged') {
+              if (slot.kind === "dragged") {
                 const item = slot.item;
                 return activeDrag ? (
                   <WatchlistTile
@@ -706,7 +740,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
               }
               const item = slot.item;
               const storedIndex = watchlistItems.findIndex(
-                (candidate) => candidate.key === item.key,
+                (candidate) => candidate.key === item.key
               );
               return (
                 <WatchlistTile
@@ -747,86 +781,147 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           </Text>
         ) : (
           <View testID="home-recent-timeline">
-            {collections.recent.map((item, index) => (
-              <View
-                key={item.key}
-                style={styles.timelineRow}
-                testID={`home-recent-${item.connectionId}-${item.sessionId}`}
-              >
-                <View style={styles.timelineRail}>
-                  <View style={styles.timelineDot} />
-                  {index < collections.recent.length - 1 ? (
-                    <View style={styles.timelineLine} />
-                  ) : null}
-                </View>
-                <TouchableOpacity
-                  testID={`home-recent-open-${item.connectionId}-${item.sessionId}`}
-                  style={styles.timelineBody}
-                  onPress={() =>
-                    onSelectSession(item.connectionId, item.sessionId)
-                  }
+            {collections.recent.map((item, index) => {
+              const presentation = resolveMobileHomeSessionPresentation(item);
+              return (
+                <View
+                  key={item.key}
+                  style={styles.timelineRow}
+                  testID={`home-recent-${item.connectionId}-${item.sessionId}`}
                 >
-                  <Text style={styles.recentTitle} numberOfLines={2}>
-                    {sessionTitle(item)}
-                  </Text>
-                  <Text style={styles.connectionName} numberOfLines={1}>
-                    {item.connection.name} ·{' '}
-                    {relativeModified(item.summary.modified)}
-                  </Text>
-                  <SessionRequestStatusBadge
-                    status={
-                      statusesByConnection[item.connectionId]?.[
-                        item.sessionId
-                      ] ?? null
-                    }
-                    testID={`home-recent-status-${item.connectionId}-${item.sessionId}`}
-                  />
-                  {item.note ? (
-                    <Text style={styles.notePreview} numberOfLines={2}>
-                      {item.note}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
-                <View style={styles.timelineActions}>
-                  <TouchableOpacity
-                    testID={`home-recent-note-${item.connectionId}-${item.sessionId}`}
-                    accessibilityLabel={
-                      item.note ? 'Edit session note' : 'Add session note'
-                    }
-                    style={styles.iconButton}
-                    onPress={() => setNoteSessionId(item.sessionId)}
-                  >
-                    <Icon
-                      name={item.note ? 'edit-3' : 'file-plus'}
-                      size={17}
-                      color={theme.primary}
+                  <View style={styles.timelineRail}>
+                    <View
+                      testID={`home-recent-dot-${item.connectionId}-${item.sessionId}`}
+                      accessible
+                      accessibilityLabel="Timeline event"
+                      style={styles.timelineDot}
                     />
-                  </TouchableOpacity>
+                    {index < collections.recent.length - 1 ? (
+                      <View
+                        testID={`home-recent-line-${item.connectionId}-${item.sessionId}`}
+                        style={styles.timelineLine}
+                      />
+                    ) : null}
+                  </View>
                   <TouchableOpacity
-                    testID={`home-recent-watch-${item.connectionId}-${item.sessionId}`}
-                    accessibilityLabel={
-                      isWatched(item.connectionId, item.sessionId)
-                        ? 'In Watchlist'
-                        : 'Add to Watchlist'
-                    }
-                    accessibilityState={{
-                      disabled: isWatched(item.connectionId, item.sessionId),
-                    }}
-                    disabled={isWatched(item.connectionId, item.sessionId)}
-                    style={[
-                      styles.iconButton,
-                      isWatched(item.connectionId, item.sessionId) &&
-                        styles.disabledAction,
-                    ]}
+                    testID={`home-recent-open-${item.connectionId}-${item.sessionId}`}
+                    style={styles.timelineBody}
                     onPress={() =>
-                      addToWatchlist(item.connectionId, item.sessionId)
+                      onSelectSession(item.connectionId, item.sessionId)
                     }
                   >
-                    <Icon name="bookmark" size={17} color={theme.primary} />
+                    <Text
+                      testID={`home-recent-title-${item.connectionId}-${item.sessionId}`}
+                      accessibilityLabel={presentation.title}
+                      style={styles.recentTitle}
+                      numberOfLines={2}
+                    >
+                      {presentation.title}
+                    </Text>
+                    {presentation.subtitle ? (
+                      <Text
+                        testID={`home-recent-subtitle-${item.connectionId}-${item.sessionId}`}
+                        accessibilityLabel={presentation.subtitle}
+                        style={styles.sessionSubtitle}
+                        numberOfLines={2}
+                      >
+                        {presentation.subtitle}
+                      </Text>
+                    ) : null}
+                    <Text
+                      testID={`home-recent-session-id-${item.connectionId}-${item.sessionId}`}
+                      accessibilityLabel={`Session ID ${presentation.sessionId}`}
+                      style={styles.sessionId}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {presentation.sessionId}
+                    </Text>
+                    <SessionRequestStatusBadge
+                      status={
+                        statusesByConnection[item.connectionId]?.[
+                          item.sessionId
+                        ] ?? null
+                      }
+                      variant="inline"
+                      testID={`home-recent-status-${item.connectionId}-${item.sessionId}`}
+                    />
+                    {item.note ? (
+                      <Text
+                        testID={`home-recent-note-preview-${item.connectionId}-${item.sessionId}`}
+                        style={styles.notePreview}
+                        numberOfLines={2}
+                      >
+                        {item.note}
+                      </Text>
+                    ) : null}
+                    <View
+                      testID={`home-recent-metadata-${item.connectionId}-${item.sessionId}`}
+                      style={styles.metadataRow}
+                    >
+                      <Text
+                        testID={`home-recent-connection-${item.connectionId}-${item.sessionId}`}
+                        accessibilityLabel={`Connection ${presentation.connectionName}`}
+                        style={styles.metadataConnection}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {presentation.connectionName}
+                      </Text>
+                      <Text
+                        testID={`home-recent-time-${item.connectionId}-${item.sessionId}`}
+                        accessibilityLabel={`Modified ${presentation.relativeTime}`}
+                        style={styles.metadataTime}
+                        numberOfLines={1}
+                      >
+                        {presentation.relativeTime}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
+                  <View
+                    testID={`home-recent-actions-${item.connectionId}-${item.sessionId}`}
+                    style={styles.timelineActions}
+                  >
+                    <TouchableOpacity
+                      testID={`home-recent-note-${item.connectionId}-${item.sessionId}`}
+                      accessibilityLabel={
+                        item.note ? "Edit session note" : "Add session note"
+                      }
+                      style={styles.iconButton}
+                      onPress={() => setNoteSessionId(item.sessionId)}
+                    >
+                      <Icon
+                        name={item.note ? "edit-3" : "file-plus"}
+                        size={17}
+                        color={theme.primary}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      testID={`home-recent-watch-${item.connectionId}-${item.sessionId}`}
+                      accessibilityLabel={
+                        isWatched(item.connectionId, item.sessionId)
+                          ? "In Watchlist"
+                          : "Add to Watchlist"
+                      }
+                      accessibilityState={{
+                        disabled: isWatched(item.connectionId, item.sessionId),
+                      }}
+                      disabled={isWatched(item.connectionId, item.sessionId)}
+                      style={[
+                        styles.iconButton,
+                        isWatched(item.connectionId, item.sessionId) &&
+                          styles.disabledAction,
+                      ]}
+                      onPress={() =>
+                        addToWatchlist(item.connectionId, item.sessionId)
+                      }
+                    >
+                      <Icon name="bookmark" size={17} color={theme.primary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -903,27 +998,27 @@ const createStyles = (theme: Theme) =>
     },
     centered: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     header: {
       minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       marginBottom: 8,
     },
     headerIcon: {
       width: 40,
       height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     screenTitle: {
       flex: 1,
       color: theme.text,
       fontSize: theme.typography.fontSize.title,
       lineHeight: theme.typography.lineHeight.title,
-      fontWeight: '700',
+      fontWeight: "700",
       marginLeft: 4,
     },
     homeActions: {
@@ -936,9 +1031,9 @@ const createStyles = (theme: Theme) =>
       paddingBottom: 24,
     },
     sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
       gap: 12,
       marginBottom: 8,
     },
@@ -949,7 +1044,7 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontSize: theme.typography.fontSize.large,
       lineHeight: theme.typography.lineHeight.large,
-      fontWeight: '700',
+      fontWeight: "700",
     },
     sectionHint: {
       color: theme.textSecondary,
@@ -957,14 +1052,14 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.tiny,
     },
     watchGrid: {
-      position: 'relative',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'space-between',
+      position: "relative",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
       rowGap: 10,
     },
     watchTile: {
-      width: '48.5%',
+      width: "48.5%",
       minHeight: 172,
       borderWidth: 1,
       borderColor: theme.border,
@@ -976,7 +1071,7 @@ const createStyles = (theme: Theme) =>
     watchPlaceholder: {
       minHeight: 172,
       borderWidth: 1,
-      borderStyle: 'dashed',
+      borderStyle: "dashed",
       borderColor: theme.primary,
       borderRadius: 14,
       backgroundColor: theme.surfaceAlt,
@@ -986,34 +1081,34 @@ const createStyles = (theme: Theme) =>
       zIndex: 20,
       elevation: 8,
       opacity: 0.94,
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 5 },
       shadowOpacity: 0.2,
       shadowRadius: 8,
     },
     tileTopRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       marginBottom: 4,
     },
     dragHandle: {
       width: 36,
       height: 32,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: 8,
       backgroundColor: theme.surfaceAlt,
     },
     tileActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
     },
     iconButton: {
       width: 36,
       height: 36,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius: 8,
     },
     disabledAction: {
@@ -1026,34 +1121,56 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
-      fontWeight: '700',
+      fontWeight: "700",
       marginBottom: 3,
     },
     recentTitle: {
       color: theme.text,
-      fontSize: theme.typography.fontSize.large,
-      lineHeight: theme.typography.lineHeight.large,
-      fontWeight: '600',
+      fontSize: theme.typography.fontSize.normal,
+      lineHeight: theme.typography.lineHeight.normal,
+      fontWeight: "700",
     },
-    connectionName: {
+    sessionSubtitle: {
       color: theme.textSecondary,
-      fontSize: theme.typography.fontSize.small,
-      lineHeight: theme.typography.lineHeight.small,
-      marginBottom: 6,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
+      marginBottom: 3,
+    },
+    sessionId: {
+      color: theme.textMuted,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
+      marginBottom: 5,
     },
     notePreview: {
       color: theme.text,
       fontSize: theme.typography.fontSize.secondary,
       lineHeight: theme.typography.lineHeight.secondary,
-      fontStyle: 'italic',
+      fontStyle: "italic",
       marginTop: 7,
     },
-    relativeTime: {
-      color: theme.textSecondary,
+    metadataRow: {
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingTop: 6,
+    },
+    watchMetadataRow: {
+      marginTop: "auto",
+    },
+    metadataConnection: {
+      minWidth: 0,
+      flex: 1,
+      color: theme.textMuted,
       fontSize: theme.typography.fontSize.tiny,
       lineHeight: theme.typography.lineHeight.tiny,
-      marginTop: 'auto',
-      paddingTop: 6,
+    },
+    metadataTime: {
+      flexShrink: 0,
+      color: theme.textMuted,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
     },
     emptyText: {
       color: theme.textSecondary,
@@ -1062,19 +1179,19 @@ const createStyles = (theme: Theme) =>
       paddingVertical: 14,
     },
     timelineRow: {
-      flexDirection: 'row',
+      flexDirection: "row",
       minHeight: 96,
     },
     timelineRail: {
       width: 24,
-      alignItems: 'center',
+      alignItems: "center",
     },
     timelineDot: {
       width: 10,
       height: 10,
       marginTop: 7,
       borderRadius: 5,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.textMuted,
     },
     timelineLine: {
       width: 2,
@@ -1088,8 +1205,9 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 8,
     },
     timelineActions: {
-      flexDirection: 'row',
-      alignSelf: 'flex-start',
+      flexDirection: "row",
+      alignSelf: "flex-start",
+      flexShrink: 0,
     },
     menuOverlay: {
       flex: 1,
@@ -1110,14 +1228,14 @@ const createStyles = (theme: Theme) =>
       color: theme.textSecondary,
       fontSize: theme.typography.fontSize.small,
       lineHeight: theme.typography.lineHeight.small,
-      fontWeight: '600',
+      fontWeight: "600",
       paddingHorizontal: 8,
       paddingBottom: 6,
     },
     menuItem: {
       minHeight: 44,
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 10,
       paddingHorizontal: 8,
     },
