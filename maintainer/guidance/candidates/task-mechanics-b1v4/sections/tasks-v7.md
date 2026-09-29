@@ -39,7 +39,8 @@ Each kind of content has one owning place:
 | Decided approach, boundaries, tasks, verification, risks | Implementation plan |
 | Decisions made while planning | The plan's Implementation decisions and open questions |
 | Discoveries, deviations, the completion entry, and later corrections | Implementation notes |
-| Follow-up work with new requirements or its own plan | A new task file, linked from an entry in Implementation notes |
+| A follow-up's added plan | A follow-up plan section appended below earlier plans |
+| A follow-up's added requirements | New unchecked items appended to the Requirements checklist |
 
 When a task file follows planning, decide from the request and the recorded planning how much of the plan to include; do not ask merely whether to include a plan.
 
@@ -156,6 +157,6 @@ Before approval, store the complete `Draft` plan, then summarize outcome, scope,
 4. Mark the plan `Approved`, then execute and continuously update its task checklist.
 5. Keep requirement evidence and parent status current. Record discoveries and plan changes in `## Implementation notes` as they happen; ask about high-impact ambiguities or material changes. Clear, safe, in-scope fixes may be made and then reported.
 6. At completion, append a clearly marked completion entry covering the outcome, requirement evidence, verification performed or blocked, plan deviations and findings, and unresolved or deferred scope.
-7. Handle later work in the notes: corrections append as new entries. A follow-up that adds requirements or needs its own plan is a new task — ask before creating it, then link the task file from an entry. Do not start a second plan inside a completed file.
+7. Handle later work additively: corrections append as new entries in `## Implementation notes`; earlier plans and entries are never rewritten. A follow-up may stay in this file or become a new task — ask when the choice is material. An in-file follow-up appends a `## Follow-up plan: <title> (<YYYYMMDD>)` section below the earlier plans, with the same Status semantics and closing sections as any plan; requirements it adds append to the Requirements checklist as new unchecked items; its execution and completion append to `## Implementation notes` like any other entries.
 
 Approval authorizes execution only when the original request includes execution or completion and the agent explicitly said execution would begin after approval. Steps 2–4 do not require duplicate approval when the user has already approved the plan, asked execution to start, and asks for a task file only to track that execution.

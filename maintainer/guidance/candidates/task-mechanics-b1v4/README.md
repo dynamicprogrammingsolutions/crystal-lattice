@@ -48,10 +48,13 @@ Relative to v3 it changes exactly these rules:
 9. **One lifecycle-notes section.** `## Implementation Notes`, immutable
    `## Completion Notes`, and `## Post-completion follow-up` collapse into a
    single append-only `## Implementation notes`: entries as things happen, a
-   clearly marked completion entry, later corrections as new entries, and
-   pointers to follow-up work. A follow-up that adds requirements or needs
-   its own plan is a new linked task file, never a second plan inside a
-   completed file.
+   clearly marked completion entry, later corrections as new entries).
+   Later follow-ups stay additive and may remain in the same file: a
+   `## Follow-up plan: <title> (<date>)` section is appended below the
+   earlier plans with the full plan format, added requirements append to
+   the Requirements checklist as unchecked items, and execution records
+   append to the notes; earlier plans and entries are never rewritten. A
+   separate task file remains an option when the user prefers it.
 
 Everything else — the structure and decomposition rules, the decisive-check
 rule, status semantics, subtask naming, and every other current section — is

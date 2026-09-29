@@ -178,8 +178,17 @@ directories and connections; the matrix command set stays unchanged.
   notes-family sections; verification wording naming what it
   deliberately does not cover and fitting evidence to the task kind
   (GENERIC-5 55%); depth-follows-decisions conciseness (GENERIC-10);
-  Completion-Notes immutability with corrections under Post-completion
-  follow-up. Compile-checked against the crystal-lattice target
+  and the lifecycle collapse decided after review (September 27, 2026):
+  `## Implementation Notes`, immutable `## Completion Notes`, and
+  `## Post-completion follow-up` merge into ONE append-only
+  `## Implementation notes` (entries as they happen, a clearly marked
+  completion entry, corrections as new entries, earlier entries never
+  rewritten). Follow-ups are ADDITIVE and may stay in the same file: a
+  `## Follow-up plan: <title> (<YYYYMMDD>)` section appends below
+  earlier plans with the full plan format, added requirements append to
+  the Requirements checklist as unchecked items, and execution records
+  append to the notes; a separate task file remains an option (ask when
+  the choice is material). Compile-checked against the crystal-lattice target
   (output hash equals the source section). Suite compatibility:
   `assert_draft_execution_plan` accepts both headings (new unit test),
   tg07 acceptance wording and tg08–tg10 `applicable_sections` name the
