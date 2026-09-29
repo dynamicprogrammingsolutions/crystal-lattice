@@ -133,7 +133,13 @@ Status: Draft
 
 ### Task checklist
 
-- [ ] Stage specs + configuration wiring
+- [ ] Stage specs + executors TOGETHER (the suite's wiring tests reject
+  catalog entries whose harness executors are missing — verified
+  September 28: `test_every_stage_executor_exists_on_the_harness`,
+  `test_stage_executor_matches_the_catalog_workspace_and_parentage`,
+  and the stage-graph invariant in test_stages all fail on a
+  catalog-only addition; increments must add spec + executor + parent
+  wiring in one commit) + configuration wiring
 - [ ] Planning-session executor + validity
 - [ ] From-plan executor + validity + omit instruction
 - [ ] Agent-config variant (strip-thinking)
