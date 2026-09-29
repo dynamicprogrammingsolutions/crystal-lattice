@@ -42,6 +42,28 @@ STAGES: dict[str, StageSpec] = {
         executor="run_task_creation",
         record="task-guidance-producer.json",
     ),
+    "planning-session": StageSpec(
+        name="planning-session",
+        # Fresh fixture-project workspace; scenario request + present-the-plan
+        # ask; tasks guidance in or out via stage-declared overrides.
+        workspace="fixture-project",
+        parent=None,
+        runs_per="scenario × planning variant",
+        config=("variants",),
+        executor="run_planning_session",
+        record="task-guidance-planning.json",
+    ),
+    "task-creation-from-plan": StageSpec(
+        name="task-creation-from-plan",
+        # Continues a planning-session run; tasks guidance included for the
+        # writing turn; agent creates the task files.
+        workspace="parent",
+        parent="planning-session",
+        runs_per="scenario × producer cell × creation variant",
+        config=("variants",),
+        executor="run_task_creation_from_plan",
+        record="task-guidance-from-plan.json",
+    ),
     "handoff-plan": StageSpec(
         name="handoff-plan",
         # A repo checkout plus the canonical handoff task file (one per

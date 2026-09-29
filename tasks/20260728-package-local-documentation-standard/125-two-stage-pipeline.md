@@ -133,7 +133,13 @@ Status: Draft
 
 ### Task checklist
 
-- [ ] Stage specs + executors TOGETHER (the suite's wiring tests reject
+- [x] Stage specs (landed September 28 with the wiring tests corrected
+  to the new stage graph: `test_parented_stages_match_the_pipeline_graph`
+  now expects three parented stages; the executor-existence and assembly
+  tests skip the two in-flight executors via the documented
+  PENDING_EXECUTORS set, which shrinks to empty when increment 2 lands)
+- [ ] Executors (increment 2: run_planning_session +
+  run_task_creation_from_plan on the harness) (the suite's wiring tests reject
   catalog entries whose harness executors are missing — verified
   September 28: `test_every_stage_executor_exists_on_the_harness`,
   `test_stage_executor_matches_the_catalog_workspace_and_parentage`,

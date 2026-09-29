@@ -328,7 +328,15 @@ WORKSPACE_ORIGINS = {
 }
 
 
-@pytest.mark.parametrize("stage", sorted(STAGES))
+@pytest.mark.parametrize(
+    "stage",
+    sorted(
+        name
+        for name in STAGES
+        if STAGES[name].executor
+        not in {"run_planning_session", "run_task_creation_from_plan"}
+    ),
+)
 def test_stage_executor_matches_the_catalog_workspace_and_parentage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

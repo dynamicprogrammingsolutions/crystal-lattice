@@ -26,9 +26,13 @@ def test_parent_linkages_reference_declared_stages() -> None:
             assert spec.parent != spec.name
 
 
-def test_exactly_two_stages_share_an_earlier_run() -> None:
+def test_parented_stages_match_the_pipeline_graph() -> None:
     with_parent = {spec.name for spec in STAGES.values() if spec.parent}
-    assert with_parent == {"continuation", "generated-plan"}
+    assert with_parent == {
+        "continuation",
+        "generated-plan",
+        "task-creation-from-plan",
+    }
     # The continuation shares the parent's workspace AND session prefix.
     assert STAGES["continuation"].parent == "task-creation"
     assert STAGES["continuation"].workspace == "parent"
@@ -36,6 +40,10 @@ def test_exactly_two_stages_share_an_earlier_run() -> None:
     # its workspace is rebuilt from them and its session stays fresh.
     assert STAGES["generated-plan"].parent == "task-creation"
     assert STAGES["generated-plan"].workspace == "generated-task"
+    # The from-plan stage continues a planning session's workspace AND
+    # session, with the tasks guidance delivered for the writing turn.
+    assert STAGES["task-creation-from-plan"].parent == "planning-session"
+    assert STAGES["task-creation-from-plan"].workspace == "parent"
 
 
 def test_record_files_are_unique_per_stage() -> None:
