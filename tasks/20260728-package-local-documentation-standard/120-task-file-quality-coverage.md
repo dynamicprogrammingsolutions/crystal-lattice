@@ -186,6 +186,22 @@ directories and connections; the matrix command set stays unchanged.
   via `send_request` without a user message yields z.ai 400/1214 —
   the production entry is `context.request(messages=...)`.
 
+- September 27, 2026 (infrastructure item 3 DONE — interleaved-thinking
+  plugin): new first-party plugin `plugins/interleaved-thinking`
+  (provider extension, tagged `provider:openai_compatible`) strips
+  previous-turn thinking from outgoing requests in both forms —
+  `<think>...</think>` segments from assistant content (inline form,
+  e.g. Ollama) and `reasoning`/`reasoning_content` fields (separate-field
+  form, e.g. Z.ai GLM) — including multipart text parts and trailing
+  unterminated blocks. Session history is untouched; only the request
+  payload changes. Plugin present = prior thinking omitted (switch off);
+  absent = provider default (switch on; note the reference provider
+  already drops field-based reasoning when building requests, so on zai
+  the two positions differ only for content-embedded thinking — the
+  D-arm pruning rule covers any no-variance case). 9 unit tests; real
+  two-turn zai e2e with the plugin loaded passed (both turns completed,
+  final response correct). plugins/docs/index.md lists the plugin.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the

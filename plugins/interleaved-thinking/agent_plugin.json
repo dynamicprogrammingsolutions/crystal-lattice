@@ -1,0 +1,10 @@
+{
+  "module": "interleaved_thinking",
+  "subdirectory": ".",
+  "entries": [
+    "interleaved_thinking.InterleavedThinking"
+  ],
+  "kinds": {
+    "interleaved_thinking.InterleavedThinking": "extensions"
+  }
+}
