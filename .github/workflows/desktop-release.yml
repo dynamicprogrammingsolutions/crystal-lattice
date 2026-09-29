@@ -85,6 +85,9 @@ jobs:
           bundler-cache: true
           working-directory: desktop/crystal-lattice-control-desktop-rn
 
+      - name: Restore tracked Bundler configuration
+        run: git restore desktop/crystal-lattice-control-desktop-rn/.bundle/config
+
       - name: Install CocoaPods dependencies
         working-directory: desktop/crystal-lattice-control-desktop-rn
         run: bundle exec pod install --project-directory=macos

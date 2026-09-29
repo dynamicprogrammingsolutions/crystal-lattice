@@ -1545,3 +1545,12 @@ UI automation investigation:
   and before loading signing credentials. Candidate validation still requires
   `source_tree_clean = true`; the guard was moved to the correct boundary, not
   weakened.
+- Build-only run `36632820887` on commit `3573c47f...` passed dependency
+  installation and release verification, then the explicit pre-signing clean
+  check found one tracked tooling mutation:
+  `ruby/setup-ruby` had rewritten the package's `.bundle/config` from its
+  committed relative path to an absolute hosted-runner path and added
+  deployment mode. The workflow now restores that tracked config immediately
+  after the cached bundle installation. The installed gems remain available,
+  while CocoaPods, verification, and release source capture see the committed
+  configuration.
