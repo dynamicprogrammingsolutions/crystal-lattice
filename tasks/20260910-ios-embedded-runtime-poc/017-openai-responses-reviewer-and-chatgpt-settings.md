@@ -6,22 +6,22 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
 
 ## Requirements checklist
 
-- [ ] A dedicated reviewer profile and agent use the bundled OpenAI Responses
+- [x] A dedicated reviewer profile and agent use the bundled OpenAI Responses
   provider and send inference requests through `/v1/responses`; the reviewer
   path does not use Chat Completions.
-- [ ] The reviewer profile is preconfigured with the Ireland HTTPS endpoint,
+- [x] The reviewer profile is preconfigured with the Ireland HTTPS endpoint,
   `gpt-5.6-luna`, and the bundled reviewer CA, so App Review only needs the
   private incoming caller key.
 - [ ] The reviewer agent uses the Codex-like tool package, including
   `apply_patch`, and a real Release-simulator request through Ireland visibly
   completes a tool call and survives application relaunch.
-- [ ] The generic OpenAI-compatible provider remains a separate endpoint-
+- [x] The generic OpenAI-compatible provider remains a separate endpoint-
   neutral profile using the Claude-like tool package and remains testable
   against local Ollama.
-- [ ] The OpenAI Responses requests transport supports an explicit CA bundle
+- [x] The OpenAI Responses requests transport supports an explicit CA bundle
   without disabling certificate verification or changing ordinary public-CA
   behavior.
-- [ ] The configurable reviewer proxy can restrict its deployed inference
+- [x] The configurable reviewer proxy can restrict its deployed inference
   protocol to Responses while preserving caller authentication, upstream-key
   replacement, model/service-tier filtering, usage-based pricing, persisted
   budget/cooldown state, and redacted request handling.
@@ -35,7 +35,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
   **Cancel**, and **Log out** controls and render the action plugin's returned
   URL, code, Open-link, Copy-code, and follow-up actions without reimplementing
   the authorization protocol in React Native.
-- [ ] Embedded Python HTTPS uses a bundled trusted CA store for ChatGPT
+- [x] Embedded Python HTTPS uses a bundled trusted CA store for ChatGPT
   device-code start, polling, token exchange, credential refresh, and related
   discovery requests; verification remains enabled and an untrusted
   certificate is still rejected.
@@ -45,7 +45,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
 - [ ] A focused human check on a physical iOS device confirms that starting
   ChatGPT login reaches the URL/code display without
   `CERTIFICATE_VERIFY_FAILED`; broader acceptance remains simulator-based.
-- [ ] Current mobile, provider, proxy, bundle, App Review, and operator
+- [x] Current mobile, provider, proxy, bundle, App Review, and operator
   documentation describes the corrected protocol and authentication flow.
 
 Parent Task: tasks/20260910-ios-embedded-runtime-poc/000-main.md
@@ -190,7 +190,7 @@ URL/code display without a certificate failure.
   display/follow-up handling.
 - [x] Preserve and test per-session authentication overrides independently of
   the saved default.
-- [ ] Rebuild the iOS bundle and run focused provider, proxy, mobile, bundle,
+- [x] Rebuild the iOS bundle and run focused provider, proxy, mobile, bundle,
   TypeScript, documentation, and simulator verification.
 - [ ] Obtain exact-command approval, update/redeploy Ireland, and pass the
   external reviewer Responses row.
@@ -300,3 +300,16 @@ URL/code display without a certificate failure.
   default remains unchanged while one session overrides it to API using its
   available API key, then returns to the saved ChatGPT default using stored
   credentials.
+- 2026-09-28: The immutable ZIP real-API boundary passed six selected OpenAI
+  Responses tests and nine selected OpenRouter tests with provider,
+  `agent_core`, and `requests` imports forced from the archive; its SHA-256
+  remained unchanged. The rebuilt Release simulator then passed the generic
+  Ollama, direct OpenAI Responses, OpenRouter, and Anthropic rows, each
+  preserving the preconfiguration local session and recovering its provider
+  session after relaunch.
+- 2026-09-28: The provider matrix now polls validation text directly while
+  Detox synchronization is disabled. The older Ollama diagnostic accepts
+  `multi-provider` when another provider credential persists in iOS Keychain
+  across app-data deletion; its stronger `Read`/`Write`, workspace-output,
+  application-route, and relaunch assertions still prove that the
+  `compatible-claude` path ran.

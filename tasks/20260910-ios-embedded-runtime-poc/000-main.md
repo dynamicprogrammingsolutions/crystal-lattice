@@ -18,7 +18,7 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] Separate iOS-safe Claude-like and Codex-like plugin sets provide useful
   workspace and public-fetch tools with model-family-appropriate names,
   schemas, and result formatting.
-- [ ] The embedded runtime offers separate generic OpenAI-compatible,
+- [x] The embedded runtime offers separate generic OpenAI-compatible,
   dedicated OpenAI Responses reviewer, direct OpenAI Responses, OpenRouter,
   and Anthropic profiles with provider-specific settings and tool families.
 - [x] The local connection is preconfigured, and Home exposes a separate local
@@ -33,7 +33,7 @@ session-management parity, then add the next research-oriented capabilities.
 - [ ] A restricted Python interpreter is exposed as a later fixed tool without
   access to application/runtime mutation.
 - [x] No deterministic product or reviewer model is introduced.
-- [ ] Provider packages intended for the embedded ZIP pass their existing unit
+- [x] Provider packages intended for the embedded ZIP pass their existing unit
   and integration suites while imported from that ZIP, and the root
   `package.json` exposes the important bundle and Detox matrix commands.
 - [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible,
@@ -42,9 +42,9 @@ session-management parity, then add the next research-oriented capabilities.
 - [ ] An externally reachable, authenticated, model-limited, cost-limited
   GPT-5.6 Luna proxy makes the app usable by App Review without exposing the
   upstream OpenAI credential.
-- [ ] Sessions created with the credential-free `local` agent remain usable
+- [x] Sessions created with the credential-free `local` agent remain usable
   after a provider profile is enabled and the embedded application reloads.
-- [ ] On-device OpenAI settings use an explicit API-key or ChatGPT default,
+- [x] On-device OpenAI settings use an explicit API-key or ChatGPT default,
   expose plugin-driven ChatGPT login controls, and retain independent
   per-session overrides.
 

@@ -57,9 +57,13 @@ describe("embedded Python runtime with Ollama", () => {
       throw new Error(await readText("embedded-python-runtime-error"));
     }
     assert.equal(status, "Ready");
-    await detoxExpect(
-      element(by.id("embedded-python-runtime-provider-mode"))
-    ).toHaveText("openai-compatible");
+    const providerMode = await readText(
+      "embedded-python-runtime-provider-mode"
+    );
+    assert.ok(
+      providerMode === "openai-compatible" || providerMode === "multi-provider",
+      `unexpected provider mode: ${providerMode}`
+    );
     await detoxExpect(
       element(by.id("embedded-python-runtime-output-exists"))
     ).toHaveText("true");

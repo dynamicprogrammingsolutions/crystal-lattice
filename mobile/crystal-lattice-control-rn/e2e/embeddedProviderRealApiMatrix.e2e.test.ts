@@ -108,6 +108,27 @@ async function readText(testId: string): Promise<string> {
   return String(attributes.text ?? attributes.label ?? attributes.value ?? "");
 }
 
+async function waitForTextValue(
+  testId: string,
+  expected: string,
+  timeoutMs: number
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastValue = "";
+  while (Date.now() < deadline) {
+    try {
+      lastValue = await readText(testId);
+      if (lastValue === expected) return;
+    } catch {
+      lastValue = "";
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `${testId} did not become ${JSON.stringify(expected)}; last value was ${JSON.stringify(lastValue)}`
+  );
+}
+
 async function waitForMatrixReady(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -226,9 +247,11 @@ async function configureProfile(options: {
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
   await scrollUntilVisible(scrollId, `${prefix}-test`);
   await tapById(`${prefix}-test`);
-  await waitFor(element(by.id(`${prefix}-validation`)))
-    .toHaveText(`Connected to ${options.model}`)
-    .withTimeout(120000);
+  await waitForTextValue(
+    `${prefix}-validation`,
+    `Connected to ${options.model}`,
+    120000
+  );
   await element(scroll).scrollTo("bottom");
   await waitFor(element(by.id("embedded-runtime-settings-save")))
     .toBeVisible()
