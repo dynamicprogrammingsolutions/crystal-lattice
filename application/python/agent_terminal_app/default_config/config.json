@@ -118,21 +118,33 @@
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-6-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-sol/instructions_default.20260922.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-luna/instructions_default.20260922.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-6-astra$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-astra/instructions_default.20260923.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-5\\.6-sol$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.6-terra$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.6-luna$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.20260923.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.5$",
           "personality": "default",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.20260911.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.5$",
@@ -147,7 +159,7 @@
         {
           "model_regex": "^(openai/)?gpt-5\\.4$",
           "personality": "default",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.20260911.md}"
         },
         {
           "model_regex": "^(openai/)?gpt-5\\.4$",
@@ -658,7 +670,10 @@
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
-      "reasoning_field": "reasoning"
+      "reasoning_field": "reasoning",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/ollama.json"
+      }
     },
     "fireworks": {
       "mixin_refs": ["provider_defaults"],
@@ -668,21 +683,27 @@
       "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
       "rate_limit_retry_delays_seconds": [1, 2, 4],
-      "reasoning_field": "reasoning_content"
+      "reasoning_field": "reasoning_content",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/fireworks.json"
+      }
     },
     "zai": {
       "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
-      "base_url": "https://api.z.ai/api/paas/v4",
+      "base_url": "https://api.z.ai/api/coding/paas/v4",
       "endpoint_options": {
         "General": "https://api.z.ai/api/paas/v4",
         "Coding": "https://api.z.ai/api/coding/paas/v4"
       },
       "api_key": "${env:ZAI_API_KEY}",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
       "retry_on_timeout": [0, 5, 30],
       "retry_on_status": {
         "500": [0, 5, 30]
+      },
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/zai.json"
       }
     }
   },
@@ -713,6 +734,7 @@
     "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
     "path:${env:BUILTIN_PLUGINS}/openai_responses",
+    "path:${env:BUILTIN_PLUGINS}/cost-tracking",
     "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
@@ -1138,15 +1160,29 @@
       }
     },
     "zai": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive_visible",
+        "claude_mcp_defaults"
+      ],
       "provider": "zai",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
       "request_options": {
+        "reasoning_effort": "max",
         "thinking": {
           "type": "enabled",
           "clear_thinking": false
         }
       },
       "request_options_ui": {
+        "reasoning_effort": {
+          "type": "select",
+          "options": ["low", "high", "max"],
+          "rich_ui": true
+        },
         "thinking": {
           "clear_thinking": "boolean"
         }

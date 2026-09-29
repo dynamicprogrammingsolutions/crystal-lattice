@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-07-18T15:12:35+00:00",
+  "fetched_at": "2026-09-27T21:40:52+00:00",
   "models": {
     "babbage-002": {
       "model": "babbage-002",
@@ -24,6 +24,7 @@
     "chatgpt-image-latest": {
       "model": "chatgpt-image-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 1.25,
         "input_per_1m": 5.0,
         "output_per_1m": 10.0
@@ -45,6 +46,7 @@
     "codex-mini-latest": {
       "model": "codex-mini-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.375,
         "input_per_1m": 1.5,
         "output_per_1m": 6.0
@@ -61,6 +63,7 @@
     "computer-use-preview": {
       "model": "computer-use-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 3.0,
         "output_per_1m": 12.0
@@ -382,7 +385,7 @@
           "input_per_1m": 1.0,
           "output_per_1m": 4.0
         },
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.875,
           "input_per_1m": 3.5,
           "output_per_1m": 14.0
@@ -408,7 +411,7 @@
           "input_per_1m": 0.2,
           "output_per_1m": 0.8
         },
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.175,
           "input_per_1m": 0.7,
           "output_per_1m": 2.8
@@ -434,7 +437,7 @@
           "input_per_1m": 0.05,
           "output_per_1m": 0.2
         },
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.05,
           "input_per_1m": 0.2,
           "output_per_1m": 0.8
@@ -460,7 +463,7 @@
           "input_per_1m": 2.5,
           "output_per_1m": 7.5
         },
-        "priority": {
+        "fast": {
           "input_per_1m": 8.75,
           "output_per_1m": 26.25
         },
@@ -474,6 +477,7 @@
     "gpt-4o-audio-preview": {
       "model": "gpt-4o-audio-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 2.5,
         "output_per_1m": 10.0
@@ -499,7 +503,7 @@
           "input_per_1m": 0.075,
           "output_per_1m": 0.3
         },
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.125,
           "input_per_1m": 0.25,
           "output_per_1m": 1.0
@@ -515,6 +519,7 @@
     "gpt-4o-mini-audio-preview": {
       "model": "gpt-4o-mini-audio-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 0.15,
         "output_per_1m": 0.6
@@ -530,6 +535,7 @@
     "gpt-4o-mini-realtime-preview": {
       "model": "gpt-4o-mini-realtime-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.3,
         "input_per_1m": 0.6,
         "output_per_1m": 2.4
@@ -546,6 +552,7 @@
     "gpt-4o-mini-search-preview": {
       "model": "gpt-4o-mini-search-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 0.15,
         "output_per_1m": 0.6
@@ -561,6 +568,7 @@
     "gpt-4o-realtime-preview": {
       "model": "gpt-4o-realtime-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 2.5,
         "input_per_1m": 5.0,
         "output_per_1m": 20.0
@@ -577,6 +585,7 @@
     "gpt-4o-search-preview": {
       "model": "gpt-4o-search-preview",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 2.5,
         "output_per_1m": 10.0
@@ -603,15 +612,15 @@
           "input_per_1m": 0.625,
           "output_per_1m": 5.0
         },
+        "fast": {
+          "cached_input_per_1m": 0.25,
+          "input_per_1m": 2.5,
+          "output_per_1m": 20.0
+        },
         "flex": {
           "cached_input_per_1m": 0.0625,
           "input_per_1m": 0.625,
           "output_per_1m": 5.0
-        },
-        "priority": {
-          "cached_input_per_1m": 0.25,
-          "input_per_1m": 2.5,
-          "output_per_1m": 20.0
         },
         "standard": {
           "cached_input_per_1m": 0.125,
@@ -624,6 +633,7 @@
     "gpt-5-chat-latest": {
       "model": "gpt-5-chat-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
@@ -640,12 +650,13 @@
     "gpt-5-codex": {
       "model": "gpt-5-codex",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
       },
       "service_tiers": {
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.25,
           "input_per_1m": 2.5,
           "output_per_1m": 20.0
@@ -672,15 +683,15 @@
           "input_per_1m": 0.125,
           "output_per_1m": 1.0
         },
+        "fast": {
+          "cached_input_per_1m": 0.045,
+          "input_per_1m": 0.45,
+          "output_per_1m": 3.6
+        },
         "flex": {
           "cached_input_per_1m": 0.0125,
           "input_per_1m": 0.125,
           "output_per_1m": 1.0
-        },
-        "priority": {
-          "cached_input_per_1m": 0.045,
-          "input_per_1m": 0.45,
-          "output_per_1m": 3.6
         },
         "standard": {
           "cached_input_per_1m": 0.025,
@@ -740,6 +751,7 @@
     "gpt-5-search-api": {
       "model": "gpt-5-search-api",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
@@ -767,15 +779,15 @@
           "input_per_1m": 0.625,
           "output_per_1m": 5.0
         },
+        "fast": {
+          "cached_input_per_1m": 0.25,
+          "input_per_1m": 2.5,
+          "output_per_1m": 20.0
+        },
         "flex": {
           "cached_input_per_1m": 0.0625,
           "input_per_1m": 0.625,
           "output_per_1m": 5.0
-        },
-        "priority": {
-          "cached_input_per_1m": 0.25,
-          "input_per_1m": 2.5,
-          "output_per_1m": 20.0
         },
         "standard": {
           "cached_input_per_1m": 0.125,
@@ -788,6 +800,7 @@
     "gpt-5.1-chat-latest": {
       "model": "gpt-5.1-chat-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
@@ -804,12 +817,13 @@
     "gpt-5.1-codex": {
       "model": "gpt-5.1-codex",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
       },
       "service_tiers": {
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.25,
           "input_per_1m": 2.5,
           "output_per_1m": 20.0
@@ -825,12 +839,13 @@
     "gpt-5.1-codex-max": {
       "model": "gpt-5.1-codex-max",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.125,
         "input_per_1m": 1.25,
         "output_per_1m": 10.0
       },
       "service_tiers": {
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.25,
           "input_per_1m": 2.5,
           "output_per_1m": 20.0
@@ -846,6 +861,7 @@
     "gpt-5.1-codex-mini": {
       "model": "gpt-5.1-codex-mini",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.025,
         "input_per_1m": 0.25,
         "output_per_1m": 2.0
@@ -873,15 +889,15 @@
           "input_per_1m": 0.875,
           "output_per_1m": 7.0
         },
+        "fast": {
+          "cached_input_per_1m": 0.35,
+          "input_per_1m": 3.5,
+          "output_per_1m": 28.0
+        },
         "flex": {
           "cached_input_per_1m": 0.0875,
           "input_per_1m": 0.875,
           "output_per_1m": 7.0
-        },
-        "priority": {
-          "cached_input_per_1m": 0.35,
-          "input_per_1m": 3.5,
-          "output_per_1m": 28.0
         },
         "standard": {
           "cached_input_per_1m": 0.175,
@@ -894,6 +910,7 @@
     "gpt-5.2-chat-latest": {
       "model": "gpt-5.2-chat-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.175,
         "input_per_1m": 1.75,
         "output_per_1m": 14.0
@@ -910,12 +927,13 @@
     "gpt-5.2-codex": {
       "model": "gpt-5.2-codex",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.175,
         "input_per_1m": 1.75,
         "output_per_1m": 14.0
       },
       "service_tiers": {
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.35,
           "input_per_1m": 3.5,
           "output_per_1m": 28.0
@@ -951,6 +969,7 @@
     "gpt-5.3-chat-latest": {
       "model": "gpt-5.3-chat-latest",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.175,
         "input_per_1m": 1.75,
         "output_per_1m": 14.0
@@ -967,12 +986,13 @@
     "gpt-5.3-codex": {
       "model": "gpt-5.3-codex",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.175,
         "input_per_1m": 1.75,
         "output_per_1m": 14.0
       },
       "service_tiers": {
-        "priority": {
+        "fast": {
           "cached_input_per_1m": 0.35,
           "input_per_1m": 3.5,
           "output_per_1m": 28.0
@@ -999,15 +1019,15 @@
           "input_per_1m": 1.25,
           "output_per_1m": 7.5
         },
+        "fast": {
+          "cached_input_per_1m": 0.5,
+          "input_per_1m": 5.0,
+          "output_per_1m": 30.0
+        },
         "flex": {
           "cached_input_per_1m": 0.13,
           "input_per_1m": 1.25,
           "output_per_1m": 7.5
-        },
-        "priority": {
-          "cached_input_per_1m": 0.5,
-          "input_per_1m": 5.0,
-          "output_per_1m": 30.0
         },
         "standard": {
           "cached_input_per_1m": 0.25,
@@ -1031,15 +1051,15 @@
           "input_per_1m": 0.375,
           "output_per_1m": 2.25
         },
+        "fast": {
+          "cached_input_per_1m": 0.15,
+          "input_per_1m": 1.5,
+          "output_per_1m": 9.0
+        },
         "flex": {
           "cached_input_per_1m": 0.0375,
           "input_per_1m": 0.375,
           "output_per_1m": 2.25
-        },
-        "priority": {
-          "cached_input_per_1m": 0.15,
-          "input_per_1m": 1.5,
-          "output_per_1m": 9.0
         },
         "standard": {
           "cached_input_per_1m": 0.075,
@@ -1114,15 +1134,15 @@
           "input_per_1m": 2.5,
           "output_per_1m": 15.0
         },
+        "fast": {
+          "cached_input_per_1m": 1.25,
+          "input_per_1m": 12.5,
+          "output_per_1m": 75.0
+        },
         "flex": {
           "cached_input_per_1m": 0.25,
           "input_per_1m": 2.5,
           "output_per_1m": 15.0
-        },
-        "priority": {
-          "cached_input_per_1m": 1.25,
-          "input_per_1m": 12.5,
-          "output_per_1m": 75.0
         },
         "standard": {
           "cached_input_per_1m": 0.5,
@@ -1159,35 +1179,35 @@
     "gpt-5.6-luna": {
       "model": "gpt-5.6-luna",
       "pricing": {
-        "cache_write_per_1m": 1.25,
-        "cached_input_per_1m": 0.1,
-        "input_per_1m": 1.0,
-        "output_per_1m": 6.0
+        "cache_write_per_1m": 0.25,
+        "cached_input_per_1m": 0.02,
+        "input_per_1m": 0.2,
+        "output_per_1m": 1.2
       },
       "service_tiers": {
         "batch": {
-          "cache_write_per_1m": 0.625,
-          "cached_input_per_1m": 0.05,
-          "input_per_1m": 0.5,
-          "output_per_1m": 3.0
+          "cache_write_per_1m": 0.125,
+          "cached_input_per_1m": 0.01,
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.6
+        },
+        "fast": {
+          "cache_write_per_1m": 0.5,
+          "cached_input_per_1m": 0.04,
+          "input_per_1m": 0.4,
+          "output_per_1m": 2.4
         },
         "flex": {
-          "cache_write_per_1m": 0.625,
-          "cached_input_per_1m": 0.05,
-          "input_per_1m": 0.5,
-          "output_per_1m": 3.0
-        },
-        "priority": {
-          "cache_write_per_1m": 2.5,
-          "cached_input_per_1m": 0.2,
-          "input_per_1m": 2.0,
-          "output_per_1m": 12.0
+          "cache_write_per_1m": 0.125,
+          "cached_input_per_1m": 0.01,
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.6
         },
         "standard": {
-          "cache_write_per_1m": 1.25,
-          "cached_input_per_1m": 0.1,
-          "input_per_1m": 1.0,
-          "output_per_1m": 6.0
+          "cache_write_per_1m": 0.25,
+          "cached_input_per_1m": 0.02,
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.2
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
@@ -1195,35 +1215,35 @@
     "gpt-5.6-sol": {
       "model": "gpt-5.6-sol",
       "pricing": {
-        "cache_write_per_1m": 6.25,
-        "cached_input_per_1m": 0.5,
-        "input_per_1m": 5.0,
-        "output_per_1m": 30.0
+        "cache_write_per_1m": 5.0,
+        "cached_input_per_1m": 0.4,
+        "input_per_1m": 4.0,
+        "output_per_1m": 20.0
       },
       "service_tiers": {
         "batch": {
-          "cache_write_per_1m": 3.125,
-          "cached_input_per_1m": 0.25,
-          "input_per_1m": 2.5,
-          "output_per_1m": 15.0
+          "cache_write_per_1m": 2.5,
+          "cached_input_per_1m": 0.2,
+          "input_per_1m": 2.0,
+          "output_per_1m": 10.0
+        },
+        "fast": {
+          "cache_write_per_1m": 10.0,
+          "cached_input_per_1m": 0.8,
+          "input_per_1m": 8.0,
+          "output_per_1m": 40.0
         },
         "flex": {
-          "cache_write_per_1m": 3.125,
-          "cached_input_per_1m": 0.25,
-          "input_per_1m": 2.5,
-          "output_per_1m": 15.0
-        },
-        "priority": {
-          "cache_write_per_1m": 12.5,
-          "cached_input_per_1m": 1.0,
-          "input_per_1m": 10.0,
-          "output_per_1m": 60.0
+          "cache_write_per_1m": 2.5,
+          "cached_input_per_1m": 0.2,
+          "input_per_1m": 2.0,
+          "output_per_1m": 10.0
         },
         "standard": {
-          "cache_write_per_1m": 6.25,
-          "cached_input_per_1m": 0.5,
-          "input_per_1m": 5.0,
-          "output_per_1m": 30.0
+          "cache_write_per_1m": 5.0,
+          "cached_input_per_1m": 0.4,
+          "input_per_1m": 4.0,
+          "output_per_1m": 20.0
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
@@ -1231,35 +1251,143 @@
     "gpt-5.6-terra": {
       "model": "gpt-5.6-terra",
       "pricing": {
-        "cache_write_per_1m": 3.125,
-        "cached_input_per_1m": 0.25,
-        "input_per_1m": 2.5,
-        "output_per_1m": 15.0
+        "cache_write_per_1m": 2.5,
+        "cached_input_per_1m": 0.2,
+        "input_per_1m": 2.0,
+        "output_per_1m": 12.0
       },
       "service_tiers": {
         "batch": {
-          "cache_write_per_1m": 1.5625,
-          "cached_input_per_1m": 0.125,
-          "input_per_1m": 1.25,
-          "output_per_1m": 7.5
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.1,
+          "input_per_1m": 1.0,
+          "output_per_1m": 6.0
+        },
+        "fast": {
+          "cache_write_per_1m": 5.0,
+          "cached_input_per_1m": 0.4,
+          "input_per_1m": 4.0,
+          "output_per_1m": 24.0
         },
         "flex": {
-          "cache_write_per_1m": 1.5625,
-          "cached_input_per_1m": 0.125,
-          "input_per_1m": 1.25,
-          "output_per_1m": 7.5
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.1,
+          "input_per_1m": 1.0,
+          "output_per_1m": 6.0
         },
-        "priority": {
+        "standard": {
+          "cache_write_per_1m": 2.5,
+          "cached_input_per_1m": 0.2,
+          "input_per_1m": 2.0,
+          "output_per_1m": 12.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-6-astra": {
+      "model": "gpt-6-astra",
+      "pricing": {
+        "cache_write_per_1m": 12.5,
+        "cached_input_per_1m": 1.0,
+        "input_per_1m": 10.0,
+        "output_per_1m": 50.0
+      },
+      "service_tiers": {
+        "batch": {
           "cache_write_per_1m": 6.25,
           "cached_input_per_1m": 0.5,
           "input_per_1m": 5.0,
-          "output_per_1m": 30.0
+          "output_per_1m": 25.0
+        },
+        "fast": {
+          "cache_write_per_1m": 25.0,
+          "cached_input_per_1m": 2.0,
+          "input_per_1m": 20.0,
+          "output_per_1m": 100.0
+        },
+        "flex": {
+          "cache_write_per_1m": 6.25,
+          "cached_input_per_1m": 0.5,
+          "input_per_1m": 5.0,
+          "output_per_1m": 25.0
         },
         "standard": {
-          "cache_write_per_1m": 3.125,
-          "cached_input_per_1m": 0.25,
-          "input_per_1m": 2.5,
-          "output_per_1m": 15.0
+          "cache_write_per_1m": 12.5,
+          "cached_input_per_1m": 1.0,
+          "input_per_1m": 10.0,
+          "output_per_1m": 50.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-6-luna": {
+      "model": "gpt-6-luna",
+      "pricing": {
+        "cache_write_per_1m": 0.125,
+        "cached_input_per_1m": 0.01,
+        "input_per_1m": 0.1,
+        "output_per_1m": 0.5
+      },
+      "service_tiers": {
+        "batch": {
+          "cache_write_per_1m": 0.0625,
+          "cached_input_per_1m": 0.005,
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.25
+        },
+        "fast": {
+          "cache_write_per_1m": 0.25,
+          "cached_input_per_1m": 0.02,
+          "input_per_1m": 0.2,
+          "output_per_1m": 1.0
+        },
+        "flex": {
+          "cache_write_per_1m": 0.0625,
+          "cached_input_per_1m": 0.005,
+          "input_per_1m": 0.05,
+          "output_per_1m": 0.25
+        },
+        "standard": {
+          "cache_write_per_1m": 0.125,
+          "cached_input_per_1m": 0.01,
+          "input_per_1m": 0.1,
+          "output_per_1m": 0.5
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-6-sol": {
+      "model": "gpt-6-sol",
+      "pricing": {
+        "cache_write_per_1m": 2.5,
+        "cached_input_per_1m": 0.2,
+        "input_per_1m": 2.0,
+        "output_per_1m": 10.0
+      },
+      "service_tiers": {
+        "batch": {
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.1,
+          "input_per_1m": 1.0,
+          "output_per_1m": 5.0
+        },
+        "fast": {
+          "cache_write_per_1m": 5.0,
+          "cached_input_per_1m": 0.4,
+          "input_per_1m": 4.0,
+          "output_per_1m": 20.0
+        },
+        "flex": {
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.1,
+          "input_per_1m": 1.0,
+          "output_per_1m": 5.0
+        },
+        "standard": {
+          "cache_write_per_1m": 2.5,
+          "cached_input_per_1m": 0.2,
+          "input_per_1m": 2.0,
+          "output_per_1m": 10.0
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
@@ -1267,6 +1395,7 @@
     "gpt-audio": {
       "model": "gpt-audio",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 2.5,
         "output_per_1m": 10.0
@@ -1282,6 +1411,7 @@
     "gpt-audio-1.5": {
       "model": "gpt-audio-1.5",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 2.5,
         "output_per_1m": 10.0
@@ -1297,6 +1427,7 @@
     "gpt-audio-mini": {
       "model": "gpt-audio-mini",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": null,
         "input_per_1m": 0.6,
         "output_per_1m": 2.4
@@ -1312,6 +1443,7 @@
     "gpt-image-1.5": {
       "model": "gpt-image-1.5",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 1.25,
         "input_per_1m": 5.0,
         "output_per_1m": 10.0
@@ -1333,6 +1465,7 @@
     "gpt-realtime": {
       "model": "gpt-realtime",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.4,
         "input_per_1m": 4.0,
         "output_per_1m": 16.0
@@ -1349,6 +1482,7 @@
     "gpt-realtime-1.5": {
       "model": "gpt-realtime-1.5",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.4,
         "input_per_1m": 4.0,
         "output_per_1m": 16.0
@@ -1365,6 +1499,7 @@
     "gpt-realtime-mini": {
       "model": "gpt-realtime-mini",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.06,
         "input_per_1m": 0.6,
         "output_per_1m": 2.4
@@ -1453,15 +1588,15 @@
           "input_per_1m": 1.0,
           "output_per_1m": 4.0
         },
+        "fast": {
+          "cached_input_per_1m": 0.875,
+          "input_per_1m": 3.5,
+          "output_per_1m": 14.0
+        },
         "flex": {
           "cached_input_per_1m": 0.25,
           "input_per_1m": 1.0,
           "output_per_1m": 4.0
-        },
-        "priority": {
-          "cached_input_per_1m": 0.875,
-          "input_per_1m": 3.5,
-          "output_per_1m": 14.0
         },
         "standard": {
           "cached_input_per_1m": 0.5,
@@ -1474,6 +1609,7 @@
     "o3-deep-research": {
       "model": "o3-deep-research",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 2.5,
         "input_per_1m": 10.0,
         "output_per_1m": 40.0
@@ -1545,15 +1681,15 @@
           "input_per_1m": 0.55,
           "output_per_1m": 2.2
         },
+        "fast": {
+          "cached_input_per_1m": 0.5,
+          "input_per_1m": 2.0,
+          "output_per_1m": 8.0
+        },
         "flex": {
           "cached_input_per_1m": 0.138,
           "input_per_1m": 0.55,
           "output_per_1m": 2.2
-        },
-        "priority": {
-          "cached_input_per_1m": 0.5,
-          "input_per_1m": 2.0,
-          "output_per_1m": 8.0
         },
         "standard": {
           "cached_input_per_1m": 0.275,
@@ -1566,6 +1702,7 @@
     "o4-mini-deep-research": {
       "model": "o4-mini-deep-research",
       "pricing": {
+        "cache_write_per_1m": null,
         "cached_input_per_1m": 0.5,
         "input_per_1m": 2.0,
         "output_per_1m": 8.0

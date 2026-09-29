@@ -133,6 +133,51 @@ function renderSettingsModal() {
   );
 }
 
+function renderOpenAIAuthSettingsModal(
+  overrides: Record<string, unknown> = {}
+) {
+  mockedUseSessionSettingsController.mockReturnValue({
+    controller: {
+      patchOverride,
+      deleteOverride,
+    } as any,
+    state: {
+      elements: [
+        {
+          ui_type: 'config',
+          key: 'auth_mode',
+          type: 'select',
+          label: 'OpenAI auth mode',
+          options: [
+            { value: 'api', label: 'API' },
+            { value: 'chatgpt', label: 'ChatGPT' },
+          ],
+        },
+      ],
+      overrides,
+      configSchema: [{ key: 'auth_mode', default: 'api' }],
+      baseConfig: { auth_mode: 'chatgpt' },
+      loading: false,
+      refreshing: false,
+      savingKeys: [],
+      error: null,
+      statusMessage: null,
+      statusTone: 'idle',
+      lastSavedAt: null,
+      lastLoadedAt: 1,
+    },
+  });
+
+  return renderWithMobileProviders(
+    <SessionSettingsModal
+      backend={{ kind: 'inProcess' } as any}
+      sessionId="openai-session"
+      visible
+      onRequestClose={jest.fn()}
+    />
+  );
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -192,6 +237,39 @@ test('session settings select chips patch generic option values', async () => {
   await waitFor(() => {
     expect(patchOverride).toHaveBeenCalledWith('generic_mode', 'careful');
   });
+});
+
+test('session OpenAI auth starts from the saved default and supports an override', async () => {
+  renderOpenAIAuthSettingsModal();
+
+  expect(screen.queryByText('Auto')).toBeNull();
+  expect(
+    screen.getByTestId('session-setting-select-auth_mode-chatgpt').props
+      .accessibilityState
+  ).toEqual(expect.objectContaining({ selected: true }));
+  expect(
+    screen.getByTestId('session-setting-select-auth_mode-api').props
+      .accessibilityState
+  ).toEqual(expect.objectContaining({ selected: false }));
+
+  fireEvent.press(screen.getByTestId('session-setting-select-auth_mode-api'));
+
+  await waitFor(() => {
+    expect(patchOverride).toHaveBeenCalledWith('auth_mode', 'api');
+  });
+});
+
+test('session OpenAI auth override is shown independently from the saved default', () => {
+  renderOpenAIAuthSettingsModal({ auth_mode: 'api' });
+
+  expect(
+    screen.getByTestId('session-setting-select-auth_mode-api').props
+      .accessibilityState
+  ).toEqual(expect.objectContaining({ selected: true }));
+  expect(
+    screen.getByTestId('session-setting-select-auth_mode-chatgpt').props
+      .accessibilityState
+  ).toEqual(expect.objectContaining({ selected: false }));
 });
 
 test('session settings text controls save generic string values', async () => {

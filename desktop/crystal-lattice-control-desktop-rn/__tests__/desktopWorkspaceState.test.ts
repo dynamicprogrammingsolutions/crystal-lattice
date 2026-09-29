@@ -1,6 +1,7 @@
 import {
   INITIAL_DESKTOP_WORKSPACE_STATE,
   desktopWorkspaceReducer,
+  getDesktopSessionTabKind,
   getDesktopWorkspaceTabs,
   type DesktopSessionTab,
 } from '../src/tabs/desktopWorkspaceState';
@@ -20,6 +21,26 @@ function tab(id: string): DesktopSessionTab {
 }
 
 describe('desktop workspace state', () => {
+  it('reports preview and permanent membership by composite identity', () => {
+    const state = desktopWorkspaceReducer(
+      desktopWorkspaceReducer(INITIAL_DESKTOP_WORKSPACE_STATE, {
+        type: 'openPermanent',
+        tab: tab('one'),
+      }),
+      {
+        type: 'openPreview',
+        tab: tab('two'),
+      },
+    );
+    expect(getDesktopSessionTabKind(state, 'connection', 'one')).toBe(
+      'permanent',
+    );
+    expect(getDesktopSessionTabKind(state, 'connection', 'two')).toBe(
+      'preview',
+    );
+    expect(getDesktopSessionTabKind(state, 'other', 'one')).toBeNull();
+  });
+
   it('keeps one preview after permanent tabs and promotes it in place', () => {
     let state = desktopWorkspaceReducer(INITIAL_DESKTOP_WORKSPACE_STATE, {
       type: 'openPermanent',

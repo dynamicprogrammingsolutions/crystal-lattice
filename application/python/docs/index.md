@@ -31,6 +31,8 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
   installation policy, Node tools, and Bash tools.
 - [Configuration mixins](configuration-mixins.md): reusable fragments and
   recursive shallow/deep merge behavior.
+- [Configuration includes](configuration-includes.md): merge external JSON
+  files into any config object with `$include`.
 - [Configuration variants](configuration-variants.md): model-selected
   request, UI, beta, and feature configuration.
 - [Session snapshots](session-snapshots.md): manual and automatic recovery

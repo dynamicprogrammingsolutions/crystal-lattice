@@ -1,5 +1,5 @@
 """
-EchoProvider example (class-based provider plugin) derived from PLUGIN_EXAMPLES.md.
+Example 1: Character-streaming echo provider.
 Streams characters of "Echo: <last user message>" as native chunks, and finalizes the full message.
 """
 

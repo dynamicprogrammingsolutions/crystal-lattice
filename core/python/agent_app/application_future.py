@@ -43,6 +43,7 @@ from .config import (
     build_runtime_overlay_env,
     build_agent_config,
     load_raw_config,
+    resolve_config_includes,
     resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
@@ -70,9 +71,15 @@ from .sessions import (
     SessionSnapshotRecord,
     SnapshotSelectionStore,
 )
-from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
+from .tool_loop import (
+    CancellationMode,
+    RequestCancellation,
+    ToolLoopCheckpointError,
+    ToolLoopRunner,
+)
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
+from .plugin_sources.types import PluginSource
 from .runtime_env import RuntimeEnvOverlay
 from .notifications import SessionNotifications
 from .operations import get_application_operation_service
@@ -357,6 +364,7 @@ class AgentApplication:
         replay_server_settings_on_startup: bool = True,
         application_control: ApplicationControl | None = None,
         notification_owner_epoch: str | None = None,
+        plugin_sources: Optional[List[PluginSource]] = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
@@ -408,11 +416,16 @@ class AgentApplication:
         resolved_config, placeholder_errors = resolve_placeholders(
             raw_config, env=resolution_env
         )
-        mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        include_resolved_config, include_errors = resolve_config_includes(
+            resolved_config, config_dir=config_path_resolved.parent
+        )
+        mixin_resolved_config, mixin_errors = resolve_config_mixins(
+            include_resolved_config
+        )
         variant_errors = validate_resolved_config_variants(mixin_resolved_config)
         self._config: Dict[str, Any] = mixin_resolved_config
         self._config_errors: List[Dict[str, Any]] = (
-            placeholder_errors + mixin_errors + variant_errors
+            placeholder_errors + include_errors + mixin_errors + variant_errors
         )
         self._resolved_env: Dict[str, str] = dict(resolution_env)
         self._runtime_env_overlay = RuntimeEnvOverlay(
@@ -459,7 +472,11 @@ class AgentApplication:
                 "preinstalled_plugin_manifest", preinstalled_manifest
             )
 
-        mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
+        mgr = PluginManager(
+            cache_dir=cache_path,
+            policy=plugin_policy,
+            sources=plugin_sources,
+        )
 
         providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}
@@ -644,7 +661,7 @@ class AgentApplication:
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._request_cancellations_lock = threading.RLock()
-        self._cancelled_requests: set[str] = set()
+        self._cancelled_requests: Dict[str, CancellationMode] = {}
         self._request_cancellations: Dict[str, RequestCancellation] = {}
         self._session_request_coordinator = SessionRequestCoordinator(
             app=self,
@@ -2608,22 +2625,38 @@ class AgentApplication:
         return mutation.notification
 
     def cancel_request(self, request_id: str) -> None:
-        """Request cooperative cancellation for an in-flight request.
+        """Request hard cancellation for an in-flight request.
 
-        Cancellation is best-effort and affects only send_request calls that
-        observe this ``request_id``. Providers and tool loops must periodically
-        check for cancellation; long-running non-streaming calls may not stop
-        immediately.
+        Hard cancellation interrupts cooperative providers and foreground
+        tools, then prevents later request phases from starting.
         """
 
         if not isinstance(request_id, str) or not request_id:
             raise ValueError("request_id must be a non-empty string")
 
         with self._request_cancellations_lock:
-            self._cancelled_requests.add(request_id)
+            self._cancelled_requests[request_id] = "hard"
             cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def soft_cancel_request(self, request_id: str) -> None:
+        """Stop a request after its active tool reaches a safe boundary.
+
+        Providers remain interruptible. A foreground tool already in progress
+        is allowed to finish and persist its result before the request stops.
+        """
+
+        if not isinstance(request_id, str) or not request_id:
+            raise ValueError("request_id must be a non-empty string")
+
+        with self._request_cancellations_lock:
+            existing = self._cancelled_requests.get(request_id)
+            if existing != "hard":
+                self._cancelled_requests[request_id] = "soft"
+            cancellation = self._request_cancellations.get(request_id)
+        if cancellation is not None and existing != "hard":
+            cancellation.soft_cancel()
 
     def _register_request_cancellation(
         self,
@@ -2632,15 +2665,18 @@ class AgentApplication:
         """Atomically register live cancellation after honoring early requests."""
 
         with self._request_cancellations_lock:
-            cancellation = RequestCancellation(
-                cancelled=request_id in self._cancelled_requests
-            )
+            mode = self._cancelled_requests.get(request_id)
+            cancellation = RequestCancellation()
+            if mode == "hard":
+                cancellation.cancel()
+            elif mode == "soft":
+                cancellation.soft_cancel()
             self._request_cancellations[request_id] = cancellation
             return cancellation
 
     def _clear_request_cancellation(self, request_id: str) -> None:
         with self._request_cancellations_lock:
-            self._cancelled_requests.discard(request_id)
+            self._cancelled_requests.pop(request_id, None)
             self._request_cancellations.pop(request_id, None)
 
     def start_session_request(
@@ -2879,6 +2915,14 @@ class AgentApplication:
         the contributing plugin. Optional config/tags/models are passed
         through so plugins can return config-aware UI. Additional context is
         delivered through the shared application context channel.
+
+        Every element carries a numeric ``order`` and the returned list is
+        sorted by it (stable). An element may set an explicit ``order``; when
+        absent the application layer stamps an app-plugin band default
+        (``5000 + position * 10`` per plugin, in registration order). The
+        scale matches the core's kind bands (provider 1000, extension 2000,
+        feature 3000, tool 4000), so explicit orders can position elements
+        relative to core-contributed elements.
         """
 
         safe_config: Dict[str, Any] = dict(config or {})
@@ -2899,19 +2943,24 @@ class AgentApplication:
         )
 
         elements: List[Dict[str, Any]] = []
-        for plugin_id, wrapper in self._app_plugins.items():
+        for plugin_position, (plugin_id, wrapper) in enumerate(
+            self._app_plugins.items()
+        ):
+            default_order = 5000 + (plugin_position + 1) * 10
             for raw_element in wrapper.get_ui_elements(
                 config=safe_config,
                 context=application_context,
             ):
                 if not isinstance(raw_element, dict):
                     continue
-                if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
-                    elements.append(raw_element)
-                else:
-                    element = dict(raw_element)
+                element = dict(raw_element)
+                if not (isinstance(element.get("plugin"), str) and element["plugin"]):
                     element["plugin"] = plugin_id
-                    elements.append(element)
+                order = element.get("order")
+                if not isinstance(order, (int, float)) or isinstance(order, bool):
+                    element["order"] = default_order
+                elements.append(element)
+        elements.sort(key=lambda entry: entry.get("order", 0))
         return elements
 
     @staticmethod

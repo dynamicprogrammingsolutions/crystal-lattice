@@ -57,6 +57,10 @@ For contributors and local validation:
   pytest plugins/openrouter/tests -m 'integration and api and not slow_integration and openrouter' -q
   ```
 
+  Direct tests eligible for preinstalled iOS bundle validation also carry the
+  `provider_integration` marker. The bundle runner excludes
+  `AgentApplication`, plugin-installation, and non-embedded-extension tests.
+
 - Slow hosted integration:
 
   ```bash

@@ -86,12 +86,16 @@ function filterAssignments(
 }
 
 export class RestAgentBackend implements AgentBackend {
-  readonly kind = 'rest' as const;
+  readonly kind: 'rest' | 'inProcess';
 
   private transport: Transport;
 
-  constructor(options: { transport: Transport }) {
+  constructor(options: {
+    transport: Transport;
+    kind?: 'rest' | 'inProcess';
+  }) {
     this.transport = options.transport;
+    this.kind = options.kind ?? 'rest';
   }
 
   private buildIdempotencyHeaders(idempotencyKey?: string): Record<string, string> {
@@ -459,6 +463,19 @@ export class RestAgentBackend implements AgentBackend {
     options: { idempotencyKey?: string } = {},
   ): Promise<void> {
     const path = `/requests/${encodeURIComponent(requestId)}/cancel`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async softCancelRequest(
+    requestId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/requests/${encodeURIComponent(requestId)}/soft-cancel`;
     await this.transport.request({
       method: 'POST',
       path,

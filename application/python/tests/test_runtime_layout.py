@@ -231,3 +231,44 @@ def test_default_config_bootstrap_excludes_generated_private_state(
     assert (config_path.parent / "cloud-agent" / "profiles").is_dir()
     assert not (config_path.parent / "auth").exists()
     assert not (config_path.parent / ".plugin_cache").exists()
+
+
+def test_default_config_bootstrap_installs_pricing_extracts(tmp_path: Path) -> None:
+    """First install copies the bundled pricing files and the config's
+    ``$include`` references resolve against the installed copies."""
+
+    from agent_app.config import load_resolved_config
+
+    # Pass this checkout's manifest explicitly: an editable install of the
+    # terminal app can point at a different checkout, whose bundled default
+    # config template would not contain these pricing files.
+    manifest = (
+        Path(__file__).resolve().parents[1]
+        / "agent_terminal_app"
+        / "runtime_layout.json"
+    )
+    layout = load_runtime_layout(manifest)
+    config_path = _ensure_default_config(tmp_path / ".crystal" / "config.json", layout)
+
+    pricing_dir = config_path.parent / "pricing"
+    for name in ("ollama.json", "zai.json", "fireworks.json"):
+        assert (pricing_dir / name).is_file(), name
+
+    # A hermetic env (no process environment) keeps CONFIG_DIR derived from
+    # the installed config location, exactly like a fresh install.
+    resolved, errors, _env = load_resolved_config(config_path, env={})
+    include_errors = [
+        error for error in errors if str(error.get("type", "")).startswith("include")
+    ]
+    assert include_errors == []
+
+    ollama_rates = resolved["providers"]["ollama"]["token_rates"]
+    assert "$include" not in ollama_rates
+    assert ollama_rates["models"]["glm-5.2"] == {
+        "input": 1.4,
+        "cached": 0.26,
+        "completion": 4.4,
+    }
+    zai_rates = resolved["providers"]["zai"]["token_rates"]
+    assert zai_rates["models"]["glm-5.3-flash"]["input"] == 0.15
+    assert "token_rates" not in resolved["agents"]["zai"]

@@ -211,6 +211,10 @@ elements. Values entered into the embedded display form are addressed with
 `$form.<field_name>`. Existing action dialogs continue to use
 `$dialog.<field_name>`.
 
+Default text inputs rendered for embedded display forms and action dialogs
+carry the stable test identifier `action-form-input-<field_name>`, so native
+UI tests can target plugin-declared fields by name.
+
 For a direct action display, use `dismiss` when the display should close
 locally without a backend call. Notification dismissal behavior is documented
 separately in

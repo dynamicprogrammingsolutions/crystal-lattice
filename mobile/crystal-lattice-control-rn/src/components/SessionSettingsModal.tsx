@@ -536,6 +536,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={opt.value}
+                    testID={`session-setting-select-${item.key}-${opt.value}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
                     style={[
                       isSelected ? styles.chipSelected : styles.chip,
                       item.disabled && styles.chipDisabled,

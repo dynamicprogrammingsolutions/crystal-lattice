@@ -17,16 +17,10 @@ from __future__ import annotations
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
-from tool_compat_shared import (
-    BACKGROUND_DELAY_SECONDS,
-    ShellInfo,
-    detect_shell,
-    run_shell_command,
-    truncate_output,
-)
+from tool_compat_shared import run_shell_command, truncate_output
 
 
 # Qwen defaults
@@ -136,6 +130,8 @@ class QwenShellTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         """Execute the bash tool.
         
@@ -183,11 +179,12 @@ class QwenShellTool(ToolPlugin):
                 workdir=directory,
                 timeout_seconds=timeout_seconds,
                 is_background=is_background,
+                cancellation=cancellation,
             )
         
         # Check if we're already in an async context
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're in an async context - need to run in a thread
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -203,6 +200,22 @@ class QwenShellTool(ToolPlugin):
         
         if result.get("timed_out"):
             return self._format_timeout_result(result, timeout_seconds, command, directory)
+
+        if result.get("cancelled"):
+            output = str(result.get("output") or "").rstrip()
+            lines = ["Command cancelled."]
+            if output:
+                lines.append(output)
+            return {
+                "success": False,
+                "output": "\n".join(lines),
+                "exit_code": None,
+                "cancelled": True,
+                "duration_seconds": result["duration_seconds"],
+                "command": command,
+                "directory": directory,
+                "description": description,
+            }
         
         # Apply Qwen-style truncation (line-first, then char)
         output, trunc_meta = self._apply_qwen_truncation(

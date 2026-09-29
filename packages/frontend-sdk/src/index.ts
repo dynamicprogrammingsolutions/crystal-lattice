@@ -147,6 +147,7 @@ export { SimpleSubscribable } from "./util/subscribable";
 export type { AgentsControllerState } from "./agents/agentsController";
 export {
   AgentsController,
+  invalidateAgentsCache,
   pickDefaultAgentId,
 } from "./agents/agentsController";
 
@@ -379,7 +380,11 @@ export type {
   StreamingRow,
   RequestErrorState,
 } from "./chat/chatController";
-export { ChatController } from "./chat/chatController";
+export {
+  ChatController,
+  DEFAULT_HISTORY_RANGE,
+  isRangeSelectsNoMessagesError,
+} from "./chat/chatController";
 
 export {
   selectLastAssistantMessage,
@@ -481,6 +486,7 @@ export type {
   DiscoveryConnectionRecord,
   BridgeConnectionRecord,
   CloudConnectionRecord,
+  EmbeddedConnectionRecord,
   ConnectionRecord,
 } from "./connections/types";
 export type {

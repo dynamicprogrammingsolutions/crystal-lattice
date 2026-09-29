@@ -12,8 +12,9 @@ import json
 import re
 from functools import lru_cache
 from html import unescape
+from importlib import resources
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 DEFAULT_PRICING_PAGE_URLS = (
     "https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
@@ -43,8 +44,12 @@ def default_snapshot_path() -> Path:
 
 @lru_cache(maxsize=1)
 def load_pricing_snapshot(path: str | None = None) -> Dict[str, Any]:
-    snapshot_path = Path(path) if path else default_snapshot_path()
-    with snapshot_path.open("r", encoding="utf-8") as handle:
+    resource = (
+        Path(path)
+        if path
+        else resources.files(__package__).joinpath(_DEFAULT_SNAPSHOT_RELATIVE)
+    )
+    with resource.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
     if not isinstance(data, dict):
         raise RuntimeError("invalid OpenAI pricing snapshot payload")
@@ -73,7 +78,13 @@ def normalize_model_name(model: str) -> str:
 def normalize_service_tier(service_tier: str | None) -> str:
     if not isinstance(service_tier, str):
         return ""
-    return service_tier.strip().lower()
+    value = service_tier.strip().lower()
+    # ``priority`` is the obsolete name for the ``fast`` processing tier,
+    # kept upstream only for compatibility. Normalize it so lookups and
+    # snapshot merges use the current name.
+    if value == "priority":
+        return "fast"
+    return value
 
 
 def normalize_pricing_table_model_name(model: str) -> str:
@@ -166,8 +177,12 @@ def _pricing_block(
     entry: Dict[str, Any], service_tier: str | None = None
 ) -> Optional[Dict[str, Optional[float]]]:
     normalized_tier = normalize_service_tier(service_tier)
-    service_tiers = entry.get("service_tiers") if isinstance(entry, dict) else None
-    if isinstance(service_tiers, dict) and normalized_tier:
+    service_tiers = (
+        _normalized_tier_mapping(entry.get("service_tiers"))
+        if isinstance(entry, dict)
+        else {}
+    )
+    if service_tiers and normalized_tier:
         tier_pricing = _pricing_block_from_mapping(service_tiers.get(normalized_tier))
         if tier_pricing is not None:
             return tier_pricing
@@ -189,19 +204,36 @@ def _pricing_block(
     if isinstance(pricing, dict):
         return _pricing_block_from_mapping(pricing)
 
-    if isinstance(service_tiers, dict):
+    if service_tiers:
         return _pricing_block_from_mapping(service_tiers.get("standard"))
     return None
 
 
-def estimate_usage_cost(
+def _usage_cost_components(
     usage: Dict[str, Any],
     model: str,
     service_tier: str | None = None,
     snapshot: Dict[str, Any] | None = None,
     snapshot_path: str | None = None,
     manual_entries: Dict[str, Any] | None = None,
-) -> Optional[float]:
+) -> Optional[
+    Tuple[
+        int, int, int, int, Dict[str, Optional[float]], Optional[float], Optional[float]
+    ]
+]:
+    """Resolve the billable token components and prices for one request.
+
+    Returns ``(ordinary_input_tokens, cached_read_tokens, cache_write_tokens,
+    output_tokens, pricing, cached_price, cache_write_price)`` or ``None``
+    when the usage payload or pricing entry cannot produce an estimate.
+    Input tokens are split into three mutually exclusive buckets so the
+    same token is never charged twice. If the reported detail counters are
+    inconsistent (their sum exceeds the input total), the larger counter is
+    reduced to fit and ordinary input tokens are clamped to zero. This
+    keeps cost estimation deterministic and non-negative without rejecting
+    the whole payload.
+    """
+
     if not isinstance(usage, dict) or not usage:
         return None
 
@@ -239,11 +271,6 @@ def estimate_usage_cost(
     input_total = max(0, int(input_tokens))
     output_total = max(0, int(output_tokens))
 
-    # Split input into three mutually exclusive buckets so the same token is
-    # never charged twice. If the reported detail counters are inconsistent
-    # (their sum exceeds input_total), reduce the larger counter to fit and
-    # clamp ordinary_input_tokens to zero. This keeps cost estimation
-    # deterministic and non-negative without rejecting the whole payload.
     if cached_read_tokens + cache_write_tokens > input_total:
         if cached_read_tokens >= cache_write_tokens:
             cached_read_tokens = max(0, input_total - cache_write_tokens)
@@ -265,15 +292,117 @@ def estimate_usage_cost(
         # estimable instead of returning None and hiding the model entirely.
         cache_write_price = pricing["input_per_1m"]
 
+    return (
+        ordinary_input_tokens,
+        cached_read_tokens,
+        cache_write_tokens,
+        output_total,
+        pricing,
+        cached_price,
+        cache_write_price,
+    )
+
+
+def estimate_usage_cost(
+    usage: Dict[str, Any],
+    model: str,
+    service_tier: str | None = None,
+    snapshot: Dict[str, Any] | None = None,
+    snapshot_path: str | None = None,
+    manual_entries: Dict[str, Any] | None = None,
+) -> Optional[float]:
+    components = _usage_cost_components(
+        usage,
+        model=model,
+        service_tier=service_tier,
+        snapshot=snapshot,
+        snapshot_path=snapshot_path,
+        manual_entries=manual_entries,
+    )
+    if components is None:
+        return None
+    (
+        ordinary_input_tokens,
+        cached_read_tokens,
+        cache_write_tokens,
+        output_total,
+        pricing,
+        cached_price,
+        cache_write_price,
+    ) = components
+    input_price = pricing["input_per_1m"]
+    output_price = pricing["output_per_1m"]
+    if input_price is None or output_price is None:
+        # Unreachable when _pricing_block validated the block; kept for the
+        # type checker.
+        return None
+
     estimated = (
-        ordinary_input_tokens * pricing["input_per_1m"]
+        ordinary_input_tokens * input_price
         + cached_read_tokens * (cached_price if cached_price is not None else 0.0)
         + cache_write_tokens
         * (cache_write_price if cache_write_price is not None else 0.0)
-        + output_total * pricing["output_per_1m"]
+        + output_total * output_price
     ) / 1_000_000.0
 
     return float(estimated)
+
+
+def estimate_usage_cost_breakdown(
+    usage: Dict[str, Any],
+    model: str,
+    service_tier: str | None = None,
+    snapshot: Dict[str, Any] | None = None,
+    snapshot_path: str | None = None,
+    manual_entries: Dict[str, Any] | None = None,
+) -> Optional[Dict[str, float]]:
+    """Estimate the per-item cost breakdown for one request.
+
+    Returns a mapping of cost item name to USD cost with keys ``input``,
+    ``cached``, ``cache_write``, and ``output``. Items with no tokens (or
+    no applicable price) are omitted, so the mapping only carries items
+    that actually contributed. Returns ``None`` when the usage payload or
+    pricing entry cannot produce an estimate (matching
+    ``estimate_usage_cost``); an empty mapping means the estimate is a
+    valid zero.
+    """
+
+    components = _usage_cost_components(
+        usage,
+        model=model,
+        service_tier=service_tier,
+        snapshot=snapshot,
+        snapshot_path=snapshot_path,
+        manual_entries=manual_entries,
+    )
+    if components is None:
+        return None
+    (
+        ordinary_input_tokens,
+        cached_read_tokens,
+        cache_write_tokens,
+        output_total,
+        pricing,
+        cached_price,
+        cache_write_price,
+    ) = components
+    input_price = pricing["input_per_1m"]
+    output_price = pricing["output_per_1m"]
+    if input_price is None or output_price is None:
+        # Unreachable when _pricing_block validated the block; kept for the
+        # type checker.
+        return None
+
+    breakdown: Dict[str, float] = {}
+    if ordinary_input_tokens > 0:
+        breakdown["input"] = ordinary_input_tokens * input_price / 1_000_000.0
+    if cached_read_tokens > 0 and cached_price is not None:
+        breakdown["cached"] = cached_read_tokens * cached_price / 1_000_000.0
+    if cache_write_tokens > 0 and cache_write_price is not None:
+        breakdown["cache_write"] = cache_write_tokens * cache_write_price / 1_000_000.0
+    if output_total > 0:
+        breakdown["output"] = output_total * output_price / 1_000_000.0
+    return breakdown
 
 
 def extract_visible_text_token_tier_pricing_from_page_html(
@@ -349,36 +478,42 @@ def extract_visible_text_token_tier_pricing_from_page_html(
     return model_entries
 
 
+def _normalized_tier_mapping(tiers: Any) -> Dict[str, Any]:
+    """Return tier blocks keyed by the current tier name.
+
+    The obsolete ``priority`` key is renamed to ``fast`` so that incoming
+    page prices replace stale snapshot prices under the same tier instead
+    of leaving a stale ``priority`` block behind.
+    """
+    if not isinstance(tiers, dict):
+        return {}
+    normalized: Dict[str, Any] = {}
+    for tier, block in tiers.items():
+        key = normalize_service_tier(tier) if isinstance(tier, str) else tier
+        normalized[key] = block
+    return normalized
+
+
 def merge_pricing_entry(
-    existing: Dict[str, Any] | None, incoming: Dict[str, Any]
+    existing: Dict[str, Any] | None, incoming: Dict[str, Any] | None
 ) -> Dict[str, Any]:
     existing_entry = existing if isinstance(existing, dict) else {}
     incoming_entry = incoming if isinstance(incoming, dict) else {}
 
     merged: Dict[str, Any] = {**existing_entry, **incoming_entry}
 
-    existing_tiers = (
-        existing_entry.get("service_tiers")
-        if isinstance(existing_entry, dict)
-        else None
-    )
-    incoming_tiers = (
-        incoming_entry.get("service_tiers")
-        if isinstance(incoming_entry, dict)
-        else None
-    )
     merged_tiers: Dict[str, Any] = {}
-    if isinstance(existing_tiers, dict):
-        merged_tiers.update(existing_tiers)
-    if isinstance(incoming_tiers, dict):
-        merged_tiers.update(incoming_tiers)
+    merged_tiers.update(_normalized_tier_mapping(existing_entry.get("service_tiers")))
+    merged_tiers.update(_normalized_tier_mapping(incoming_entry.get("service_tiers")))
     if merged_tiers:
         merged["service_tiers"] = merged_tiers
 
-    if not isinstance(merged.get("pricing"), dict):
-        standard_pricing = _pricing_block_from_mapping(merged_tiers.get("standard"))
-        if standard_pricing is not None:
-            merged["pricing"] = standard_pricing
+    # The top-level ``pricing`` block is the denormalized standard-tier
+    # block. Rebuild it whenever a merged standard tier exists so price
+    # changes are reflected, not only first-time entries.
+    standard_pricing = _pricing_block_from_mapping(merged_tiers.get("standard"))
+    if standard_pricing is not None:
+        merged["pricing"] = standard_pricing
 
     return merged
 

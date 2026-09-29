@@ -558,8 +558,17 @@ def test_provider_metadata_schema_and_tags() -> None:
         "supports_reasoning",
         "supports_reasoning_effort",
         "supports_tools",
+        "cost_tracking",
         "supports_verbosity",
     ]
+
+
+def test_get_tags_advertises_cost_tracking_capability() -> None:
+    provider = OpenAIResponsesProvider()
+
+    tags = provider.get_tags({"model": "gpt-4.1-mini"}, [{"id": "gpt-4.1-mini"}])
+
+    assert "cost_tracking" in tags
 
 
 def test_get_tags_does_not_advertise_verbosity_for_non_gpt5_models() -> None:
@@ -799,7 +808,12 @@ def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails
                 }
             ).encode("utf-8")
 
-    def _fake_urlopen(request: Any, timeout: float) -> _FakeHttpResponse:
+    def _fake_urlopen(
+        request: Any,
+        timeout: float,
+        context: Any,
+    ) -> _FakeHttpResponse:
+        assert context is not None
         captured["url"] = request.full_url
         captured["headers"] = dict(request.header_items())
         captured["timeout"] = timeout

@@ -8,6 +8,12 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+python_runtime_prepare = File.expand_path(
+  '../scripts/prepare_ios_python_runtime.py',
+  __dir__
+)
+Pod::Executable.execute_command('python3', [python_runtime_prepare])
+
 def disable_fmt_consteval
   fmt_header = File.join(
     __dir__,
@@ -42,6 +48,8 @@ end
 
 target 'CrystalLatticeControlRN' do
   config = use_native_modules!
+
+  pod 'CrystalLatticePythonRuntime', :path => './CrystalLatticePythonRuntime'
 
   use_react_native!(
     :path => config[:reactNativePath],

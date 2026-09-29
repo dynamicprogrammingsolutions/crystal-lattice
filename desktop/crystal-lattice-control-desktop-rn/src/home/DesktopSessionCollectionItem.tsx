@@ -4,6 +4,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type ViewStyle,
   type ViewProps,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
@@ -16,11 +18,15 @@ import {
 import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import {
-  complementarySessionOpenMode,
   sessionOpenModeLabel,
   type SessionOpenMode,
 } from '../settings/desktopGlobalSettings';
-import { useSessionItemPress } from '../sessions/sessionItemInteraction';
+import {
+  resolveExplicitSessionOpenMode,
+  useSessionItemPress,
+} from '../sessions/sessionItemInteraction';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
+import { resolveDesktopHomeSessionPresentation } from './homeSessionPresentation';
 
 export function DesktopSessionCollectionItem({
   item,
@@ -28,6 +34,7 @@ export function DesktopSessionCollectionItem({
   selected,
   status,
   doubleClickAction,
+  tabKind = null,
   watched,
   onSelect,
   onOpen,
@@ -36,12 +43,15 @@ export function DesktopSessionCollectionItem({
   onMoveEarlier,
   onMoveLater,
   dragHandleProps,
+  isLast = false,
+  presentationScope,
 }: {
   item: HomeSessionItem;
   variant: 'tile' | 'history';
   selected: boolean;
   status: SessionRequestStatus | null;
   doubleClickAction: SessionOpenMode;
+  tabKind?: DesktopSessionTabKind | null;
   watched: boolean;
   onSelect: () => void;
   onOpen: (mode: SessionOpenMode) => void;
@@ -50,25 +60,202 @@ export function DesktopSessionCollectionItem({
   onMoveEarlier?: () => void;
   onMoveLater?: () => void;
   dragHandleProps?: ViewProps;
+  isLast?: boolean;
+  presentationScope?: string;
 }): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const presentation = item.summary.presentation;
-  const title =
-    presentation?.title || item.summary.preview || item.summary.session_id;
-  const subtitle = presentation?.subtitle || item.connection.name;
-  const explicitMode = complementarySessionOpenMode(doubleClickAction);
+  const presentation = resolveDesktopHomeSessionPresentation(item);
+  const fieldScope = presentationScope ?? variant;
+  const explicitMode = resolveExplicitSessionOpenMode(
+    doubleClickAction,
+    tabKind,
+  );
   const handlePress = useSessionItemPress({
     key: item.key,
     doubleClickAction,
-    onSelect,
-    onOpen,
+    onSelect: () => {
+      onSelect();
+    },
+    onOpen: mode => {
+      onOpen(mode);
+    },
   });
 
-  return (
+  const details = (
+    <>
+      <View style={styles.headingRow}>
+        <AccessibleField
+          testID={`desktop-${fieldScope}-title-${item.connectionId}-${item.sessionId}`}
+          label={presentation.title}
+          style={styles.titleField}
+        >
+          <Text
+            testID={`desktop-${fieldScope}-title-${item.connectionId}-${item.sessionId}`}
+            style={styles.title}
+            numberOfLines={2}
+          >
+            {presentation.title}
+          </Text>
+        </AccessibleField>
+        {variant === 'tile' && dragHandleProps ? (
+          <View
+            testID={`desktop-watchlist-drag-${item.connectionId}-${item.sessionId}`}
+            accessibilityLabel={`Reorder ${presentation.title}`}
+            style={styles.dragHandle}
+            {...dragHandleProps}
+          >
+            <Icon name="move" size={14} color={theme.textMuted} />
+          </View>
+        ) : null}
+      </View>
+      {presentation.subtitle ? (
+        <AccessibleField
+          testID={`desktop-${fieldScope}-subtitle-${item.connectionId}-${item.sessionId}`}
+          label={presentation.subtitle}
+        >
+          <Text
+            testID={`desktop-${fieldScope}-subtitle-${item.connectionId}-${item.sessionId}`}
+            style={styles.subtitle}
+            numberOfLines={2}
+          >
+            {presentation.subtitle}
+          </Text>
+        </AccessibleField>
+      ) : null}
+      <AccessibleField
+        testID={`desktop-${fieldScope}-session-id-${item.connectionId}-${item.sessionId}`}
+        label={`Session ID ${presentation.sessionId}`}
+      >
+        <Text
+          testID={`desktop-${fieldScope}-session-id-${item.connectionId}-${item.sessionId}`}
+          style={styles.sessionId}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {presentation.sessionId}
+        </Text>
+      </AccessibleField>
+      {status ? (
+        <View style={styles.statusRow}>
+          <SessionRequestStatusIndicator
+            status={status}
+            variant={variant === 'tile' ? 'badge' : 'inline'}
+            testID={
+              variant === 'tile'
+                ? `desktop-session-status-${item.connectionId}-${item.sessionId}`
+                : `desktop-${fieldScope}-status-${item.connectionId}-${item.sessionId}`
+            }
+          />
+        </View>
+      ) : null}
+      {item.note ? (
+        <Text
+          testID={`desktop-${fieldScope}-note-${item.connectionId}-${item.sessionId}`}
+          style={styles.note}
+          numberOfLines={2}
+        >
+          {item.note}
+        </Text>
+      ) : null}
+      <View
+        testID={`desktop-${fieldScope}-metadata-${item.connectionId}-${item.sessionId}`}
+        style={[
+          styles.metadataRow,
+          variant === 'tile' && styles.tileMetadataRow,
+        ]}
+      >
+        <AccessibleField
+          testID={`desktop-${fieldScope}-connection-${item.connectionId}-${item.sessionId}`}
+          label={`Connection ${presentation.connectionName}`}
+          style={styles.metadataConnectionField}
+        >
+          <Text
+            testID={`desktop-${fieldScope}-connection-${item.connectionId}-${item.sessionId}`}
+            style={styles.metadataConnection}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {presentation.connectionName}
+          </Text>
+        </AccessibleField>
+        <AccessibleField
+          testID={`desktop-${fieldScope}-time-${item.connectionId}-${item.sessionId}`}
+          label={`Modified ${presentation.relativeTime}`}
+          style={styles.metadataTimeField}
+        >
+          <Text
+            testID={`desktop-${fieldScope}-time-${item.connectionId}-${item.sessionId}`}
+            style={styles.metadataTime}
+            numberOfLines={1}
+          >
+            {presentation.relativeTime}
+          </Text>
+        </AccessibleField>
+      </View>
+    </>
+  );
+
+  const actions = (
+    <>
+      {onMoveEarlier ? (
+        <SmallIconButton
+          testID={`desktop-${fieldScope}-move-earlier-${item.connectionId}-${item.sessionId}`}
+          icon="arrow-left"
+          label="Move earlier"
+          onPress={() => {
+            onMoveEarlier();
+          }}
+        />
+      ) : null}
+      {onMoveLater ? (
+        <SmallIconButton
+          testID={`desktop-${fieldScope}-move-later-${item.connectionId}-${item.sessionId}`}
+          icon="arrow-right"
+          label="Move later"
+          onPress={() => {
+            onMoveLater();
+          }}
+        />
+      ) : null}
+      <SmallIconButton
+        testID={`desktop-${fieldScope}-note-action-${item.connectionId}-${item.sessionId}`}
+        icon="edit-3"
+        label="Edit local note"
+        onPress={() => {
+          onEditNote();
+        }}
+      />
+      <SmallIconButton
+        testID={`desktop-${fieldScope}-watch-action-${item.connectionId}-${item.sessionId}`}
+        icon={watched ? 'x' : 'bookmark'}
+        label={watched ? 'Remove from Watchlist' : 'Add to Watchlist'}
+        onPress={() => {
+          onToggleWatch();
+        }}
+      />
+      <Pressable
+        testID={`desktop-session-${explicitMode}-${item.connectionId}-${item.sessionId}`}
+        accessibilityLabel={`${sessionOpenModeLabel(explicitMode)} ${
+          presentation.title
+        }`}
+        style={styles.openButton}
+        onPress={event => {
+          (event as any)?.stopPropagation?.();
+          onOpen(explicitMode);
+        }}
+      >
+        <Text style={styles.openButtonText}>
+          {sessionOpenModeLabel(explicitMode)}
+        </Text>
+      </Pressable>
+    </>
+  );
+
+  const body = (
     <Pressable
       testID={`desktop-${variant}-session-${item.connectionId}-${item.sessionId}`}
-      accessibilityLabel={`${title}, ${item.connection.name}`}
+      accessibilityLabel={`${presentation.title}, ${presentation.connectionName}`}
       accessibilityState={{ selected }}
       style={state => [
         variant === 'tile' ? styles.tile : styles.history,
@@ -78,92 +265,79 @@ export function DesktopSessionCollectionItem({
       ]}
       onPress={handlePress}
     >
-      <View style={styles.headingRow}>
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
-        {variant === 'tile' && dragHandleProps ? (
-          <View
-            testID={`desktop-watchlist-drag-${item.connectionId}-${item.sessionId}`}
-            accessibilityLabel={`Reorder ${title}`}
-            style={styles.dragHandle}
-            {...dragHandleProps}
-          >
-            <Icon name="move" size={14} color={theme.textMuted} />
-          </View>
-        ) : null}
-        <SessionRequestStatusIndicator
-          status={status}
-          variant={variant === 'tile' ? 'badge' : 'inline'}
-          testID={`desktop-session-status-${item.connectionId}-${item.sessionId}`}
-        />
-      </View>
-      <Text style={styles.subtitle} numberOfLines={1}>
-        {subtitle}
-      </Text>
-      <Text style={styles.sessionId} numberOfLines={1}>
-        {item.sessionId}
-      </Text>
-      {item.note ? (
-        <Text style={styles.note} numberOfLines={variant === 'tile' ? 2 : 1}>
-          {item.note}
-        </Text>
-      ) : null}
-      <View style={styles.footer}>
-        <Text style={styles.modified}>
-          {formatRelativeTime(item.summary.modified)}
-        </Text>
-        <View style={styles.actions}>
-          {onMoveEarlier ? (
-            <SmallIconButton
-              icon="arrow-left"
-              label="Move earlier"
-              onPress={onMoveEarlier}
-            />
-          ) : null}
-          {onMoveLater ? (
-            <SmallIconButton
-              icon="arrow-right"
-              label="Move later"
-              onPress={onMoveLater}
-            />
-          ) : null}
-          <SmallIconButton
-            icon="edit-3"
-            label="Edit local note"
-            onPress={onEditNote}
-          />
-          <SmallIconButton
-            icon={watched ? 'x' : 'bookmark'}
-            label={watched ? 'Remove from Watchlist' : 'Add to Watchlist'}
-            onPress={onToggleWatch}
-          />
-          <Pressable
-            testID={`desktop-session-${explicitMode}-${item.connectionId}-${item.sessionId}`}
-            accessibilityLabel={`${sessionOpenModeLabel(
-              explicitMode,
-            )} ${title}`}
-            style={styles.openButton}
-            onPress={event => {
-              (event as any)?.stopPropagation?.();
-              onOpen(explicitMode);
-            }}
-          >
-            <Text style={styles.openButtonText}>
-              {sessionOpenModeLabel(explicitMode)}
-            </Text>
-          </Pressable>
+      {details}
+      {variant === 'tile' ? (
+        <View
+          testID={`desktop-${fieldScope}-actions-${item.connectionId}-${item.sessionId}`}
+          style={styles.tileActions}
+        >
+          {actions}
         </View>
-      </View>
+      ) : null}
     </Pressable>
+  );
+
+  if (variant === 'tile') {
+    return body;
+  }
+
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineRail}>
+        <View
+          testID={`desktop-${fieldScope}-dot-${item.connectionId}-${item.sessionId}`}
+          accessible
+          accessibilityLabel="Timeline event"
+          style={styles.timelineDot}
+        />
+        {!isLast ? (
+          <View
+            testID={`desktop-${fieldScope}-line-${item.connectionId}-${item.sessionId}`}
+            style={styles.timelineLine}
+          />
+        ) : null}
+      </View>
+      {body}
+      <View
+        testID={`desktop-${fieldScope}-actions-${item.connectionId}-${item.sessionId}`}
+        style={styles.timelineActions}
+      >
+        {actions}
+      </View>
+    </View>
+  );
+}
+
+function AccessibleField({
+  testID,
+  label,
+  style,
+  children,
+}: {
+  testID: string;
+  label: string;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      testID={`${testID}-native`}
+      accessible
+      accessibilityLabel={label}
+      style={style}
+    >
+      {children}
+    </View>
   );
 }
 
 function SmallIconButton({
+  testID,
   icon,
   label,
   onPress,
 }: {
+  testID?: string;
   icon: string;
   label: string;
   onPress: () => void;
@@ -172,6 +346,7 @@ function SmallIconButton({
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <Pressable
+      testID={testID}
       accessibilityLabel={label}
       style={styles.iconButton}
       onPress={event => {
@@ -184,24 +359,11 @@ function SmallIconButton({
   );
 }
 
-function formatRelativeTime(modifiedSeconds: number): string {
-  const deltaSeconds = Math.max(
-    0,
-    Math.round(Date.now() / 1000 - modifiedSeconds),
-  );
-  if (deltaSeconds < 60) return 'Just now';
-  const minutes = Math.floor(deltaSeconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
 function createStyles(theme: ReturnType<typeof useTheme>) {
   return StyleSheet.create({
     tile: {
       width: '100%',
-      minHeight: 160,
+      minHeight: 180,
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 12,
@@ -210,12 +372,13 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.surface,
     },
     history: {
-      borderBottomWidth: 1,
-      borderBottomColor: theme.divider,
-      paddingVertical: 10,
-      paddingHorizontal: 10,
+      flex: 1,
+      minWidth: 0,
+      paddingBottom: 16,
+      paddingHorizontal: 8,
       gap: 4,
       backgroundColor: theme.surface,
+      borderRadius: 8,
     },
     selected: {
       borderColor: theme.primary,
@@ -231,11 +394,14 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 8,
     },
     title: {
-      flex: 1,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '700',
       color: theme.text,
+    },
+    titleField: {
+      minWidth: 0,
+      flex: 1,
     },
     subtitle: {
       fontSize: theme.typography.fontSize.secondary,
@@ -248,28 +414,79 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       color: theme.textMuted,
     },
     note: {
-      fontSize: theme.typography.fontSize.small,
-      lineHeight: theme.typography.lineHeight.small,
+      fontSize: theme.typography.fontSize.secondary,
+      lineHeight: theme.typography.lineHeight.secondary,
       color: theme.textSecondary,
       fontStyle: 'italic',
-      flexGrow: 1,
     },
-    footer: {
-      marginTop: 'auto',
+    statusRow: {
+      alignItems: 'flex-start',
+      paddingTop: 1,
+    },
+    metadataRow: {
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 8,
+      gap: 6,
+      paddingTop: 3,
     },
-    modified: {
+    tileMetadataRow: {
+      marginTop: 'auto',
+    },
+    metadataConnectionField: {
+      minWidth: 0,
+      flex: 1,
+    },
+    metadataConnection: {
       fontSize: theme.typography.fontSize.tiny,
       lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textMuted,
     },
-    actions: {
+    metadataTimeField: {
+      flexShrink: 0,
+    },
+    metadataTime: {
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
+      color: theme.textMuted,
+    },
+    tileActions: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'flex-end',
       gap: 4,
+      flexShrink: 0,
+    },
+    timelineRow: {
+      minWidth: 0,
+      minHeight: 104,
+      flexDirection: 'row',
+      backgroundColor: theme.surface,
+    },
+    timelineRail: {
+      width: 24,
+      flexShrink: 0,
+      alignItems: 'center',
+    },
+    timelineDot: {
+      width: 8,
+      height: 8,
+      marginTop: 7,
+      borderRadius: 4,
+      backgroundColor: theme.textMuted,
+    },
+    timelineLine: {
+      width: 2,
+      flex: 1,
+      marginVertical: 4,
+      backgroundColor: theme.divider,
+    },
+    timelineActions: {
+      flexDirection: 'row',
+      alignSelf: 'flex-start',
+      alignItems: 'center',
+      gap: 2,
+      flexShrink: 0,
     },
     iconButton: {
       width: 26,

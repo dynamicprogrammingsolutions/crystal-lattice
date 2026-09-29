@@ -100,6 +100,31 @@ describe('RestAgentBackend idempotency headers', () => {
     );
   });
 
+  it('keeps hard and soft cancellation on distinct request routes', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: {} })),
+    };
+    const backend = new RestAgentBackend({ transport });
+
+    await backend.cancelRequest('request/one', { idempotencyKey: 'hard-key' });
+    await backend.softCancelRequest('request/two', {
+      idempotencyKey: 'soft-key',
+    });
+
+    expect(transport.request).toHaveBeenNthCalledWith(1, {
+      method: 'POST',
+      path: '/requests/request%2Fone/cancel',
+      headers: { 'Idempotency-Key': 'hard-key' },
+      body: {},
+    });
+    expect(transport.request).toHaveBeenNthCalledWith(2, {
+      method: 'POST',
+      path: '/requests/request%2Ftwo/soft-cancel',
+      headers: { 'Idempotency-Key': 'soft-key' },
+      body: {},
+    });
+  });
+
   it('adds idempotency keys to session-scoped action requests', async () => {
     const transport: Transport = {
       request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),

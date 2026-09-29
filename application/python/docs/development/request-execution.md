@@ -35,7 +35,7 @@ Related documentation:
 - [Runtime owner integration](runtime-owner-integration.md)
 - [HTTP endpoint parity](../../agent_terminal_app/server_endpoints_parity.md)
 - [Application README](../../README.md)
-- [Event API](../../../../docs/api/events.md)
+- [Event API](../../../../core/python/docs/events.md)
 - [Runtime reload specification](../../../../docs/development/specifications/application-runtime-reload/index.md)
 
 ## Ownership map
@@ -198,11 +198,14 @@ and can later delegate to persisted operation state.
 
 ```python
 app.cancel_request(request_id)
+app.soft_cancel_request(request_id)
 ```
 
-Cancellation remains owned by `AgentApplication`. It is cooperative:
-providers and tool loops observe a `RequestCancellation`, but a blocking
-provider operation may not stop immediately.
+Cancellation remains owned by `AgentApplication`. `cancel_request` is hard
+cancellation: cooperative providers and foreground tools are interrupted.
+`soft_cancel_request` interrupts a provider, but lets an already-running tool
+finish, append its result, and checkpoint before stopping the request. No
+later tool or provider phase starts.
 
 ## Start and result objects
 
@@ -439,17 +442,17 @@ from the checkpoint at that cursor. This keeps the message snapshot, cursor,
 and request state aligned.
 
 For event shapes and polling semantics, see the
-[Event API](../../../../docs/api/events.md).
+[Event API](../../../../core/python/docs/events.md).
 
 ## Cancellation timing
 
 Cancellation can arrive before or after the live `RequestCancellation` object
 is installed.
 
-`AgentApplication.cancel_request(request_id)` always records the request ID in
-its pre-cancelled set. If the live object already exists, it is cancelled
-immediately. Otherwise, `send_request(...)` creates the live cancellation
-object in the cancelled state when request preparation reaches that point.
+Both cancellation methods record a mode before the live controller is
+installed. Registration initializes the controller atomically from that mode.
+Hard cancellation wins races and can promote an earlier soft cancellation;
+soft cancellation cannot downgrade hard cancellation.
 
 The tool loop checks cancellation:
 
@@ -458,8 +461,13 @@ The tool loop checks cancellation:
 - before and during tool execution;
 - while waiting for async or blocking components that register callbacks.
 
-A non-cooperative provider may finish its current operation before
-cancellation is observed.
+The controller separates overall stop, provider interruption, and hard-only
+tool interruption. Tools receive only the hard-only signal, so soft
+cancellation is observed at the post-tool checkpoint. A non-cooperative
+provider or tool may still finish before cancellation is observed.
+
+Explicit background commands are outside request cancellation after successful
+handoff. Their existing process-specific stop mechanism remains authoritative.
 
 ## Reload and application close
 

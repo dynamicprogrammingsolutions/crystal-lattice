@@ -109,6 +109,8 @@ describe('ConnectionsPanel', () => {
     const rowCallback = show.mock.calls[1][1] as (index: number) => void;
     rowCallback(0);
     expect(onOpenEditConnectionEditor).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(screen.getByTestId('connection-row-conn-1'));
   });
 
   it('uses natural non-scroll containers for up to three connections', () => {
@@ -148,9 +150,7 @@ describe('ConnectionsPanel', () => {
       rendered.getByTestId('connections-list-bottom-fade').props
         .accessibilityLabel,
     ).toBe('More connections below');
-    expect(scroll.props.accessibilityValue.text).toBe(
-      'More connections below',
-    );
+    expect(scroll.props.accessibilityValue.text).toBe('More connections below');
 
     act(() => {
       scroll.props.onScroll({

@@ -9,6 +9,8 @@ from typing import Any, Dict, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .verified_ssl import verified_ssl_context
+
 
 DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH = "auth/chatgpt-auth.json"
 DEFAULT_CHATGPT_REFRESH_ENDPOINT = "https://auth.openai.com/oauth/token"
@@ -249,7 +251,11 @@ def refresh_chatgpt_credentials(
     )
 
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with urlopen(
+            request,
+            timeout=timeout,
+            context=verified_ssl_context(),
+        ) as response:
             raw_body = response.read().decode("utf-8")
     except HTTPError as exc:
         raw_body = exc.read().decode("utf-8", errors="replace")

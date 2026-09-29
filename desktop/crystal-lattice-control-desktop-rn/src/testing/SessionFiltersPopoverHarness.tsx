@@ -1,5 +1,5 @@
-import React, { useMemo, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 import type {
@@ -225,7 +225,7 @@ function createHarnessBackend(
     if (!sessionId) {
       return { status: 'error', message: 'missing session_id' };
     }
-    sessionsRef.current = sessionsRef.current.map((session) => {
+    sessionsRef.current = sessionsRef.current.map(session => {
       if (session.session_id !== sessionId) {
         return session;
       }
@@ -240,7 +240,8 @@ function createHarnessBackend(
       ) {
         metadata.status = params.inputs.status;
       }
-      const status = typeof metadata.status === 'string' ? metadata.status : 'todo';
+      const status =
+        typeof metadata.status === 'string' ? metadata.status : 'todo';
       return {
         ...session,
         metadata,
@@ -253,7 +254,8 @@ function createHarnessBackend(
     });
     return {
       status: 'ok',
-      plugin: actionId === 'set_session_status' ? 'session_status' : 'session_pinned',
+      plugin:
+        actionId === 'set_session_status' ? 'session_status' : 'session_pinned',
       action_id: actionId,
       result: {
         mutations: {
@@ -301,7 +303,10 @@ function createHarnessBackend(
         },
       },
     ],
-    listApplicationUiSchema: async () => [...FILTER_ELEMENTS, ...ACTION_ELEMENTS],
+    listApplicationUiSchema: async () => [
+      ...FILTER_ELEMENTS,
+      ...ACTION_ELEMENTS,
+    ],
     executeAction: async (params: any) =>
       execute({ actionId: params.actionId, inputs: params.inputs }),
     executeSessionAction: async (params: any) =>
@@ -316,11 +321,31 @@ function createHarnessBackend(
 export function SessionFiltersPopoverHarness(): React.JSX.Element {
   const theme = useDesktopTheme();
   const sessionsRef = useRef(SESSION_SUMMARIES);
+  const [watched, setWatched] = useState(false);
+  const [noteEditCount, setNoteEditCount] = useState(0);
   const backend = useMemo(() => createHarnessBackend(sessionsRef), []);
 
   return (
     <ThemeProvider theme={theme}>
       <View style={styles.root} testID="session-filters-popover-harness-ready">
+        <View
+          accessible
+          testID="session-filters-watchlist-marker"
+          accessibilityLabel={`Sessions Watchlist ${
+            watched ? 'watched' : 'not watched'
+          }`}
+          style={styles.accessibilityMarker}
+        />
+        <Text testID="session-filters-watchlist-state">
+          {watched ? 'watched' : 'not-watched'}
+        </Text>
+        <View
+          accessible
+          testID="session-filters-note-marker"
+          accessibilityLabel={`Sessions local note edits ${noteEditCount}`}
+          style={styles.accessibilityMarker}
+        />
+        <Text testID="session-filters-note-state">{noteEditCount}</Text>
         <SessionsPanel
           focusedConnectionId={CONNECTION_ID}
           focusedConnectionName="Filter harness"
@@ -333,6 +358,12 @@ export function SessionFiltersPopoverHarness(): React.JSX.Element {
           followActiveTabEnabled={false}
           onUpdateCache={() => {}}
           onOpenSessionTab={() => {}}
+          sessionNotes={
+            noteEditCount > 0 ? { 'pinned-done': 'Harness note' } : {}
+          }
+          onEditSessionNote={() => setNoteEditCount(current => current + 1)}
+          isSessionWatched={() => watched}
+          onToggleSessionWatchlist={() => setWatched(current => !current)}
         />
       </View>
     </ThemeProvider>
@@ -342,5 +373,9 @@ export function SessionFiltersPopoverHarness(): React.JSX.Element {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  accessibilityMarker: {
+    width: 1,
+    height: 1,
   },
 });

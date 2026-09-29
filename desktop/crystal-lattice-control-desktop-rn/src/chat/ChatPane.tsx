@@ -28,9 +28,14 @@ import {
   RichConfigDropdownControl,
   RichConfigDropdownPanel,
   RichConfigToggleControl,
+  runComposedMessageSubmission,
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionRequestStatusIndicator,
+  LOCAL_NOTE_SESSION_ACTION_KEY,
+  LOCAL_WATCHLIST_SESSION_ACTION_KEY,
+  buildLocalSessionActionDefinitions,
+  isLocalSessionActionKey,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -123,6 +128,7 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { SnapshotReadonlyBanner } from './SnapshotReadonlyBanner';
 import { sendComposerMessageAtomically } from './sendComposerMessage';
+import { useDesktopHumanTimeTelemetry } from '../humanTimeTelemetry/DesktopHumanTimeTelemetryProvider';
 import {
   AppendAsPopoverContent,
   type AppendAsRole,
@@ -163,6 +169,7 @@ import { useSessionStatusBarParts } from './useSessionStatusBarParts';
 import { usePersistedChatDraft } from './usePersistedChatDraft';
 import { useProactiveChatScrollPersistence } from './useProactiveChatScrollPersistence';
 import { openAttachmentMetadataWindow } from '../windows/attachmentMetadataCoordinator';
+import { useSynchronizedPersistentPinnedActions } from './useSynchronizedPersistentPinnedActions';
 
 const DEFAULT_HISTORY_WINDOW = 50;
 const PINNED_SESSION_ACTIONS_STORAGE_KEY_BASE =
@@ -341,9 +348,16 @@ type ChatSessionActionKey =
   | 'messageLimit'
   | 'settings'
   | 'plugins'
-  | 'snapshots';
+  | 'snapshots'
+  | typeof LOCAL_NOTE_SESSION_ACTION_KEY
+  | typeof LOCAL_WATCHLIST_SESSION_ACTION_KEY;
 
-type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
+type ChatComposerActionKey =
+  | 'append'
+  | 'appendAs'
+  | 'resend'
+  | 'softCancel'
+  | 'cancel';
 
 type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & {
   ui_type: 'composer_attachment';
@@ -473,6 +487,13 @@ const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
     order: 130,
     testID: 'composer-action-cancel',
   },
+  {
+    key: 'softCancel',
+    label: 'Soft cancel request',
+    iconName: 'pause-circle',
+    order: 125,
+    testID: 'composer-action-soft-cancel',
+  },
 ];
 
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
@@ -513,6 +534,11 @@ export interface ChatPaneProps {
   }) => void;
   requestStatus?: SessionRequestStatus | null;
   onBeforeSessionMutation?: () => void;
+  sessionNote?: string | null;
+  localActionsEnabled?: boolean;
+  sessionWatched?: boolean;
+  onEditSessionNote?: () => void;
+  onToggleSessionWatchlist?: () => void;
   styleVariant?: TabStripStyle;
 }
 
@@ -532,12 +558,41 @@ export const ChatPane = React.memo(function ChatPane({
   onUpdateCache,
   requestStatus = null,
   onBeforeSessionMutation,
+  sessionNote = null,
+  localActionsEnabled = true,
+  sessionWatched = false,
+  onEditSessionNote,
+  onToggleSessionWatchlist,
   styleVariant = 'toolbarTabs',
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
+  const {
+    recordActivity: recordHumanTimeActivity,
+    splitForComposedMessage: splitHumanTimeForComposedMessage,
+  } = useDesktopHumanTimeTelemetry();
+  const recordSessionActivity = useCallback(
+    () => recordHumanTimeActivity(connectionId, sessionId),
+    [connectionId, recordHumanTimeActivity, sessionId],
+  );
+  const splitSessionForComposedMessage = useCallback(
+    () => splitHumanTimeForComposedMessage(connectionId, sessionId),
+    [connectionId, sessionId, splitHumanTimeForComposedMessage],
+  );
   const styles = useMemo(
     () => createStyles(theme, styleVariant),
     [theme, styleVariant],
+  );
+  const sessionBaseActions = useMemo(
+    () => [
+      ...BUILTIN_SESSION_ACTIONS,
+      ...buildLocalSessionActionDefinitions({
+        watched: sessionWatched,
+        hasNote: !!sessionNote,
+        includeNote: !!onEditSessionNote,
+        includeWatchlist: !!onToggleSessionWatchlist,
+      }),
+    ],
+    [onEditSessionNote, onToggleSessionWatchlist, sessionNote, sessionWatched],
   );
 
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
@@ -563,7 +618,12 @@ export const ChatPane = React.memo(function ChatPane({
   const [sendInFlight, setSendInFlight] = useState(false);
   const [appendInFlight, setAppendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
+  const reloadInFlightRef = useRef(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
+  const [softCancelInFlight, setSoftCancelInFlight] = useState(false);
+  const [softCancelledRequestId, setSoftCancelledRequestId] = useState<
+    string | null
+  >(null);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<
     ActionDisplayEntry[]
@@ -626,6 +686,18 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, []);
 
+  // Sync the UI range state when the controller falls back to the default
+  // range (e.g. an absolute range no longer selects messages after session
+  // compaction). The persist effect then writes the default texts to the
+  // messages cache automatically.
+  const handleRangeFallback = useCallback((range: {
+    start?: number;
+    end?: number;
+  }) => {
+    setRangeStartText(range.start != null ? String(range.start) : '');
+    setRangeEndText(range.end != null ? String(range.end) : '');
+  }, []);
+
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
@@ -633,6 +705,7 @@ export const ChatPane = React.memo(function ChatPane({
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
     eventsEnabled: isActive && backend != null,
+    onRangeFallback: handleRangeFallback,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
@@ -643,7 +716,7 @@ export const ChatPane = React.memo(function ChatPane({
     pinned: pinnedSessionActionKeys,
     setPinned: setPinnedSessionActionKeys,
     hasStoredPreference: hasStoredSessionActionPreference,
-  } = usePersistentPinnedActions<ActionKey>({
+  } = useSynchronizedPersistentPinnedActions<ActionKey>({
     store: asyncStorageKeyValueStore,
     key: pinnedSessionActionsStorageKey,
     initialPinned: DEFAULT_PINNED_SESSION_ACTION_KEYS,
@@ -2039,11 +2112,15 @@ export const ChatPane = React.memo(function ChatPane({
       onBeforeSessionMutation?.();
       setSendInFlight(true);
       try {
-        await sendComposerMessageAtomically(chatController, {
-          role: 'user',
-          content,
-          multipartContent,
-        });
+        await runComposedMessageSubmission(
+          splitSessionForComposedMessage,
+          () =>
+            sendComposerMessageAtomically(chatController, {
+              role: 'user',
+              content,
+              multipartContent,
+            }),
+        );
         setComposeText('');
         composerRef.current?.setText('');
         clearComposerAttachments();
@@ -2068,6 +2145,7 @@ export const ChatPane = React.memo(function ChatPane({
       setComposeText,
       unresolvedAttachmentDraft,
       onBeforeSessionMutation,
+      splitSessionForComposedMessage,
     ],
   );
 
@@ -2108,11 +2186,15 @@ export const ChatPane = React.memo(function ChatPane({
       onBeforeSessionMutation?.();
       setAppendInFlight(true);
       try {
-        await chatController.appendMessage({
-          role: role as any,
-          content: content.length > 0 ? content : '',
-          multipartContent,
-        });
+        await runComposedMessageSubmission(
+          splitSessionForComposedMessage,
+          () =>
+            chatController.appendMessage({
+              role: role as any,
+              content: content.length > 0 ? content : '',
+              multipartContent,
+            }),
+        );
         composerRef.current?.focus();
       } catch (err: any) {
         const message = err?.message || 'Failed to append message.';
@@ -2131,6 +2213,7 @@ export const ChatPane = React.memo(function ChatPane({
       composeTextRef,
       unresolvedAttachmentDraft,
       onBeforeSessionMutation,
+      splitSessionForComposedMessage,
     ],
   );
 
@@ -2263,6 +2346,37 @@ export const ChatPane = React.memo(function ChatPane({
     cancelInFlight,
     chatController,
     chatState?.activeRequestId,
+  ]);
+
+  const handleSoftCancel = useCallback(async () => {
+    if (!canRunComposerActions) {
+      return;
+    }
+    const activeRequestId = chatState?.activeRequestId;
+    if (
+      softCancelInFlight ||
+      !activeRequestId ||
+      softCancelledRequestId === activeRequestId
+    ) {
+      return;
+    }
+
+    setSoftCancelInFlight(true);
+    try {
+      await chatController.softCancelActiveRequest();
+      setSoftCancelledRequestId(activeRequestId);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to soft cancel request';
+      Alert.alert('Failed to soft cancel', message);
+    } finally {
+      setSoftCancelInFlight(false);
+    }
+  }, [
+    canRunComposerActions,
+    chatController,
+    chatState?.activeRequestId,
+    softCancelInFlight,
+    softCancelledRequestId,
   ]);
 
   const openAttachmentUrlPopover = useCallback(
@@ -2428,8 +2542,18 @@ export const ChatPane = React.memo(function ChatPane({
         handleCancel().catch(() => {});
         return;
       }
+      if (action === 'softCancel') {
+        handleSoftCancel().catch(() => {});
+        return;
+      }
     },
-    [handleAppend, handleCancel, handleResend, openAppendAsPopover],
+    [
+      handleAppend,
+      handleCancel,
+      handleResend,
+      handleSoftCancel,
+      openAppendAsPopover,
+    ],
   );
 
   const buildAttachmentStripRows = useCallback(
@@ -2581,10 +2705,14 @@ export const ChatPane = React.memo(function ChatPane({
     if (!canRunHeaderActions) {
       return false;
     }
-    if (reloadInFlight) {
+    // Guard with a ref so the callback identity (and therefore the
+    // session-refresh invalidation subscription) stays stable across
+    // reload attempts; the `reloadInFlight` state only drives the UI.
+    if (reloadInFlightRef.current) {
       return false;
     }
 
+    reloadInFlightRef.current = true;
     setReloadInFlight(true);
     try {
       setLoadError(null);
@@ -2605,15 +2733,10 @@ export const ChatPane = React.memo(function ChatPane({
       Alert.alert('Failed to reload', message);
       return false;
     } finally {
+      reloadInFlightRef.current = false;
       setReloadInFlight(false);
     }
-  }, [
-    canRunHeaderActions,
-    chatController,
-    rangeEndText,
-    rangeStartText,
-    reloadInFlight,
-  ]);
+  }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText]);
 
   const notificationUiEffectObserver = useMemo(
     () => (backend ? new NotificationUiEffectObserver(backend) : null),
@@ -3394,6 +3517,17 @@ export const ChatPane = React.memo(function ChatPane({
   const handleSessionAction = useCallback(
     (key: ActionKey) => {
       const action = key as ChatSessionActionKey;
+      if (action === LOCAL_NOTE_SESSION_ACTION_KEY && onEditSessionNote) {
+        onEditSessionNote();
+        return;
+      }
+      if (
+        action === LOCAL_WATCHLIST_SESSION_ACTION_KEY &&
+        onToggleSessionWatchlist
+      ) {
+        onToggleSessionWatchlist();
+        return;
+      }
       if (action === 'reload') {
         handleReload().catch(() => {});
         return;
@@ -3524,6 +3658,8 @@ export const ChatPane = React.memo(function ChatPane({
       openAgentPickerForSwitch,
       openMessageLimitPopover,
       openRichSessionActionList,
+      onEditSessionNote,
+      onToggleSessionWatchlist,
       sessionId,
       sessionSummary,
     ],
@@ -4013,13 +4149,16 @@ export const ChatPane = React.memo(function ChatPane({
             renderIcon={({ name, size, color }) => (
               <Icon name={name} size={size} color={color} />
             )}
-            baseActions={BUILTIN_SESSION_ACTIONS}
+            baseActions={sessionBaseActions}
             extraActions={pluginSessionActionDefs}
             pinned={pinnedSessionActionKeys}
             onChangePinned={next => setPinnedSessionActionKeys(next)}
             onAction={handleSessionAction}
             renderPinnedAction={renderPinnedHeaderSessionAction}
             isActionDisabled={key => {
+              if (isLocalSessionActionKey(String(key))) {
+                return !localActionsEnabled;
+              }
               if (pluginActionRunning) {
                 return true;
               }
@@ -4146,7 +4285,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4188,7 +4330,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4237,7 +4382,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4278,7 +4426,10 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+                onScrollBeginDrag={event => {
+                  recordSessionActivity();
+                  transcriptScroll.onScrollBeginDrag(event);
+                }}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4360,6 +4511,13 @@ export const ChatPane = React.memo(function ChatPane({
                   }
                   if (key === 'cancel') {
                     return cancelInFlight || !chatState?.activeRequestId;
+                  }
+                  if (key === 'softCancel') {
+                    return (
+                      softCancelInFlight ||
+                      !chatState?.activeRequestId ||
+                      softCancelledRequestId === chatState.activeRequestId
+                    );
                   }
                   const richConfig =
                     composerRichConfigControlByActionKey[String(key)];
@@ -4467,6 +4625,8 @@ export const ChatPane = React.memo(function ChatPane({
               ]}
             >
               <MacTextView
+                testID="message-composer-input"
+                accessibilityLabel="Message composer"
                 ref={composerRef}
                 style={styles.composerInput}
                 initialText={initialComposeText}
@@ -4482,6 +4642,7 @@ export const ChatPane = React.memo(function ChatPane({
                 maxHeight={120}
                 onHeightChange={handleComposerHeightChange}
                 onChangeText={text => {
+                  recordSessionActivity();
                   handleComposerChangeText(text);
                 }}
                 onSubmit={text => {

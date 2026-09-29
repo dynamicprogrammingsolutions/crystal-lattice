@@ -2,7 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
-import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  ThemeProvider,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { DesktopWindowManager } from './desktopWindowManager';
@@ -21,7 +24,7 @@ function parsePort(value: string): number | null {
 }
 
 function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.floor(Math.random() * 16);
     const v = c === 'x' ? r : (r % 4) + 8;
     return v.toString(16);
@@ -49,7 +52,9 @@ function ConnectionEditorWindowInner({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [name, setName] = useState(initialRecord?.name ?? '');
-  const [host, setHost] = useState(initialRecord?.kind === 'manual' ? initialRecord.host : '127.0.0.1');
+  const [host, setHost] = useState(
+    initialRecord?.kind === 'manual' ? initialRecord.host : '127.0.0.1',
+  );
   const [portText, setPortText] = useState(
     initialRecord?.kind === 'manual' ? String(initialRecord.port) : '8080',
   );
@@ -85,18 +90,22 @@ function ConnectionEditorWindowInner({
   };
 
   return (
-    <View style={styles.root}>
-      <Text style={styles.title}>{mode === 'new' ? 'New Connection' : 'Edit Connection'}</Text>
+    <View style={styles.root} testID="connection-editor-window-root">
+      <Text style={styles.title}>
+        {mode === 'new' ? 'New Connection' : 'Edit Connection'}
+      </Text>
 
       <View style={styles.form}>
         <View style={styles.field}>
           <Text style={styles.label}>Name</Text>
           <TextInput
+            testID="connection-editor-name"
+            accessibilityLabel="Connection name"
             style={styles.input}
             value={name}
             placeholder="Optional"
             placeholderTextColor={theme.textMuted}
-            onChangeText={(value) => {
+            onChangeText={value => {
               setError(null);
               setName(value);
             }}
@@ -106,11 +115,13 @@ function ConnectionEditorWindowInner({
         <View style={styles.field}>
           <Text style={styles.label}>Host</Text>
           <TextInput
+            testID="connection-editor-host"
+            accessibilityLabel="Connection host"
             style={styles.input}
             value={host}
             placeholder="127.0.0.1"
             placeholderTextColor={theme.textMuted}
-            onChangeText={(value) => {
+            onChangeText={value => {
               setError(null);
               setHost(value);
             }}
@@ -120,12 +131,14 @@ function ConnectionEditorWindowInner({
         <View style={styles.field}>
           <Text style={styles.label}>Port</Text>
           <TextInput
+            testID="connection-editor-port"
+            accessibilityLabel="Connection port"
             style={styles.input}
             value={portText}
             keyboardType="number-pad"
             placeholder="8080"
             placeholderTextColor={theme.textMuted}
-            onChangeText={(value) => {
+            onChangeText={value => {
               setError(null);
               setPortText(value);
             }}
@@ -137,14 +150,26 @@ function ConnectionEditorWindowInner({
 
       <View style={styles.footer}>
         <Pressable
-          style={({ pressed }) => [styles.button, styles.cancelButton, pressed && styles.buttonPressed]}
+          testID="connection-editor-cancel"
+          accessibilityLabel="Cancel connection"
+          style={({ pressed }) => [
+            styles.button,
+            styles.cancelButton,
+            pressed && styles.buttonPressed,
+          ]}
           onPress={cancel}
         >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </Pressable>
 
         <Pressable
-          style={({ pressed }) => [styles.button, styles.saveButton, pressed && styles.buttonPressed]}
+          testID="connection-editor-save"
+          accessibilityLabel="Save connection"
+          style={({ pressed }) => [
+            styles.button,
+            styles.saveButton,
+            pressed && styles.buttonPressed,
+          ]}
           onPress={submit}
         >
           <Text style={styles.saveButtonText}>Save</Text>

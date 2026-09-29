@@ -65,8 +65,13 @@ export interface SetDesktopGlobalSettingParams {
     | 'baseFontSize'
     | 'headerSize'
     | 'recentSessionsWindow'
-    | 'sessionDoubleClickAction';
-  value: string | number;
+    | 'sessionDoubleClickAction'
+    | 'sessionsFollowActiveTabEnabled'
+    | 'switchConnectionWithActiveTabEnabled'
+    | 'timeTrackingEnabled'
+    | 'timeTrackingPluginId'
+    | 'timeTrackingInactivitySeconds';
+  value: string | number | boolean;
 }
 
 export interface DesktopWindowManagerModule {
@@ -89,10 +94,14 @@ export interface DesktopWindowManagerModule {
   openMessageLimitPopover(params?: OpenMessageLimitPopoverParams): void;
   closeMessageLimitPopover(): void;
 
-  openApplicationActionDialogWindow(params?: OpenApplicationActionDialogWindowParams): void;
+  openApplicationActionDialogWindow(
+    params?: OpenApplicationActionDialogWindowParams,
+  ): void;
   closeApplicationActionDialogWindow(): void;
 
-  openApplicationActionDialogPopover(params?: OpenApplicationActionDialogPopoverParams): void;
+  openApplicationActionDialogPopover(
+    params?: OpenApplicationActionDialogPopoverParams,
+  ): void;
   closeApplicationActionDialogPopover(): void;
 
   openSessionSettingsWindow(params?: OpenSessionSettingsWindowParams): void;
@@ -108,7 +117,10 @@ export interface DesktopWindowManagerModule {
   recordMarkdownGeometryHarnessState?(state: Record<string, unknown>): void;
   recordConnectionsPanelHarnessState?(state: Record<string, unknown>): void;
   recordDesktopWorkspaceHarnessState?(state: Record<string, unknown>): void;
-  readProgressiveScrollHarnessCommand?(): Promise<Record<string, unknown> | null>;
+  readProgressiveScrollHarnessCommand?(): Promise<Record<
+    string,
+    unknown
+  > | null>;
 }
 
 export const DesktopWindowManager: DesktopWindowManagerModule | null =

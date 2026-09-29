@@ -9,6 +9,7 @@ import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
 import { DesktopSessionCollectionItem } from '../home/DesktopSessionCollectionItem';
 import type { SessionOpenMode } from '../settings/desktopGlobalSettings';
+import type { DesktopSessionTabKind } from '../tabs/desktopWorkspaceState';
 import { PanelHeader } from '../ui/PanelHeader';
 
 export function HistoryPanel({
@@ -18,6 +19,7 @@ export function HistoryPanel({
   onOpenSession,
   onToggleWatch,
   onEditNote,
+  getSessionTabKind,
 }: {
   collections: HomeSessionCollections;
   statuses: Readonly<
@@ -33,6 +35,10 @@ export function HistoryPanel({
     watched: boolean,
   ) => void;
   onEditNote: (item: HomeSessionCollections['recent'][number]) => void;
+  getSessionTabKind?: (
+    connectionId: string,
+    sessionId: string,
+  ) => DesktopSessionTabKind | null;
 }): React.JSX.Element {
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -48,7 +54,7 @@ export function HistoryPanel({
         {collections.recent.length === 0 ? (
           <Text style={styles.empty}>No recent cached sessions.</Text>
         ) : (
-          collections.recent.map(item => {
+          collections.recent.map((item, index) => {
             const watched = collections.watchlist.some(
               candidate => candidate.key === item.key,
             );
@@ -60,11 +66,14 @@ export function HistoryPanel({
                 selected={selectedKey === item.key}
                 status={statuses[item.connectionId]?.[item.sessionId] ?? null}
                 doubleClickAction={doubleClickAction}
+                tabKind={getSessionTabKind?.(item.connectionId, item.sessionId)}
                 watched={watched}
                 onSelect={() => setSelectedKey(item.key)}
                 onOpen={mode => onOpenSession(item, mode)}
                 onToggleWatch={() => onToggleWatch(item, watched)}
                 onEditNote={() => onEditNote(item)}
+                isLast={index === collections.recent.length - 1}
+                presentationScope="panel-history"
               />
             );
           })
@@ -78,8 +87,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
   return StyleSheet.create({
     root: {
       flex: 1,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
       backgroundColor: theme.surface,
     },
     list: {

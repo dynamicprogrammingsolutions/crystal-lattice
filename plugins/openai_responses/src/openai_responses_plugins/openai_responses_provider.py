@@ -18,13 +18,17 @@ import json
 import queue
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = Any
 
 from agent_core.tool_result_payloads import (
     TOOL_RESULT_FIELD,
@@ -64,6 +68,7 @@ from .chatgpt_credentials import (
     ChatGPTRefreshTransientError,
     credentials_are_valid as _chatgpt_credentials_are_valid_shared,
     credentials_have_access_token,
+    isoformat_utc,
     load_credentials as _load_chatgpt_credentials_shared,
     refresh_chatgpt_credentials,
     resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
@@ -72,6 +77,12 @@ from .chatgpt_rate_limits import (
     parse_all_rate_limit_headers,
     persist_rate_limit_snapshots,
     resolve_rate_limits_path as _resolve_chatgpt_rate_limits_path_shared,
+)
+from .chatgpt_usage_journal import (
+    append_rate_limit_snapshot,
+    resolve_usage_journal_path,
+    resolve_working_directory,
+    session_id_from_state,
 )
 from .openai_responses_runtime import (
     DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
@@ -96,6 +107,7 @@ from .openai_responses_codex_models import (
     load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
     merge_model_descriptors as _merge_model_descriptors_shared,
 )
+from .verified_ssl import verified_ssl_context as _verified_ssl_context
 
 log = get_logger("openai_responses_provider")
 
@@ -105,6 +117,9 @@ _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
 _RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
+_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY = (
+    "_openai_responses_chatgpt_rate_limit_snapshots"
+)
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -182,10 +197,31 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "default": "api",
                 "description": "Authentication mode: api, chatgpt, or auto.",
             },
+            "auth_mode_options": {
+                "type": "array",
+                "required": False,
+                "description": (
+                    "Optional UI subset of api, chatgpt, and auto. "
+                    "Request behavior remains controlled by auth_mode."
+                ),
+            },
             "api_key": {
                 "type": "string",
                 "required": False,
                 "description": "OpenAI API key (defaults to OPENAI_API_KEY env var).",
+            },
+            "provider_transport": {
+                "type": "string",
+                "required": False,
+                "default": "sdk",
+                "description": "HTTP client implementation: sdk or requests.",
+            },
+            "tls_ca_bundle": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional CA bundle path used by provider_transport=requests."
+                ),
             },
             "base_url": {
                 "type": "string",
@@ -280,6 +316,28 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 }
             )
 
+        auth_mode_options = [
+            {"value": "api", "label": "API"},
+            {"value": "chatgpt", "label": "ChatGPT"},
+            {"value": "auto", "label": "Auto"},
+        ]
+        configured_auth_modes = (
+            config.get("auth_mode_options") if isinstance(config, dict) else None
+        )
+        if isinstance(configured_auth_modes, list):
+            allowed_auth_modes = {
+                value
+                for value in configured_auth_modes
+                if isinstance(value, str)
+            }
+            filtered = [
+                option
+                for option in auth_mode_options
+                if option["value"] in allowed_auth_modes
+            ]
+            if filtered:
+                auth_mode_options = filtered
+
         return [
             {
                 "ui_type": "config",
@@ -314,11 +372,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "type": "select",
                 "key": "auth_mode",
                 "label": "OpenAI auth mode",
-                "options": [
-                    {"value": "api", "label": "API"},
-                    {"value": "chatgpt", "label": "ChatGPT"},
-                    {"value": "auto", "label": "Auto"},
-                ],
+                "options": auth_mode_options,
                 "default": "api",
             },
             {
@@ -368,6 +422,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             "supports_reasoning",
             "supports_reasoning_effort",
             "supports_tools",
+            # This provider stamps usage/cost metadata and a provider-defined
+            # cost bucket, enabling the generic cost tracking plugin.
+            "cost_tracking",
         ]
 
         model = config.get("model")
@@ -591,6 +648,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         config: Dict[str, Any],
         headers: Any,
+        *,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         if self._effective_auth_mode(config) != "chatgpt" or headers is None:
             return
@@ -603,20 +662,48 @@ class OpenAIResponsesProvider(ProviderPlugin):
         snapshots = parse_all_rate_limit_headers(header_map)
         if not snapshots:
             return
+        captured_at = datetime.now(timezone.utc)
         persist_rate_limit_snapshots(
             self._chatgpt_rate_limits_path(config),
             snapshots,
+            captured_at=captured_at,
             plan_type=config.get("chatgpt_plan_type"),
         )
+        if isinstance(state, dict):
+            state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY] = {
+                "captured_at": isoformat_utc(captured_at),
+                "source": "x-codex-headers",
+                "snapshots": snapshots,
+            }
+            if isinstance(config.get("chatgpt_plan_type"), str) and config.get(
+                "chatgpt_plan_type"
+            ):
+                state[_CHATGPT_RATE_LIMIT_SNAPSHOTS_STATE_KEY]["plan_type"] = (
+                    config.get("chatgpt_plan_type")
+                )
+        try:
+            append_rate_limit_snapshot(
+                resolve_usage_journal_path(config),
+                snapshots=snapshots,
+                plan_type=config.get("chatgpt_plan_type"),
+                captured_at=captured_at,
+                session_id=session_id_from_state(state),
+                working_directory=resolve_working_directory(config),
+                config=config,
+            )
+        except Exception:
+            return
 
     def _capture_chatgpt_rate_limits_from_stream(
         self,
         config: Dict[str, Any],
         stream: Any,
+        *,
+        state: Optional[Dict[str, Any]] = None,
     ) -> None:
         response = getattr(stream, "_response", None)
         headers = getattr(response, "headers", None)
-        self._capture_chatgpt_rate_limits(config, headers)
+        self._capture_chatgpt_rate_limits(config, headers, state=state)
 
     def _chatgpt_config_with_credentials(
         self,
@@ -751,7 +838,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = Request(url, headers=headers, method="GET")
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
         try:
-            with urlopen(request, timeout=timeout) as response:
+            with urlopen(
+                request,
+                timeout=timeout,
+                context=_verified_ssl_context(),
+            ) as response:
                 body = response.read().decode("utf-8")
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
@@ -2587,6 +2678,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
         context = self._request_context(state)
+        # Keep the caller-owned state dict for in-place rate-limit snapshot
+        # sharing; `state` below may be rebound for the upload cache.
+        capture_state = state
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
@@ -2833,11 +2927,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     self._capture_chatgpt_rate_limits(
                                         local_cfg,
                                         getattr(stream, "headers", None),
+                                        state=capture_state,
                                     )
                                     event_iter = self._iter_raw_sse_event_dicts(stream)
                                 else:
                                     self._capture_chatgpt_rate_limits_from_stream(
-                                        local_cfg, stream
+                                        local_cfg,
+                                        stream,
+                                        state=capture_state,
                                     )
                                     event_iter = stream
                                 for event in event_iter:

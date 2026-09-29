@@ -1,0 +1,12 @@
+{
+  "module": "cost_tracking_plugins",
+  "subdirectory": ".",
+  "entries": [
+    "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
+    "cost_tracking_plugins.cost_tracking_app_plugin.CostTrackingAppPlugin"
+  ],
+  "kinds": {
+    "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension": "extensions",
+    "cost_tracking_plugins.cost_tracking_app_plugin.CostTrackingAppPlugin": "application"
+  }
+}

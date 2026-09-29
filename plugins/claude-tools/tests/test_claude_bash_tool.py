@@ -20,6 +20,8 @@ import json
 import os
 import signal
 import sys
+import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -55,6 +57,22 @@ from claude_tools.claude_bash_tool import (
     _UPSTREAM_OPENING,
 )
 from tool_compat_shared.shell_engine import ShellInfo
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callback = None
+
+    def add_callback(self, callback):
+        self._callback = callback
+        return 1
+
+    def remove_callback(self, token: int) -> None:
+        self._callback = None
+
+    def cancel(self) -> None:
+        if self._callback is not None:
+            self._callback()
 
 
 def _wrapper(tmp_path: Path):
@@ -360,6 +378,31 @@ def test_timeout_matches_fixture(tmp_path: Path) -> None:
     expected = _fixture("error-timeout")["tool_result_message"]["content"][0]
     assert messages[0]["content"] == expected["content"]
     assert messages[0][TOOL_RESULT_FIELD]["content"][0]["is_error"] is True
+
+
+def test_hard_cancellation_stops_foreground_bash(tmp_path: Path) -> None:
+    tool, state = _wrapper(tmp_path)
+    cancellation = _TestCancellation()
+    result: dict = {}
+
+    worker = threading.Thread(
+        target=lambda: result.update(
+            tool.execute_tool(
+                "Bash",
+                {"command": "sleep 60"},
+                state,
+                cancellation=cancellation,
+            )
+        )
+    )
+    worker.start()
+    time.sleep(0.2)
+    cancellation.cancel()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    assert result["success"] is False
+    assert result["cancelled"] is True
 
 
 def test_cwd_reset_matches_fixture(tmp_path: Path) -> None:

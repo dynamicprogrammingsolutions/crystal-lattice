@@ -21,26 +21,26 @@ harnesses.
   pages for bundled plugin packages.
 - [Default configuration](reference/default-config.md): inspect the generated
   default application configuration.
-- [Event stream types](api/events.md): understand application events exposed by
-  HTTP polling and bridge streaming.
+- [Event stream types](packages/core-python/events.md): understand application
+  events exposed by HTTP polling and bridge streaming.
 - [Development documentation](development/index.md): reusable standards,
   Crystal Lattice repository policy, and cross-package target specifications.
 
 ## Developer Reference
 
-- [Reusable documentation standard](development/standards/documentation.md):
-  package-neutral documentation ownership, document roles, and discoverability
-  rules.
-- [Reusable specification standard](development/standards/specifications.md):
-  target specifications, live requirements, work tracking, and evidence.
-- [Crystal Lattice repository policy](development/repository/index.md): local
-  package profiles, plugin documentation, task workflow, and publication rules.
+- [Documentation and specification guide](development/documentation.md):
+  structure, file roles, writing, requirements, testing, and verification.
+- [Crystal Lattice documentation conventions](development/crystal-lattice-documentation.md):
+  package paths, plugin guidance, tasks, publication, and migration.
 - [AgentCore API](reference/agent_core/core.md): core session, message, request,
   streaming, and tool orchestration APIs.
-- [Core SDK guide](api/core-sdk.md): hand-written overview of the functional SDK
-  surface.
+- [Core SDK guide](packages/core-python/core-sdk.md): hand-written guide to
+  selected SDK surface.
+- [Core types and plugin protocols](packages/core-python/types-and-protocols.md):
+  conceptual map of important values, plugin responsibilities, state, and
+  request flow.
 - [Types and protocols](reference/agent_core/types.md): immutable core types and
-  plugin protocols.
+  exact Python plugin protocol reference generated from docstrings.
 - [Provider wrapper](reference/agent_core/plugin/provider.md): provider adapter
   API reference.
 - [OpenAI-compatible provider](reference/providers/openai_provider.md): reference

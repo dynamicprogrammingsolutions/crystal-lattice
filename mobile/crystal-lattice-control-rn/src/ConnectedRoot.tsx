@@ -5,7 +5,7 @@ import React, {
   useState,
   useMemo,
 } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
@@ -28,6 +28,9 @@ import { useHomeWorkspace } from './HomeWorkspaceContext';
 import { deriveHomeSessionCollections } from './homeWorkspaceState';
 import { MobileConnectionSessionStatusReader } from './connectionSessionStatusReader';
 import { useSessionRequestStatuses } from './useSessionRequestStatuses';
+import { HumanTimeTelemetryProvider } from './humanTimeTelemetry/HumanTimeTelemetryProvider';
+import EmbeddedRuntimeSettingsModal from './embeddedRuntime/EmbeddedRuntimeSettingsModal';
+import type { EmbeddedRuntimePublicConfiguration } from './embeddedRuntime/embeddedPythonRuntime';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
@@ -75,6 +78,9 @@ interface ConnectedRootProps {
       meta?: Record<string, any> | null;
     },
   ) => void;
+  onEmbeddedSettingsChanged?: (
+    configuration: EmbeddedRuntimePublicConfiguration,
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -97,6 +103,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSaveMessagesHistoryRange,
   debugTimeline,
   onAppendDebugTimelineEntry,
+  onEmbeddedSettingsChanged,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -107,6 +114,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoResponse, setDemoResponse] = useState('');
   const [globalSettingsVisible, setGlobalSettingsVisible] = useState(false);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const [embeddedSettingsVisible, setEmbeddedSettingsVisible] = useState(false);
   const [newSessionRequestToken, setNewSessionRequestToken] = useState(0);
   const navigationIntentRef = useRef(0);
   const {
@@ -245,12 +253,48 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     setTab('messages');
   };
 
+  // Stable cache-update callbacks: SessionChatScreen derives reload
+  // callbacks from these props, so inline arrows here would change the
+  // identity of its session-refresh subscriptions on every render.
+  const handleUpdateMessagesCache = useCallback(
+    (
+      list: IndexedMessage[],
+      eventsCursorId: string | null,
+      activeRequestId: string | null,
+    ) => {
+      if (activeConnectionId && selectedSessionId) {
+        onUpdateMessagesCache(
+          activeConnectionId,
+          selectedSessionId,
+          list,
+          eventsCursorId,
+          activeRequestId,
+        );
+      }
+    },
+    [activeConnectionId, onUpdateMessagesCache, selectedSessionId],
+  );
+
+  const handleUpdateSessionSummaries = useCallback(
+    (sessions: SessionSummary[]) => {
+      if (activeConnectionId) {
+        onUpdateSessionsCache(activeConnectionId, sessions);
+      }
+    },
+    [activeConnectionId, onUpdateSessionsCache],
+  );
+
   return (
     <View style={styles.container}>
       <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
         <GlobalDisplayLayer
           backend={backend}
           connectionId={activeConnectionId}
+        >
+        <HumanTimeTelemetryProvider
+          backend={backend}
+          connectionId={activeConnectionId}
+          activeSessionId={tab === 'messages' ? selectedSessionId : null}
         >
         <View style={styles.contentArea} testID="connected-root-content">
         <View
@@ -267,6 +311,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             hasActiveBackend={backend !== null}
             isActive={tab === 'home'}
             onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
+            onOpenEmbeddedSettings={
+              Platform.OS === 'ios'
+                ? () => setEmbeddedSettingsVisible(true)
+                : undefined
+            }
             onNewConnection={() => {
               navigationIntentRef.current += 1;
               setTab('connection');
@@ -359,11 +408,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                 cachedSessions={cacheEntry?.sessions ?? null}
                 lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                 isActive={tab === 'sessions'}
-                onUpdateCache={(list: SessionSummary[]) => {
-                  if (connectionId) {
-                    onUpdateSessionsCache(connectionId, list);
-                  }
-                }}
+                onUpdateCache={handleUpdateSessionSummaries}
                 onSelectSession={handleSelectSession}
                 requestStatuses={
                   connectionId
@@ -438,21 +483,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                     cacheEntry?.rangeEndText ??
                     DEFAULT_MOBILE_TRANSCRIPT_RANGE.endText
                   }
-                  onUpdateCache={(
-                    list: IndexedMessage[],
-                    eventsCursorId: string | null,
-                    activeRequestId: string | null,
-                  ) => {
-                    if (connectionId) {
-                      onUpdateMessagesCache(
-                        connectionId,
-                        selectedSessionId,
-                        list,
-                        eventsCursorId,
-                        activeRequestId,
-                      );
-                    }
-                  }}
+                  onUpdateCache={handleUpdateMessagesCache}
                   onUpdateSessionSummaries={(sessions) => {
                     if (connectionId) {
                       onUpdateSessionsCache(connectionId, sessions);
@@ -502,18 +533,24 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           )}
         </View>
         </View>
+        <GlobalSettingsModal
+          visible={globalSettingsVisible}
+          onRequestClose={() => setGlobalSettingsVisible(false)}
+        />
+        </HumanTimeTelemetryProvider>
         </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 
-      <GlobalSettingsModal
-        visible={globalSettingsVisible}
-        onRequestClose={() => setGlobalSettingsVisible(false)}
-      />
       <ServerSettingsModal
         backend={backend}
         cacheKey={activeConnectionId ?? 'default'}
         visible={serverSettingsVisible}
         onRequestClose={() => setServerSettingsVisible(false)}
+      />
+      <EmbeddedRuntimeSettingsModal
+        visible={embeddedSettingsVisible}
+        onRequestClose={() => setEmbeddedSettingsVisible(false)}
+        onSaved={onEmbeddedSettingsChanged}
       />
 
       <View style={styles.navBar}>

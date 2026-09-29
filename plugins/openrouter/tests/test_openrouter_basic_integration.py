@@ -29,7 +29,7 @@ from openrouter_plugins.openrouter_provider import OpenRouterProvider
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = "https://openrouter.ai/api/v1"
 MODEL_GEMINI_FLASH_LITE = "google/gemini-2.5-flash-lite"
-pytestmark = pytest.mark.api
+pytestmark = [pytest.mark.api, pytest.mark.provider_integration]
 
 
 @pytest.fixture(scope="module")
@@ -113,9 +113,14 @@ def test_openrouter_multiple_models(ensure_api_key):
     core.register_provider(OpenRouterProvider)
 
     models_to_test = [
-        "google/gemini-2.5-flash-lite",
-        "x-ai/grok-4.1-fast",
+        model.strip()
+        for model in os.getenv(
+            "OPENROUTER_BASIC_MODELS",
+            "google/gemini-2.5-flash-lite,openai/gpt-5-mini",
+        ).split(",")
+        if model.strip()
     ]
+    assert len(models_to_test) >= 2
 
     for model in models_to_test:
         config = {

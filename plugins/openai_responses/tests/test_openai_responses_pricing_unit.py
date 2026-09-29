@@ -7,6 +7,7 @@ import pytest
 from openai_responses_plugins.openai_responses_pricing import (
     build_snapshot_payload,
     estimate_usage_cost,
+    estimate_usage_cost_breakdown,
     extract_visible_text_token_tier_pricing_from_page_html,
     merge_pricing_entry,
     normalize_model_name,
@@ -91,7 +92,7 @@ def test_estimate_usage_cost_prefers_requested_service_tier() -> None:
     assert flex_estimated == 0.0002025
 
 
-def test_estimate_usage_cost_uses_manual_priority_service_tier_when_snapshot_is_missing_model() -> (
+def test_estimate_usage_cost_resolves_obsolete_priority_tier_name_for_manual_entries() -> (
     None
 ):
     snapshot = build_snapshot_payload(
@@ -319,9 +320,7 @@ def test_refresh_snapshot_writes_visible_pricing_rows_and_preserves_existing_mod
         assert "pricing" in url
         return html
 
-    monkeypatch.setattr(
-        "refresh_openai_responses_pricing._fetch_text", fake_fetch
-    )
+    monkeypatch.setattr("refresh_openai_responses_pricing._fetch_text", fake_fetch)
 
     output_path = tmp_path / "pricing.json"
     output_path.write_text(
@@ -375,13 +374,13 @@ def test_refresh_snapshot_writes_visible_pricing_rows_and_preserves_existing_mod
 
 _GPT_5_6_HTML = """
 <astro-island component-export="TextTokenPricingTables"
-  props="{&quot;tier&quot;:[0,&quot;standard&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,5.0],[0,0.5],[0,6.25],[0,30.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,2.5],[0,0.25],[0,3.125],[0,15.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,1.0],[0,0.1],[0,1.25],[0,6.0]]]]]}" ssr></astro-island>
+  props="{&quot;tier&quot;:[0,&quot;standard&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,4.0],[0,0.4],[0,5.0],[0,20.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,2.0],[0,0.2],[0,2.5],[0,12.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.2],[0,0.02],[0,0.25],[0,1.2]]]]]}" ssr></astro-island>
 <astro-island component-export="TextTokenPricingTables"
-  props="{&quot;tier&quot;:[0,&quot;flex&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,2.5],[0,0.25],[0,3.125],[0,15.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,1.25],[0,0.125],[0,1.5625],[0,7.5]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.5],[0,0.05],[0,0.625],[0,3.0]]]]]}" ssr></astro-island>
+  props="{&quot;tier&quot;:[0,&quot;flex&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,2.0],[0,0.2],[0,2.5],[0,10.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,1.0],[0,0.1],[0,1.25],[0,6.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.1],[0,0.01],[0,0.125],[0,0.6]]]]]}" ssr></astro-island>
 <astro-island component-export="TextTokenPricingTables"
-  props="{&quot;tier&quot;:[0,&quot;batch&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,2.5],[0,0.25],[0,3.125],[0,15.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,1.25],[0,0.125],[0,1.5625],[0,7.5]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.5],[0,0.05],[0,0.625],[0,3.0]]]]]}" ssr></astro-island>
+  props="{&quot;tier&quot;:[0,&quot;batch&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,2.0],[0,0.2],[0,2.5],[0,10.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,1.0],[0,0.1],[0,1.25],[0,6.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.1],[0,0.01],[0,0.125],[0,0.6]]]]]}" ssr></astro-island>
 <astro-island component-export="TextTokenPricingTables"
-  props="{&quot;tier&quot;:[0,&quot;priority&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,10.0],[0,1.0],[0,12.5],[0,60.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,5.0],[0,0.5],[0,6.25],[0,30.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,2.0],[0,0.2],[0,2.5],[0,12.0]]]]]}" ssr></astro-island>
+  props="{&quot;tier&quot;:[0,&quot;fast&quot;],&quot;rows&quot;:[1,[[1,[[0,&quot;gpt-5.6-sol&quot;],[0,8.0],[0,0.8],[0,10.0],[0,40.0]]],[1,[[0,&quot;gpt-5.6-terra&quot;],[0,4.0],[0,0.4],[0,5.0],[0,24.0]]],[1,[[0,&quot;gpt-5.6-luna&quot;],[0,0.4],[0,0.04],[0,0.5],[0,2.4]]]]]}" ssr></astro-island>
 """
 
 
@@ -428,33 +427,30 @@ def test_extract_visible_text_token_tier_pricing_parses_new_four_price_rows() ->
         source_url="https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
     )
     assert entries["gpt-5.6-sol"]["service_tiers"]["standard"] == {
-        "input_per_1m": 5.0,
-        "cached_input_per_1m": 0.5,
-        "cache_write_per_1m": 6.25,
-        "output_per_1m": 30.0,
+        "input_per_1m": 4.0,
+        "cached_input_per_1m": 0.4,
+        "cache_write_per_1m": 5.0,
+        "output_per_1m": 20.0,
     }
     assert (
         entries["gpt-5.6-luna"]["service_tiers"]["standard"]["cache_write_per_1m"]
-        == 1.25
+        == 0.25
     )
 
 
 def test_extract_visible_text_token_tier_pricing_parses_all_gpt_5_6_tiers() -> None:
-    """Standard, batch, flex, and priority tiers all parse for GPT-5.6."""
+    """Standard, batch, flex, and fast tiers all parse for GPT-5.6."""
     entries = extract_visible_text_token_tier_pricing_from_page_html(
         html=_GPT_5_6_HTML,
         source_url="https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
     )
-    for tier in ("standard", "batch", "flex", "priority"):
+    for tier in ("standard", "batch", "flex", "fast"):
         assert tier in entries["gpt-5.6-sol"]["service_tiers"]
         assert tier in entries["gpt-5.6-terra"]["service_tiers"]
         assert tier in entries["gpt-5.6-luna"]["service_tiers"]
+    assert entries["gpt-5.6-sol"]["service_tiers"]["fast"]["cache_write_per_1m"] == 10.0
     assert (
-        entries["gpt-5.6-sol"]["service_tiers"]["priority"]["cache_write_per_1m"]
-        == 12.5
-    )
-    assert (
-        entries["gpt-5.6-luna"]["service_tiers"]["flex"]["cache_write_per_1m"] == 0.625
+        entries["gpt-5.6-luna"]["service_tiers"]["flex"]["cache_write_per_1m"] == 0.125
     )
 
 
@@ -489,6 +485,144 @@ def test_merge_pricing_entry_preserves_cache_write_field_across_tiers() -> None:
     assert merged["service_tiers"]["flex"]["cache_write_per_1m"] == 0.625
 
 
+def test_merge_pricing_entry_replaces_obsolete_priority_with_fast() -> None:
+    """A stale ``priority`` tier block is renamed to ``fast`` and overwritten
+    by incoming page ``fast`` prices instead of lingering beside them."""
+    existing = {
+        "model": "gpt-5.6-luna",
+        "pricing": {
+            "input_per_1m": 1.0,
+            "cached_input_per_1m": 0.1,
+            "cache_write_per_1m": 1.25,
+            "output_per_1m": 6.0,
+        },
+        "service_tiers": {
+            "standard": {
+                "input_per_1m": 1.0,
+                "cached_input_per_1m": 0.1,
+                "cache_write_per_1m": 1.25,
+                "output_per_1m": 6.0,
+            },
+            "priority": {
+                "input_per_1m": 2.0,
+                "cached_input_per_1m": 0.2,
+                "cache_write_per_1m": 2.5,
+                "output_per_1m": 12.0,
+            },
+        },
+    }
+    incoming = {
+        "model": "gpt-5.6-luna",
+        "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
+        "service_tiers": {
+            "standard": {
+                "input_per_1m": 0.2,
+                "cached_input_per_1m": 0.02,
+                "cache_write_per_1m": 0.25,
+                "output_per_1m": 1.2,
+            },
+            "fast": {
+                "input_per_1m": 0.4,
+                "cached_input_per_1m": 0.04,
+                "cache_write_per_1m": 0.5,
+                "output_per_1m": 2.4,
+            },
+        },
+    }
+
+    merged = merge_pricing_entry(existing, incoming)
+
+    tiers = merged["service_tiers"]
+    assert "priority" not in tiers
+    assert tiers["fast"]["input_per_1m"] == 0.4
+    assert tiers["fast"]["output_per_1m"] == 2.4
+    # The denormalized standard block is rebuilt with current prices.
+    assert merged["pricing"]["input_per_1m"] == 0.2
+    assert merged["pricing"]["output_per_1m"] == 1.2
+
+
+def test_merge_pricing_entry_renames_priority_for_off_page_models() -> None:
+    """Retained entries for models the page no longer lists still get their
+    obsolete ``priority`` tier key renamed to ``fast``."""
+    existing = {
+        "model": "gpt-5.1-codex",
+        "pricing": {
+            "input_per_1m": 1.25,
+            "cached_input_per_1m": 0.125,
+            "output_per_1m": 10.0,
+        },
+        "service_tiers": {
+            "standard": {
+                "input_per_1m": 1.25,
+                "cached_input_per_1m": 0.125,
+                "output_per_1m": 10.0,
+            },
+            "priority": {
+                "input_per_1m": 2.5,
+                "cached_input_per_1m": 0.25,
+                "output_per_1m": 20.0,
+            },
+        },
+    }
+
+    merged = merge_pricing_entry(existing, None)
+
+    tiers = merged["service_tiers"]
+    assert "priority" not in tiers
+    assert tiers["fast"]["input_per_1m"] == 2.5
+    assert tiers["fast"]["output_per_1m"] == 20.0
+
+
+def test_checked_in_snapshot_has_gpt_6_family_and_no_priority_tiers() -> None:
+    """The refreshed checked-in snapshot contains the GPT-6 family with
+    current prices, updated GPT-5.6 prices, and no obsolete ``priority``
+    tier keys."""
+    from openai_responses_plugins.openai_responses_pricing import (
+        default_snapshot_path,
+    )
+
+    payload = json.loads(default_snapshot_path().read_text(encoding="utf-8"))
+    models = payload["models"]
+
+    astra = models["gpt-6-astra"]
+    assert astra["pricing"] == {
+        "input_per_1m": 10.0,
+        "cached_input_per_1m": 1.0,
+        "cache_write_per_1m": 12.5,
+        "output_per_1m": 50.0,
+    }
+    assert astra["service_tiers"]["fast"]["output_per_1m"] == 100.0
+
+    assert models["gpt-5.6-sol"]["pricing"]["input_per_1m"] == 4.0
+    assert models["gpt-5.6-sol"]["pricing"]["output_per_1m"] == 20.0
+    assert models["gpt-5.6-terra"]["pricing"]["input_per_1m"] == 2.0
+    assert models["gpt-5.6-terra"]["pricing"]["output_per_1m"] == 12.0
+    assert models["gpt-5.6-luna"]["pricing"]["input_per_1m"] == 0.2
+    assert models["gpt-5.6-luna"]["pricing"]["output_per_1m"] == 1.2
+
+    # GPT-6 Sol and Luna (published 2026-09-27 pricing page).
+    sol = models["gpt-6-sol"]
+    assert sol["pricing"] == {
+        "input_per_1m": 2.0,
+        "cached_input_per_1m": 0.2,
+        "cache_write_per_1m": 2.5,
+        "output_per_1m": 10.0,
+    }
+    assert sol["service_tiers"]["fast"]["output_per_1m"] == 20.0
+    luna = models["gpt-6-luna"]
+    assert luna["pricing"] == {
+        "input_per_1m": 0.1,
+        "cached_input_per_1m": 0.01,
+        "cache_write_per_1m": 0.125,
+        "output_per_1m": 0.5,
+    }
+    assert luna["service_tiers"]["fast"]["output_per_1m"] == 1.0
+
+    for model, entry in models.items():
+        tiers = entry.get("service_tiers") or {}
+        assert "priority" not in tiers, f"obsolete priority tier for {model}"
+
+
 def test_estimate_usage_cost_default_standard_gpt_5_6_luna() -> None:
     snapshot = _gpt_5_6_snapshot()
     usage = {
@@ -496,8 +630,8 @@ def test_estimate_usage_cost_default_standard_gpt_5_6_luna() -> None:
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # ordinary 1000 * 1.0 + 0 + 0 + 100 * 6.0 = 1600 / 1M
-    assert estimated == pytest.approx(0.0016, rel=1e-9)
+    # ordinary 1000 * 0.2 + 0 + 0 + 100 * 1.2 = 320 / 1M
+    assert estimated == pytest.approx(0.00032, rel=1e-9)
 
 
 def test_estimate_usage_cost_flex_gpt_5_6_luna() -> None:
@@ -509,11 +643,26 @@ def test_estimate_usage_cost_flex_gpt_5_6_luna() -> None:
     estimated = estimate_usage_cost(
         usage, model="gpt-5.6-luna", service_tier="flex", snapshot=snapshot
     )
-    # ordinary 1000 * 0.5 + 0 + 0 + 100 * 3.0 = 800 / 1M
-    assert estimated == pytest.approx(0.0008, rel=1e-9)
+    # ordinary 1000 * 0.1 + 0 + 0 + 100 * 0.6 = 160 / 1M
+    assert estimated == pytest.approx(0.00016, rel=1e-9)
 
 
-def test_estimate_usage_cost_priority_gpt_5_6_luna() -> None:
+def test_estimate_usage_cost_fast_gpt_5_6_luna() -> None:
+    snapshot = _gpt_5_6_snapshot()
+    usage = {
+        "input_tokens": 1000,
+        "output_tokens": 100,
+    }
+    estimated = estimate_usage_cost(
+        usage, model="gpt-5.6-luna", service_tier="fast", snapshot=snapshot
+    )
+    # ordinary 1000 * 0.4 + 0 + 0 + 100 * 2.4 = 640 / 1M
+    assert estimated == pytest.approx(0.00064, rel=1e-9)
+
+
+def test_estimate_usage_cost_accepts_obsolete_priority_tier_name() -> None:
+    """``priority`` is the obsolete name for the ``fast`` tier; requests
+    reporting it resolve the same fast-tier prices."""
     snapshot = _gpt_5_6_snapshot()
     usage = {
         "input_tokens": 1000,
@@ -522,8 +671,7 @@ def test_estimate_usage_cost_priority_gpt_5_6_luna() -> None:
     estimated = estimate_usage_cost(
         usage, model="gpt-5.6-luna", service_tier="priority", snapshot=snapshot
     )
-    # ordinary 1000 * 2.0 + 0 + 0 + 100 * 12.0 = 3200 / 1M
-    assert estimated == pytest.approx(0.0032, rel=1e-9)
+    assert estimated == pytest.approx(0.00064, rel=1e-9)
 
 
 def test_estimate_usage_cost_cached_read_uses_cached_input_rate() -> None:
@@ -534,8 +682,8 @@ def test_estimate_usage_cost_cached_read_uses_cached_input_rate() -> None:
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # ordinary 600 * 1.0 + cached 400 * 0.1 + 0 + 100 * 6.0 = 1240 / 1M
-    assert estimated == pytest.approx(0.00124, rel=1e-9)
+    # ordinary 600 * 0.2 + cached 400 * 0.02 + 0 + 100 * 1.2 = 248 / 1M
+    assert estimated == pytest.approx(0.000248, rel=1e-9)
 
 
 def test_estimate_usage_cost_cache_write_uses_cache_write_rate() -> None:
@@ -546,8 +694,8 @@ def test_estimate_usage_cost_cache_write_uses_cache_write_rate() -> None:
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # ordinary 700 * 1.0 + 0 + write 300 * 1.25 + 100 * 6.0 = 700 + 375 + 600 = 1675 / 1M
-    assert estimated == pytest.approx(0.001675, rel=1e-9)
+    # ordinary 700 * 0.2 + 0 + write 300 * 0.25 + 100 * 1.2 = 140 + 75 + 120 = 335 / 1M
+    assert estimated == pytest.approx(0.000335, rel=1e-9)
 
 
 def test_estimate_usage_cost_ordinary_input_excludes_cached_and_write() -> None:
@@ -558,9 +706,9 @@ def test_estimate_usage_cost_ordinary_input_excludes_cached_and_write() -> None:
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # ordinary 500 * 1.0 + cached 300 * 0.1 + write 200 * 1.25 + 100 * 6.0
-    # = 500 + 30 + 250 + 600 = 1380 / 1M
-    assert estimated == pytest.approx(0.00138, rel=1e-9)
+    # ordinary 500 * 0.2 + cached 300 * 0.02 + write 200 * 0.25 + 100 * 1.2
+    # = 100 + 6 + 50 + 120 = 276 / 1M
+    assert estimated == pytest.approx(0.000276, rel=1e-9)
 
 
 def test_estimate_usage_cost_mixed_buckets_gpt_5_6_sol_standard() -> None:
@@ -568,11 +716,11 @@ def test_estimate_usage_cost_mixed_buckets_gpt_5_6_sol_standard() -> None:
 
     input_tokens=10000, cached_tokens=3000, cache_write_tokens=2000, output=500
     ordinary = 10000 - 3000 - 2000 = 5000
-    ordinary 5000 * 5.00 = 25000
-    cached   3000 * 0.50 = 1500
-    write    2000 * 6.25 = 12500
-    output    500 * 30.0 = 15000
-    total = 54000 / 1M = $0.054
+    ordinary 5000 * 4.00 = 20000
+    cached   3000 * 0.40 = 1200
+    write    2000 * 5.00 = 10000
+    output    500 * 20.0 = 10000
+    total = 41200 / 1M = $0.0412
     """
     snapshot = _gpt_5_6_snapshot()
     usage = {
@@ -581,7 +729,7 @@ def test_estimate_usage_cost_mixed_buckets_gpt_5_6_sol_standard() -> None:
         "output_tokens": 500,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-sol", snapshot=snapshot)
-    assert estimated == pytest.approx(0.054, rel=1e-9)
+    assert estimated == pytest.approx(0.0412, rel=1e-9)
 
 
 def test_estimate_usage_cost_missing_cache_write_tokens_defaults_to_zero() -> None:
@@ -592,8 +740,8 @@ def test_estimate_usage_cost_missing_cache_write_tokens_defaults_to_zero() -> No
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # ordinary 800 * 1.0 + cached 200 * 0.1 + 0 + 100 * 6.0 = 800 + 20 + 600 = 1420 / 1M
-    assert estimated == pytest.approx(0.00142, rel=1e-9)
+    # ordinary 800 * 0.2 + cached 200 * 0.02 + 0 + 100 * 1.2 = 160 + 4 + 120 = 284 / 1M
+    assert estimated == pytest.approx(0.000284, rel=1e-9)
 
 
 def test_estimate_usage_cost_missing_cache_write_price_falls_back_to_input_rate() -> (
@@ -636,8 +784,8 @@ def test_estimate_usage_cost_clamps_oversized_cached_tokens() -> None:
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
     # cached clamped to 500, ordinary = 0
-    # 0 + 500 * 0.1 + 0 + 100 * 6.0 = 650 / 1M
-    assert estimated == pytest.approx(0.00065, rel=1e-9)
+    # 0 + 500 * 0.02 + 0 + 100 * 1.2 = 130 / 1M
+    assert estimated == pytest.approx(0.00013, rel=1e-9)
 
 
 def test_estimate_usage_cost_clamps_oversized_cache_write_tokens() -> None:
@@ -649,8 +797,8 @@ def test_estimate_usage_cost_clamps_oversized_cache_write_tokens() -> None:
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
     # write clamped to 500, ordinary = 0
-    # 0 + 0 + 500 * 1.25 + 100 * 6.0 = 1225 / 1M
-    assert estimated == pytest.approx(0.001225, rel=1e-9)
+    # 0 + 0 + 500 * 0.25 + 100 * 1.2 = 245 / 1M
+    assert estimated == pytest.approx(0.000245, rel=1e-9)
 
 
 def test_estimate_usage_cost_clamps_when_cached_plus_write_exceeds_input() -> None:
@@ -664,8 +812,8 @@ def test_estimate_usage_cost_clamps_when_cached_plus_write_exceeds_input() -> No
         "output_tokens": 100,
     }
     estimated = estimate_usage_cost(usage, model="gpt-5.6-luna", snapshot=snapshot)
-    # 0 + 100 * 0.1 + 400 * 1.25 + 100 * 6.0 = 10 + 500 + 600 = 1110 / 1M
-    assert estimated == pytest.approx(0.00111, rel=1e-9)
+    # 0 + 100 * 0.02 + 400 * 0.25 + 100 * 1.2 = 2 + 100 + 120 = 222 / 1M
+    assert estimated == pytest.approx(0.000222, rel=1e-9)
 
     # Now test the other direction: write is larger
     usage2 = {
@@ -675,8 +823,8 @@ def test_estimate_usage_cost_clamps_when_cached_plus_write_exceeds_input() -> No
     }
     estimated2 = estimate_usage_cost(usage2, model="gpt-5.6-luna", snapshot=snapshot)
     # write reduced to 400, cached = 100, ordinary = 0
-    # 0 + 100 * 0.1 + 400 * 1.25 + 100 * 6.0 = 10 + 500 + 600 = 1110 / 1M
-    assert estimated2 == pytest.approx(0.00111, rel=1e-9)
+    # 0 + 100 * 0.02 + 400 * 0.25 + 100 * 1.2 = 2 + 100 + 120 = 222 / 1M
+    assert estimated2 == pytest.approx(0.000222, rel=1e-9)
 
 
 def test_resolve_pricing_entry_returns_gpt_5_6_luna_from_refreshed_snapshot() -> None:
@@ -685,9 +833,9 @@ def test_resolve_pricing_entry_returns_gpt_5_6_luna_from_refreshed_snapshot() ->
     assert entry is not None
     assert entry["model"] == "gpt-5.6-luna"
     tiers = entry["service_tiers"]
-    assert tiers["standard"]["cache_write_per_1m"] == 1.25
-    assert tiers["flex"]["cache_write_per_1m"] == 0.625
-    assert tiers["priority"]["cache_write_per_1m"] == 2.5
+    assert tiers["standard"]["cache_write_per_1m"] == 0.25
+    assert tiers["flex"]["cache_write_per_1m"] == 0.125
+    assert tiers["fast"]["cache_write_per_1m"] == 0.5
 
 
 def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None:
@@ -699,9 +847,7 @@ def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None
     def fake_fetch(url: str) -> str:
         return html
 
-    monkeypatch.setattr(
-        "refresh_openai_responses_pricing._fetch_text", fake_fetch
-    )
+    monkeypatch.setattr("refresh_openai_responses_pricing._fetch_text", fake_fetch)
 
     output_path = tmp_path / "pricing.json"
     output_path.write_text(
@@ -728,8 +874,95 @@ def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None
     for model in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
         assert model in payload["models"], f"missing {model} in refreshed snapshot"
         tiers = payload["models"][model]["service_tiers"]
-        for tier in ("standard", "batch", "flex", "priority"):
+        for tier in ("standard", "batch", "flex", "fast"):
             assert tier in tiers, f"missing {tier} tier for {model}"
             assert (
                 "cache_write_per_1m" in tiers[tier]
             ), f"missing cache_write_per_1m for {model}/{tier}"
+
+
+def test_estimate_usage_cost_breakdown_items_and_sum() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5-mini",
+                "pricing": {
+                    "input_per_1m": 0.25,
+                    "cached_input_per_1m": 0.025,
+                    "cache_write_per_1m": 0.125,
+                    "output_per_1m": 2.0,
+                },
+            }
+        ],
+    )
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200, "cache_write_tokens": 100},
+        "output_tokens": 100,
+    }
+
+    breakdown = estimate_usage_cost_breakdown(
+        usage, model="gpt-5-mini", snapshot=snapshot
+    )
+
+    assert breakdown == {
+        "input": pytest.approx(700 * 0.25 / 1_000_000),
+        "cached": pytest.approx(200 * 0.025 / 1_000_000),
+        "cache_write": pytest.approx(100 * 0.125 / 1_000_000),
+        "output": pytest.approx(100 * 2.0 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        estimate_usage_cost(usage, model="gpt-5-mini", snapshot=snapshot)
+    )
+
+
+def test_estimate_usage_cost_breakdown_omits_zero_items() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5-mini",
+                "pricing": {
+                    "input_per_1m": 0.25,
+                    "output_per_1m": 2.0,
+                },
+            }
+        ],
+    )
+    usage = {"input_tokens": 1000, "output_tokens": 100}
+
+    breakdown = estimate_usage_cost_breakdown(
+        usage, model="gpt-5-mini", snapshot=snapshot
+    )
+
+    assert set(breakdown) == {"input", "output"}
+    # A valid zero estimate returns an empty mapping, not None.
+    zero = estimate_usage_cost_breakdown(
+        {"input_tokens": 0, "output_tokens": 0},
+        model="gpt-5-mini",
+        snapshot=snapshot,
+    )
+    assert zero == {}
+    assert (
+        estimate_usage_cost(
+            {"input_tokens": 0, "output_tokens": 0},
+            model="gpt-5-mini",
+            snapshot=snapshot,
+        )
+        == 0.0
+    )
+
+
+def test_estimate_usage_cost_breakdown_unavailable_returns_none() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[],
+    )
+    usage = {"input_tokens": 1000, "output_tokens": 100}
+
+    assert (
+        estimate_usage_cost_breakdown(usage, model="unknown-model", snapshot=snapshot)
+        is None
+    )
+    assert estimate_usage_cost(usage, model="unknown-model", snapshot=snapshot) is None

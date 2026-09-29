@@ -12,7 +12,7 @@ import {
 
 import ConnectedRoot from '../ConnectedRoot';
 import { PinnedActionsProvider } from '../PinnedActionsContext';
-import SelectableMarkdownMessageContent from '../components/SelectableMarkdownMessageContent';
+import ConfiguredMarkdownMessageContent from '../components/ConfiguredMarkdownMessageContent';
 import MessageBubble from '../components/MessageBubble';
 import { lightTheme, ThemeProvider } from '../theme';
 import { usePersistedMarkdownDisplayPreferences } from '../useMarkdownDisplayPreferences';
@@ -78,11 +78,21 @@ export function MobileConnectionsSettingsHarness(): React.JSX.Element {
           <View style={styles.root} testID="connections-settings-harness-ready">
             <View style={styles.markdownPreview} testID="markdown-preview">
               <View testID="markdown-preview-h1">
-                <SelectableMarkdownMessageContent text="# Heading" />
+                <ConfiguredMarkdownMessageContent
+                  text="# Heading"
+                  testID="markdown-preview-h1-renderer"
+                />
               </View>
               <View testID="markdown-preview-body">
-                <SelectableMarkdownMessageContent text="Body text" />
+                <ConfiguredMarkdownMessageContent
+                  text="Body text"
+                  testID="markdown-preview-body-renderer"
+                />
               </View>
+              <ConfiguredMarkdownMessageContent
+                text={'```typescript\nconst renderer = "configured";\n```'}
+                testID="markdown-preview-code-renderer"
+              />
               <MessageBubble
                 index={99}
                 message={{

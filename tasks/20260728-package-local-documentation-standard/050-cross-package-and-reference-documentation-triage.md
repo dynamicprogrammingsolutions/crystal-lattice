@@ -4,6 +4,7 @@ Depends On:
 
 - `tasks/20260728-package-local-documentation-standard/010-documentation-standard-and-agent-guidance.md`
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
+- `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 
 Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`

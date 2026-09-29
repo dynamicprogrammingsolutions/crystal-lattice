@@ -20,10 +20,11 @@ npm --prefix tools/openai-proxy ci
 ## Start the Proxy
 
 The command accepts a target endpoint, local port, optional local base path,
-and optional `--hide-headers` flag:
+and optional authentication, delay, and logging flags:
 
 ```text
-node tools/openai-proxy/proxy.js <endpoint> <port> [base-path] [--hide-headers]
+node tools/openai-proxy/proxy.js <endpoint> <port> [base-path] \
+  [--hide-headers] [--require-api-key-env NAME] [--delay-ms N]
 ```
 
 OpenAI-compatible example:
@@ -66,6 +67,76 @@ The health endpoint reports the selected target and path:
 ```bash
 curl http://127.0.0.1:3000/health
 ```
+
+## JSON-configured mode
+
+Configured mode keeps operational values in JSON and secrets in named
+environment variables:
+
+```bash
+node tools/openai-proxy/proxy.js \
+  --config tools/openai-proxy/deploy/ireland/config/reviewer-proxy.json
+```
+
+JSON can configure the listener, upstream and base path, incoming and outgoing
+API-key environment names, allowed endpoint paths, allowed models and service
+tiers, response status codes, delay, logging, budget, cooldown, pricing,
+long-context rules, request serialization, and persistent state. Existing
+positional commands remain supported.
+
+`routing.allowed_endpoints` is optional. When configured, requests to other
+paths under the proxy base are rejected before upstream forwarding. The
+Ireland reviewer deployment permits only `models` and `responses`, so its
+reviewer acceptance path cannot silently fall back to Chat Completions.
+
+`models.request_overrides` applies configurable endpoint-specific top-level
+request values. Endpoint keys replace `/` with `_`; for example,
+`chat_completions` can set `{"reasoning_effort": "none"}` without changing
+`/responses`.
+
+Budget mode reads Responses or Chat Completions usage from JSON and streaming
+SSE completions, prices ordinary input, cached input, and output separately,
+and atomically persists the ledger. The threshold-crossing request completes;
+later controlled requests receive `429` plus `Retry-After` until the configured
+cooldown expires.
+
+## API-Key-Protected Ollama Proxy
+
+The embedded iOS runtime proof of concept uses the proxy as a small
+OpenAI-compatible boundary in front of Ollama. Keep the client-facing key in an
+environment variable and require it explicitly:
+
+```bash
+export CRYSTAL_PROXY_API_KEY="replace-with-a-random-review-key"
+node tools/openai-proxy/proxy.js \
+  http://127.0.0.1:11434/v1 \
+  3000 \
+  /v1 \
+  --hide-headers \
+  --require-api-key-env CRYSTAL_PROXY_API_KEY
+```
+
+Clients send:
+
+```text
+Authorization: Bearer <the configured review key>
+```
+
+When required authentication is enabled, the proxy:
+
+- returns `401` before forwarding a missing or incorrect key;
+- compares the bearer value using a timing-safe comparison;
+- redacts authorization values from logs even without `--hide-headers`;
+- removes the client authorization header before forwarding to Ollama.
+
+Use `--delay-ms N` to add a bounded delay before forwarding a request when
+testing mobile background behavior. The delay is test support; it does not
+replace or modify model output.
+
+The Ireland Compose example supplies self-signed TLS termination, model
+filtering, separate caller/upstream credentials, cost limiting, and body/header
+logging controls. Operators remain responsible for monitoring, credential
+rotation, and retention.
 
 ## Inspect a Request
 

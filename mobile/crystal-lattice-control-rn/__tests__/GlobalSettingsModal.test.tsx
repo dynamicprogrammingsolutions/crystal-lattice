@@ -18,6 +18,8 @@ function Host() {
   const [value, setValue] = useState<MarkdownDisplayPreferences>({
     baseFontSize: 15,
     headerSize: 'normal',
+    markdownRenderer: 'react-native-markdown-display',
+    codeBlockRenderer: 'selectable-native',
   });
   return (
     <MarkdownDisplayPreferencesProvider value={value} onChange={setValue}>
@@ -27,7 +29,7 @@ function Host() {
   );
 }
 
-test('updates both markdown display preferences from the settings modal', () => {
+test('updates markdown typography and renderer preferences from the settings modal', () => {
   const screen = render(<Host />);
   fireEvent.press(screen.getByTestId('global-settings-base-font-size'));
   fireEvent.press(screen.getByText('16'));
@@ -39,5 +41,17 @@ test('updates both markdown display preferences from the settings modal', () => 
   fireEvent.press(screen.getByText('Small'));
   expect(screen.getByTestId('preference-probe').props.children).toContain(
     '"headerSize":"small"',
+  );
+
+  fireEvent.press(screen.getByTestId('global-settings-markdown-renderer'));
+  fireEvent.press(screen.getByText('Enriched Markdown (experimental)'));
+  expect(screen.getByTestId('preference-probe').props.children).toContain(
+    '"markdownRenderer":"react-native-enriched-markdown"',
+  );
+
+  fireEvent.press(screen.getByTestId('global-settings-code-renderer'));
+  fireEvent.press(screen.getByText('Syntax highlighter'));
+  expect(screen.getByTestId('preference-probe').props.children).toContain(
+    '"codeBlockRenderer":"syntax-highlighter"',
   );
 });

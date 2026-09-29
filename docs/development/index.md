@@ -1,19 +1,17 @@
 # Development documentation
 
-This section contains reusable development standards, Crystal Lattice
-repository policy, and target specifications for behavior that spans multiple
-independently owned packages.
+This section contains guidance for documentation, specifications, requirements,
+testing, and Crystal Lattice repository conventions. Package-specific user and
+developer documentation remains with its package.
 
-## Standards
+## Documentation guidance
 
-- [Reusable standards](standards/index.md): package-neutral documentation and
-  specification rules.
-- [Crystal Lattice repository policy](repository/index.md): local paths,
-  package profiles, plugin documentation, task workflow, publication, and
-  validation.
-
-Package implementation and maintenance documentation belongs under the owning
-package's `docs/development/`.
+- [Documentation and specification guide](documentation.md): choose a useful
+  structure and write documentation, specifications, requirements, testing
+  strategies, and verification.
+- [Crystal Lattice documentation conventions](crystal-lattice-documentation.md):
+  apply the guide to package paths, plugins, tasks, publication, and migration
+  in this repository.
 
 ## Cross-package specifications
 
@@ -26,6 +24,6 @@ package's `docs/development/`.
 - [Frontend connection lifecycle and offline continuity](specifications/frontend-connection-lifecycle/index.md)
 - [Portable provider implementation](specifications/portable-provider-implementation/index.md)
 
-These specifications define targets for portable behavior. Their requirements
-track implementation and verification, while package development pages
-describe current implementations without redefining the shared contracts.
+These specifications define cross-package targets. Their requirements track
+implementation and verification, while package developer pages describe the
+current implementations.

@@ -1719,3 +1719,53 @@ Verification limitations:
 
 The specification-first approval checkpoint was committed as `44e479e0`.
 No task-guidance migration from subtask 068 was performed.
+
+## Post-completion follow-up
+
+### September 11, 2026 documentation-guidance rewrite
+
+Status: In progress
+
+The user approved revising the documentation-guidance consumers after the
+two-file guidance rewrite.
+
+- [x] Preserve a direct 21-consumer comparison against committed `develop`
+  guidance at `f81f3632`.
+- [x] Add source-specific old and current guidance path sets.
+- [x] Mark legacy Tests 17, 20, and 21 obsolete for the revised matrix while
+  retaining them for direct comparison.
+- [x] Add requirement-restraint, test-selection, verification-reporting,
+  optional-layout, and current-routing scenarios.
+- [x] Run deterministic support tests and collect both matrices.
+- [x] Run the previous-develop guidance with all 21 legacy consumers.
+- [x] Run current guidance with the same 21 legacy consumers.
+- [x] Run previous-develop and current guidance with the revised 26-branch
+  matrix.
+
+The GLM profile is configured as requested to use
+`glm-4.3-flash:cloud` for every seed and branch. On September 11, 2026,
+`ollama show glm-4.3-flash:cloud` returned `model 'glm-4.3-flash' not found`.
+A real Test 01 smoke reached the provider and returned HTTP 404 with the same
+model-not-found result. These are setup failures, not behavioral baseline
+results. The three matrices remain pending clarification of the model
+identifier. The suite now checks the model before runtime setup and pins local
+Core, Application, evaluation, and built-in-plugin paths to this worktree so
+unrelated editable installs cannot affect the comparison.
+
+On September 12, 2026, the user corrected the intended model to
+`glm-5.3-flash:cloud`. The suite now uses that model for every GLM seed and
+branch, with `low`, `high`, and `max` for the reasoning-effort comparison.
+
+Final calibrated results:
+
+- previous guidance, legacy suite: 13 passed and 8 failed;
+- rewritten guidance, same legacy suite: 14 passed and 7 failed;
+- previous guidance, revised suite: 19 passed and 7 failed, with 5 obsolete
+  tests deselected;
+- rewritten guidance, revised suite: 22 passed and 4 failed, with 5 obsolete
+  tests deselected.
+
+Candidate Test 18 failed a fresh repeat after consuming the 30-call budget.
+Candidate Test 27 passed a fresh repeat after failing the complete matrix.
+See
+`maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260912-guidance-rewrite-results.md`.

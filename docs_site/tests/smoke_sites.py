@@ -211,7 +211,7 @@ def main() -> None:
         require_success(docs_page, urljoin(packages_url, core_href))
         docs_page.get_by_role(
             "heading",
-            name="AI Agent Platform - Core SDK (Python)",
+            name="Core Python documentation",
             exact=True,
         ).wait_for()
         if docs_page.locator(

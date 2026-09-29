@@ -19,6 +19,7 @@ def test_reasoning_metadata_zai_streaming():
     cfg = build_zai_cfg(
         zai_model("ZAI_REASONING_MODEL", ZAI_REASONING_MODEL),
         request_options={
+            "reasoning_effort": "max",
             "thinking": {"type": "enabled"},
             "temperature": 0,
             "stream_options": {"include_usage": True},
@@ -44,3 +45,5 @@ def test_reasoning_metadata_zai_streaming():
     assert isinstance(reasoning, str) and reasoning.strip()
     assert assistant.get("content", "").strip() == "144"
     assert isinstance(metadata.get("usage_total_tokens"), int)
+    assert isinstance(metadata.get("usage_reasoning_tokens"), int)
+    assert metadata["usage_reasoning_tokens"] > 0

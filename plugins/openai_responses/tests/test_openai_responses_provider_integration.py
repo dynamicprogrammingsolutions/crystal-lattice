@@ -127,15 +127,22 @@ def ensure_openai_api_key() -> str:
     return api_key
 
 
+def _bundle_transport_config() -> dict[str, str]:
+    if os.environ.get("CRYSTAL_EMBEDDED_PROVIDER_BUNDLE"):
+        return {"provider_transport": "requests"}
+    return {}
+
+
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_get_models_real_api(ensure_openai_api_key: str) -> None:
-    _ = ensure_openai_api_key
-
     provider = OpenAIResponsesProvider()
     config = {
+        "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
 
     models = provider.get_models(config)
@@ -149,15 +156,16 @@ def test_openai_responses_get_models_real_api(ensure_openai_api_key: str) -> Non
 
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_get_models_includes_gpt_5_6_family_real_api(
     ensure_openai_api_key: str,
 ) -> None:
-    _ = ensure_openai_api_key
-
     provider = OpenAIResponsesProvider()
     config = {
+        "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
 
     models = provider.get_models(config)
@@ -175,6 +183,7 @@ def test_openai_responses_get_models_includes_gpt_5_6_family_real_api(
 
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_non_streaming_gpt5mini_real_api(
     ensure_openai_api_key: str,
 ) -> None:
@@ -186,6 +195,7 @@ def test_openai_responses_non_streaming_gpt5mini_real_api(
         "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
 
     session = core.create_session()
@@ -213,6 +223,7 @@ def test_openai_responses_non_streaming_gpt5mini_real_api(
 
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_streaming_gpt5mini_real_api(
     ensure_openai_api_key: str,
 ) -> None:
@@ -224,6 +235,7 @@ def test_openai_responses_streaming_gpt5mini_real_api(
         "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
 
     session = core.create_session()
@@ -273,6 +285,7 @@ def test_openai_responses_streaming_gpt5mini_real_api(
 
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_stream_cancel_soon_after_send_real_api(
     ensure_openai_api_key: str,
 ) -> None:
@@ -282,6 +295,7 @@ def test_openai_responses_stream_cancel_soon_after_send_real_api(
         "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
     state = provider.init(config)
     native_messages = provider.to_native_messages(
@@ -330,6 +344,7 @@ def test_openai_responses_stream_cancel_soon_after_send_real_api(
 
 @pytest.mark.integration
 @pytest.mark.openai
+@pytest.mark.provider_integration
 def test_openai_responses_stream_cancel_after_first_partial_real_api(
     ensure_openai_api_key: str,
 ) -> None:
@@ -339,6 +354,7 @@ def test_openai_responses_stream_cancel_after_first_partial_real_api(
         "api_key": ensure_openai_api_key,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
         "timeout": 120,
+        **_bundle_transport_config(),
     }
     state = provider.init(config)
     native_messages = provider.to_native_messages(

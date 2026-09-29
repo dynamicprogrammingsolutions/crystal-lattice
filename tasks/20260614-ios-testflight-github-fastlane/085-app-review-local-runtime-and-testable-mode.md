@@ -1,216 +1,266 @@
 # Provide Immediately Testable Local Runtime For App Review
 
-Provide an immediately testable Crystal Lattice experience that satisfies App Review Guideline 2.1(a) and supports the long-term goal of making the mobile app useful for ordinary non-developer users without requiring desktop CLI setup.
+Provide an immediately testable Crystal Lattice experience for App Review
+Guideline 2.1(a), while establishing an embedded mobile runtime that ordinary
+users can drive with their own provider credentials.
 
 ## Requirements checklist
 
-- [ ] Define the minimum complete functionality that matters for App Review.
-- [ ] Provide an immediately testable path from first launch without requiring the reviewer to run the desktop CLI, join a private LAN, configure a local server, or provide their own API keys.
-- [ ] Exercise the meaningful app surface during review:
-  - [ ] Sessions.
-  - [ ] Message send/receive.
-  - [ ] Agent selection or built-in agent behavior.
-  - [ ] App-level settings.
-  - [ ] Relevant plugin/settings surfaces.
-  - [ ] Representative tool call/result rendering.
-  - [ ] Persistence across navigation/relaunch where applicable.
-- [ ] Include at least one no-API-key local agent path that uses an actual local model or platform model capability.
-- [ ] Provide a settings path for the built-in local runtime where users can set provider API keys and turn specific bundled agents on or off.
-- [ ] Apply those changes through the generic application configuration change and reload capability provided by the dependent configuration task, rather than solely through session settings.
-- [ ] The settings UI may be restructured as needed to make these controls understandable and user-friendly.
-- [ ] Bundle or provide a built-in iOS-safe configuration with a fixed, reviewed set of agents/plugins/tools.
-- [ ] Ensure all included plugins/tools are safe for iOS review and ordinary-user use.
-- [ ] Ensure file access is limited to app sandbox, bundled resources, or explicit user-selected files.
-- [ ] Ensure no downloaded executable/plugin code is required to unlock reviewed functionality.
-- [ ] Ensure the local runtime/server continues to operate appropriately when the app goes to sleep or backgrounds, within iOS background execution constraints.
-- [ ] Add App Review notes explaining exactly how to test the immediately available functionality.
-- [ ] Add smoke tests or a manual smoke-test checklist for the reviewer path.
-- [ ] Document any App Store policy constraints, iOS runtime constraints, model-size constraints, or background-execution limitations discovered during research.
+- [ ] A fresh install exposes a testable path without requiring the reviewer
+  to install the desktop CLI, join a private LAN, or provide reviewer-owned
+  provider credentials.
+- [x] App Review may use a supplied private Crystal Lattice reviewer login
+  backed by a live public OpenAI Responses service.
+- [ ] API-key or supported ChatGPT-backed authorization is the first-class
+  normal-user model path; an actual on-device/platform model is a fallback.
+- [ ] On-device OpenAI settings let the user explicitly select API-key or
+  ChatGPT authentication, invoke plugin-driven login/status actions directly,
+  and retain per-session overrides without exposing an automatic mode.
+- [ ] The review path uses a real model and the normal agent/tool loop; it does
+  not expose a deterministic product or reviewer model.
+- [ ] The minimal reviewed flow exercises sessions, message send/receive,
+  visible tool calls/results, workspace persistence, and recovery across
+  navigation or relaunch.
+- [x] The completed built-in runtime includes general file reader and writer
+  tools restricted to one app-owned or user-selected workspace.
+- [ ] A near-term fixed tool set adds Tavily web search, an equivalent
+  authenticated reviewer search proxy, and restricted Python execution that
+  cannot change the application, runtime, configuration, or plugin set.
+- [x] Provider credentials and bundled-agent controls flow through generic
+  application configuration and complete runtime reload rather than only
+  session overrides.
+- [x] The built-in runtime uses a fixed, reviewed configuration and plugin/tool
+  closure, with no downloaded executable or plugin code required to unlock
+  reviewed behavior.
+- [x] Background work is bounded by iOS execution policy, persists enough
+  request/session state to recover, and communicates completion,
+  interruption, or retry honestly.
+- [ ] App Review notes contain the supplied credentials, exact test steps,
+  expected structural results, and any device/runtime limitations.
+- [x] Simulator automation covers the initial embedded-runtime path and is
+  sufficient evidence for this capability before external TestFlight review.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
-Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md
-Depends On: tasks/20260729-staged-application-config-and-full-reload.md
 
-## App Review Rationale
+Depends On:
+tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md
 
-Apple App Review Guideline 2.1(a) requires submitted apps to be complete, functional, and reviewable. The current mobile app depends on connecting to an external Crystal Lattice backend. That can block review unless Apple receives an immediately testable path that exposes the app's meaningful functionality.
+Depends On:
+tasks/20260729-staged-application-config-and-full-reload.md
 
-This task makes immediate testability a hard requirement for external TestFlight and App Store review.
+OVERLAP:
+tasks/20260910-ios-embedded-runtime-poc/000-main.md
 
-The app should not depend on reviewers installing developer tools, running the desktop CLI, joining a private LAN, configuring provider credentials, or setting up their own backend.
+The linked task owns the initial embedded-runtime proof of concept and the
+first two tool enhancements. This task retains the broader App Review outcome,
+provider/fallback direction, reviewer instructions, privacy reconciliation,
+and external TestFlight gate.
 
-Reference:
+## Agreed direction
 
-- https://developer.apple.com/app-store/review/guidelines/
+As of September 10, 2026:
 
-## Long-Term Product Goal
+- The embedded runtime is the local agent, session, tool, configuration, and
+  persistence host. The primary model may remain remote.
+- Normal users should first configure an API key or a supported
+  ChatGPT-backed authorization path.
+- App Review may receive a private caller key for a public OpenAI Responses
+  proxy backed by `gpt-5.6-luna`, restricted to that model and protocol and
+  protected by a configurable persisted cost budget/cooldown.
+- The on-device model is a fallback, not the first-run primary model.
+- No deterministic model is part of the product or reviewer path.
+- The initial capability is deliberately small and general: one fixed agent,
+  a workspace-restricted `Read` tool, a workspace-restricted `Write` tool,
+  visible multi-round tool use, persistence, and bounded background recovery.
+- The initial example should be simple enough for a small model. It validates
+  runtime integration and lifecycle rather than model intelligence.
+- Tavily web search and restricted Python execution are the first likely tool
+  enhancements. Broader tools such as email access remain possible extensions
+  whose direction will be decided later.
+- Every implementation increment should run in the real app and gain focused
+  verification immediately. A long platform build followed by one final
+  end-to-end test is not the intended delivery shape.
 
-This task should also support the long-term product goal that ordinary users, including non-developers, can complete simple useful tasks locally from the iOS app.
+## Research findings
 
-The target experience should feel more capable than a thin ChatGPT-style chat wrapper by preserving Crystal Lattice's agentic qualities:
+### Existing repository seams
 
-- Sessions and state.
-- Configured agents.
-- Plugin-driven controls.
-- Tool calls and visible tool results.
-- App-level provider/settings management.
-- Local files or user-selected files where iOS permits.
+- `AgentBackend` already recognizes an `inProcess` backend kind. The mobile
+  app's Sessions, Messages, tool rendering, application actions, and
+  notifications can therefore remain behind their current shared backend
+  contract.
+- The Python application owner already supports complete
+  `AgentApplication` replacement while preserving the outer process and
+  persisted stores. The mobile host can provide configuration from an
+  app-owned overlay instead of the desktop `.env` writer.
+- `FilesystemSessionStore` already writes session JSON atomically and can be
+  rooted under the app sandbox.
+- Existing Claude-compatible file tools provide useful schemas and formatting,
+  but their desktop path and media behavior should be simplified for the
+  initial iOS workspace.
+- `tools/openai-proxy` already forwards OpenAI-compatible streaming and
+  non-streaming requests. The proof of concept can extend it with incoming
+  API-key authentication and use Ollama's OpenAI-compatible endpoint as the
+  target.
 
-## Hard Requirements
+### Bundling
 
-The final solution must satisfy these requirements, regardless of implementation approach:
+- The completed work on
+  `task/20260908-cli-distribution-test-levels` introduces an isolated,
+  relocatable bundled-Python archive builder and direct boot-smoke helpers.
+- The iOS application cannot consume the desktop archive launcher unchanged,
+  but its selected-plugin discovery, source-shaped package staging, immutable
+  bundle versus mutable-state separation, and isolated-build checks are useful
+  inputs for the iOS bundle.
+- iOS still needs an app-bundled CPython framework/runtime, iOS-compatible
+  dependencies, a fixed plugin closure, and a native bridge. Dynamic plugin
+  installation and desktop subprocess tools are not part of the embedded
+  runtime.
 
-- It is immediately testable by Apple App Review.
-- It exercises the meaningful app functionality, not just a static demo screen.
-- It includes at least one no-API-key local agent path based on an actual local/platform model capability.
-- It includes an app-level settings path for provider API keys and controls for enabling or disabling specific bundled agents.
-- It uses only a fixed, reviewed set of bundled agents/plugins/tools for the built-in local/review mode.
-- It does not require downloading executable code, unreviewed plugins, or new runtime behavior after App Review.
-- It respects iOS sandboxing and user consent for files, network, photos, camera, and documents.
-- It has a clear story for background/sleep behavior of the local runtime/server within iOS constraints.
-- It has reviewer instructions that are specific enough for Apple to verify the app quickly.
+### Authentication and review service
 
-## Ideas To Research
+- The first proof of concept needs only a fixed OpenAI-compatible endpoint plus
+  a basic API-key entry path. Production-grade credential provenance and
+  polished settings remain separate hardening.
+- The ChatGPT device-code plugin remains outside the initial proof of concept,
+  but follow-up subtask `017` now supplies app-sandbox credential storage,
+  plugin-driven settings actions, verified bundled CA roots, and an
+  in-process HTTP fallback suitable for iOS. Human authorization and the real
+  hosted tool request remain separately gated acceptance.
+- A developer-operated reviewer proxy changes the completed privacy premise
+  that no developer service receives user traffic. Before external review,
+  privacy answers and the published policy must be reassessed for the actual
+  reviewer-service retention and logging behavior.
 
-These are implementation ideas, not exclusive solutions. The final implementation may use one of these, combine them, or use a different approach if it satisfies the hard requirements and supports the long-term product goals.
+### Background execution
 
-### Preferred Idea: Bundled Local Runtime And Server
+- The current mobile host disconnects its selected transport when the app
+  leaves the active state. An in-process runtime needs a distinct
+  prepare/checkpoint/recover path.
+- Simulator automation verifies lifecycle transitions and persisted state and
+  is sufficient acceptance evidence for the initial capability.
+- The proof of concept should add runtime timestamps and state diagnostics to
+  the real app path, use a deliberately slow multi-round request, and test both
+  completion and interruption recovery. It should not promise a fixed
+  background duration.
 
-Bundle a local Crystal Lattice runtime inside the iOS app.
+### Restricted Python execution
 
-Potential shape:
+- Desktop shell/Python execution based on child processes is unavailable to an
+  embedded iOS runtime.
+- The near-term Python tool should expose a deliberately restricted
+  interpreter with a narrow syntax/module surface, bounded time/output, and no
+  app/runtime/plugin/configuration mutation. It must not be presented as a
+  general shell or package-install environment.
+- Detailed restricted-interpreter design belongs to
+  `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`,
+  after the embedded runtime and workspace tools are working.
 
-- A bundled Python interpreter, if feasible and App Review-safe.
-- A local server or in-process service compatible with the existing mobile frontend/backend interfaces.
-- A built-in Crystal Lattice config.
-- A fixed set of bundled agents.
-- A fixed set of bundled plugins/tools.
-- Local session persistence in the app sandbox.
-- A settings path for provider API keys and enabling or disabling specific bundled agents.
-- A no-API-key local agent using Apple Foundation Models where available, or another reviewed local model option.
-- Optional provider-backed agents when the user enters API keys.
+## Initial proof-of-concept shape
 
-Research questions:
+The first working scenario should be intentionally simple, for example:
 
-- Can the required Python runtime be bundled within acceptable app size, startup time, and App Review constraints?
-- Can the runtime run without downloading executable code or plugins?
-- Can the local server bind only locally and communicate safely with the React Native app?
-- What iOS background modes, background tasks, or lifecycle constraints apply when the app sleeps/backgrounds?
-- Can the local server resume cleanly after suspension?
-- Should the runtime be an actual HTTP server or an in-process bridge that preserves the same backend contract?
-- Which existing Python plugins are safe and small enough to bundle?
-- Which plugins/tools must be rewritten, removed, or replaced for iOS sandboxing?
-- How should local sessions/config be stored and migrated?
-- How should logs/debug output be exposed without leaking sensitive data?
+> Read `input.txt`, write a short transformed version to `output.txt`, read
+> `output.txt` back, and tell me what changed.
 
-### Local No-API-Key Model Ideas
+This is sufficient when it results in several real provider requests, visible
+`Read`/`Write` tool calls, a persisted workspace file, and a request that can
+be placed in the background long enough to exercise lifecycle handling.
 
-Explore actual local/model-backed options:
+The initial implementation may stage behavior in this order:
 
-- Apple Foundation Models framework for supported devices/OS versions.
-- Core ML model packaged with the app, if Foundation Models is unavailable or insufficient.
-- A later version may evaluate other on-device model runtimes if they are App Review-safe, license-compatible, and practical for app size/performance.
+1. Embedded Python starts in the foreground with no model authentication or
+   tools.
+2. The local runtime sends one real request through an unauthenticated
+   development proxy to Ollama.
+3. Background continuation/checkpoint diagnostics are added.
+4. Workspace-restricted `Read` and `Write` tools are added.
+5. The proxy enforces an API key and the app supplies it through a basic
+   configuration path.
+6. Simulator checks exercise the complete scenario.
 
-Research questions:
+The unauthenticated stages are temporary development checkpoints. The end of
+the proof of concept requires proxy API-key enforcement.
 
-- What iOS versions/devices support Apple Foundation Models?
-- Can Foundation Models be used from React Native through a native module?
-- What fallback is available on devices that do not support Apple Foundation Models?
-- What model size/performance envelope is acceptable for a bundled Core ML model?
-- What licensing applies to any bundled model?
-- How should the app clearly communicate local-model availability and limitations?
+## Improvement ideas and deferred direction
 
-### iOS-Safe Tool Ideas
+- Add Tavily search under one stable `web_search` tool contract, with a
+  reviewer proxy that keeps the service credential off the device.
+- Add the restricted Python executor without giving generated code access to
+  the application, runtime configuration, plugin loader, or workspace.
+- Adapt ChatGPT-backed authorization after its supported production contract
+  and iOS credential lifecycle are confirmed.
+- Add an Apple Foundation Models provider as the on-device fallback.
+- Add user-selected workspace roots after the app-owned workspace is stable.
+- Consider richer file operations, attachments, email, and other personal-data
+  integrations only through later direction-setting work.
 
-Explore a fixed set of safe tools suitable for bundled local/review mode:
+These ideas do not expand the initial proof-of-concept specification.
 
-- Read bundled sample files.
-- Read user-selected files via document picker.
-- Search bundled documentation or sample knowledge base.
-- Fetch a user-provided URL with clear user action.
-- Save or export generated text through the share sheet.
-- Save generated files inside the app sandbox.
-- Summarize selected text or user-selected documents using the local/provider-backed agent.
-- Provide web search only through a reviewed, bounded, privacy-conscious implementation.
+## Reviewer service follow-up
 
-Research questions:
+Historical reviewer proxy implementation and Chat Completions verification
+remain in
+`tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`.
+The approved protocol, TLS, and built-in ChatGPT settings correction is owned
+by
+`tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`.
 
-- Which tools are safe enough for App Review and ordinary users?
-- Which existing Crystal Lattice tools can be reused unchanged?
-- Which tools require iOS-specific implementations?
-- How should permissions be requested and explained?
-- Which tools should be disabled in built-in local/review mode?
+The target App Review instructions below are not current until subtask `017`
+completes:
 
-### Fallback Idea: Native/In-App Backend Adapter
+1. Open **On-device Provider Settings** from Home.
+2. In **OpenAI Responses reviewer**, enter the private caller key supplied in
+   App Review notes; the endpoint, `gpt-5.6-luna`, and reviewer CA are
+   preconfigured.
+3. Test and save the profile, open **On-device Python agents**, and create a
+   `reviewer-codex` session.
+4. Ask the agent to create a workspace file with `apply_patch`, read it with
+   the Codex-like file tools, and report the result.
+5. Confirm that tool calls/results are visible and the session/workspace
+   survives navigation or relaunch.
 
-If the bundled local runtime/server is not feasible, evaluate a native or React Native in-app backend adapter.
+The distributed app contains only the public reviewer CA certificate. The
+upstream OpenAI key remains on the server, the private caller key is delivered
+only through App Review notes, and reviewer-proxy request/response body logging
+is disabled.
 
-This should be treated as a fallback because it may require reimplementing backend behavior in Swift/TypeScript/native code and may duplicate existing Python backend logic.
+## Delivered embedded-runtime foundation
 
-Potential shape:
+`tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
+is complete. It delivered:
 
-- Implement the needed backend contract directly in the app.
-- Store sessions locally.
-- Use native model APIs or Core ML for the no-API-key agent.
-- Expose the same UI surfaces as the normal backend where practical.
-- Keep behavior aligned with the real Crystal Lattice backend.
+- app-bundled CPython and the fixed Crystal Lattice closure;
+- a production `inProcess` backend and iOS connection/setup path;
+- masked API-key owner configuration with complete application reconstruction;
+- an authenticated OpenAI-compatible Ollama proxy;
+- workspace-restricted text `Read` and `Write`;
+- persisted sessions and workspace output across process relaunch;
+- bounded native lifecycle state and delayed background continuation;
+- production-screen, real-model, persistence, and background simulator tests.
 
-Research questions:
+The completed `010` foundation does not itself deliver the public reviewer
+service, ChatGPT authorization, on-device model fallback, Tavily, restricted
+Python, privacy reconciliation, or external TestFlight review package.
+Follow-up `017` has since verified real ChatGPT login start and cancellation
+in the Release simulator, while human authorization remains gated.
 
-- How much of the backend contract must be implemented for meaningful review?
-- How much duplication would this create?
-- Can shared TypeScript packages reduce duplication?
-- Would this path be safer/smaller than bundled Python?
+## App Review and completion notes
 
-### Limited Review/Demo Backend Fallback
+Apple should receive an app-specific reviewer account or token, not shared
+personal provider credentials. The reviewer service must remain reachable
+during review and should use bounded credentials, rate limits, and redacted
+logging.
 
-If neither bundled local runtime nor native local backend is feasible in time, evaluate a hosted safe demo backend strictly as a fallback for App Review or limited demonstration.
+The final review notes should assert stable structure rather than exact model
+prose:
 
-This should not replace the long-term local-user goal.
+- login or API-key setup succeeds;
+- a session can be created;
+- several model/tool rounds occur;
+- `Read` and `Write` calls are visible;
+- the resulting workspace file can be read after navigation/relaunch;
+- background completion or interruption is visible and recoverable.
 
-Potential shape:
-
-- A world-accessible demo connection.
-- A sandboxed, rate-limited backend.
-- Disposable sessions.
-- No dangerous tools.
-- No user secrets.
-- No broad filesystem access.
-- Review notes with exact connection instructions.
-
-Research questions:
-
-- What minimum hosted demo is enough for App Review?
-- How can it be locked down safely?
-- How are sessions cleaned up?
-- How can it avoid exposing provider API keys or paid usage risk?
-- How does this remain clearly limited so it does not become the long-term product architecture by accident?
-
-## Background Execution Considerations
-
-The task must explicitly research and document what "server should run in the background even when the app goes to sleep" can mean on iOS.
-
-Questions to answer:
-
-- Can the runtime continue active work while the app is backgrounded?
-- Can it finish short tasks using background task APIs?
-- Can it resume reliably after iOS suspends the app?
-- Are any iOS background modes applicable and justifiable?
-- What user experience should occur if iOS suspends the local runtime?
-- How should the app persist session/request state before suspension?
-- What behavior is acceptable for App Review and ordinary users?
-
-The final implementation should be honest about iOS constraints. If indefinite background server execution is not permitted or reliable, the design must provide graceful suspension/resume semantics while still satisfying App Review testability.
-
-## Acceptance Criteria
-
-- A fresh install exposes an obvious testable path without desktop setup.
-- Apple Review can exercise meaningful app functionality immediately.
-- At least one no-API-key model-backed local agent path works on supported devices, with a documented fallback plan for unsupported devices.
-- Users can set provider API keys and enable or disable specific bundled agents from the local-runtime settings path; the resulting runtime behavior reflects the updated application configuration.
-- Bundled/review-mode agents/plugins/tools are fixed, reviewed, and iOS-safe.
-- The app does not download executable code or unreviewed plugins to unlock reviewed functionality.
-- File/network/tool behavior respects iOS sandboxing and permissions.
-- Background/sleep behavior is implemented or documented with clear iOS constraints and graceful recovery.
-- App Review notes include exact steps, expected outputs, and any device/OS limitations.
-- The chosen solution is documented with tradeoffs and does not close off future alternatives that better satisfy the hard requirements and long-term goals.
+The broader task remains incomplete until the local-model fallback,
+privacy/reviewer package, and external-review evidence are delivered.

@@ -24,3 +24,6 @@ performance expectations, or incomplete proposals.
   planning trees.
 - [`root-tests/`](root-tests/) contains unreferenced ad hoc diagnostic scripts
   formerly discoverable as root tests.
+- [`documentation-standard-human-review-20260910.md`](documentation-standard-human-review-20260910.md)
+  preserves the human-review guide and findings for the superseded seven-page
+  documentation standard.

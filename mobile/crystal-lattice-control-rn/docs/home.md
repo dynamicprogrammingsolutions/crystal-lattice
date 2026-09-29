@@ -9,6 +9,8 @@ connections.
 Add a session to the Watchlist with its bookmark control. The Watchlist is
 stored on the current device and is independent from server-side session
 pinning.
+You can also add or remove the current session through Session actions on the
+Sessions and Messages tabs.
 
 Watched sessions appear as reorderable two-column tiles. Drag a tile by its
 move handle to change the order. The tile follows the drag while an empty
@@ -22,6 +24,12 @@ until the ordinary tiles report the saved final order.
 Watchlist membership and order are local to the device. A watched session can
 remain on Home after it is no longer recent. Use the close control on a
 Watchlist tile to remove that local membership without deleting the session.
+
+Each Watchlist tile shows the session title, an optional subtitle or distinct
+message preview, session ID, request status when available, local note,
+connection name, and relative modification time. Session IDs and connection
+names truncate independently. The relative time and note/remove actions remain
+visible when a connection name is long.
 
 ## Permanent local notes
 
@@ -45,6 +53,12 @@ or not they are also on the Watchlist:
 
 Change the window in Global Settings. Global Settings is available from
 Connections, the Home menu, and Home actions.
+
+Timeline rows use the same information order as Watchlist tiles and add a
+neutral gray activity rail. Connection name and relative time are separate, so
+the time is not lost when the connection name is long. If a session has no
+presentation title or subtitle, its message preview appears once rather than
+being repeated as both fields.
 
 ## Request status
 

@@ -728,9 +728,11 @@ defining a second scenario language.
 The first real consumers are pytest tests under the framework package. They
 verify application of:
 
-- `DOCGEN-001`–`DOCGEN-007`;
-- `DOCREP-001`–`DOCREP-006`;
-- `DOCVAL-005`.
+- the preserved `DOCGEN-*` and `DOCREP-*` baseline behaviors;
+- `DOCGUIDE-001`–`DOCGUIDE-006`;
+- `DOCLOCAL-001`–`DOCLOCAL-002`;
+- `DOCAGENT-001`;
+- `DOCVAL-005` and `DOCVAL-010`.
 
 The documentation-standard specification owns the detailed
 [agent-behavior verification scenarios](../documentation-and-specification-standard/agent-behavior-verification/index.md).
@@ -754,17 +756,22 @@ as setup evidence and is not counted as a consumer-guidance result.
 
 Coverage includes:
 
-1. Applying proportional package profiles, ownership, source-of-truth,
+1. Applying optional documentation structures, maintained-source,
    incremental-adoption, and generated-output rules to ordinary documentation
    tasks.
 2. Distinguishing target specifications, live requirements, task approval, and
    current documentation.
 3. Assigning package-owned and package-specific refinement specifications.
-4. Avoiding duplicate normative contracts and preserving discoverability.
-5. Applying repository paths and package profiles proportionally.
+4. Avoiding duplicate explanations and preserving discoverability.
+5. Applying repository paths without requiring a full package profile.
 6. Distinguishing shared plugin guidance from individual plugin ownership.
 7. Keeping root documentation and maintainer boundaries narrow.
-8. Distinguishing applying standards from maintaining them.
+8. Distinguishing applying guidance from maintaining it.
+9. Keeping unapproved ideas outside the requirement set across reasoning
+   efforts.
+10. Selecting test layers from risk and real boundaries without freezing
+    non-contractual implementation details.
+11. Reporting decisive acceptance evidence before routine quality checks.
 
 Tests may exercise the same rules through user-message text, application
 configuration, plugins, or skills. The kernel does not privilege one injection
@@ -812,29 +819,28 @@ The review produces a concrete keep/remove/replace/add proposal with run
 evidence. It does not alter the approved specification or implemented suite
 until the user approves the proposed changes.
 
-The first calibrated documentation-standard proposal kept all seeds and
-scenarios while separating execution frequency. The approved August 18
-extension retains the nine seeds and expands the target to 21 scenarios:
+The direct rewrite comparison preserves all 21 legacy scenarios. Tests 01, 15,
+17, 20, and 21 remain executable for that comparison but are obsolete for the
+new target because they require README-only mutation, prohibit every early
+user-doc draft, require a full package profile, hard-code the retired four-page
+route, or combine layout behavior with a literal terminology assertion.
 
-- **Routine:** Tests 01–07, 10, 11, 13, 15, 17, and 18.
-- **Extended:** Tests 08, 09, 12, 14, 16, and 19–21, in addition to the routine
-  group when a complete run is requested.
+The revised suite uses 11 seeds and 26 branches:
 
-Ordinary guidance changes run the routine group on the lower-cost supported
-model and use a second-model sentinel set for quickstart quality, generated
-output, package ownership, substantial-specification approval, and
-current/audience boundaries. Material changes and final behavioral
-verification run all 21 scenarios on at least one supported model. The August
-18 extension additionally uses focused second-model sentinels for changed
-profile/boundary behavior, routed reading, and explicit layout overrides. A
-complete second-model matrix is used only when the change or observed variance
-justifies its cost.
+- **Routine:** retained Tests 02–07, 10, 11, 13, and 18, plus Tests 22–25 and
+  28–29;
+- **Extended:** retained Tests 08, 09, 12, 14, 16, and 19, plus Tests 26–27.
 
-The routing-read consumer uses a scenario-specific guidance delivery mode:
-applicable AGENTS content is injected, while routed standard pages remain
-filesystem inputs whose complete reads and order relative to mutation are
-observable. The explicit-layout consumer reuses the batch-synchronization seed
-and an approved task that requires one `decisions.md` file.
+Test 22 runs low, high, and max reasoning-effort branches. All GLM seeds and
+branches use `glm-5.3-flash:cloud`; model resolution is checked before a matrix
+is counted as executed. A second-model matrix is used only when the change or
+observed variance justifies its cost.
+
+The current routing-read consumer injects applicable AGENTS content while the
+two guidance pages remain filesystem inputs whose complete reads and order
+relative to mutation are observable. The explicit-layout consumer reuses the
+batch-synchronization seed and an approved task that requires one
+`decisions.md` file.
 
 Scenario specifications, executable selection, and the exact sentinel set
 remain reviewable task-owned decisions. Changes based on later run evidence

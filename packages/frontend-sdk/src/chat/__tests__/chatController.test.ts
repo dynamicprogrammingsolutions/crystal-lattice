@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ChatController } from '../chatController';
+
+const RANGE_ERROR = new Error(
+  'HTTP 400 GET /sessions/s1/messages?start=100&end=150: range selects no messages',
+);
 
 describe('ChatController.ensureEventStreamingStarted', () => {
   it('starts polling for tail-following sessions with an initial snapshot', () => {
@@ -171,5 +175,127 @@ describe('ChatController.ensureEventStreamingStarted', () => {
       readonly: true,
       snapshotId: 'snapshot:1',
     });
+  });
+});
+
+describe('ChatController request cancellation', () => {
+  it('routes hard and soft cancellation without clearing the active request', async () => {
+    const cancelRequest = vi.fn(async () => {});
+    const softCancelRequest = vi.fn(async () => {});
+    const controller = new ChatController({
+      backend: {
+        cancelRequest,
+        softCancelRequest,
+      } as any,
+      sessionId: 's1',
+      initialActiveRequestId: 'request-1',
+    });
+
+    await controller.softCancelActiveRequest();
+    await controller.cancelActiveRequest();
+
+    expect(softCancelRequest).toHaveBeenCalledWith('request-1');
+    expect(cancelRequest).toHaveBeenCalledWith('request-1');
+    expect(controller.getSnapshot().activeRequestId).toBe('request-1');
+    controller.dispose();
+  });
+});
+
+describe('ChatController default-range fallback', () => {
+  it('falls back to the default range when an absolute range selects no messages', async () => {
+    const listMessages = vi
+      .fn()
+      .mockRejectedValueOnce(RANGE_ERROR)
+      .mockResolvedValueOnce({
+        messages: [
+          { index: 0, message: { role: 'user', content: 'summary' } },
+          { index: 1, message: { role: 'assistant', content: 'reply' } },
+        ],
+        cursorEventId: 'store:5',
+        activeRequestId: null,
+      });
+    const onRangeFallback = vi.fn();
+    const controller = new ChatController({
+      backend: { listMessages } as any,
+      sessionId: 's1',
+      onRangeFallback,
+    });
+
+    await controller.loadMessagesFromRangeText({
+      startText: '100',
+      endText: '150',
+    });
+
+    expect(listMessages).toHaveBeenCalledTimes(2);
+    expect(listMessages).toHaveBeenNthCalledWith(1, 's1', {
+      start: 100,
+      end: 150,
+    });
+    expect(listMessages).toHaveBeenNthCalledWith(2, 's1', { start: -50 });
+
+    const snapshot = controller.getSnapshot();
+    expect(snapshot.historyRange).toEqual({ start: -50 });
+    expect(snapshot.followTail).toBe(true);
+    expect(snapshot.maxMessages).toBe(50);
+    expect(snapshot.messages).toHaveLength(2);
+    expect(snapshot.loading).toBe(false);
+    expect(onRangeFallback).toHaveBeenCalledTimes(1);
+    expect(onRangeFallback).toHaveBeenCalledWith({ start: -50 });
+    controller.dispose();
+  });
+
+  it('notifies a listener set after construction', async () => {
+    const listMessages = vi
+      .fn()
+      .mockRejectedValueOnce(RANGE_ERROR)
+      .mockResolvedValueOnce({ messages: [], cursorEventId: null });
+    const controller = new ChatController({
+      backend: { listMessages } as any,
+      sessionId: 's1',
+    });
+    const onRangeFallback = vi.fn();
+    controller.setRangeFallbackListener(onRangeFallback);
+
+    await controller.loadMessagesFromRangeText({
+      startText: '100',
+      endText: '150',
+    });
+
+    expect(onRangeFallback).toHaveBeenCalledWith({ start: -50 });
+    controller.dispose();
+  });
+
+  it('does not fall back for non-range failures', async () => {
+    const listMessages = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('HTTP 500 GET /sessions/s1/messages: boom'));
+    const controller = new ChatController({
+      backend: { listMessages } as any,
+      sessionId: 's1',
+    });
+
+    await expect(
+      controller.loadMessagesFromRangeText({ startText: '100', endText: '150' }),
+    ).rejects.toThrow('boom');
+    expect(listMessages).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot().historyRange).toEqual({
+      start: 100,
+      end: 150,
+    });
+    controller.dispose();
+  });
+
+  it('does not retry the fallback when the default range itself fails', async () => {
+    const listMessages = vi.fn().mockRejectedValue(RANGE_ERROR);
+    const controller = new ChatController({
+      backend: { listMessages } as any,
+      sessionId: 's1',
+    });
+
+    await expect(
+      controller.loadMessagesFromRangeText({ startText: '-50', endText: '' }),
+    ).rejects.toThrow(RANGE_ERROR);
+    expect(listMessages).toHaveBeenCalledTimes(1);
+    controller.dispose();
   });
 });

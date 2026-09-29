@@ -512,9 +512,10 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "zai": {
             "provider": "reference_openai_compatible",
-            "base_url": "https://api.z.ai/api/paas/v4",
+            "base_url": "https://api.z.ai/api/coding/paas/v4",
             "request_options": {
-                "thinking": {"type": "enabled", "clear_thinking": False}
+                "reasoning_effort": "max",
+                "thinking": {"type": "enabled", "clear_thinking": False},
             },
         },
     }
@@ -621,3 +622,56 @@ def test_default_config_openai_compatible_composer_schema(
         "placements": ["composer"],
         "default_pinned": True,
     }
+
+
+def test_default_config_pricing_includes_resolve_per_model_rates() -> None:
+    """The bundled pricing extracts resolve through the config pipeline.
+
+    The ollama, fireworks, and zai providers reference their pricing file via
+    ``token_rates: {"$include": "${env:CONFIG_DIR}/pricing/<provider>.json"}``;
+    after resolution the merged per-model rates are present and the control
+    key is consumed. The zai agent's legacy flat rates moved into the
+    provider-level extract.
+    """
+
+    from agent_app.config import load_resolved_config
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    resolved, errors, _env = load_resolved_config(config_path, env={})
+
+    include_errors = [
+        error for error in errors if str(error.get("type", "")).startswith("include")
+    ]
+    assert include_errors == []
+
+    ollama_rates = resolved["providers"]["ollama"]["token_rates"]
+    assert "$include" not in ollama_rates
+    assert ollama_rates["models"]["glm-5.2"] == {
+        "input": 1.4,
+        "cached": 0.26,
+        "completion": 4.4,
+    }
+    assert ollama_rates["models"]["deepseek-v4-pro"]["input"] == 1.32
+
+    fireworks_rates = resolved["providers"]["fireworks"]["token_rates"]
+    assert "$include" not in fireworks_rates
+    # The default fireworks model is not priced by the current table, so no
+    # entry matches it; the extract still ships the priced serverless models.
+    assert "gpt-oss-20b" not in fireworks_rates["models"]
+    assert fireworks_rates["models"]["glm-5.3"]["completion"] == 12.15
+
+    zai_rates = resolved["providers"]["zai"]["token_rates"]
+    assert "$include" not in zai_rates
+    assert zai_rates["models"]["glm-5.3-flash"] == {
+        "input": 0.15,
+        "cached": 0.03,
+        "completion": 0.5,
+    }
+    assert "token_rates" not in resolved["agents"]["zai"]

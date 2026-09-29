@@ -29,6 +29,8 @@ interface HomeWorkspaceValue {
   watchlist: readonly WatchedSessionIdentity[];
   notes: Readonly<Record<string, string>>;
   recentSessionsWindow: RecentSessionsWindow;
+  timeTrackingEnabled: boolean;
+  timeTrackingPluginId: string;
   isWatched: (connectionId: string, sessionId: string) => boolean;
   addToWatchlist: (connectionId: string, sessionId: string) => void;
   removeFromWatchlist: (connectionId: string, sessionId: string) => void;
@@ -36,6 +38,8 @@ interface HomeWorkspaceValue {
   setSessionNote: (sessionId: string, note: string) => void;
   removeSessionNote: (sessionId: string) => void;
   setRecentSessionsWindow: (value: RecentSessionsWindow) => void;
+  setTimeTrackingEnabled: (value: boolean) => void;
+  setTimeTrackingPluginId: (value: string) => void;
 }
 
 const defaultValue: HomeWorkspaceValue = {
@@ -43,6 +47,8 @@ const defaultValue: HomeWorkspaceValue = {
   watchlist: [],
   notes: {},
   recentSessionsWindow: DEFAULT_MOBILE_GLOBAL_PREFERENCES.recentSessionsWindow,
+  timeTrackingEnabled: DEFAULT_MOBILE_GLOBAL_PREFERENCES.timeTrackingEnabled,
+  timeTrackingPluginId: DEFAULT_MOBILE_GLOBAL_PREFERENCES.timeTrackingPluginId,
   isWatched: () => false,
   addToWatchlist: () => {},
   removeFromWatchlist: () => {},
@@ -50,6 +56,8 @@ const defaultValue: HomeWorkspaceValue = {
   setSessionNote: () => {},
   removeSessionNote: () => {},
   setRecentSessionsWindow: () => {},
+  setTimeTrackingEnabled: () => {},
+  setTimeTrackingPluginId: () => {},
 };
 
 const HomeWorkspaceContext = createContext<HomeWorkspaceValue>(defaultValue);
@@ -71,6 +79,14 @@ export const HomeWorkspaceProvider: React.FC<{
     useState<RecentSessionsWindow>(
       DEFAULT_MOBILE_GLOBAL_PREFERENCES.recentSessionsWindow,
     );
+  const [timeTrackingEnabled, setTimeTrackingEnabledState] =
+    useState<boolean>(
+      DEFAULT_MOBILE_GLOBAL_PREFERENCES.timeTrackingEnabled,
+    );
+  const [timeTrackingPluginId, setTimeTrackingPluginIdState] =
+    useState<string>(
+      DEFAULT_MOBILE_GLOBAL_PREFERENCES.timeTrackingPluginId,
+    );
 
   useEffect(() => {
     let cancelled = false;
@@ -91,10 +107,12 @@ export const HomeWorkspaceProvider: React.FC<{
         };
         setWatchlist(normalizeWatchlist(parse(watchlistRaw)));
         setNotes(normalizeSessionNotes(parse(notesRaw)));
-        setRecentSessionsWindowState(
-          normalizeMobileGlobalPreferences(parse(preferencesRaw))
-            .recentSessionsWindow,
+        const preferences = normalizeMobileGlobalPreferences(
+          parse(preferencesRaw),
         );
+        setRecentSessionsWindowState(preferences.recentSessionsWindow);
+        setTimeTrackingEnabledState(preferences.timeTrackingEnabled);
+        setTimeTrackingPluginIdState(preferences.timeTrackingPluginId);
       })
       .finally(() => {
         if (!cancelled) setHydrated(true);
@@ -118,9 +136,13 @@ export const HomeWorkspaceProvider: React.FC<{
     if (!hydrated) return;
     void store.set(
       MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({ recentSessionsWindow }),
+      JSON.stringify({
+        recentSessionsWindow,
+        timeTrackingEnabled,
+        timeTrackingPluginId,
+      }),
     );
-  }, [hydrated, recentSessionsWindow, store]);
+  }, [hydrated, recentSessionsWindow, store, timeTrackingEnabled, timeTrackingPluginId]);
 
   const isWatched = useCallback(
     (connectionId: string, sessionId: string) => {
@@ -189,12 +211,22 @@ export const HomeWorkspaceProvider: React.FC<{
     setRecentSessionsWindowState(value);
   }, []);
 
+  const setTimeTrackingEnabled = useCallback((value: boolean) => {
+    setTimeTrackingEnabledState(value);
+  }, []);
+
+  const setTimeTrackingPluginId = useCallback((value: string) => {
+    setTimeTrackingPluginIdState(value);
+  }, []);
+
   const value = useMemo<HomeWorkspaceValue>(
     () => ({
       hydrated,
       watchlist,
       notes,
       recentSessionsWindow,
+      timeTrackingEnabled,
+      timeTrackingPluginId,
       isWatched,
       addToWatchlist,
       removeFromWatchlist,
@@ -202,6 +234,8 @@ export const HomeWorkspaceProvider: React.FC<{
       setSessionNote,
       removeSessionNote,
       setRecentSessionsWindow,
+      setTimeTrackingEnabled,
+      setTimeTrackingPluginId,
     }),
     [
       addToWatchlist,
@@ -214,6 +248,10 @@ export const HomeWorkspaceProvider: React.FC<{
       removeSessionNote,
       setRecentSessionsWindow,
       setSessionNote,
+      setTimeTrackingEnabled,
+      setTimeTrackingPluginId,
+      timeTrackingEnabled,
+      timeTrackingPluginId,
       watchlist,
     ],
   );

@@ -2,14 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import type { Theme } from './theme';
 import {
+  CODE_BLOCK_RENDERER_OPTIONS,
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DISPLAY_TYPOGRAPHY_PRESETS,
   MARKDOWN_BASE_FONT_SIZES,
+  MARKDOWN_RENDERER_OPTIONS,
   applyDisplayTypographyPreset,
   deriveMarkdownTypography,
+  normalizeCodeBlockRendererId,
   normalizeMarkdownBaseFontSize,
   normalizeMarkdownDisplayPreferences,
   normalizeMarkdownHeaderSize,
+  normalizeMarkdownRendererId,
+  resolveMarkdownRendererPreferences,
 } from './markdownDisplayPreferences';
 
 const SUPPORTED_SIZES = MARKDOWN_BASE_FONT_SIZES;
@@ -62,28 +67,146 @@ describe('markdown display preference normalization', () => {
     },
   );
 
+  it.each([
+    'react-native-markdown-display',
+    'react-native-enriched-markdown',
+  ] as const)('accepts markdown renderer %s', (value) => {
+    expect(normalizeMarkdownRendererId(value)).toBe(value);
+  });
+
+  it.each([
+    undefined,
+    null,
+    'unsupported',
+    15,
+    {},
+    [],
+  ])('defaults unsupported markdown renderer %j', (value) => {
+    expect(normalizeMarkdownRendererId(value)).toBe(
+      DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.markdownRenderer,
+    );
+  });
+
+  it.each([
+    'selectable-native',
+    'syntax-highlighter',
+  ] as const)('accepts code renderer %s', (value) => {
+    expect(normalizeCodeBlockRendererId(value)).toBe(value);
+  });
+
+  it.each([
+    undefined,
+    null,
+    'unsupported',
+    15,
+    {},
+    [],
+  ])('defaults unsupported code renderer %j', (value) => {
+    expect(normalizeCodeBlockRendererId(value)).toBe(
+      DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.codeBlockRenderer,
+    );
+  });
+
   it('normalizes fields independently', () => {
     expect(
       normalizeMarkdownDisplayPreferences({
         baseFontSize: SUPPORTED_SIZES[SUPPORTED_SIZES.length - 1],
         headerSize: 'invalid',
+        markdownRenderer: 'react-native-enriched-markdown',
+        codeBlockRenderer: 'invalid',
       }),
     ).toEqual({
       baseFontSize: SUPPORTED_SIZES[SUPPORTED_SIZES.length - 1],
       headerSize: 'normal',
+      markdownRenderer: 'react-native-enriched-markdown',
+      codeBlockRenderer: 'selectable-native',
     });
     expect(
       normalizeMarkdownDisplayPreferences({
         baseFontSize: Number.MIN_SAFE_INTEGER,
         headerSize: 'small',
+        markdownRenderer: 'invalid',
+        codeBlockRenderer: 'syntax-highlighter',
       }),
     ).toEqual({
       baseFontSize: DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.baseFontSize,
       headerSize: 'small',
+      markdownRenderer: 'react-native-markdown-display',
+      codeBlockRenderer: 'syntax-highlighter',
     });
     expect(normalizeMarkdownDisplayPreferences(null)).toEqual(
       DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
     );
+  });
+
+  it('defines stable user-facing renderer labels', () => {
+    expect(MARKDOWN_RENDERER_OPTIONS).toEqual([
+      {
+        value: 'react-native-markdown-display',
+        label: 'React Native Markdown Display',
+      },
+      {
+        value: 'react-native-enriched-markdown',
+        label: 'Enriched Markdown (experimental)',
+      },
+    ]);
+    expect(CODE_BLOCK_RENDERER_OPTIONS).toEqual([
+      {
+        value: 'selectable-native',
+        label: 'Selectable native code',
+      },
+      {
+        value: 'syntax-highlighter',
+        label: 'Syntax highlighter',
+      },
+    ]);
+  });
+});
+
+describe('markdown renderer capability resolution', () => {
+  it('uses requested renderers when their optional capabilities are present', () => {
+    expect(
+      resolveMarkdownRendererPreferences(
+        {
+          ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+          markdownRenderer: 'react-native-enriched-markdown',
+        },
+        {
+          enrichedMarkdown: true,
+          selectableNativeCode: true,
+        },
+      ),
+    ).toEqual({
+      markdownRenderer: 'react-native-enriched-markdown',
+      codeBlockRenderer: 'selectable-native',
+      markdownRendererFellBack: false,
+      codeBlockRendererFellBack: false,
+    });
+  });
+
+  it('falls back without changing the requested preferences', () => {
+    const requested = {
+      ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      markdownRenderer: 'react-native-enriched-markdown' as const,
+      codeBlockRenderer: 'selectable-native' as const,
+    };
+
+    expect(
+      resolveMarkdownRendererPreferences(requested, {
+        enrichedMarkdown: false,
+        selectableNativeCode: false,
+      }),
+    ).toEqual({
+      markdownRenderer: 'react-native-markdown-display',
+      codeBlockRenderer: 'syntax-highlighter',
+      markdownRendererFellBack: true,
+      codeBlockRendererFellBack: true,
+    });
+    expect(requested).toEqual({
+      ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
+      markdownRenderer: 'react-native-enriched-markdown',
+      codeBlockRenderer: 'selectable-native',
+    });
   });
 });
 

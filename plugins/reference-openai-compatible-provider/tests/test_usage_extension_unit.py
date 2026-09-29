@@ -7,8 +7,10 @@ import pytest
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.usage_extension import (
     OpenAICompatibleUsageExtension,
+    _cost_breakdown_from_rates,
     _current_turn_id,
     _estimated_cached_tokens_for_current,
+    _usage_cost,
 )
 
 
@@ -157,13 +159,36 @@ def test_usage_extension_exposes_openrouter_style_ui_elements():
             "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
             "template": "turn output: {{data}}",
         },
-        {
-            "ui_type": "status_bar",
-            "data": "metadata.usage_total_cost_cumulative_formatted",
-            "template": "Total: {{data}}",
-        },
     ]
     assert ext.get_ui_elements({"show_usage": False}, [], []) == []
+
+
+def test_usage_extension_stamps_provider_defined_cost_bucket():
+    ext = OpenAICompatibleUsageExtension()
+
+    finals, _native, _state = ext.finalize(
+        [
+            {
+                "role": "assistant",
+                "_metadata": {"usage": {"prompt_tokens": 100, "completion_tokens": 10}},
+            }
+        ],
+        [
+            {
+                "role": "assistant",
+                "_metadata": {"usage": {"prompt_tokens": 100, "completion_tokens": 10}},
+            }
+        ],
+        {
+            "config": {
+                "base_url": "https://api.fireworks.ai/v1",
+                "cost_bucket": "openai-compatible",
+            }
+        },
+    )
+
+    metadata = finals[0]["_metadata"]
+    assert metadata["usage_bucket"] == "openai-compatible-api-fireworks-ai"
 
 
 def test_usage_extension_can_show_estimated_cached_tokens_footer():
@@ -904,6 +929,208 @@ def test_usage_extension_incomplete_token_rates():
     assert "cost" not in new_finals[0]["_metadata"]["usage"]
 
 
+def _per_model_rates_state(model: Any) -> dict[str, Any]:
+    return {
+        "config": {
+            "model": model,
+            "token_rates": {
+                "input": 1.0,
+                "cached": 0.2,
+                "completion": 3.2,
+                "models": {
+                    "glm-5.2": {
+                        "input": 1.4,
+                        "cached": 0.26,
+                        "completion": 4.4,
+                    },
+                    "glm-5.3-flash": {
+                        "input": 0.15,
+                        "cached": 0.03,
+                        "completion": 0.5,
+                    },
+                },
+            },
+        },
+        "request": {"payload": {"model": model}},
+    }
+
+
+def _usage_message(prompt_tokens: int = 1000, completion_tokens: int = 500):
+    return {
+        "role": "assistant",
+        "content": "hello",
+        "_metadata": {
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            }
+        },
+    }
+
+
+def test_usage_extension_per_model_rates_override_base_for_exact_model():
+    """A matching per-model entry replaces the flat base rates entirely."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = _per_model_rates_state("glm-5.2")
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    # glm-5.2 rates: 1000 * 1.4/M + 500 * 4.4/M = 0.0014 + 0.0022 = 0.0036
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0036)
+
+
+def test_usage_extension_per_model_rates_match_stripped_cloud_tag():
+    """An ollama-style ':cloud' tag still matches the bare model key."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = _per_model_rates_state("glm-5.2:cloud")
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0036)
+
+
+def test_usage_extension_per_model_rates_match_case_insensitively():
+    """A differently-cased model id still matches a per-model entry."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = _per_model_rates_state("GLM-5.3-Flash")
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    # glm-5.3-flash rates: 1000 * 0.15/M + 500 * 0.5/M = 0.00015 + 0.00025
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0004)
+
+
+def test_usage_extension_per_model_rates_fall_back_to_base_rates():
+    """A model with no per-model entry uses the flat base rates."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = _per_model_rates_state("qwen3:0.6b")
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    # Base rates: 1000 * 1.0/M + 500 * 3.2/M = 0.001 + 0.0016 = 0.0026
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0026)
+
+
+def test_usage_extension_per_model_entry_without_completion_falls_back():
+    """An incomplete per-model entry is skipped in favor of the base rates."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = {
+        "config": {
+            "model": "glm-5.2",
+            "token_rates": {
+                "input": 1.0,
+                "completion": 3.2,
+                "models": {"glm-5.2": {"input": 1.4}},
+            },
+        }
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    # Base rates: 1000 * 1.0/M + 500 * 3.2/M = 0.0026
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0026)
+
+
+def test_usage_extension_per_model_rates_support_cache_write():
+    """Per-model entries support the cache_write rate like the base shape."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "total_tokens": 1500,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 200,
+                        "cache_write_tokens": 100,
+                    },
+                }
+            },
+        }
+    ]
+    state = {
+        "config": {
+            "model": "glm-5.2",
+            "token_rates": {
+                "input": 1.0,
+                "completion": 3.2,
+                "models": {
+                    "glm-5.2": {
+                        "input": 1.4,
+                        "cached": 0.26,
+                        "cache_write": 5.0,
+                        "completion": 4.4,
+                    }
+                },
+            },
+        }
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    # 700 ordinary input * 1.4/M + 200 cached * 0.26/M + 100 cache write * 5.0/M
+    # + 500 output * 4.4/M = 0.00098 + 0.000052 + 0.0005 + 0.0022 = 0.003732
+    usage = new_finals[0]["_metadata"]["usage"]
+    assert usage["cost"] == pytest.approx(0.003732)
+    breakdown = new_finals[0]["_metadata"].get("usage_cost_breakdown") or {}
+    assert breakdown.get("cache_write") == pytest.approx(0.0005)
+    assert breakdown.get("cached") == pytest.approx(0.000052)
+
+
+def test_usage_extension_per_model_rates_use_config_model_without_request():
+    """Without a request payload, the config model drives the lookup."""
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [_usage_message()]
+    state = _per_model_rates_state("glm-5.2")
+    del state["request"]
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    assert new_finals[0]["_metadata"]["usage"]["cost"] == pytest.approx(0.0036)
+
+
+def test_usage_extension_token_rates_schema_declares_models_property():
+    """The config schema documents the per-model 'models' sub-mapping."""
+    ext = OpenAICompatibleUsageExtension()
+    schema = ext.get_config_schema()
+    rates = schema.get("token_rates")
+    assert isinstance(rates, dict)
+    models = rates.get("properties", {}).get("models")
+    assert isinstance(models, dict)
+    assert models.get("type") == "object"
+    entry_schema = models.get("additionalProperties")
+    assert isinstance(entry_schema, dict)
+    assert set(entry_schema.get("properties", {})) >= {
+        "input",
+        "cached",
+        "cache_write",
+        "completion",
+    }
+
+
 def test_usage_extension_full_flow_with_calculated_cost():
     """Test full flow: finalize injects cost, from_native_messages extracts it."""
     ext = OpenAICompatibleUsageExtension()
@@ -1040,3 +1267,110 @@ def test_usage_extension_session_total_across_multiple_turns():
     assert (
         rebuilt[-1]["metadata"]["usage_total_cost_cumulative_formatted"] == "$0.006000"
     )
+
+
+def test_cost_breakdown_from_rates_items():
+    """Per-item breakdown mirrors the rate-based cost calculation."""
+    usage = {
+        "prompt_tokens": 1000,
+        "completion_tokens": 500,
+        "prompt_tokens_details": {"cached_tokens": 200, "cache_write_tokens": 100},
+    }
+    token_rates = {
+        "input": 0.10,
+        "cached": 0.01,
+        "cache_write": 0.05,
+        "completion": 0.30,
+    }
+
+    breakdown = _cost_breakdown_from_rates(usage, token_rates)
+
+    assert breakdown == {
+        "input": pytest.approx(700 * 0.10 / 1_000_000),
+        "cached": pytest.approx(200 * 0.01 / 1_000_000),
+        "cache_write": pytest.approx(100 * 0.05 / 1_000_000),
+        "output": pytest.approx(500 * 0.30 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        _usage_cost(usage, token_rates=token_rates)
+    )
+
+
+def test_cost_breakdown_from_rates_omits_missing_items():
+    """Cache write is skipped without a rate; zero-token items are omitted."""
+    usage = {
+        "prompt_tokens": 1000,
+        "completion_tokens": 500,
+        "prompt_tokens_details": {"cache_write_tokens": 100},
+    }
+    token_rates = {"input": 0.10, "completion": 0.30}
+
+    breakdown = _cost_breakdown_from_rates(usage, token_rates)
+
+    assert set(breakdown) == {"input", "output"}
+    assert _cost_breakdown_from_rates(usage, None) is None
+    assert _cost_breakdown_from_rates(usage, {"input": 0.10}) is None
+
+
+def test_usage_extension_stamps_cost_breakdown_from_token_rates():
+    """Finalize stamps the per-item breakdown next to the calculated cost."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "prompt_tokens_details": {"cached_tokens": 200},
+                }
+            },
+        }
+    ]
+    state = {
+        "config": {"token_rates": {"input": 0.10, "cached": 0.01, "completion": 0.30}}
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    breakdown = new_finals[0]["_metadata"]["usage_cost_breakdown"]
+    assert breakdown == {
+        "input": pytest.approx(800 * 0.10 / 1_000_000),
+        "cached": pytest.approx(200 * 0.01 / 1_000_000),
+        "output": pytest.approx(500 * 0.30 / 1_000_000),
+    }
+    assert sum(breakdown.values()) == pytest.approx(
+        new_finals[0]["_metadata"]["usage"]["cost"]
+    )
+
+
+def test_usage_extension_skips_breakdown_for_provider_cost():
+    """A natively provider-reported cost carries no synthesized breakdown."""
+    ext = OpenAICompatibleUsageExtension()
+
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "hello",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 500,
+                    "cost": 0.00025,
+                }
+            },
+        }
+    ]
+    state = {
+        "config": {"token_rates": {"input": 0.10, "cached": 0.01, "completion": 0.30}}
+    }
+
+    new_finals, _new_native, _new_state = ext.finalize(
+        final_messages, list(final_messages), state
+    )
+
+    assert "usage_cost_breakdown" not in new_finals[0]["_metadata"]

@@ -1,5 +1,9 @@
 # Test 20: routed guidance reading
 
+Legacy status: retained for the direct pre/post comparison. It hard-codes the
+retired four-page route and is replaced by Test 27 for the current two-page
+guidance.
+
 Requirement coverage: `DOCREP-007`, `DOCVAL-009`
 
 ## Normative traceability
