@@ -66,21 +66,44 @@ approved candidate sections into `current/`, then compile current source.
 
 ## Consuming repositories
 
-A consuming repository stores:
+Known consumers:
 
-- its own `target.toml`;
-- its own `AGENTS.md.in`;
-- its own project-context and repository-rule sections;
-- optionally a machine-local command template outside version control.
+- `dprog-website` (git): vendored guidance under `maintainer/guidance/`,
+  outputs `AGENTS.md` and `TASKS-v7.md`.
+- IOCharts (tracked through its `frontend` repository): vendored guidance
+  under `frontend/.workspace-root/maintainer/guidance/`, compiles the
+  workspace-root `AGENTS.md` and its tracked mirror, plus `TASKS-v7.md`.
 
-It does not copy Crystal Lattice project templates. It points directly to the
-portable bundle in a Crystal Lattice checkout. The portable Documentation
-section supplies concise repository guidance; the consuming target keeps only
-its project-specific routes, paths, and exceptions. The consuming runtime
-determines how the compiled file is delivered and what authority it has.
-Updating the checkout to an accepted newer guidance commit and rerunning the
-same local command updates the compiled file.
+A consuming repository owns:
 
-Task guidance is delivered separately by Crystal Lattice runtime
-configuration. A consuming-project target normally compiles only its
-repository-owned `AGENTS.md`.
+- its own `target.toml`, templates, and project-context/repository-rule
+  sections;
+- a `sync.toml` describing which portable sections and shared doc files it
+  consumes;
+- its compile wrapper and delivery decisions.
+
+Portable (shared) bundle content: the `documentation`, `requirements`, and
+`testing-strategy` sections, the `tasks-v7` section when the consumer keeps a
+repository copy, and the project-independent authoring guide
+`docs/development/documentation.md`. The `root-testing` section is
+Crystal Lattice-specific and is not portable. The consuming target keeps only
+its project-specific routes, paths, and exceptions; the consuming runtime
+determines how compiled files are delivered and what authority they have.
+
+### Consumer synchronization
+
+`consumer_sync.py` is the shared synchronization tool. Each consumer vendors
+it unchanged next to `compiler.py` and describes itself in `sync.toml`
+(consumer id, portable sections, shared files with destination roots). From
+the consumer, refresh against a Crystal Lattice checkout:
+
+```bash
+python <consumer-guidance-dir>/consumer_sync.py \
+  /absolute/path/to/ai-agent-platform [--check]
+```
+
+The sync refreshes the vendored compiler and sync tool, the configured
+sections, regenerates the vendored `current/bundle.toml`, copies configured
+shared doc files to every destination root, and records the source revision
+and hashes in `sync-lock.json`. Recompile the consumer outputs afterwards
+with its compile wrapper.
