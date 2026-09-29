@@ -57,7 +57,7 @@
   "applicable_sections": [
     "Requirements checklist",
     "Supporting details",
-    "Execution plan",
+    "Implementation plan",
     "Questions and decisions"
   ],
   "acceptance_evidence": "One executed deployment with health verification and one executed rollback on a clean checkout."

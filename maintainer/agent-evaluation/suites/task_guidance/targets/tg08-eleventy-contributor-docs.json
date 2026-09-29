@@ -57,7 +57,7 @@
   "applicable_sections": [
     "Requirements checklist",
     "Supporting details",
-    "Execution plan",
+    "Implementation plan",
     "Questions and decisions"
   ],
   "acceptance_evidence": "Maintainer review against the content checklist; testing-boundary sections do not apply."

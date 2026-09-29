@@ -744,9 +744,11 @@ def assert_no_execution_plan(text: str) -> None:
 
 
 def assert_draft_execution_plan(text: str) -> None:
-    match = re.search(r"(?im)^##\s+execution\s+plan\s*$", text)
+    match = re.search(
+        r"(?im)^##\s+(?:execution|implementation)\s+plan\s*$", text
+    )
     if match is None:
-        raise AssertionError("missing ## Execution plan")
+        raise AssertionError("missing ## Implementation plan heading")
     plan = text[match.start() :]
     lines = plan.splitlines()
     first_content = next(
@@ -755,7 +757,7 @@ def assert_draft_execution_plan(text: str) -> None:
     )
     if first_content != "Status: Draft":
         raise AssertionError(
-            "Status: Draft must appear immediately below ## Execution plan"
+            "Status: Draft must appear immediately below the plan heading"
         )
     headings = (
         "### Implementation decisions and open questions",

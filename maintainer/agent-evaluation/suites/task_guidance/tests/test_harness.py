@@ -111,6 +111,42 @@ No change, because this is internal.
     assert_draft_execution_plan(text)
 
 
+def test_draft_plan_accepts_implementation_plan_heading() -> None:
+    text = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] Observable result.
+
+## Implementation plan
+
+Status: Draft
+
+Approach with risks and order logic.
+
+### Implementation decisions and open questions
+
+No open implementation questions.
+
+### Documentation
+
+No change, because this is internal.
+
+### Task checklist
+
+- [ ] Implement.
+
+### Requirement verification
+
+- Requirement: component test.
+"""
+
+    assert_draft_execution_plan(text)
+
+
 def test_default_creation_rejects_an_execution_plan() -> None:
     for heading in ("## Execution plan", "## Execution Plan", "## Plan (Draft)"):
         with pytest.raises(AssertionError, match="unexpectedly included"):

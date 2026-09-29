@@ -1,0 +1,6 @@
+format = 1
+id = "task-mechanics-b1v4"
+extends = "../../current"
+
+[overrides]
+tasks-v7 = "sections/tasks-v7.md"

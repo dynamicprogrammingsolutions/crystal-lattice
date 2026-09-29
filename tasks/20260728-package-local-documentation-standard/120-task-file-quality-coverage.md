@@ -61,9 +61,10 @@ agent.
   absent or explicitly marked as not-yet-made with what remains unresolved.
 - [ ] Every new scenario runs through the standard producer validity
   checks and the per-subject assessment path used by the existing matrix.
-- [ ] Guidance wording addressing the six gaps is drafted as a candidate
+- [x] Guidance wording addressing the six gaps is drafted as a candidate
   extending the promoted practical baseline once promotion lands, not
-  directly into current guidance.
+  directly into current guidance. (DONE September 27, 2026: candidate
+  `task-mechanics-b1v4`, see Implementation Notes.)
 - [ ] The suite's deterministic tests cover the new analyzer, the new
   stage wiring, and the new scenario configuration.
 
@@ -159,6 +160,33 @@ directories and connections; the matrix command set stays unchanged.
   conditional. All valid subjects fit their kind (10/10) and judged
   plans `justified` or `not_applicable`; assessments use valid samples
   only, invalid samples stay as producer-side variance evidence.
+
+- September 27, 2026 (guidance candidate b1v4 drafted): the candidate
+  extends the promoted v3 baseline with nine wording changes mapped to
+  the six gaps, the Layer 1 plan-content findings, and the September 27
+  amendment directions: `## Execution plan` renamed to
+  `## Implementation plan` everywhere (the section carries a decided
+  design, not a step list); conditional plan inclusion decided by the
+  author by default (explicit retain/omit followed, requirements-only
+  files valid, never invent — replaces the "ask" rule behind the two
+  producer failures); risks-and-way-back plus order logic as first-class
+  plan content with a complete-restatement duty (GENERIC-6 18%,
+  GENERIC-7 23%, retained 0/6, tg04 fabrication); per-section
+  readability with formatting elements as examples (27 partial
+  sections); self-containedness of files and presented summaries
+  (GENERIC-9); an eight-row placement taxonomy including the
+  notes-family sections; verification wording naming what it
+  deliberately does not cover and fitting evidence to the task kind
+  (GENERIC-5 55%); depth-follows-decisions conciseness (GENERIC-10);
+  Completion-Notes immutability with corrections under Post-completion
+  follow-up. Compile-checked against the crystal-lattice target
+  (output hash equals the source section). Suite compatibility:
+  `assert_draft_execution_plan` accepts both headings (new unit test),
+  tg07 acceptance wording and tg08–tg10 `applicable_sections` name the
+  new heading, scenarios export regenerated. 213 deterministic tests
+  green. The candidate is NOT promoted; promotion follows review and
+  the re-measurement ordering (candidate + infrastructure before any
+  run).
 
 ## Execution plan
 
