@@ -1494,3 +1494,40 @@ UI automation investigation:
   tester feedback. The task requirements and verification mapping were
   updated accordingly; the product still ships a universal binary and any
   reported Intel-specific defect remains release follow-up.
+
+### Production download infrastructure and first hosted run
+
+- The user authorized the proposed push, production stack updates, GitHub
+  variables, and build-only workflow run.
+- Local `main`, including the `develop` merge and release commit
+  `52aa5d9c7a9c4053959eadd9c9c2d34f20a86969`, was pushed to `origin/main`
+  on September 29, 2026.
+- Production stack `crystal-lattice-cli-downloads-prod` reached
+  `UPDATE_COMPLETE`. It preserved bucket
+  `crystal-lattice-cli-downloads-prod-874087778966`, distribution
+  `EJ5QPW5TUT5U9`, domain `download.crystallattice.dev`, certificate, and
+  CLI prefix while adding:
+  - `DesktopDownloadsPrefix = crystal-lattice-desktop`;
+  - `DesktopDownloadsBaseUrl =
+    https://download.crystallattice.dev/crystal-lattice-desktop`;
+  - desktop immutable-file cache behaviors.
+- OIDC stack `crystal-lattice-cli-downloads-github-oidc-prod` reached
+  `UPDATE_COMPLETE`. Read-only IAM inspection confirmed:
+  - trust for `main`, CLI tags, desktop tags, and the existing CLI
+    environment;
+  - `s3:ListBucket` constrained to CLI and desktop prefixes;
+  - object operations constrained to those two prefix ARNs;
+  - CloudFront invalidation constrained to distribution `EJ5QPW5TUT5U9`.
+- GitHub repository variables `DESKTOP_DOWNLOADS_PREFIX` and
+  `DESKTOP_DOWNLOADS_BASE_URL` were created with the approved values.
+- Build-only workflow run `36629046745` used commit `52aa5d9c...` and had
+  publication disabled. Checkout, configuration, Xcode 26.1.1, Node, Ruby,
+  Bundler, CocoaPods, and the Fastlane helper tests succeeded. It failed in
+  TypeScript before loading signing credentials because a clean runner had
+  installed only the desktop lockfile: shared package source under
+  `packages/frontend-rn-components` could not resolve root-workspace React
+  types.
+- The workflow now runs root `npm ci` followed by desktop `npm ci` and caches
+  both lockfiles. A fresh detached worktree with no preexisting
+  `node_modules` passed both installs and desktop TypeScript. No CI-only
+  resolution override or product-code shortcut was added.

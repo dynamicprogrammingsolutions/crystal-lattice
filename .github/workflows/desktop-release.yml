@@ -67,9 +67,14 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: desktop/crystal-lattice-control-desktop-rn/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            desktop/crystal-lattice-control-desktop-rn/package-lock.json
 
-      - name: Install JavaScript dependencies
+      - name: Install shared workspace dependencies
+        run: npm ci
+
+      - name: Install desktop JavaScript dependencies
         working-directory: desktop/crystal-lattice-control-desktop-rn
         run: npm ci
 
