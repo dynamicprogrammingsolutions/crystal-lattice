@@ -42,7 +42,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
 - [x] The manually gated simulator flow completes a real ChatGPT login, a real
   OpenAI Responses Codex-like tool request, credential reuse after relaunch,
   and reports an ungated skip as not run rather than success.
-- [ ] A focused human check on a physical iOS device confirms that starting
+- [x] A focused human check on a physical iOS device confirms that starting
   ChatGPT login reaches the URL/code display without
   `CERTIFICATE_VERIFY_FAILED`; broader acceptance remains simulator-based.
 - [x] Current mobile, provider, proxy, bundle, App Review, and operator
@@ -196,9 +196,9 @@ URL/code display without a certificate failure.
   external reviewer Responses row.
 - [x] Run the manually gated real ChatGPT simulator flow through tool use and
   relaunch.
-- [ ] Obtain human confirmation of the focused physical-device login-start
+- [x] Obtain human confirmation of the focused physical-device login-start
   check.
-- [ ] Complete requirement evidence, documentation, and immutable completion
+- [x] Complete requirement evidence, documentation, and immutable completion
   notes.
 
 ### Requirement verification
@@ -380,3 +380,35 @@ URL/code display without a certificate failure.
   `openai-codex`, the real `apply_patch` tool result, and `MATRIX_OPENAI`.
   This completes the ChatGPT simulator requirement; the separate
   physical-device TLS check still needs human confirmation.
+- 2026-09-29: The user installed the updated application on a physical iOS
+  device and confirmed that the focused ChatGPT login-start check succeeded:
+  the plugin-driven login reached the URL/code display without
+  `CERTIFICATE_VERIFY_FAILED`.
+
+## Completion Notes
+
+- The dedicated reviewer path now uses OpenAI Responses through the
+  authenticated, Luna-limited Ireland proxy with the Codex-like tool set and
+  explicit CA verification. Its Release-simulator request invoked
+  `apply_patch` and survived relaunch.
+- The generic OpenAI-compatible/Ollama path remains separate, while ordinary
+  OpenAI Responses supports explicit API-key or ChatGPT authentication.
+- Settings expose plugin-owned ChatGPT sign-in, status, cancellation, logout,
+  URL/code, and follow-up actions. Verified Certifi-backed HTTPS works in both
+  the simulator and the focused physical-device login-start check.
+- The manually gated Release-simulator test completed browser authorization,
+  a real ChatGPT-authenticated OpenAI Responses tool request, and relaunch
+  persistence. The ungated flow separately verifies login start/cancel and
+  reports the human-gated case as skipped.
+- During acceptance, the authenticated request exposed an embedded
+  non-streaming route. The final implementation streams effective ChatGPT
+  requests while preserving existing API-key and smoke-provider behavior.
+- Provider/package ZIP tests, runtime tests, TypeScript, documentation
+  preparation, Release builds, the provider matrix, Ireland reviewer path,
+  API-key OpenAI path, ChatGPT path, and physical-device login start supplied
+  the requirement evidence recorded above.
+- Later configuration ownership, default-plugin parity, final consumer-facing
+  naming, smoke-agent exposure, and the misleading legacy Qwen connection
+  metadata are intentionally deferred to the parent task's configuration and
+  product review. They do not reopen this completed reviewer/authentication
+  correction.

@@ -47,6 +47,92 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] On-device OpenAI settings use an explicit API-key or ChatGPT default,
   expose plugin-driven ChatGPT login controls, and retain independent
   per-session overrides.
+- [ ] The embedded runtime is defined by a reviewable JSON configuration owned
+  by the Python application, structurally aligned with the ordinary default
+  config; the mobile/native layer supplies user settings through explicit
+  env-like placeholder values instead of reconstructing the agent graph.
+- [ ] The embedded runtime includes the default-config plugins that are useful
+  and feasible on iOS, including the system-message feature, while every
+  omitted default plugin has an explicit compatibility or product rationale.
+- [ ] Consumer-facing connection names, profile labels, agent names, default
+  selection, profile order, and exposure of the proof-of-concept smoke agent
+  are treated as provisional until explicitly approved.
+- [ ] Selecting or displaying the reviewer path cannot silently show or
+  activate the legacy Qwen/Ollama-compatible profile.
+
+## Deferred configuration and product review
+
+These items were discovered after subtask `017` acceptance. They are recorded
+for later planning and are not approved implementation decisions.
+
+### Current facts
+
+- The checked-in embedded runtime writes an actual `config/config.json`, but
+  its source is the Python `_config_payload()` function rather than a
+  maintained JSON template.
+- Provider defaults and identities are duplicated across Python
+  `_config_payload()`, Swift `providerDefinitions`, TypeScript settings types
+  and ordering, and tests.
+- `agent_app` already supports `${env:...}` and `${file:...}` resolution plus
+  explicit `env_overrides`, so an embedding application can provide mobile
+  settings without mutating process-global environment state.
+- The embedded plugin list currently includes the selected provider/tool
+  packages and 12 application plugins for ChatGPT auth, title generation,
+  session actions, archive, search, metadata/status, ordering, pinning, and
+  attachments.
+- Compared with the ordinary default config, the embedded bundle omits
+  generally useful pure-Python candidates such as system message, request
+  options, timestamp/duration, summarize range, rebuild native history, and
+  cost tracking. File context and web context add GitPython/trafilatura
+  dependencies; MCP and cloud plugins have runtime responsibilities that may
+  be inappropriate for this first embedded runtime. Each inclusion and
+  exclusion still needs a deliberate compatibility review.
+- The runtime always exposes a `local` agent backed by
+  `EmbeddedSmokeProvider`, including when real providers are configured. This
+  began as proof-of-concept/recovery support and was not approved as final
+  product behavior.
+- Internal/provider-facing ids currently visible to users include
+  `compatible-claude`, `reviewer-codex`, `openai-codex`,
+  `openrouter-claude`, and `anthropic-claude`. The Codex-like and Claude-like
+  tool-family split was approved, and `reviewer-codex` was approved in
+  subtask `017`; that does not constitute approval of all final user-facing
+  names or of exposing internal ids as labels.
+- Connection labels currently vary among `On-device Python agents`,
+  `On-device Python agent`, and `On-device Python Agent`.
+
+### Reviewer/Qwen finding
+
+- The built-in connection record always projects its displayed `proxyUrl` and
+  `model` from legacy aliases bound to the generic compatible profile.
+  Consequently it can show `qwen3.5:0.8b` even when the runtime default is the
+  reviewer.
+- On a settings store with neither V3 nor V2 data, the compatibility migration
+  unconditionally enables the compatible profile and changes the default to
+  `compatible-claude`, even if no legacy URL/model/key exists.
+- The old **New connection → On-device Python Agent** wizard writes the legacy
+  `proxyUrl`/`model` shape, which enables the compatible profile and changes
+  the actual default to `compatible-claude`.
+- Selecting the already-created built-in connection does not itself rewrite
+  provider settings. Until the seam is corrected, reviewer verification
+  should use **Home → On-device providers**, enable and make the reviewer
+  default, save, then select the existing built-in connection. The old
+  on-device new-connection wizard should not be used.
+
+### Decisions requiring approval
+
+- Final user-facing connection name and whether the embedded runtime is
+  presented as one connection, one agent, or a set of local agents.
+- Final display names versus stable internal ids for each provider/tool-family
+  combination.
+- Whether the smoke/recovery provider remains hidden, remains visible under an
+  approved name, or is removed from production configuration.
+- Default profile, profile ordering, and whether the reviewer profile should
+  be preselected outside App Review.
+- Exact default-config plugin subset and explicit exclusions for iOS.
+- Exact Python-application location and ownership of the embedded JSON
+  template; the recommended direction is a maintained Python application
+  config copied into the iOS bundle, with native settings passed as
+  `env_overrides`.
 
 Related Task:
 tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md
@@ -62,8 +148,8 @@ the embedded implementation and its staged tool/provider enhancements.
 
 - Subtask `010` is complete.
 - Subtask `015` is complete historical implementation and verification.
-- Subtask `017` owns the approved reviewer Responses and ChatGPT
-  settings/TLS correction and is under execution.
+- Subtask `017` completed the approved reviewer Responses and ChatGPT
+  settings/TLS correction.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
 - ChatGPT authorization settings and the corrected production reviewer
@@ -75,6 +161,6 @@ the embedded implementation and its staged tool/provider enhancements.
 
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
-- [ ] `tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`
