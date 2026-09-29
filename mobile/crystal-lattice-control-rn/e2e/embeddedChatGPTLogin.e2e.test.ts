@@ -57,6 +57,24 @@ async function readText(testId: string): Promise<string> {
   return String(attributes.text ?? attributes.label ?? attributes.value ?? "");
 }
 
+async function readChatGPTLoginDetails(): Promise<{
+  url: string;
+  code: string;
+}> {
+  await waitFor(element(by.id("embedded-provider-openai-chatgpt-login-url")))
+    .toExist()
+    .withTimeout(30000);
+  await waitFor(element(by.id("embedded-provider-openai-chatgpt-login-code")))
+    .toExist()
+    .withTimeout(30000);
+  const url = await readText("embedded-provider-openai-chatgpt-login-url");
+  const code = await readText("embedded-provider-openai-chatgpt-login-code");
+  if (!url.startsWith("https://") || !code.trim()) {
+    throw new Error("ChatGPT login returned an invalid URL or empty code.");
+  }
+  return { url, code };
+}
+
 async function waitForChatGPTLogin(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastStatus = "";
@@ -128,6 +146,7 @@ loginStartDescribe("embedded OpenAI Responses ChatGPT login start", () => {
     await waitFor(element(by.text("ChatGPT Login")))
       .toBeVisible()
       .withTimeout(30000);
+    await readChatGPTLoginDetails();
     await tapById("embedded-provider-openai-chatgpt-cancel_login");
     await waitFor(element(by.text("The background ChatGPT login attempt was canceled.")))
       .toBeVisible()
@@ -153,11 +172,14 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
     await waitFor(
       element(by.id("action-display-action-copy-chatgpt-login-code"))
     )
-      .toBeVisible()
+      .toExist()
       .withTimeout(30000);
 
+    const { url, code } = await readChatGPTLoginDetails();
+    console.log(`ChatGPT login URL: ${url}`);
+    console.log(`ChatGPT login code: ${code}`);
     console.log(
-      "Use the displayed Open link and code to complete ChatGPT login, then return to the simulator."
+      "Open that URL in a browser, enter the code, approve login, and return to the simulator."
     );
     await waitForChatGPTLogin(900000);
     await waitFor(element(by.id("embedded-provider-openai-enabled")))

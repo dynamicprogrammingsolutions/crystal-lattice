@@ -121,6 +121,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
   const [chatGPTAuthState, setChatGPTAuthState] = useState<string | null>(
     null
   );
+  const [chatGPTLoginDetails, setChatGPTLoginDetails] = useState<{
+    url: string;
+    code: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -138,6 +142,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         setChatGPTDisplay(null);
         setChatGPTActionId(null);
         setChatGPTAuthState(null);
+        setChatGPTLoginDetails(null);
         setStatus({ tone: "idle", message: "" });
       })
       .catch((error) => {
@@ -250,6 +255,18 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       }
       if (typeof result.auth_status?.state === "string") {
         setChatGPTAuthState(result.auth_status.state);
+        if (
+          result.auth_status.state === "pending" &&
+          typeof result.auth_status.verification_url === "string" &&
+          typeof result.auth_status.user_code === "string"
+        ) {
+          setChatGPTLoginDetails({
+            url: result.auth_status.verification_url,
+            code: result.auth_status.user_code,
+          });
+        } else {
+          setChatGPTLoginDetails(null);
+        }
       }
       setStatus({ tone: "idle", message: "" });
     } catch (error) {
@@ -399,6 +416,28 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                 />
               ) : null}
             </View>
+            {(drafts.openai.authMode ?? "api") === "chatgpt" &&
+            chatGPTLoginDetails ? (
+              <View style={styles.chatGPTPanel}>
+                <Text style={styles.profileMeta}>
+                  Complete login in another browser:
+                </Text>
+                <Text
+                  testID="embedded-provider-openai-chatgpt-login-url"
+                  style={styles.profileMeta}
+                  selectable
+                >
+                  {chatGPTLoginDetails.url}
+                </Text>
+                <Text
+                  testID="embedded-provider-openai-chatgpt-login-code"
+                  style={styles.profileMeta}
+                  selectable
+                >
+                  {chatGPTLoginDetails.code}
+                </Text>
+              </View>
+            ) : null}
           </View>
           {PROFILE_ORDER.map((profileId) => {
             const draft = drafts[profileId];

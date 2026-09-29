@@ -185,6 +185,8 @@ export interface EmbeddedRuntimeApplicationActionResult {
   display?: ActionDisplayPayload;
   auth_status?: {
     state?: string;
+    verification_url?: string;
+    user_code?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;

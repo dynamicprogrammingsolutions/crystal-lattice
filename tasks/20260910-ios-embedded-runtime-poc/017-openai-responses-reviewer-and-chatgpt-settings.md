@@ -348,3 +348,10 @@ URL/code display without a certificate failure.
   with Open-link and Copy-code still visible. No human browser approval was
   observed, so the real authenticated tool request and relaunch requirement
   remains incomplete. The ungated start/cancel case remains passing.
+- 2026-09-29: The gated test now prints the plugin-returned login URL and
+  one-time code so a person can authorize in a computer browser. The same
+  values remain selectable in the on-device settings card. The ungated
+  start/cancel test verifies that they are present without printing a code.
+  Three settings component tests, TypeScript, the Release simulator build,
+  and the real ungated device-code start/cancel simulator test passed. Manual
+  approval and the authenticated tool/relaunch flow remain unverified.

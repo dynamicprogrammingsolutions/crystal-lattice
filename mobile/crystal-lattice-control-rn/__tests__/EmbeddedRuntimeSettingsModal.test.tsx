@@ -123,6 +123,8 @@ beforeEach(() => {
   jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValue({
     auth_status: {
       state: "pending",
+      verification_url: "https://auth.openai.test/device",
+      user_code: "ABCD-EFGH",
     },
     display: {
       format: "markdown",
@@ -238,6 +240,12 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
     screen.getByTestId("embedded-provider-openai-chatgpt-auth-state")
   ).toHaveTextContent("ChatGPT status: pending");
   expect(
+    screen.getByTestId("embedded-provider-openai-chatgpt-login-url")
+  ).toHaveTextContent("https://auth.openai.test/device");
+  expect(
+    screen.getByTestId("embedded-provider-openai-chatgpt-login-code")
+  ).toHaveTextContent("ABCD-EFGH");
+  expect(
     screen.getByTestId("action-display-action-open-chatgpt-login-link")
   ).toBeTruthy();
   expect(
@@ -268,6 +276,9 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
       screen.getByTestId("embedded-provider-openai-chatgpt-auth-state")
     ).toHaveTextContent("ChatGPT status: authenticated")
   );
+  expect(
+    screen.queryByTestId("embedded-provider-openai-chatgpt-login-code")
+  ).toBeNull();
   expect(
     screen.getByTestId("action-display-action-open-chatgpt-login-link")
   ).toBeTruthy();

@@ -329,13 +329,17 @@ npm run test:ios:embedded-providers:detox:chatgpt
 
 The human authorization, real Responses tool request, and relaunch portion is
 separately gated. This run opens a fresh login attempt and waits up to 15
-minutes for a person to approve its code. While it runs, in the simulator's
-**ChatGPT Login** card, choose **Open link**, enter the code shown in the card,
-approve the authorization in the browser, and return to the app. The
+minutes for a person to approve its code. The gated test prints
+`ChatGPT login URL` and `ChatGPT login code` to its console as soon as the
+plugin returns them. Open that URL on your computer, enter the code printed
+for this run, approve authorization in the browser, and return to the app.
+The same details remain visible in the simulator's **ChatGPT Login** card. The
 **ChatGPT status** line updates from `pending` to `authenticated` when the
 plugin completes login; the test then sends a real tool request and checks
 relaunch persistence. If no one completes the browser step, the test fails
 with the last observed status; that is not evidence of a completed login.
+The ungated start/cancel test checks the values without printing its
+short-lived code.
 
 ```bash
 CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
