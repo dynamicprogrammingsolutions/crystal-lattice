@@ -1,13 +1,13 @@
 """Application plugin for the duration tracking report.
 
-Exposes one session action backed by the SQLite duration store: a
-report showing the overall recorded duration, the request count, the
-per-request average, and the top sessions and projects by duration.
+Exposes report and reset session actions backed by the SQLite duration
+store. The report combines reset-aware current-project totals with fixed
+seven-day cross-project views.
 
 The store location is resolved the same way the duration tracking
 feature resolves it, so both surfaces read and write the same
-database. Duration is factual history: the report has no reset
-windows.
+database. Reset markers preserve recorded history and affect only the
+current-project report sections.
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def _project_display_name(working_directory: str) -> str:
 
 
 class DurationTrackingAppPlugin(ApplicationPlugin):
-    """Application plugin exposing the duration report action."""
+    """Application plugin exposing duration report, reset, and ingestion."""
 
     name = "duration_tracking_app"
     version = "0.1.0"
@@ -86,7 +86,24 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 "action_id": "show_duration_report",
                 "param_map": {"session_id": "$session.session_id"},
                 "dialog": {"kind": "none"},
-            }
+            },
+            {
+                "ui_type": "session_action",
+                "id": "duration_tracking_reset_project",
+                "label": "Reset duration report",
+                "icon": "rotate-ccw",
+                "order": 15,
+                "action_id": "reset_duration_tracking",
+                "param_map": {"session_id": "$session.session_id"},
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Reset duration report",
+                    "message": (
+                        "Start the current project's duration report from "
+                        "now? Recorded history will be preserved."
+                    ),
+                },
+            },
         ]
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -116,9 +133,8 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 "id": "show_duration_report",
                 "label": "Show duration report",
                 "description": (
-                    "Return the overall recorded duration, request count, "
-                    "and average, plus the top sessions and projects by "
-                    "duration."
+                    "Return reset-aware current-project totals and rankings, "
+                    "plus fixed seven-day daily and cross-project views."
                 ),
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
@@ -135,6 +151,18 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 "inputs": {
                     "request_id": {"type": "string", "required": True},
                     "spans": {"type": "array", "required": True},
+                },
+            },
+            {
+                "id": "reset_duration_tracking",
+                "label": "Reset duration report",
+                "description": (
+                    "Append a reset marker for the current project so its "
+                    "report summary and rankings start from now. Recorded "
+                    "history is preserved."
+                ),
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
                 },
             },
         ]
@@ -155,6 +183,8 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             return self._show_duration_report(app, state, params)
         if action_id == "record_human_time_spans":
             return self._record_human_time_spans(app, state, params)
+        if action_id == "reset_duration_tracking":
+            return self._reset_duration_tracking(app, state, params)
         raise KeyError(f"Unknown action_id {action_id!r}")
 
     # ------------------------------------------------------------------
@@ -195,249 +225,184 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
         session_id = self._required_session_id(params)
         session_config = self._session_config(app, session_id)
         db_path = self._db_path_from_session_config(session_config, state)
-        report = duration_store.overall_totals(db_path)
-        top_sessions = duration_store.top_sessions(db_path)
-        top_projects = duration_store.top_projects(db_path)
-        human_time_summary = duration_store.human_time_overall_totals(db_path)
-        human_time_top_sessions = duration_store.top_human_time_sessions(
-            db_path, limit=10
-        )
-        human_time_top_projects = duration_store.top_human_time_projects(
-            db_path, limit=3
-        )
-
-        llm_total_ms = int(report.get("total_ms") or 0)
-        tool_total_ms = int(report.get("tool_total_ms") or 0)
-        combined_total_ms = llm_total_ms + tool_total_ms
-        report = {**report, "combined_total_ms": combined_total_ms}
-
-        lines: List[str] = ["## Duration report", ""]
-        lines.append(f"- LLM duration: `{_format_duration_ms(llm_total_ms)}`")
-        lines.append(f"- Tool duration: `{_format_duration_ms(tool_total_ms)}`")
-        lines.append(
-            f"- LLM + tool duration: `{_format_duration_ms(combined_total_ms)}`"
-        )
-        lines.append(
-            "- Total human time: "
-            f"`{_format_duration_ms(int(human_time_summary.get('total_ms') or 0))}`"
-        )
-        request_count = int(report.get("request_count") or 0)
-        lines.append(f"- LLM calls: `{request_count:,}`")
-        if request_count > 0:
-            average = llm_total_ms / request_count
-            lines.append(f"- Average LLM call: `{_format_duration_ms(int(average))}`")
-
-        tool_call_count = int(report.get("tool_call_count") or 0)
-        lines.append(f"- Tool calls: `{tool_call_count:,}`")
-        if tool_call_count > 0:
-            tool_average = tool_total_ms / tool_call_count
-            lines.append(
-                f"- Average tool call: `{_format_duration_ms(int(tool_average))}`"
-            )
-
-        # Human time (subtasks 030/035): show the current session's total and
-        # compact collection diagnostics. Best-effort: a store failure never
-        # breaks the duration report.
-        human_time: Optional[Dict[str, Any]] = None
-        human_time_diagnostics: Dict[str, Any] = {
-            "session_collection_ready": False,
-            "sessionless_collection_ready": False,
-            "shared_store": False,
-            "session": None,
-            "application": None,
-            "last_request_id": None,
-            "last_processed_at": None,
-        }
         working_directory = self._resolve_working_directory(session_config)
-        application_working_directory = self._resolve_working_directory(
-            self._plugin_config(state)
-        )
-        application_db_path = self._default_db_path(state)
-        human_time_diagnostics.update(
-            {
-                "session_collection_ready": working_directory is not None,
-                "sessionless_collection_ready": (
-                    application_working_directory is not None
-                ),
-                "shared_store": db_path.resolve() == application_db_path.resolve(),
-            }
-        )
-        try:
-            if working_directory is not None:
-                session_diagnostics = duration_store.human_time_diagnostics(
-                    db_path,
-                    working_directory=working_directory,
-                    session_id=session_id,
-                )
-                human_time_diagnostics["session"] = session_diagnostics
-                human_time = {
-                    "span_count": session_diagnostics["span_count"],
-                    "total_ms": session_diagnostics["total_ms"],
-                }
-        except Exception:
-            human_time = None
-            human_time_diagnostics["session"] = None
-        try:
-            if application_working_directory is not None:
-                human_time_diagnostics["application"] = (
-                    duration_store.human_time_diagnostics(
-                        application_db_path,
-                        working_directory=application_working_directory,
-                    )
-                )
-        except Exception:
-            human_time_diagnostics["application"] = None
-
-        candidates = [
-            candidate
-            for candidate in (
-                human_time_diagnostics["session"],
-                human_time_diagnostics["application"],
+        if working_directory is None:
+            working_directory = self._resolve_working_directory(
+                self._plugin_config(state)
             )
-            if isinstance(candidate, dict) and candidate.get("last_processed_at")
+        if working_directory is None:
+            raise ValueError(
+                "[duration_tracking] working directory is required for the report"
+            )
+
+        project_summary = duration_store.project_totals_since_reset(
+            db_path, working_directory=working_directory
+        )
+        daily_totals = duration_store.daily_duration_totals(db_path, days=7)
+        top_projects = duration_store.top_projects_by_human_time_recent(
+            db_path, days=7, limit=3
+        )
+        top_project_sessions = (
+            duration_store.top_sessions_by_human_time_since_project_reset(
+                db_path, working_directory=working_directory, limit=10
+            )
+        )
+        top_recent_sessions = duration_store.top_sessions_by_human_time_recent(
+            db_path, days=7, limit=10
+        )
+        top_llm_sessions = duration_store.top_sessions_by_llm_time_since_project_reset(
+            db_path, working_directory=working_directory, limit=10
+        )
+        human_time_summary = duration_store.human_time_overall_totals(db_path)
+        human_time_diagnostics, human_time = self._collect_human_time_diagnostics(
+            db_path=db_path,
+            state=state,
+            session_id=session_id,
+            working_directory=working_directory,
+        )
+
+        llm_total_ms = int(project_summary.get("llm_total_ms") or 0)
+        tool_total_ms = int(project_summary.get("tool_total_ms") or 0)
+        human_total_ms = int(project_summary.get("human_total_ms") or 0)
+        request_count = int(project_summary.get("request_count") or 0)
+        tool_call_count = int(project_summary.get("tool_call_count") or 0)
+        reset_at = project_summary.get("last_reset_at")
+        window_label = f"Since `{reset_at}`" if reset_at else "All recorded history"
+
+        lines: List[str] = [
+            "## Duration report",
+            "",
+            "### Current project since reset",
+            "",
+            f"- Project: `{_project_display_name(working_directory)}`",
+            f"- Window: {window_label}",
+            f"- LLM duration: `{_format_duration_ms(llm_total_ms)}`",
+            f"- Tool duration: `{_format_duration_ms(tool_total_ms)}`",
+            (
+                "- LLM + tool duration: "
+                f"`{_format_duration_ms(llm_total_ms + tool_total_ms)}`"
+            ),
+            f"- Human time: `{_format_duration_ms(human_total_ms)}`",
+            (
+                "- Session-less human time: "
+                f"`{_format_duration_ms(int(project_summary.get('human_sessionless_ms') or 0))}`"
+            ),
+            f"- LLM calls: `{request_count:,}`",
         ]
-        if candidates:
-            latest = max(candidates, key=lambda item: item["last_processed_at"])
-            human_time_diagnostics["last_request_id"] = latest.get("last_request_id")
-            human_time_diagnostics["last_processed_at"] = latest.get(
-                "last_processed_at"
-            )
-
-        if human_time and int(human_time.get("span_count") or 0) > 0:
+        if request_count:
             lines.append(
-                "- Current session human time: "
-                f"`{_format_duration_ms(int(human_time.get('total_ms') or 0))}`"
+                "- Average LLM call: "
+                f"`{_format_duration_ms(int(llm_total_ms / request_count))}`"
             )
-        else:
-            human_time = None
+        lines.append(f"- Tool calls: `{tool_call_count:,}`")
+        if tool_call_count:
+            lines.append(
+                "- Average tool call: "
+                f"`{_format_duration_ms(int(tool_total_ms / tool_call_count))}`"
+            )
 
-        lines.extend(["", "### Human time", ""])
-        human_span_count = int(human_time_summary.get("span_count") or 0)
-        lines.append("- Stored spans: " f"`{human_span_count:,}`")
-        if human_time_top_sessions:
+        lines.extend(
+            [
+                "",
+                "### Last 7 days",
+                "",
+                "| Day | LLM time | Tool time | Human time |",
+                "| --- | --- | --- | --- |",
+            ]
+        )
+        for day, totals in daily_totals.items():
+            lines.append(
+                f"| {day} "
+                f"| `{_format_duration_ms(int(totals.get('llm_total_ms') or 0))}` "
+                f"| `{_format_duration_ms(int(totals.get('tool_total_ms') or 0))}` "
+                f"| `{_format_duration_ms(int(totals.get('human_total_ms') or 0))}` |"
+            )
+
+        if top_projects:
             lines.extend(
                 [
                     "",
-                    "#### Top sessions by human time",
+                    "### Top projects by human time — last 7 days",
                     "",
-                    "| Project | Session | Human time | Spans |",
-                    "| --- | --- | --- | --- |",
+                    "| Project | Human time | Session-less human | LLM time | Tool time |",
+                    "| --- | --- | --- | --- | --- |",
                 ]
             )
-            for entry in human_time_top_sessions:
+            for entry in top_projects:
                 lines.append(
                     f"| {_project_display_name(entry.get('working_directory') or '')} "
-                    f"| `{entry.get('session_id', '')}` "
-                    f"| `{_format_duration_ms(int(entry.get('total_ms') or 0))}` "
-                    f"| `{int(entry.get('span_count') or 0):,}` |"
+                    f"| `{_format_duration_ms(int(entry.get('human_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('human_sessionless_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('llm_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` |"
                 )
-        if human_time_top_projects:
+
+        if top_project_sessions:
             lines.extend(
                 [
                     "",
-                    "#### Top projects by human time",
+                    "### Top sessions by human time — current project since reset",
                     "",
-                    "| Project | Human time | Session-less | Spans |",
+                    "| Session | Human time | LLM time | Tool time |",
                     "| --- | --- | --- | --- |",
                 ]
             )
-            for entry in human_time_top_projects:
+            for entry in top_project_sessions:
                 lines.append(
-                    f"| {_project_display_name(entry.get('working_directory') or '')} "
-                    f"| `{_format_duration_ms(int(entry.get('total_ms') or 0))}` "
-                    f"| `{_format_duration_ms(int(entry.get('sessionless_ms') or 0))}` "
-                    f"| `{int(entry.get('span_count') or 0):,}` |"
+                    f"| `{entry.get('session_id', '')}` "
+                    f"| `{_format_duration_ms(int(entry.get('human_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('llm_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` |"
                 )
-        if human_span_count == 0:
-            lines.extend(["", "No human time records yet."])
 
-        lines.extend(["", "### Human time diagnostics", ""])
-        lines.append(
-            "- Session collection: "
-            f"`{'Ready' if human_time_diagnostics['session_collection_ready'] else 'Missing working directory'}`"
-        )
-        lines.append(
-            "- Session-less collection: "
-            f"`{'Ready' if human_time_diagnostics['sessionless_collection_ready'] else 'Missing application working directory'}`"
-        )
-        lines.append(
-            "- Storage targets: "
-            f"`{'Shared' if human_time_diagnostics['shared_store'] else 'Separate'}`"
-        )
-        session_diagnostics = human_time_diagnostics["session"]
-        if isinstance(session_diagnostics, dict):
-            session_span_count = int(session_diagnostics.get("span_count") or 0)
-            lines.append(
-                "- Current session: "
-                f"`{_format_duration_ms(int(session_diagnostics.get('total_ms') or 0))}` "
-                f"across `{session_span_count:,}` stored "
-                f"{'span' if session_span_count == 1 else 'spans'}"
+        if top_recent_sessions:
+            lines.extend(
+                [
+                    "",
+                    "### Top sessions by human time — last 7 days",
+                    "",
+                    "| Project | Session | Human time | LLM time | Tool time |",
+                    "| --- | --- | --- | --- | --- |",
+                ]
             )
-        application_diagnostics = human_time_diagnostics["application"]
-        if isinstance(application_diagnostics, dict):
-            application_span_count = int(application_diagnostics.get("span_count") or 0)
-            lines.append(
-                "- Application workspace: "
-                f"`{_format_duration_ms(int(application_diagnostics.get('total_ms') or 0))}` "
-                f"across `{application_span_count:,}` stored "
-                f"{'span' if application_span_count == 1 else 'spans'}"
-            )
-        if human_time_diagnostics["last_processed_at"]:
-            lines.append(
-                "- Last upload received: "
-                f"`{human_time_diagnostics['last_processed_at']}` "
-                f"(`{human_time_diagnostics['last_request_id']}`)"
-            )
-        else:
-            lines.append("- Last upload received: `Never`")
-
-        if request_count > 0:
-            lines.append("")
-            lines.append("### Top sessions by LLM duration")
-            lines.append("")
-            lines.append(
-                "| Project | Session | LLM duration | LLM calls | "
-                "Tool duration | Combined |"
-            )
-            lines.append("| --- | --- | --- | --- | --- | --- |")
-            for entry in top_sessions:
-                entry_llm_ms = int(entry.get("total_ms") or 0)
-                entry_tool_ms = int(entry.get("tool_total_ms") or 0)
+            for entry in top_recent_sessions:
                 lines.append(
                     f"| {_project_display_name(entry.get('working_directory') or '')} "
                     f"| `{entry.get('session_id', '')}` "
-                    f"| `{_format_duration_ms(entry_llm_ms)}` "
+                    f"| `{_format_duration_ms(int(entry.get('human_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('llm_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` |"
+                )
+
+        if top_llm_sessions:
+            lines.extend(
+                [
+                    "",
+                    "### Top sessions by LLM duration — current project since reset",
+                    "",
+                    "| Session | LLM duration | LLM calls | Tool time | Human time |",
+                    "| --- | --- | --- | --- | --- |",
+                ]
+            )
+            for entry in top_llm_sessions:
+                lines.append(
+                    f"| `{entry.get('session_id', '')}` "
+                    f"| `{_format_duration_ms(int(entry.get('llm_total_ms') or 0))}` "
                     f"| `{int(entry.get('request_count') or 0):,}` "
-                    f"| `{_format_duration_ms(entry_tool_ms)}` "
-                    f"| `{_format_duration_ms(entry_llm_ms + entry_tool_ms)}` |"
+                    f"| `{_format_duration_ms(int(entry.get('tool_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(entry.get('human_total_ms') or 0))}` |"
                 )
 
-            if top_projects:
-                lines.append("")
-                lines.append("### Top projects by LLM duration")
-                lines.append("")
-                lines.append(
-                    "| Project | LLM duration | LLM calls | Tool duration | Combined |"
-                )
-                lines.append("| --- | --- | --- | --- | --- |")
-                for entry in top_projects:
-                    entry_llm_ms = int(entry.get("total_ms") or 0)
-                    entry_tool_ms = int(entry.get("tool_total_ms") or 0)
-                    lines.append(
-                        f"| {_project_display_name(entry.get('working_directory') or '')} "
-                        f"| `{_format_duration_ms(entry_llm_ms)}` "
-                        f"| `{int(entry.get('request_count') or 0):,}` "
-                        f"| `{_format_duration_ms(entry_tool_ms)}` "
-                        f"| `{_format_duration_ms(entry_llm_ms + entry_tool_ms)}` |"
-                    )
-        else:
-            lines.append("")
-            lines.append("No duration records yet.")
-
-        lines.append("")
-        lines.append(
-            "LLM and tool duration totals cover all recorded calls; there "
-            "are no reset windows."
+        self._append_human_time_diagnostics(lines, human_time_diagnostics)
+        lines.extend(
+            [
+                "",
+                (
+                    "The current-project summary and current-project rankings "
+                    "start after that project's latest reset. Seven-day views "
+                    "use fixed calendar dates and are not affected by resets."
+                ),
+            ]
         )
 
         return {
@@ -450,14 +415,174 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 "dismissible": True,
                 "display_id": "duration-tracking-report",
             },
-            "report": report,
-            "top_sessions": top_sessions,
+            "report": project_summary,
+            "project_summary_since_reset": project_summary,
+            "daily_totals_last_7_days": daily_totals,
+            "top_sessions": top_project_sessions,
             "top_projects": top_projects,
+            "top_projects_last_7_days": top_projects,
+            "top_sessions_project_since_reset": top_project_sessions,
+            "top_sessions_last_7_days": top_recent_sessions,
+            "top_sessions_by_llm_project_since_reset": top_llm_sessions,
             "human_time": human_time,
             "human_time_summary": human_time_summary,
-            "human_time_top_sessions": human_time_top_sessions,
-            "human_time_top_projects": human_time_top_projects,
+            "human_time_top_sessions": top_project_sessions,
+            "human_time_top_projects": top_projects,
             "human_time_diagnostics": human_time_diagnostics,
+        }
+
+    def _collect_human_time_diagnostics(
+        self,
+        *,
+        db_path: Path,
+        state: Dict[str, Any],
+        session_id: str,
+        working_directory: str,
+    ) -> tuple:
+        """Return factual all-time collection diagnostics for the report."""
+
+        diagnostics: Dict[str, Any] = {
+            "session_collection_ready": True,
+            "sessionless_collection_ready": False,
+            "shared_store": False,
+            "session": None,
+            "application": None,
+            "last_request_id": None,
+            "last_processed_at": None,
+        }
+        application_working_directory = self._resolve_working_directory(
+            self._plugin_config(state)
+        )
+        application_db_path = self._default_db_path(state)
+        diagnostics.update(
+            {
+                "sessionless_collection_ready": (
+                    application_working_directory is not None
+                ),
+                "shared_store": db_path.resolve() == application_db_path.resolve(),
+            }
+        )
+        human_time: Optional[Dict[str, Any]] = None
+        try:
+            session_diagnostics = duration_store.human_time_diagnostics(
+                db_path,
+                working_directory=working_directory,
+                session_id=session_id,
+            )
+            diagnostics["session"] = session_diagnostics
+            if int(session_diagnostics.get("span_count") or 0) > 0:
+                human_time = {
+                    "span_count": session_diagnostics["span_count"],
+                    "total_ms": session_diagnostics["total_ms"],
+                }
+        except Exception:
+            diagnostics["session"] = None
+        try:
+            if application_working_directory is not None:
+                diagnostics["application"] = duration_store.human_time_diagnostics(
+                    application_db_path,
+                    working_directory=application_working_directory,
+                )
+        except Exception:
+            diagnostics["application"] = None
+
+        candidates = [
+            candidate
+            for candidate in (
+                diagnostics["session"],
+                diagnostics["application"],
+            )
+            if isinstance(candidate, dict) and candidate.get("last_processed_at")
+        ]
+        if candidates:
+            latest = max(candidates, key=lambda item: item["last_processed_at"])
+            diagnostics["last_request_id"] = latest.get("last_request_id")
+            diagnostics["last_processed_at"] = latest.get("last_processed_at")
+        return diagnostics, human_time
+
+    @staticmethod
+    def _append_human_time_diagnostics(
+        lines: List[str], diagnostics: Dict[str, Any]
+    ) -> None:
+        lines.extend(["", "### Human time diagnostics", ""])
+        lines.append(
+            "- Session collection: "
+            f"`{'Ready' if diagnostics['session_collection_ready'] else 'Missing working directory'}`"
+        )
+        lines.append(
+            "- Session-less collection: "
+            f"`{'Ready' if diagnostics['sessionless_collection_ready'] else 'Missing application working directory'}`"
+        )
+        lines.append(
+            "- Storage targets: "
+            f"`{'Shared' if diagnostics['shared_store'] else 'Separate'}`"
+        )
+        session_diagnostics = diagnostics["session"]
+        if isinstance(session_diagnostics, dict):
+            span_count = int(session_diagnostics.get("span_count") or 0)
+            lines.append(
+                "- Current session stored total: "
+                f"`{_format_duration_ms(int(session_diagnostics.get('total_ms') or 0))}` "
+                f"across `{span_count:,}` stored "
+                f"{'span' if span_count == 1 else 'spans'}"
+            )
+        application_diagnostics = diagnostics["application"]
+        if isinstance(application_diagnostics, dict):
+            span_count = int(application_diagnostics.get("span_count") or 0)
+            lines.append(
+                "- Application workspace stored total: "
+                f"`{_format_duration_ms(int(application_diagnostics.get('total_ms') or 0))}` "
+                f"across `{span_count:,}` stored "
+                f"{'span' if span_count == 1 else 'spans'}"
+            )
+        if diagnostics["last_processed_at"]:
+            lines.append(
+                "- Last upload received: "
+                f"`{diagnostics['last_processed_at']}` "
+                f"(`{diagnostics['last_request_id']}`)"
+            )
+        else:
+            lines.append("- Last upload received: `Never`")
+
+    def _reset_duration_tracking(
+        self, app: Any, state: Dict[str, Any], params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        session_id = self._required_session_id(params)
+        session_config = self._session_config(app, session_id)
+        working_directory = self._resolve_working_directory(session_config)
+        if working_directory is None:
+            working_directory = self._resolve_working_directory(
+                self._plugin_config(state)
+            )
+        if working_directory is None:
+            raise ValueError(
+                "[duration_tracking] working directory is required to reset the report"
+            )
+        db_path = self._db_path_from_session_config(session_config, state)
+        marker = duration_store.reset_project(
+            db_path, working_directory=working_directory
+        )
+        report = duration_store.project_totals_since_reset(
+            db_path, working_directory=working_directory
+        )
+        project_name = _project_display_name(working_directory)
+        return {
+            "display": {
+                "format": "markdown",
+                "title": "Duration report reset",
+                "body": (
+                    f"Started the duration report for `{project_name}` from "
+                    f"`{marker.get('reset_at')}`. Recorded history was preserved. "
+                    "Seven-day cross-project views are unchanged."
+                ),
+                "variant": "success",
+                "presentation": "modal",
+                "dismissible": True,
+                "display_id": "duration-tracking-reset",
+            },
+            "reset": marker,
+            "report": report,
+            "project_summary_since_reset": report,
         }
 
     @staticmethod

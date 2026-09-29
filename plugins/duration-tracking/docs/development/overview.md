@@ -78,6 +78,9 @@ Tables:
   time contract below).
 - `human_time_requests` — the request-id dedup gate: one row per processed
   upload batch (`request_id`, `processed_at`).
+- `duration_project_resets` — non-destructive report reset markers keyed by
+  `working_directory`. Only the latest marker for a project affects its
+  current-project report sections.
 
 All writes are best-effort: failures are swallowed and never break the
 request pipeline.
@@ -205,9 +208,10 @@ new 8:15–8:20 stores as two entries, 8:16–8:18 and 8:19–8:20. If only
 8:18–8:19 has a session, it keeps its range and the two session-less
 entries merge around it (8:14–8:18 and 8:19–8:20).
 
-Because `duration_ms` is stored per row, reports are plain SUM
-aggregations over durations; date-based reports are a follow-up and will
-anchor on start or end time, never both.
+Factual all-time totals are plain SUM aggregations over stored durations.
+Windowed reports treat LLM and tool rows as point events keyed by `time`.
+Human rows are intervals: a span crossing a project reset, the seven-day
+window boundary, or local midnight contributes only its overlapping portion.
 
 ### Surfacing
 
@@ -231,10 +235,22 @@ anchor on start or end time, never both.
 - The delta is an uploaded snapshot. Human spans that remain open or have not
   reached the plugin when the assistant message finalizes are reflected only
   by a later request; finalized messages are not rewritten.
-- The report action includes the overall human-time total, the current
-  session's human time when available, the top 10 sessions by human time, and
-  the top 3 projects. Project totals include all spans and show the
-  session-less portion in its own column. User-facing diagnostics follow:
+- The report action has two intentionally different windows:
+  - current-project summary, human-ranked top sessions, and LLM-ranked top
+    sessions cover records after that project's latest reset (or all project
+    history when it has never been reset);
+  - the daily breakdown, human-ranked top 3 projects, and human-ranked top 10
+    sessions across projects cover today and the six preceding local calendar
+    days and ignore reset markers.
+- Every ranking table shows human, LLM, and tool time. Project rankings also
+  show session-less human time; session-less spans never appear as sessions.
+  Human-ranked tables use human-bearing projects/sessions as their population,
+  so a human-only row is retained even without an LLM call.
+- **Reset duration report** derives the project from the selected session and
+  appends a `duration_project_resets` marker after confirmation. Recorded rows,
+  fixed seven-day views, message metadata, and status-bar session totals are
+  preserved.
+- User-facing diagnostics remain factual all-time collection information:
   session and session-less target readiness, shared versus separate stores,
   stored session/application totals, and the latest accepted upload. Absolute
   database paths are not displayed.

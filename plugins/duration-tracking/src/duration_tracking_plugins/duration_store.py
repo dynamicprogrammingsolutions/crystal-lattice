@@ -123,6 +123,17 @@ _SCHEMA_STATEMENTS = (
         processed_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS duration_project_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        time TEXT NOT NULL,
+        working_directory TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_duration_project_resets_project_time
+    ON duration_project_resets(working_directory, time)
+    """,
 )
 
 _write_lock = threading.Lock()
@@ -1069,6 +1080,706 @@ def top_human_time_projects(db_path: Path, *, limit: int = 3) -> List[Dict[str, 
         conn.close()
 
 
+def _validated_limit(limit: int, default: int) -> int:
+    return limit if isinstance(limit, int) and limit > 0 else default
+
+
+def _validated_days(days: int) -> int:
+    return days if isinstance(days, int) and days > 0 else 7
+
+
+def _last_project_reset_time(
+    conn: sqlite3.Connection, working_directory: str
+) -> Optional[str]:
+    row = conn.execute(
+        """
+        SELECT MAX(time)
+        FROM duration_project_resets
+        WHERE working_directory = ?
+        """,
+        (working_directory,),
+    ).fetchone()
+    if row and isinstance(row[0], str):
+        return row[0]
+    return None
+
+
+def reset_project(
+    db_path: Path,
+    *,
+    working_directory: str,
+    time: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Append a non-destructive report reset marker for one project."""
+
+    if not isinstance(working_directory, str) or not working_directory.strip():
+        raise ValueError("working_directory must be a non-empty string")
+    project = working_directory.strip()
+    marker_time = time if isinstance(time, str) and time else utcnow_iso()
+    with _write_lock:
+        conn = _connect(db_path)
+        try:
+            _ensure_schema(conn)
+            conn.execute(
+                """
+                INSERT INTO duration_project_resets (time, working_directory)
+                VALUES (?, ?)
+                """,
+                (marker_time, project),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    return {"working_directory": project, "reset_at": marker_time}
+
+
+def project_totals_since_reset(
+    db_path: Path, *, working_directory: str
+) -> Dict[str, Any]:
+    """Return one project's LLM, tool, and human totals since its reset.
+
+    LLM and tool rows are point events keyed by ``time``. Human spans are
+    intervals: a span crossing the reset contributes only the portion after
+    the marker. With no reset, the result covers all recorded project history.
+    """
+
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        reset_at = _last_project_reset_time(conn, working_directory)
+        reset_params = (
+            (working_directory,) if reset_at is None else (working_directory, reset_at)
+        )
+        reset_filter = "" if reset_at is None else " AND julianday(time) > julianday(?)"
+        llm_row = conn.execute(
+            f"""
+            SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+            FROM duration_requests
+            WHERE working_directory = ?{reset_filter}
+            """,
+            reset_params,
+        ).fetchone()
+        tool_row = conn.execute(
+            f"""
+            SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+            FROM tool_durations
+            WHERE working_directory = ?{reset_filter}
+            """,
+            reset_params,
+        ).fetchone()
+        if reset_at is None:
+            human_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(SUM(duration_ms), 0),
+                    COALESCE(
+                        SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END),
+                        0
+                    ),
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN session_id IS NULL THEN duration_ms
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    )
+                FROM human_time_spans
+                WHERE working_directory = ?
+                """,
+                (working_directory,),
+            ).fetchone()
+        else:
+            human_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(
+                        ROUND(
+                            SUM(
+                                CASE
+                                    WHEN julianday(from_time) >= julianday(?)
+                                        THEN duration_ms
+                                    ELSE
+                                        MAX(
+                                            0,
+                                            (
+                                                julianday(to_time)
+                                                - julianday(?)
+                                            ) * 86400000.0
+                                        )
+                                END
+                            )
+                        ),
+                        0
+                    ),
+                    COALESCE(
+                        SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END),
+                        0
+                    ),
+                    COALESCE(
+                        ROUND(
+                            SUM(
+                                CASE
+                                    WHEN session_id IS NOT NULL THEN 0
+                                    WHEN julianday(from_time) >= julianday(?)
+                                        THEN duration_ms
+                                    ELSE
+                                        MAX(
+                                            0,
+                                            (
+                                                julianday(to_time)
+                                                - julianday(?)
+                                            ) * 86400000.0
+                                        )
+                                END
+                            )
+                        ),
+                        0
+                    )
+                FROM human_time_spans
+                WHERE working_directory = ?
+                  AND julianday(to_time) > julianday(?)
+                """,
+                (
+                    reset_at,
+                    reset_at,
+                    reset_at,
+                    reset_at,
+                    working_directory,
+                    reset_at,
+                ),
+            ).fetchone()
+        llm_total_ms = int(llm_row[1]) if llm_row else 0
+        tool_total_ms = int(tool_row[1]) if tool_row else 0
+        return {
+            "working_directory": working_directory,
+            "last_reset_at": reset_at,
+            "request_count": int(llm_row[0]) if llm_row else 0,
+            "llm_total_ms": llm_total_ms,
+            "tool_call_count": int(tool_row[0]) if tool_row else 0,
+            "tool_total_ms": tool_total_ms,
+            "combined_total_ms": llm_total_ms + tool_total_ms,
+            "human_span_count": int(human_row[0]) if human_row else 0,
+            "human_total_ms": int(human_row[1]) if human_row else 0,
+            "human_sessionless_span_count": int(human_row[2]) if human_row else 0,
+            "human_sessionless_ms": int(human_row[3]) if human_row else 0,
+        }
+    finally:
+        conn.close()
+
+
+def daily_duration_totals(db_path: Path, *, days: int = 7) -> Dict[str, Dict[str, int]]:
+    """Return zero-filled local-calendar-day LLM, tool, and human totals.
+
+    Project reset markers do not affect this fixed historical view. Human
+    spans crossing local midnight are split between the applicable days.
+    """
+
+    days = _validated_days(days)
+    window_modifier = f"-{days - 1} days"
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        day_rows = conn.execute(
+            """
+            WITH RECURSIVE window_days(day) AS (
+                SELECT date('now', 'localtime', ?)
+                UNION ALL
+                SELECT date(day, '+1 day')
+                FROM window_days
+                WHERE day < date('now', 'localtime')
+            )
+            SELECT day FROM window_days ORDER BY day
+            """,
+            (window_modifier,),
+        ).fetchall()
+        totals: Dict[str, Dict[str, int]] = {
+            row[0]: {
+                "llm_total_ms": 0,
+                "tool_total_ms": 0,
+                "human_total_ms": 0,
+            }
+            for row in day_rows
+        }
+        for table, key in (
+            ("duration_requests", "llm_total_ms"),
+            ("tool_durations", "tool_total_ms"),
+        ):
+            rows = conn.execute(
+                f"""
+                SELECT date(time, 'localtime'),
+                       COALESCE(SUM(duration_ms), 0)
+                FROM {table}
+                WHERE date(time, 'localtime')
+                    BETWEEN date('now', 'localtime', ?)
+                        AND date('now', 'localtime')
+                GROUP BY date(time, 'localtime')
+                """,
+                (window_modifier,),
+            ).fetchall()
+            for day, total_ms in rows:
+                if day in totals:
+                    totals[day][key] = int(total_ms)
+
+        human_rows = conn.execute(
+            """
+            WITH RECURSIVE window_days(day) AS (
+                SELECT date('now', 'localtime', ?)
+                UNION ALL
+                SELECT date(day, '+1 day')
+                FROM window_days
+                WHERE day < date('now', 'localtime')
+            )
+            SELECT
+                day,
+                COALESCE(
+                    ROUND(
+                        SUM(
+                            MAX(
+                                0,
+                                (
+                                    MIN(
+                                        julianday(to_time),
+                                        julianday(
+                                            datetime(day, '+1 day', 'utc')
+                                        )
+                                    )
+                                    - MAX(
+                                        julianday(from_time),
+                                        julianday(datetime(day, 'utc'))
+                                    )
+                                ) * 86400000.0
+                            )
+                        )
+                    ),
+                    0
+                )
+            FROM window_days
+            JOIN human_time_spans
+              ON julianday(to_time) > julianday(datetime(day, 'utc'))
+             AND julianday(from_time)
+                    < julianday(datetime(day, '+1 day', 'utc'))
+            GROUP BY day
+            ORDER BY day
+            """,
+            (window_modifier,),
+        ).fetchall()
+        for day, total_ms in human_rows:
+            if day in totals:
+                totals[day]["human_total_ms"] = int(total_ms)
+        return totals
+    finally:
+        conn.close()
+
+
+def _recent_session_aggregates(conn: sqlite3.Connection, *, days: int) -> tuple:
+    window_modifier = f"-{days - 1} days"
+    llm_rows = conn.execute(
+        """
+        SELECT working_directory, session_id, COUNT(*),
+               COALESCE(SUM(duration_ms), 0)
+        FROM duration_requests
+        WHERE working_directory IS NOT NULL
+          AND session_id IS NOT NULL
+          AND julianday(time) >= julianday(
+                datetime(date('now', 'localtime', ?), 'utc')
+          )
+          AND julianday(time) < julianday(
+                datetime(date('now', 'localtime', '+1 day'), 'utc')
+          )
+        GROUP BY working_directory, session_id
+        """,
+        (window_modifier,),
+    ).fetchall()
+    tool_rows = conn.execute(
+        """
+        SELECT working_directory, session_id, COUNT(*),
+               COALESCE(SUM(duration_ms), 0)
+        FROM tool_durations
+        WHERE working_directory IS NOT NULL
+          AND session_id IS NOT NULL
+          AND julianday(time) >= julianday(
+                datetime(date('now', 'localtime', ?), 'utc')
+          )
+          AND julianday(time) < julianday(
+                datetime(date('now', 'localtime', '+1 day'), 'utc')
+          )
+        GROUP BY working_directory, session_id
+        """,
+        (window_modifier,),
+    ).fetchall()
+    human_rows = conn.execute(
+        """
+        WITH bounds AS (
+            SELECT
+                julianday(
+                    datetime(date('now', 'localtime', ?), 'utc')
+                ) AS start_jd,
+                julianday(
+                    datetime(date('now', 'localtime', '+1 day'), 'utc')
+                ) AS end_jd
+        )
+        SELECT
+            working_directory,
+            session_id,
+            COUNT(*),
+            COALESCE(
+                ROUND(
+                    SUM(
+                        MAX(
+                            0,
+                            (
+                                MIN(julianday(to_time), end_jd)
+                                - MAX(julianday(from_time), start_jd)
+                            ) * 86400000.0
+                        )
+                    )
+                ),
+                0
+            )
+        FROM human_time_spans, bounds
+        WHERE session_id IS NOT NULL
+          AND julianday(to_time) > start_jd
+          AND julianday(from_time) < end_jd
+        GROUP BY working_directory, session_id
+        """,
+        (window_modifier,),
+    ).fetchall()
+    return llm_rows, tool_rows, human_rows
+
+
+def _project_session_aggregates_since_reset(
+    conn: sqlite3.Connection, *, working_directory: str
+) -> tuple:
+    reset_at = _last_project_reset_time(conn, working_directory)
+    point_filter = "" if reset_at is None else " AND julianday(time) > julianday(?)"
+    point_params = (
+        (working_directory,) if reset_at is None else (working_directory, reset_at)
+    )
+    llm_rows = conn.execute(
+        f"""
+        SELECT session_id, COUNT(*), COALESCE(SUM(duration_ms), 0)
+        FROM duration_requests
+        WHERE working_directory = ?
+          AND session_id IS NOT NULL{point_filter}
+        GROUP BY session_id
+        """,
+        point_params,
+    ).fetchall()
+    tool_rows = conn.execute(
+        f"""
+        SELECT session_id, COUNT(*), COALESCE(SUM(duration_ms), 0)
+        FROM tool_durations
+        WHERE working_directory = ?
+          AND session_id IS NOT NULL{point_filter}
+        GROUP BY session_id
+        """,
+        point_params,
+    ).fetchall()
+    if reset_at is None:
+        human_rows = conn.execute(
+            """
+            SELECT session_id, COUNT(*), COALESCE(SUM(duration_ms), 0)
+            FROM human_time_spans
+            WHERE working_directory = ?
+              AND session_id IS NOT NULL
+            GROUP BY session_id
+            """,
+            (working_directory,),
+        ).fetchall()
+    else:
+        human_rows = conn.execute(
+            """
+            SELECT
+                session_id,
+                COUNT(*),
+                COALESCE(
+                    ROUND(
+                        SUM(
+                            CASE
+                                WHEN julianday(from_time) >= julianday(?)
+                                    THEN duration_ms
+                                ELSE
+                                    MAX(
+                                        0,
+                                        (
+                                            julianday(to_time)
+                                            - julianday(?)
+                                        ) * 86400000.0
+                                    )
+                            END
+                        )
+                    ),
+                    0
+                )
+            FROM human_time_spans
+            WHERE working_directory = ?
+              AND session_id IS NOT NULL
+              AND julianday(to_time) > julianday(?)
+            GROUP BY session_id
+            """,
+            (reset_at, reset_at, working_directory, reset_at),
+        ).fetchall()
+    return llm_rows, tool_rows, human_rows
+
+
+def _session_entries(
+    *,
+    human_rows: List[tuple],
+    llm_rows: List[tuple],
+    tool_rows: List[tuple],
+    include_project: bool,
+    rank_by: str,
+    limit: int,
+) -> List[Dict[str, Any]]:
+    key_size = 2 if include_project else 1
+
+    def split(row: tuple) -> tuple:
+        return tuple(row[:key_size]), int(row[key_size]), int(row[key_size + 1])
+
+    human = {key: (count, total) for key, count, total in map(split, human_rows)}
+    llm = {key: (count, total) for key, count, total in map(split, llm_rows)}
+    tool = {key: (count, total) for key, count, total in map(split, tool_rows)}
+    ranked_source = human if rank_by == "human" else llm
+    entries: List[Dict[str, Any]] = []
+    for key in ranked_source:
+        human_count, human_total = human.get(key, (0, 0))
+        llm_count, llm_total = llm.get(key, (0, 0))
+        tool_count, tool_total = tool.get(key, (0, 0))
+        entry: Dict[str, Any] = {
+            "session_id": key[-1],
+            "human_span_count": human_count,
+            "human_total_ms": human_total,
+            "request_count": llm_count,
+            "llm_total_ms": llm_total,
+            "tool_call_count": tool_count,
+            "tool_total_ms": tool_total,
+        }
+        if include_project:
+            entry["working_directory"] = key[0]
+        entries.append(entry)
+    rank_key = "human_total_ms" if rank_by == "human" else "llm_total_ms"
+    count_key = "human_span_count" if rank_by == "human" else "request_count"
+    entries.sort(
+        key=lambda entry: (
+            -int(entry[rank_key]),
+            -int(entry[count_key]),
+            str(entry.get("working_directory") or ""),
+            str(entry["session_id"]),
+        )
+    )
+    return entries[:limit]
+
+
+def top_sessions_by_human_time_since_project_reset(
+    db_path: Path, *, working_directory: str, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """Return one project's human-ranked sessions since its latest reset."""
+
+    limit = _validated_limit(limit, 10)
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        llm_rows, tool_rows, human_rows = _project_session_aggregates_since_reset(
+            conn, working_directory=working_directory
+        )
+        return _session_entries(
+            human_rows=human_rows,
+            llm_rows=llm_rows,
+            tool_rows=tool_rows,
+            include_project=False,
+            rank_by="human",
+            limit=limit,
+        )
+    finally:
+        conn.close()
+
+
+def top_sessions_by_llm_time_since_project_reset(
+    db_path: Path, *, working_directory: str, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """Return one project's LLM-ranked sessions since its latest reset."""
+
+    limit = _validated_limit(limit, 10)
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        llm_rows, tool_rows, human_rows = _project_session_aggregates_since_reset(
+            conn, working_directory=working_directory
+        )
+        return _session_entries(
+            human_rows=human_rows,
+            llm_rows=llm_rows,
+            tool_rows=tool_rows,
+            include_project=False,
+            rank_by="llm",
+            limit=limit,
+        )
+    finally:
+        conn.close()
+
+
+def top_sessions_by_human_time_recent(
+    db_path: Path, *, days: int = 7, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """Return human-ranked sessions across projects for recent local days."""
+
+    days = _validated_days(days)
+    limit = _validated_limit(limit, 10)
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        llm_rows, tool_rows, human_rows = _recent_session_aggregates(conn, days=days)
+        return _session_entries(
+            human_rows=human_rows,
+            llm_rows=llm_rows,
+            tool_rows=tool_rows,
+            include_project=True,
+            rank_by="human",
+            limit=limit,
+        )
+    finally:
+        conn.close()
+
+
+def top_projects_by_human_time_recent(
+    db_path: Path, *, days: int = 7, limit: int = 3
+) -> List[Dict[str, Any]]:
+    """Return recent projects ranked by human time, with all three times."""
+
+    days = _validated_days(days)
+    limit = _validated_limit(limit, 3)
+    window_modifier = f"-{days - 1} days"
+    conn = _connect(db_path)
+    try:
+        _ensure_schema(conn)
+        llm_rows = conn.execute(
+            """
+            SELECT working_directory, COUNT(*),
+                   COALESCE(SUM(duration_ms), 0)
+            FROM duration_requests
+            WHERE working_directory IS NOT NULL
+              AND julianday(time) >= julianday(
+                    datetime(date('now', 'localtime', ?), 'utc')
+              )
+              AND julianday(time) < julianday(
+                    datetime(date('now', 'localtime', '+1 day'), 'utc')
+              )
+            GROUP BY working_directory
+            """,
+            (window_modifier,),
+        ).fetchall()
+        tool_rows = conn.execute(
+            """
+            SELECT working_directory, COUNT(*),
+                   COALESCE(SUM(duration_ms), 0)
+            FROM tool_durations
+            WHERE working_directory IS NOT NULL
+              AND julianday(time) >= julianday(
+                    datetime(date('now', 'localtime', ?), 'utc')
+              )
+              AND julianday(time) < julianday(
+                    datetime(date('now', 'localtime', '+1 day'), 'utc')
+              )
+            GROUP BY working_directory
+            """,
+            (window_modifier,),
+        ).fetchall()
+        human_rows = conn.execute(
+            """
+            WITH bounds AS (
+                SELECT
+                    julianday(
+                        datetime(date('now', 'localtime', ?), 'utc')
+                    ) AS start_jd,
+                    julianday(
+                        datetime(date('now', 'localtime', '+1 day'), 'utc')
+                    ) AS end_jd
+            )
+            SELECT
+                working_directory,
+                COUNT(*),
+                COALESCE(
+                    ROUND(
+                        SUM(
+                            MAX(
+                                0,
+                                (
+                                    MIN(julianday(to_time), end_jd)
+                                    - MAX(julianday(from_time), start_jd)
+                                ) * 86400000.0
+                            )
+                        )
+                    ),
+                    0
+                ),
+                COALESCE(
+                    SUM(CASE WHEN session_id IS NULL THEN 1 ELSE 0 END),
+                    0
+                ),
+                COALESCE(
+                    ROUND(
+                        SUM(
+                            CASE
+                                WHEN session_id IS NOT NULL THEN 0
+                                ELSE
+                                    MAX(
+                                        0,
+                                        (
+                                            MIN(julianday(to_time), end_jd)
+                                            - MAX(
+                                                julianday(from_time),
+                                                start_jd
+                                            )
+                                        ) * 86400000.0
+                                    )
+                            END
+                        )
+                    ),
+                    0
+                )
+            FROM human_time_spans, bounds
+            WHERE julianday(to_time) > start_jd
+              AND julianday(from_time) < end_jd
+            GROUP BY working_directory
+            """,
+            (window_modifier,),
+        ).fetchall()
+        llm = {row[0]: (int(row[1]), int(row[2])) for row in llm_rows}
+        tool = {row[0]: (int(row[1]), int(row[2])) for row in tool_rows}
+        entries: List[Dict[str, Any]] = []
+        for row in human_rows:
+            working_directory = row[0]
+            llm_count, llm_total = llm.get(working_directory, (0, 0))
+            tool_count, tool_total = tool.get(working_directory, (0, 0))
+            entries.append(
+                {
+                    "working_directory": working_directory,
+                    "human_span_count": int(row[1]),
+                    "human_total_ms": int(row[2]),
+                    "human_sessionless_span_count": int(row[3]),
+                    "human_sessionless_ms": int(row[4]),
+                    "request_count": llm_count,
+                    "llm_total_ms": llm_total,
+                    "tool_call_count": tool_count,
+                    "tool_total_ms": tool_total,
+                }
+            )
+        entries.sort(
+            key=lambda entry: (
+                -int(entry["human_total_ms"]),
+                -int(entry["human_span_count"]),
+                str(entry["working_directory"]),
+            )
+        )
+        return entries[:limit]
+    finally:
+        conn.close()
+
+
 def human_time_diagnostics(
     db_path: Path,
     *,
@@ -1124,14 +1835,17 @@ __all__ = [
     "HUMAN_TIME_SPANS_BATCH_CAP",
     "append_request_summary_csv",
     "count_invalid_human_time_spans",
+    "daily_duration_totals",
     "human_time_diagnostics",
     "human_time_overall_totals",
     "human_time_project_totals",
     "human_time_session_totals",
     "overall_totals",
+    "project_totals_since_reset",
     "record_human_time_spans",
     "record_request_duration",
     "record_tool_duration",
+    "reset_project",
     "resolve_duration_db_path",
     "resolve_summary_csv_path",
     "session_totals",
@@ -1139,7 +1853,11 @@ __all__ = [
     "tool_session_totals",
     "top_human_time_projects",
     "top_human_time_sessions",
+    "top_projects_by_human_time_recent",
     "top_projects",
+    "top_sessions_by_human_time_recent",
+    "top_sessions_by_human_time_since_project_reset",
+    "top_sessions_by_llm_time_since_project_reset",
     "top_sessions",
     "utcnow_iso",
 ]

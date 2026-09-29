@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import os
 import sqlite3
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -65,6 +66,18 @@ def _request_rows(db_path: Path) -> List[Dict[str, Any]]:
         conn.close()
 
 
+def _local_time_iso(
+    *,
+    days_ago: int = 0,
+    hour: int = 12,
+    minute: int = 0,
+) -> str:
+    local_now = datetime.now().astimezone()
+    local_day = local_now.date() - timedelta(days=days_ago)
+    local_value = datetime.combine(local_day, time(hour, minute), local_now.tzinfo)
+    return local_value.astimezone(timezone.utc).isoformat()
+
+
 def test_schema_creates_both_tables(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
     assert _record(db_path, request_id="r1") is True
@@ -99,6 +112,14 @@ def test_schema_creates_both_tables(tmp_path: Path) -> None:
     }
     assert "idx_duration_requests_round" in _table_indexes(db_path, "duration_requests")
     assert "idx_tool_durations_call" in _table_indexes(db_path, "tool_durations")
+    assert _table_columns(db_path, "duration_project_resets") == {
+        "id",
+        "time",
+        "working_directory",
+    }
+    assert "idx_duration_project_resets_project_time" in _table_indexes(
+        db_path, "duration_project_resets"
+    )
 
 
 def test_record_and_session_totals(tmp_path: Path) -> None:
@@ -1363,3 +1384,300 @@ def test_human_time_invalid_request_id_or_spans_raise(tmp_path: Path) -> None:
         duration_store.record_human_time_spans(
             db_path, working_directory="/tmp/ws", request_id="r", spans=None
         )
+
+
+def test_project_reset_is_per_project_and_clips_crossing_human_span(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    before = "2026-09-29T08:30:00+00:00"
+    reset_at = "2026-09-29T09:00:00+00:00"
+    after = "2026-09-29T10:00:00+00:00"
+
+    _record(
+        db_path,
+        working_directory="/tmp/alpha",
+        session_id="a",
+        duration_ms=100,
+        time=before,
+    )
+    _record(
+        db_path,
+        working_directory="/tmp/alpha",
+        session_id="a",
+        duration_ms=200,
+        time=after,
+    )
+    _record(
+        db_path,
+        working_directory="/tmp/beta",
+        session_id="b",
+        duration_ms=300,
+        time=before,
+    )
+    duration_store.record_tool_duration(
+        db_path,
+        working_directory="/tmp/alpha",
+        session_id="a",
+        request_id="tool-before",
+        tool_call_id="before",
+        duration_ms=40,
+        time=before,
+    )
+    duration_store.record_tool_duration(
+        db_path,
+        working_directory="/tmp/alpha",
+        session_id="a",
+        request_id="tool-after",
+        tool_call_id="after",
+        duration_ms=60,
+        time=after,
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/alpha",
+        request_id="human-alpha",
+        spans=[
+            {
+                "session_id": "a",
+                "from": "2026-09-29T08:30:00+00:00",
+                "to": "2026-09-29T09:30:00+00:00",
+            },
+            {
+                "session_id": None,
+                "from": "2026-09-29T09:45:00+00:00",
+                "to": "2026-09-29T10:00:00+00:00",
+            },
+        ],
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/beta",
+        request_id="human-beta",
+        spans=[
+            {
+                "session_id": "b",
+                "from": "2026-09-29T11:00:00+00:00",
+                "to": "2026-09-29T11:10:00+00:00",
+            }
+        ],
+    )
+
+    marker = duration_store.reset_project(
+        db_path,
+        working_directory="/tmp/alpha",
+        time=reset_at,
+    )
+    assert marker == {
+        "working_directory": "/tmp/alpha",
+        "reset_at": reset_at,
+    }
+    alpha = duration_store.project_totals_since_reset(
+        db_path, working_directory="/tmp/alpha"
+    )
+    assert alpha == {
+        "working_directory": "/tmp/alpha",
+        "last_reset_at": reset_at,
+        "request_count": 1,
+        "llm_total_ms": 200,
+        "tool_call_count": 1,
+        "tool_total_ms": 60,
+        "combined_total_ms": 260,
+        "human_span_count": 2,
+        "human_total_ms": 45 * 60 * 1000,
+        "human_sessionless_span_count": 1,
+        "human_sessionless_ms": 15 * 60 * 1000,
+    }
+    latest_reset = "2026-09-29T09:50:00+00:00"
+    duration_store.reset_project(
+        db_path,
+        working_directory="/tmp/alpha",
+        time=latest_reset,
+    )
+    alpha_after_second_reset = duration_store.project_totals_since_reset(
+        db_path, working_directory="/tmp/alpha"
+    )
+    assert alpha_after_second_reset["last_reset_at"] == latest_reset
+    assert alpha_after_second_reset["human_total_ms"] == 10 * 60 * 1000
+    assert alpha_after_second_reset["human_sessionless_ms"] == 10 * 60 * 1000
+    beta = duration_store.project_totals_since_reset(
+        db_path, working_directory="/tmp/beta"
+    )
+    assert beta["last_reset_at"] is None
+    assert beta["llm_total_ms"] == 300
+    assert beta["human_total_ms"] == 10 * 60 * 1000
+
+
+def test_recent_report_queries_rank_by_human_and_join_other_times(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    now = _local_time_iso(hour=12)
+    later = _local_time_iso(hour=14)
+    for session_id, llm_ms, event_time in (
+        ("human-first", 100, now),
+        ("llm-first", 500, later),
+    ):
+        _record(
+            db_path,
+            working_directory="/tmp/alpha",
+            session_id=session_id,
+            duration_ms=llm_ms,
+            time=event_time,
+        )
+    duration_store.record_tool_duration(
+        db_path,
+        working_directory="/tmp/alpha",
+        session_id="human-first",
+        request_id="tool-human-first",
+        tool_call_id="tool-human-first",
+        duration_ms=75,
+        time=now,
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/alpha",
+        request_id="recent-alpha",
+        spans=[
+            {
+                "session_id": "human-first",
+                "from": _local_time_iso(hour=9),
+                "to": _local_time_iso(hour=9, minute=20),
+            },
+            {
+                "session_id": "llm-first",
+                "from": _local_time_iso(hour=10),
+                "to": _local_time_iso(hour=10, minute=5),
+            },
+            {
+                "session_id": None,
+                "from": _local_time_iso(hour=10, minute=30),
+                "to": _local_time_iso(hour=10, minute=35),
+            },
+        ],
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/beta",
+        request_id="recent-beta",
+        spans=[
+            {
+                "session_id": "beta-session",
+                "from": _local_time_iso(hour=15),
+                "to": _local_time_iso(hour=15, minute=40),
+            }
+        ],
+    )
+
+    human_ranked = duration_store.top_sessions_by_human_time_since_project_reset(
+        db_path, working_directory="/tmp/alpha"
+    )
+    assert [entry["session_id"] for entry in human_ranked] == [
+        "human-first",
+        "llm-first",
+    ]
+    assert human_ranked[0]["llm_total_ms"] == 100
+    assert human_ranked[0]["tool_total_ms"] == 75
+
+    llm_ranked = duration_store.top_sessions_by_llm_time_since_project_reset(
+        db_path, working_directory="/tmp/alpha"
+    )
+    assert [entry["session_id"] for entry in llm_ranked] == [
+        "llm-first",
+        "human-first",
+    ]
+    assert llm_ranked[0]["human_total_ms"] == 5 * 60 * 1000
+
+    recent_sessions = duration_store.top_sessions_by_human_time_recent(db_path)
+    assert [entry["session_id"] for entry in recent_sessions] == [
+        "beta-session",
+        "human-first",
+        "llm-first",
+    ]
+    projects = duration_store.top_projects_by_human_time_recent(db_path)
+    assert [entry["working_directory"] for entry in projects] == [
+        "/tmp/beta",
+        "/tmp/alpha",
+    ]
+    assert projects[1]["human_sessionless_ms"] == 5 * 60 * 1000
+    assert projects[1]["llm_total_ms"] == 600
+    assert projects[1]["tool_total_ms"] == 75
+
+
+def test_daily_duration_totals_split_human_time_at_local_midnight(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    local_now = datetime.now().astimezone()
+    today = local_now.date()
+    yesterday = today - timedelta(days=1)
+    yesterday_start = datetime.combine(
+        yesterday, time(23, 50), local_now.tzinfo
+    ).astimezone(timezone.utc)
+    today_end = datetime.combine(today, time(0, 10), local_now.tzinfo).astimezone(
+        timezone.utc
+    )
+    event_time = _local_time_iso(hour=12)
+
+    _record(db_path, duration_ms=120, time=event_time)
+    duration_store.record_tool_duration(
+        db_path,
+        working_directory="/tmp/ws",
+        session_id="s1",
+        request_id="daily-tool",
+        tool_call_id="daily-tool",
+        duration_ms=30,
+        time=event_time,
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="daily-human",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": yesterday_start.isoformat(),
+                "to": today_end.isoformat(),
+            }
+        ],
+    )
+
+    totals = duration_store.daily_duration_totals(db_path)
+    assert len(totals) == 7
+    assert totals[yesterday.isoformat()]["human_total_ms"] == 10 * 60 * 1000
+    assert totals[today.isoformat()] == {
+        "llm_total_ms": 120,
+        "tool_total_ms": 30,
+        "human_total_ms": 10 * 60 * 1000,
+    }
+
+
+def test_recent_views_ignore_project_reset(tmp_path: Path) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="recent-before-reset",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": _local_time_iso(hour=8),
+                "to": _local_time_iso(hour=8, minute=10),
+            }
+        ],
+    )
+    duration_store.reset_project(
+        db_path,
+        working_directory="/tmp/ws",
+        time=_local_time_iso(hour=9),
+    )
+
+    assert (
+        duration_store.top_sessions_by_human_time_since_project_reset(
+            db_path, working_directory="/tmp/ws"
+        )
+        == []
+    )
+    recent = duration_store.top_sessions_by_human_time_recent(db_path)
+    assert recent[0]["session_id"] == "s1"
+    assert recent[0]["human_total_ms"] == 10 * 60 * 1000
