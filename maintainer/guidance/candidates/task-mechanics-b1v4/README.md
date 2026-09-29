@@ -45,8 +45,13 @@ Relative to v3 it changes exactly these rules:
    reader's decision and summarizes the rest (contract change without field
    validation detail; testing strategy without exhaustive edge cases).
    Layer 1 GENERIC-10.
-9. **Follow-up immutability.** Completion Notes are immutable once written;
-   corrections go under Post-completion follow-up.
+9. **One lifecycle-notes section.** `## Implementation Notes`, immutable
+   `## Completion Notes`, and `## Post-completion follow-up` collapse into a
+   single append-only `## Implementation notes`: entries as things happen, a
+   clearly marked completion entry, later corrections as new entries, and
+   pointers to follow-up work. A follow-up that adds requirements or needs
+   its own plan is a new linked task file, never a second plan inside a
+   completed file.
 
 Everything else — the structure and decomposition rules, the decisive-check
 rule, status semantics, subtask naming, and every other current section — is

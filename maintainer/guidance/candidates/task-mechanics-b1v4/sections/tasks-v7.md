@@ -38,9 +38,8 @@ Each kind of content has one owning place:
 | Research findings, measured facts, constraints, references, failed approaches | Supporting details |
 | Decided approach, boundaries, tasks, verification, risks | Implementation plan |
 | Decisions made while planning | The plan's Implementation decisions and open questions |
-| Discoveries and plan changes during execution | Implementation Notes |
-| Outcome and requirement evidence at completion | Completion Notes |
-| Corrections after completion | Post-completion follow-up |
+| Discoveries, deviations, the completion entry, and later corrections | Implementation notes |
+| Follow-up work with new requirements or its own plan | A new task file, linked from an entry in Implementation notes |
 
 When a task file follows planning, decide from the request and the recorded planning how much of the plan to include; do not ask merely whether to include a plan.
 
@@ -139,7 +138,7 @@ End every plan with these H3 sections exactly once and in this order: `### Imple
 
 Requirement verification maps each requirement or coherent group to the smallest reliable evidence at the user-relevant or public boundary containing every approved condition. Name what the verification deliberately does not cover. Fit evidence to the task kind: a decision-recording task is verified by the recorded decision, a documentation change by the published page; do not force test-based evidence when tests are not the outcome. A mock that supplies or bypasses the claimed behavior is not decisive evidence. Cite existing coverage only when it actually proves preserved behavior; otherwise plan focused evidence or record the gap. Do not test unresolved or unapproved behavior. Additional implementation verification covers only distinct material risks. Routine quality checks are supporting evidence.
 
-Do not add implementation or completion notes during planning. Add `## Implementation Notes` only after execution starts and immutable `## Completion Notes` only after completion.
+Do not add lifecycle notes during planning. After execution starts, add `## Implementation notes` and append entries as things happen; entries may be dated, and earlier entries are not rewritten.
 
 - `Draft` records planning but does not authorize execution.
 - `Approved` means the user has approved execution of that plan.
@@ -155,8 +154,8 @@ Before approval, store the complete `Draft` plan, then summarize outcome, scope,
 2. Write the complete implementation plan as `Draft`. If one exists from an earlier session, reassess it and present it again.
 3. Present the plan as described above and obtain explicit approval.
 4. Mark the plan `Approved`, then execute and continuously update its task checklist.
-5. Keep requirement evidence and parent status current. Record discoveries and plan changes in `## Implementation Notes`; ask about high-impact ambiguities or material changes. Clear, safe, in-scope fixes may be made and then reported.
-6. Append immutable `## Completion Notes` covering the outcome, requirement evidence, verification performed or blocked, plan deviations and findings, and unresolved or deferred scope. Completion Notes are immutable once written; later corrections go under `## Post-completion follow-up`, never into them.
-7. Put later corrections under `## Post-completion follow-up`. Ask before reopening or materially extending the task, or creating another task.
+5. Keep requirement evidence and parent status current. Record discoveries and plan changes in `## Implementation notes` as they happen; ask about high-impact ambiguities or material changes. Clear, safe, in-scope fixes may be made and then reported.
+6. At completion, append a clearly marked completion entry covering the outcome, requirement evidence, verification performed or blocked, plan deviations and findings, and unresolved or deferred scope.
+7. Handle later work in the notes: corrections append as new entries. A follow-up that adds requirements or needs its own plan is a new task — ask before creating it, then link the task file from an entry. Do not start a second plan inside a completed file.
 
 Approval authorizes execution only when the original request includes execution or completion and the agent explicitly said execution would begin after approval. Steps 2–4 do not require duplicate approval when the user has already approved the plan, asked execution to start, and asks for a task file only to track that execution.
