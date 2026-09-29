@@ -355,3 +355,21 @@ URL/code display without a certificate failure.
   Three settings component tests, TypeScript, the Release simulator build,
   and the real ungated device-code start/cancel simulator test passed. Manual
   approval and the authenticated tool/relaunch flow remain unverified.
+- 2026-09-29: The user completed the ChatGPT browser authorization during
+  the gated simulator run. After Save, the provider request failed with
+  `chatgpt auth_mode requires streaming requests`: both embedded `/send` and
+  `/send_message` had forced non-streaming requests. The test had terminated
+  the app while the settings modal was still open; Save itself had succeeded.
+- 2026-09-29: Embedded requests now stream when their effective provider is
+  OpenAI Responses with ChatGPT auth, including session and request overrides.
+  API-key and local smoke requests retain their existing mode; streaming
+  all embedded requests had exposed a local smoke-provider regression. The
+  fresh-login Detox flow now confirms Save, closes the settings modal, then
+  relaunches. A proposed cross-run credential-reuse test was removed after
+  Detox cleanup/reinstall removed the saved simulator credentials.
+- 2026-09-29: Twenty-seven mobile Python runtime tests, changed-file Ruff,
+  TypeScript, docs preparation, a Release simulator build, the ungated
+  device-code start/cancel Detox test, and the real API-key OpenAI Responses
+  `apply_patch`/relaunch Detox row passed. The full ChatGPT-authenticated
+  tool/relaunch run still requires a fresh human authorization and remains
+  incomplete.

@@ -104,16 +104,25 @@ def load_runtime_module():
     return module
 
 
-def call(module, root: Path, method: str, path: str, body=None):
+def call(
+    module,
+    root: Path,
+    method: str,
+    path: str,
+    body=None,
+    *,
+    configuration=None,
+):
+    request = {
+        "method": method,
+        "path": path,
+        "body": body,
+    }
+    if configuration is not None:
+        request["runtimeConfiguration"] = configuration
     response = json.loads(
         module.execute_json(
-            json.dumps(
-                {
-                    "method": method,
-                    "path": path,
-                    "body": body,
-                }
-            ),
+            json.dumps(request),
             str(root),
         )
     )
@@ -180,6 +189,185 @@ def test_in_process_transport_session_request_flow(tmp_path: Path) -> None:
             messages["messages"][-1]["message"]["content"]
             == "Embedded runtime smoke response"
         )
+    finally:
+        module.shutdown_runtime()
+
+
+@pytest.mark.parametrize("route", ["send", "send_message"])
+def test_embedded_send_routes_preserve_local_smoke_requests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+) -> None:
+    module = load_runtime_module()
+    try:
+        session_id = call(
+            module, tmp_path, "POST", "/sessions", {"agent_id": "local"}
+        )["session"]["session_id"]
+        application = module._get_runtime(str(tmp_path)).application
+        method_name = (
+            "start_session_request_with_message"
+            if route == "send_message"
+            else "start_session_request"
+        )
+        original_start = getattr(application, method_name)
+        stream_values: list[bool] = []
+
+        def record_start(*args, **kwargs):
+            stream_values.append(kwargs["stream"])
+            return original_start(*args, **kwargs)
+
+        monkeypatch.setattr(application, method_name, record_start)
+        if route == "send":
+            call(
+                module,
+                tmp_path,
+                "POST",
+                f"/sessions/{session_id}/messages",
+                {"role": "user", "content": "hello"},
+            )
+        started = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/{route}",
+            (
+                {"message": {"role": "user", "content": "hello"}}
+                if route == "send_message"
+                else {}
+            ),
+        )
+        assert stream_values == [False]
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            events = call(
+                module,
+                tmp_path,
+                "GET",
+                f"/events?session_id={session_id}&request_id={started['request_id']}",
+            )["events"]
+            if any(event.get("type") == "request_completed" for event in events):
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("Embedded local smoke request did not complete")
+        assert not any(event.get("type") == "request_failed" for event in events)
+        messages = call(
+            module, tmp_path, "GET", f"/sessions/{session_id}/messages"
+        )["messages"]
+        assert messages[-1]["message"]["content"] == "Embedded runtime smoke response"
+    finally:
+        module.shutdown_runtime()
+
+
+@pytest.mark.parametrize("route", ["send", "send_message"])
+@pytest.mark.parametrize(
+    ("default_mode", "stored_mode", "request_mode", "expected_stream"),
+    [
+        ("api", None, None, False),
+        ("chatgpt", None, None, True),
+        ("chatgpt", None, "api", False),
+        ("api", "chatgpt", None, True),
+        ("api", "chatgpt", "api", False),
+        ("api", None, "chatgpt", True),
+    ],
+)
+def test_embedded_openai_request_streams_only_for_effective_chatgpt_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    default_mode: str,
+    stored_mode: str | None,
+    request_mode: str | None,
+    expected_stream: bool,
+) -> None:
+    from agent_app.request_execution import SessionRequestStart
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    module = load_runtime_module()
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    auth_dir = tmp_path / "config" / "auth"
+    auth_dir.mkdir(parents=True)
+    (auth_dir / "chatgpt-auth.json").write_text(
+        json.dumps(
+            {
+                "access_token": "test-access-token",
+                "expires_at": "2099-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    configuration = {
+        "version": 3,
+        "default_agent": "openai-codex",
+        "providers": {
+            "openai": {
+                "enabled": True,
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-5.6-luna",
+                "api_key": "test-api-key",
+                "auth_mode": default_mode,
+            }
+        },
+    }
+    try:
+        session_id = call(
+            module,
+            tmp_path,
+            "POST",
+            "/sessions",
+            {"agent_id": "openai-codex"},
+            configuration=configuration,
+        )["session"]["session_id"]
+        application = module._get_runtime(str(tmp_path), configuration).application
+        if stored_mode is not None:
+            application.patch_session_settings(
+                session_id, {"auth_mode": stored_mode}
+            )
+        if route == "send":
+            call(
+                module,
+                tmp_path,
+                "POST",
+                f"/sessions/{session_id}/messages",
+                {"role": "user", "content": "hello"},
+                configuration=configuration,
+            )
+        method_name = (
+            "start_session_request_with_message"
+            if route == "send_message"
+            else "start_session_request"
+        )
+        stream_values: list[bool] = []
+
+        def record_start(*args, **kwargs):
+            stream_values.append(kwargs["stream"])
+            return SessionRequestStart(
+                status="started",
+                session_id=session_id,
+                request_id="stream-selection-test",
+            )
+
+        monkeypatch.setattr(application, method_name, record_start)
+        body = (
+            {"message": {"role": "user", "content": "hello"}}
+            if route == "send_message"
+            else {}
+        )
+        if request_mode is not None:
+            body["config_overrides"] = {"auth_mode": request_mode}
+        result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/{route}",
+            body,
+            configuration=configuration,
+        )
+        assert result["request_id"] == "stream-selection-test"
+        assert stream_values == [expected_stream]
     finally:
         module.shutdown_runtime()
 

@@ -716,6 +716,21 @@ def _session_overrides(session: Session) -> dict[str, Any]:
     return overrides if isinstance(overrides, dict) else {}
 
 
+def _requires_streaming_request(
+    runtime: MobileRuntime,
+    session_id: str,
+    overrides: dict[str, Any],
+) -> bool:
+    _core, base_config, session = _session_context(runtime, session_id)
+    effective_config = runtime.application.resolve_effective_config(
+        base_config, session, overrides
+    )
+    return (
+        effective_config.get("provider") == "openai_responses"
+        and effective_config.get("auth_mode") in {"chatgpt", "auto"}
+    )
+
+
 def _update_session_metadata(
     runtime: MobileRuntime,
     session: Session,
@@ -1056,14 +1071,15 @@ def _handle_session_request(
         return _response(200, {"status": "ok"})
 
     if tail == ["send"] and method == "POST":
+        overrides = (
+            body.get("config_overrides")
+            if isinstance(body.get("config_overrides"), dict)
+            else {}
+        )
         started = application.start_session_request(
             session_id,
-            (
-                body.get("config_overrides")
-                if isinstance(body.get("config_overrides"), dict)
-                else {}
-            ),
-            stream=False,
+            overrides,
+            stream=_requires_streaming_request(runtime, session_id, overrides),
         )
         return _response(
             200,
@@ -1077,6 +1093,11 @@ def _handle_session_request(
         message = body.get("message")
         if not isinstance(message, dict):
             raise ValueError("send_message requires a message")
+        overrides = (
+            body.get("config_overrides")
+            if isinstance(body.get("config_overrides"), dict)
+            else {}
+        )
         started = application.start_session_request_with_message(
             session_id,
             role=str(message.get("role") or "user"),
@@ -1091,12 +1112,8 @@ def _handle_session_request(
                 if isinstance(message.get("multipartContent"), list)
                 else None
             ),
-            overrides=(
-                body.get("config_overrides")
-                if isinstance(body.get("config_overrides"), dict)
-                else {}
-            ),
-            stream=False,
+            overrides=overrides,
+            stream=_requires_streaming_request(runtime, session_id, overrides),
         )
         return _response(
             200,

@@ -197,6 +197,10 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
       .withTimeout(30000);
+    await tapById("embedded-runtime-settings-close");
+    await waitFor(element(by.id("embedded-runtime-settings")))
+      .not.toExist()
+      .withTimeout(30000);
 
     await device.terminateApp();
     await device.launchApp({

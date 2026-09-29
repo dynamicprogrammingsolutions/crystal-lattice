@@ -47,6 +47,11 @@ SDKs and native dependencies such as `jiter` and `pydantic-core` are not
 bundled. The embedded dependency list pins the requests/certificate closure,
 and the Release simulator smoke constructs both provider clients.
 
+Embedded `/send` and `/send_message` start streamed requests when the
+effective OpenAI Responses authentication mode is ChatGPT (including a
+session or request override). The other embedded profiles retain their
+existing request mode. ChatGPT's Responses endpoint requires streaming.
+
 OpenRouter and the generic compatible provider use their existing `requests`
 implementations. The dedicated reviewer uses OpenAI Responses through the
 package-owned requests transport and sends `/responses`, not
@@ -345,6 +350,10 @@ short-lived code.
 CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
   npm run test:ios:embedded-providers:detox:chatgpt
 ```
+
+Each gated run starts a fresh login. After saving settings, it closes the
+settings modal before relaunching the app. Detox cleanup removes the installed
+simulator app and its saved credentials between runs.
 
 For the focused physical-device check, open On-device Provider Settings,
 select **ChatGPT**, and press **Sign in with ChatGPT**. Acceptance for that
