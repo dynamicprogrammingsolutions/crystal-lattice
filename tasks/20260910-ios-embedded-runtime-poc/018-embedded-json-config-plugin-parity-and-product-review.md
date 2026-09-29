@@ -20,6 +20,13 @@ behavior consistent without finalizing unapproved product names.
   plugins, including system message, request options, timestamp/duration,
   summarize range, rebuild native history, and cost tracking. Omitted default
   plugins have documented compatibility or product reasons.
+- [ ] The embedded OpenAI Responses and OpenRouter profiles register their
+  provider-native web-search, attachment, and API-control extensions where the
+  bundled transport supports them, without advertising upload modes that
+  cannot work on iOS.
+- [ ] Direct OpenAI exposes its applicable flex, fast, prompt-caching, native
+  compaction, and verbosity controls; ChatGPT and Reviewer do not expose
+  unsupported or incorrectly accounted API service tiers.
 - [x] A global on-device setting controls Reviewer visibility. Reviewer is
   absent from ordinary settings and agent selection while disabled and appears
   at the bottom when enabled.
@@ -92,6 +99,16 @@ tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgp
 - File context depends on GitPython and web context depends on trafilatura.
   MCP and cloud application plugins have runtime responsibilities that are not
   automatically appropriate for iOS.
+- The OpenAI Responses and OpenRouter packages already bundled for iOS also
+  contain provider-native web-search and attachment extensions. The embedded
+  JSON currently does not register those extensions.
+- OpenAI Responses also contains flex, fast-mode, prompt-caching, native
+  compaction, and verbosity extensions. Flex is API-auth only and must not be
+  presented as effective under ChatGPT auth.
+- The bundled OpenAI Responses requests transport supports inline image
+  requests but does not currently implement Files API upload. PDF and
+  upload-backed image controls must therefore remain hidden for that transport
+  until multipart upload support exists.
 
 ## Decisions requiring confirmation
 
@@ -106,6 +123,8 @@ tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgp
   default.
 - Whether file context should be bundled with GitPython and whether web context
   should be bundled before Tavily work adds a different web capability.
+  Provider-native OpenAI/OpenRouter web search is approved and does not resolve
+  the later provider-neutral Tavily requirement.
 - Whether MCP observability, application-config actions, cloud-agent actions,
   and cost UI should be visible on iOS even when their underlying capability
   is absent or limited.
@@ -140,6 +159,13 @@ Add an embedded-specific OpenAI/ChatGPT customization at the plugin/config
 boundary so session UI schema does not expose `auth_mode`, while global
 settings still drive the effective mode and plugin-owned login actions.
 
+Register the provider extensions already shipped inside the OpenAI Responses
+and OpenRouter packages. Expose native web search for direct OpenAI, Reviewer,
+and OpenRouter; expose session-owned inline image attachment handling for
+OpenAI and OpenRouter; and expose direct-OpenAI API controls with auth-aware
+visibility. Keep upload-backed PDF controls hidden under the requests
+transport, and keep Flex disabled for ChatGPT and Reviewer.
+
 Remove the legacy embedded connection configuration path or make it navigation
 to the single settings surface. Correct connection metadata to represent the
 effective selected profile. Do not finalize unresolved display names or
@@ -157,6 +183,14 @@ and collect those decisions for user confirmation.
   settings for embedded agents.
 - **Approved:** use a customized embedded plugin/config variant when needed;
   do not specialize the generic provider for React Native.
+- **Approved:** enable provider-native OpenAI Responses and OpenRouter web
+  search in addition to the later provider-neutral Tavily tool.
+- **Approved:** enable image attachment handling where the current bundled
+  transport works, initially limiting OpenAI requests transport to inline
+  images.
+- **Approved:** expose direct-OpenAI API controls, while hiding Flex from
+  ChatGPT and excluding Flex from Reviewer until its proxy pricing and
+  service-tier accounting explicitly support it.
 - **Open:** final display names, normal default profile, and smoke-agent
   exposure.
 - **Open:** optional dependency-heavy plugin inclusion and UI exposure for
@@ -188,6 +222,11 @@ and collect those decisions for user confirmation.
 - [x] Run source, immutable ZIP, component, TypeScript, and Release-simulator
   regression coverage.
 - [x] Present unresolved product and optional-plugin decisions for approval.
+- [ ] Register and configure the applicable OpenAI Responses and OpenRouter
+  provider-native extensions.
+- [ ] Add transport-aware attachment UI and auth-aware API-control coverage.
+- [ ] Run focused source, immutable-ZIP, mobile component, and Release-simulator
+  verification for native search and attachment availability.
 - [ ] Update documentation, requirement evidence, and completion notes.
 
 ### Requirement verification
@@ -208,6 +247,12 @@ and collect those decisions for user confirmation.
   activate Qwen and existing credentials/sessions remain usable.
 - Exercise each added default plugin through its public feature or application
   boundary, with system-message compilation as a mandatory decisive check.
+- Inspect the embedded session UI schema for direct OpenAI, ChatGPT, Reviewer,
+  and OpenRouter to prove native search and attachment controls are present
+  only where supported and Flex is absent from ChatGPT and Reviewer.
+- Run an inline image request through the production mobile attachment path
+  and one provider-native web-search request through a Release-simulator
+  hosted-provider row.
 - Re-run the real Reviewer and manually gated ChatGPT Release-simulator paths
   after the configuration and plugin changes.
 
@@ -284,3 +329,7 @@ and collect those decisions for user confirmation.
   parsing, and 30 focused Python config/runtime tests. The hosted Reviewer and
   manually authorized ChatGPT tool requests remain explicit final gates
   because their credentials/human approval are not available unattended.
+- 2026-09-29: User approved extending plugin parity to the already-bundled
+  OpenAI Responses and OpenRouter native web-search, attachment, and API
+  extensions. OpenAI requests-transport attachment UI will initially remain
+  inline-image-only; Flex remains direct-API-only and excluded from Reviewer.

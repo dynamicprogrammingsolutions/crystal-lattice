@@ -19,12 +19,17 @@ reviewer path.
 Parent Task: tasks/20260910-ios-embedded-runtime-poc/000-main.md
 
 Depends On:
-tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md
+tasks/20260910-ios-embedded-runtime-poc/019-session-working-directory-selector.md
 
 ## Scope notes
 
 This task should enhance the already working vertical slice rather than
 redesign provider or tool architecture. It has no approved execution plan.
+
+OpenAI Responses and OpenRouter provider-native web search are owned by
+subtask `018`. This task remains necessary for one provider-neutral Tavily
+tool contract used by Anthropic, generic OpenAI-compatible, and other tool-set
+paths.
 
 The first implementation should use Tavily directly when the user supplies a
 key. The reviewer service may expose a small authenticated search proxy with
