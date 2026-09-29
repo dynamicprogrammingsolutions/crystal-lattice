@@ -7,9 +7,40 @@ application route semantics.
 
 ## Lifecycle ownership
 
-The FastAPI startup hook creates the bridge client from explicit CLI runtime
-configuration or environment configuration and starts `BridgeClient.run()` as
-a background task.
+The FastAPI startup hook creates the bridge client only from an explicit
+`ServerIntegrationRuntimeConfig` and starts `BridgeClient.run()` as a
+background task. The CLI constructs that process-local object from explicit
+flags, project/profile state, resolved application configuration, effective
+host/port, and built-in defaults. Direct FastAPI embedders call
+`configure_integrations(...)` before startup.
+
+For an embedding process that already owns FastAPI startup, construct the
+runtime settings directly:
+
+```python
+import socket
+
+from agent_terminal_app import server
+from agent_terminal_app.bridge_client import BridgeConfig
+
+server.configure_integrations(
+    server.ServerIntegrationRuntimeConfig(
+        bridge=BridgeConfig(
+            bridge_url="wss://bridge.example/ws/websocket",
+            server_id="my-server",
+            display_name="My server",
+            computer_name=socket.gethostname(),
+            location=None,
+            local_http_base="http://127.0.0.1:9000",
+        )
+    )
+)
+# Start server.app through the embedding ASGI server.
+```
+
+For Bonjour, pass a `BonjourRuntimeConfig(service_name=..., port=...)` member.
+To disable both integrations for subsequent startup, call
+`server.configure_integrations(None)`.
 
 The client:
 
@@ -49,10 +80,22 @@ The bridge URL resolves from CLI, project/profile state, or
 `application.bridge_url`. The adapter is disabled when bridge registration is
 not requested or no URL can be resolved.
 
-Equivalent environment variables are documented in
-`application/python/README.md`. `BRIDGE_HTTP_BASE_URL` overrides only the
-public v2 transfer origin; the server control connection still uses
-`BRIDGE_URL`.
+`application.bridge` owns the advanced WebSocket-size, HTTP timeout, legacy
+chunk size/threshold, adapter body-limit, and debug settings. The parser
+validates these values and supplies the resulting values to `BridgeConfig`.
+The defaults are shared with `BridgeConfig` so an omitted application object
+and the maintained default config have the same behavior.
+
+FastAPI startup does not inspect ambient `BRIDGE_*`, `BONJOUR_*`,
+`ENABLE_BONJOUR`, `SERVER_HOST`, `SERVER_PORT`, or `PORT` values. This is an
+integration-lifecycle invariant: a tool-launched child may inherit those names,
+but cannot accidentally register the parent's bridge identity or advertise
+Bonjour. The normal process environment is not sanitized.
+
+The integration configuration is process-owned. Application reload swaps the
+agent application while leaving the HTTP listener, bridge client, and Bonjour
+registration alive; changing integration settings therefore requires a
+process restart.
 
 ## Legacy request path
 
@@ -125,7 +168,8 @@ Focused tests:
 - `test_bridge_client_chunked_http.py`
 - `test_bridge_client_http_transfer.py`
 - `test_bridge_client_superseded.py`
-- bridge-related CLI environment/isolation tests
+- `test_server_integration_settings.py`
+- bridge-related CLI explicit-configuration/isolation tests
 
 The frontend SDK bridge E2E is the public assembled boundary using the real
 Elixir bridge, this Python adapter, FastAPI, and production frontend

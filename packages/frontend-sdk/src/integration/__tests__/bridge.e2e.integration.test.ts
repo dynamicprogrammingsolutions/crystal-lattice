@@ -120,11 +120,11 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
             },
           },
         },
-        env: {
-          BRIDGE_URL: bridge.bridgeUrl,
-          BRIDGE_SERVER_ID: serverId,
-          BRIDGE_DISPLAY_NAME: 'E2E Test Server',
-          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        bridge: {
+          url: bridge.bridgeUrl,
+          serverId,
+          displayName: 'E2E Test Server',
+          httpTimeoutSeconds: 120.0,
         },
       });
       stopAll.push(started.stop);
@@ -201,11 +201,11 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
           agents: { default: { provider: 'test_provider' } },
         },
         enableTestControl: true,
-        env: {
-          BRIDGE_URL: bridge.bridgeUrl,
-          BRIDGE_SERVER_ID: serverId,
-          BRIDGE_DISPLAY_NAME: 'HTTP E2E Test Server',
-          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        bridge: {
+          url: bridge.bridgeUrl,
+          serverId,
+          displayName: 'HTTP E2E Test Server',
+          httpTimeoutSeconds: 120.0,
         },
       });
       stopAll.push(started.stop);
@@ -290,10 +290,10 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
           plugins: ['plugins.deterministic_stream_provider.DeterministicStreamProvider'],
           agents: { default: { provider: 'test_provider' } },
         },
-        env: {
-          BRIDGE_URL: bridge.bridgeUrl,
-          BRIDGE_SERVER_ID: serverId,
-          BRIDGE_DISPLAY_NAME: 'Hybrid E2E Test Server',
+        bridge: {
+          url: bridge.bridgeUrl,
+          serverId,
+          displayName: 'Hybrid E2E Test Server',
         },
       });
       stopAll.push(started.stop);
@@ -363,11 +363,11 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
             },
           },
         },
-        env: {
-          BRIDGE_URL: bridge.bridgeUrl,
-          BRIDGE_SERVER_ID: serverId,
-          BRIDGE_DISPLAY_NAME: 'E2E Recovery Test Server',
-          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        bridge: {
+          url: bridge.bridgeUrl,
+          serverId,
+          displayName: 'E2E Recovery Test Server',
+          httpTimeoutSeconds: 120.0,
         },
       });
       stopAll.push(started.stop);
@@ -483,11 +483,11 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
           },
         },
         enableTestControl: true,
-        env: {
-          BRIDGE_URL: bridge.bridgeUrl,
-          BRIDGE_SERVER_ID: serverId,
-          BRIDGE_DISPLAY_NAME: 'E2E Concurrent Test Server',
-          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        bridge: {
+          url: bridge.bridgeUrl,
+          serverId,
+          displayName: 'E2E Concurrent Test Server',
+          httpTimeoutSeconds: 120.0,
         },
       });
       stopAll.push(started.stop);

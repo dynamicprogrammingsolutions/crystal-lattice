@@ -11,23 +11,12 @@ Usage (from the server module)::
 
     from agent_terminal_app import bonjour as bonjour_mod
 
-    _bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
-
-    @app.on_event("startup")
-    async def _on_startup() -> None:
-        global _bonjour_handle
-        if os.getenv("ENABLE_BONJOUR"):
-            _bonjour_handle = bonjour_mod.start_bonjour(
-                service_name="Agent Terminal App",
-                port=8080,
-            )
-
-    @app.on_event("shutdown")
-    async def _on_shutdown() -> None:
-        global _bonjour_handle
-        if _bonjour_handle is not None:
-            bonjour_mod.stop_bonjour(_bonjour_handle)
-            _bonjour_handle = None
+    handle = bonjour_mod.start_bonjour(
+        service_name="Agent Terminal App",
+        port=8080,
+    )
+    # Later, during application shutdown:
+    bonjour_mod.stop_bonjour(handle)
 
 The concrete port and service name are controlled by the caller; the
 module itself is intentionally small and side-effect free.

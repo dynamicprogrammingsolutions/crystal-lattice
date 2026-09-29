@@ -20,6 +20,10 @@ from .runtime_environment import (
 )
 from .project_profile import ProjectProfile, ProjectProfileManager
 from .bonjour import get_local_ip
+from .server_integration_settings import (
+    BridgeApplicationSettings,
+    parse_bridge_application_settings,
+)
 
 
 def _configure_logging(
@@ -179,27 +183,6 @@ def _resolve_fastapi_log_file(
     return log_file
 
 
-def _read_bridge_url_from_config(config_path: Path) -> Optional[str]:
-    """Read ``application.bridge_url`` from the config JSON file.
-
-    This reads the raw config file directly (without creating a full
-    ``AgentApplication``) since ``bridge_url`` is a plain string that
-    does not require placeholder resolution.  If the user needs env-var
-    expansion, they should use ``--bridge-url`` or ``.crystal/profile.json``.
-    """
-    try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    app_cfg = raw.get("application")
-    if not isinstance(app_cfg, dict):
-        return None
-    bridge_url = app_cfg.get("bridge_url")
-    if isinstance(bridge_url, str) and bridge_url:
-        return bridge_url
-    return None
-
-
 def _format_startup_summary(
     *,
     project_name: str,
@@ -348,73 +331,33 @@ def _ensure_crystal_gitignore(crystal_dir: Path) -> None:
         pass
 
 
-def _parse_bool_env(value: Optional[str]) -> bool:
-    if value is None:
-        return False
-    return value.strip() in {"1", "true", "True", "yes", "YES"}
-
-
-def _parse_optional_int_env(
-    value: Optional[str], *, default: Optional[int]
-) -> Optional[int]:
-    if value is None or value == "":
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
-def _parse_float_env(value: Optional[str], *, default: float) -> float:
-    if value is None or value == "":
-        return default
-    try:
-        return float(value)
-    except ValueError:
-        return default
-
-
 def _build_server_integration_config(
     args: argparse.Namespace,
     *,
     server_mod: object,
     profile: Optional[ProjectProfile] = None,
-    bridge_url_from_config: Optional[str] = None,
+    bridge_application: Optional[BridgeApplicationSettings] = None,
     effective_host: str = "127.0.0.1",
     effective_port: int = 8000,
 ):
     """Build explicit server integration config from CLI args and profile.
-
-    CLI values override externally supplied environment variables for the same
-    bridge/Bonjour settings, but the process environment itself is left
-    untouched.
 
     When *profile* is provided, its resolved values (port, bridge_server_id,
     name, bridge_url) are used as defaults — the profile already incorporates
     CLI overrides passed to ``ProjectProfileManager.resolve()``.
     """
 
+    bridge_settings = bridge_application or BridgeApplicationSettings()
     profile_name = profile.name if profile is not None else None
     profile_bridge_server_id = profile.bridge_server_id if profile is not None else None
     profile_bridge_url = profile.bridge_url if profile is not None else None
 
     bonjour_config = None
     if args.enable_bonjour:
-        port_str = (
-            str(args.bonjour_port)
-            if args.bonjour_port is not None
-            else os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT")
+        advertised_port = (
+            args.bonjour_port if args.bonjour_port is not None else effective_port
         )
-        try:
-            advertised_port = int(port_str) if port_str else effective_port
-        except ValueError:
-            advertised_port = effective_port
-        service_name = (
-            args.bonjour_service_name
-            or os.getenv("BONJOUR_SERVICE_NAME")
-            or profile_name
-            or "Agent Terminal App"
-        )
+        service_name = args.bonjour_service_name or profile_name or "Agent Terminal App"
         bonjour_config = server_mod.BonjourRuntimeConfig(  # type: ignore[attr-defined]
             service_name=service_name,
             port=advertised_port,
@@ -429,9 +372,9 @@ def _build_server_integration_config(
         # When profile is provided, it already incorporates the CLI --bridge-url
         # override.  When profile is None, fall back to args.bridge_url directly.
         if profile is not None:
-            bridge_url = profile_bridge_url or bridge_url_from_config
+            bridge_url = profile_bridge_url or bridge_settings.bridge_url
         else:
-            bridge_url = args.bridge_url or bridge_url_from_config
+            bridge_url = args.bridge_url or bridge_settings.bridge_url
 
         if not bridge_url:
             # Bridge was requested but no URL was found.
@@ -443,59 +386,38 @@ def _build_server_integration_config(
             )
         else:
             display_name = (
-                args.bridge_display_name
-                or os.getenv("BRIDGE_DISPLAY_NAME")
-                or profile_name
-                or "Agent Terminal App"
+                args.bridge_display_name or profile_name or "Agent Terminal App"
             )
-            location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
-            local_http_base = args.bridge_local_http_base or os.getenv(
-                "BRIDGE_LOCAL_HTTP_BASE"
-            )
+            location = args.bridge_location
+            local_http_base = args.bridge_local_http_base
             if not local_http_base:
-                host = os.getenv("SERVER_HOST", effective_host)
-                port = os.getenv("SERVER_PORT", str(effective_port))
-                local_http_base = f"http://{host}:{port}"
+                local_http_base = f"http://{effective_host}:{effective_port}"
 
             bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
             bridge_config = bridge_mod.BridgeConfig(
                 bridge_url=bridge_url,
                 server_id=profile_bridge_server_id
                 or args.bridge_server_id
-                or os.getenv("BRIDGE_SERVER_ID")
                 or str(uuid.uuid4()),
                 display_name=display_name,
                 computer_name=socket.gethostname() or "localhost",
                 location=location,
                 local_http_base=local_http_base,
-                bridge_http_base=getattr(args, "bridge_http_base", None)
-                or os.getenv("BRIDGE_HTTP_BASE_URL")
-                or None,
-                ws_max_size_bytes=_parse_optional_int_env(
-                    os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
+                bridge_http_base=getattr(args, "bridge_http_base", None) or None,
+                ws_max_size_bytes=bridge_settings.ws_max_size_bytes,
+                http_timeout_seconds=bridge_settings.http_timeout_seconds,
+                request_chunk_size_bytes=bridge_settings.http_chunk_size_bytes,
+                request_chunking_threshold_bytes=(
+                    bridge_settings.http_chunk_threshold_bytes
                 ),
-                http_timeout_seconds=_parse_float_env(
-                    os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
+                response_chunking_threshold_bytes=(
+                    bridge_settings.http_chunk_threshold_bytes
                 ),
-                request_chunk_size_bytes=int(
-                    os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
-                ),
-                request_chunking_threshold_bytes=int(
-                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-                ),
-                response_chunking_threshold_bytes=int(
-                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-                ),
-                max_body_bytes=int(
-                    os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
-                ),
-                debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
-                exit_on_superseded=args.bridge_exit_on_superseded
-                or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
-                local_guard=args.bridge_local_guard
-                or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
-                takeover_local=args.bridge_takeover_local
-                or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
+                max_body_bytes=bridge_settings.http_max_body_bytes,
+                debug=bridge_settings.debug,
+                exit_on_superseded=args.bridge_exit_on_superseded,
+                local_guard=args.bridge_local_guard,
+                takeover_local=args.bridge_takeover_local,
             )
 
     if bonjour_config is None and bridge_config is None:
@@ -1378,7 +1300,7 @@ def main() -> None:  # pragma: no cover - manual execution only
         default=None,
         help=(
             "Base URL of the local HTTP server as seen from the bridge "
-            "(default: http://<SERVER_HOST>:<SERVER_PORT>)."
+            "(default: the effective --host and --port)."
         ),
     )
     parser.add_argument(
@@ -1654,17 +1576,19 @@ def main() -> None:  # pragma: no cover - manual execution only
         return owner, notification_store
 
     # --- Build integration config (after config is resolved) ---
-    bridge_url_from_config = _read_bridge_url_from_config(config_path)
+    try:
+        bridge_application = parse_bridge_application_settings(resolved_runtime_config)
+    except ValueError as exc:
+        parser.error(str(exc))
     integration_config = _build_server_integration_config(
         args,
         server_mod=server_mod,
         profile=profile,
-        bridge_url_from_config=bridge_url_from_config,
+        bridge_application=bridge_application,
         effective_host=effective_host,
         effective_port=effective_port,
     )
-    if integration_config is not None:
-        server_mod.configure_integrations(integration_config)
+    server_mod.configure_integrations(integration_config)
 
     contributed_command = (
         args.command if isinstance(args.command, str) and args.command else ""
@@ -1784,9 +1708,6 @@ def main() -> None:  # pragma: no cover - manual execution only
             )
 
         server_mod.configure_application_owner(application_owner)
-
-        os.environ.setdefault("SERVER_HOST", effective_host)
-        os.environ.setdefault("SERVER_PORT", str(effective_port))
 
         from uvicorn.config import LOGGING_CONFIG  # type: ignore[import-not-found]
 

@@ -466,7 +466,19 @@ Or, to avoid passing `--bridge-url` every time, add it to `.crystal/profile.json
 or to `config.json` under the `application` section:
 
 ```json
-{"application": {"bridge_url": "ws://localhost:4000/ws/websocket"}}
+{
+  "application": {
+    "bridge_url": "ws://localhost:4000/ws/websocket",
+    "bridge": {
+      "ws_max_size_bytes": 16777216,
+      "http_timeout_seconds": 120.0,
+      "http_chunk_size_bytes": 921600,
+      "http_chunk_threshold_bytes": 262144,
+      "http_max_body_bytes": 10485760,
+      "debug": false
+    }
+  }
+}
 ```
 
 Then simply:
@@ -500,12 +512,20 @@ Common bridge options:
 - `--bridge-takeover-local` - with the local guard, try to terminate and replace
   the existing local process.
 
-The equivalent environment override for the public HTTP origin is
-`BRIDGE_HTTP_BASE_URL`. The server WebSocket remains the registration and
-control channel. For HTTP/hybrid frontends, request bodies are downloaded from
-the bridge and local response bodies are uploaded to it as raw HTTP byte
-streams; only status, headers, paths, and short-lived transfer credentials use
-the WebSocket.
+Bridge and Bonjour are activated and configured only through these explicit
+CLI/profile/application sources. Ambient `BRIDGE_*`, `BONJOUR_*`,
+`ENABLE_BONJOUR`, `SERVER_HOST`, `SERVER_PORT`, and `PORT` values do not
+configure the internally hosted integrations. Direct uvicorn embedders must
+call `configure_integrations(...)` before startup when they need either
+integration.
+
+The settings under `application.bridge` are advanced process-start transport
+controls. Their complete types, defaults, validation, and restart behavior are
+documented in [Application configuration](docs/configuration.md#bridge-runtime-settings).
+The server WebSocket remains the registration and control channel. For
+HTTP/hybrid frontends, request bodies are downloaded from the bridge and local
+response bodies are uploaded to it as raw HTTP byte streams; only status,
+headers, paths, and short-lived transfer credentials use the WebSocket.
 
 Maintainers can find lifecycle, legacy/v2 forwarding, header, cancellation,
 and test ownership details in
