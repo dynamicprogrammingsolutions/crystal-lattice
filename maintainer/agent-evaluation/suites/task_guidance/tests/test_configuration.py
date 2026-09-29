@@ -38,6 +38,7 @@ from ..configuration import (
     SUITE_ROOT,
     all_producer_cells,
     assessment_cell,
+    agent_config_file,
     negative_control,
     negative_control_designations,
     plan_variants,
@@ -242,6 +243,64 @@ def test_fixture_tool_families_pin_the_declared_agents() -> None:
     assert not any("/codex-tools" in item for item in glm_plugins)
     assert any("/codex-tools" in item for item in gpt_plugins)
     assert not any("/claude-tools" in item for item in gpt_plugins)
+
+
+def test_glm_defaults_to_the_zai_provider_connection(tmp_path: Path) -> None:
+    path = agent_config_file("glm", artifact_root=tmp_path, version="t")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    entry = config["agents"][AGENTS["glm"]["agent_id"]]
+    assert entry["provider"] == "zai"
+    assert entry["model"] == "glm-5.3-flash"
+    assert "providers" not in entry
+    assert config["providers"]["zai"]["base_url"].startswith("https://api.z.ai/")
+
+
+def test_glm_provider_selection_chooses_the_ollama_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "ollama")
+    path = agent_config_file("glm", artifact_root=tmp_path, version="t")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    entry = config["agents"][AGENTS["glm"]["agent_id"]]
+    assert entry["provider"] == "ollama"
+    assert entry["model"] == "glm-5.3-flash:cloud"
+
+
+def test_glm_provider_selection_rejects_unknown_providers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "bedrock")
+    with pytest.raises(KeyError, match="unknown provider selection"):
+        agent_config_file("glm", artifact_root=tmp_path, version="t")
+
+
+def test_provider_base_url_and_model_overrides_apply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ZAI_OPENAI_BASE_URL", "https://proxy.example/v4")
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_MODEL", "glm-5.3")
+    path = agent_config_file("glm", artifact_root=tmp_path, version="t")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert config["providers"]["zai"]["base_url"] == "https://proxy.example/v4"
+    assert config["agents"][AGENTS["glm"]["agent_id"]]["model"] == "glm-5.3"
+
+
+def test_agents_without_a_provider_map_stay_unselected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "ollama")
+    path = agent_config_file("gpt", artifact_root=tmp_path, version="t")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    entry = config["agents"][AGENTS["gpt"]["agent_id"]]
+    assert entry["provider"] == "openai"
+    assert entry["model"] == "gpt-5.6-luna"
+
+
+def test_runtime_fixtures_carry_only_the_suite_providers() -> None:
+    glm_providers = set(fixture_config("glm")["providers"])
+    gpt_providers = set(fixture_config("gpt")["providers"])
+    assert glm_providers == {"ollama", "zai"}
+    assert gpt_providers == {"openai"}
 
 
 # --- Consumer derivation --------------------------------------------------

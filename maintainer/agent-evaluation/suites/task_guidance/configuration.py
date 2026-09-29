@@ -133,17 +133,51 @@ def negative_control_designations() -> tuple[dict, ...]:
     )
 
 
+def _apply_provider_selection(agent: dict, config: dict) -> None:
+    """Patch the runtime config with the selected provider connection.
+
+    Agents that declare a ``providers`` map (configuration.json) are
+    provider-selectable: ``TASK_GUIDANCE_GLM_PROVIDER`` chooses the entry
+    (the declared ``provider`` is the default), the per-provider ``model``
+    applies (``TASK_GUIDANCE_GLM_MODEL`` overrides), and
+    ``<PROVIDER>_OPENAI_BASE_URL`` overrides that provider's base URL.
+    The selection keys are removed from the written agent entry so the
+    artifact holds only runtime configuration.
+    """
+
+    declared = agent.get("providers")
+    if not declared:
+        return
+    default = agent.get("provider")
+    selected = (os.getenv("TASK_GUIDANCE_GLM_PROVIDER") or default or "").lower()
+    if selected not in declared:
+        raise KeyError(
+            f"unknown provider selection {selected!r}; expected one of "
+            f"{sorted(declared)}"
+        )
+    model = os.getenv("TASK_GUIDANCE_GLM_MODEL") or declared[selected]["model"]
+    for entry in config["agents"].values():
+        entry["provider"] = selected
+        entry["model"] = model
+        entry.pop("providers", None)
+    override = os.getenv(f"{selected.upper()}_OPENAI_BASE_URL")
+    if override:
+        config["providers"][selected]["base_url"] = override
+
+
 def agent_config_file(agent_name: str, *, artifact_root: Path, version: str) -> Path:
     """Resolve one agent's pinned runtime config for an artifact root.
 
     The committed fixture is the crystal-lattice config the agent runs
-    against; the only applied override is the artifact-local plugin cache
-    directory. The resolved file is written under the artifact root so runs
-    and exports record exactly the config they used.
+    against; the applied overrides are the artifact-local plugin cache
+    directory and the provider connection selection. The resolved file
+    is written under the artifact root so runs and exports record
+    exactly the config they used.
     """
 
     fixture = SUITE_ROOT / AGENTS[agent_name]["config"]
     config = json.loads(fixture.read_text(encoding="utf-8"))
+    _apply_provider_selection(AGENTS[agent_name], config)
     config["plugin_cache_dir"] = str(
         artifact_root / "plugin-cache" / agent_name / version
     )

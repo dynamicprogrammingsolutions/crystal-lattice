@@ -164,7 +164,29 @@ directories and connections; the matrix command set stays unchanged.
 - September 27, 2026 (guidance candidate b1v4 drafted): the candidate
   extends the promoted v3 baseline with nine wording changes mapped to
   the six gaps, the Layer 1 plan-content findings, and the September 27
-  amendment directions: `## Execution plan` renamed to
+  amendment directions: `- September 27, 2026 (infrastructure item 1 DONE — provider switch +
+  minimal configs): `fixtures/runtime/glm.json` shrank 24.6KB→3.6KB and
+  `gpt.json` 24.6KB→5.4KB; both now carry exactly the used providers
+  (glm: ollama+zai; gpt: openai), the referenced mixins, the exact plugin
+  lists, and a minimal application config (env_file + provider_env_keys)
+  — all unused providers, gemini/grok/kimi/qwen/cloud mixins, MCP
+  defaults (inlined as agent flags), and the cloud-agent/notification
+  application sections are gone. GLM defaults to zai
+  (`https://api.z.ai/api/coding/paas/v4`, model `glm-5.3-flash`); the
+  provider connection is SELECTABLE per `agent_config_file`:
+  `TASK_GUIDANCE_GLM_PROVIDER` (zai|ollama) picks the provider + its
+  per-provider model from configuration.json's new `providers` map,
+  `TASK_GUIDANCE_GLM_MODEL` overrides the model, and
+  `ZAI_OPENAI_BASE_URL`/`OLLAMA_OPENAI_BASE_URL` override base URLs.
+  Verified by real end-to-end smokes through the suite environment
+  machinery: zai default (`provider=zai model=glm-5.3-flash
+  response='OK'`) and ollama selection (`provider=ollama
+  model=glm-5.3-flash:cloud response='OK'`). 219 deterministic tests
+  green (6 new selection tests). Diagnosis note: a smoke that sends
+  via `send_request` without a user message yields z.ai 400/1214 —
+  the production entry is `context.request(messages=...)`.
+
+## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
   author by default (explicit retain/omit followed, requirements-only

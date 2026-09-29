@@ -3,7 +3,16 @@
   "agents": {
     "glm": {
       "agent_id": "glm-ollama",
-      "model": "glm-5.3-flash:cloud",
+      "model": "glm-5.3-flash",
+      "provider": "zai",
+      "providers": {
+        "ollama": {
+          "model": "glm-5.3-flash:cloud"
+        },
+        "zai": {
+          "model": "glm-5.3-flash"
+        }
+      },
       "efforts": [
         "max"
       ],
