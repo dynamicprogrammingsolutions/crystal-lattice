@@ -20,7 +20,8 @@ jest.mock("../src/embeddedRuntime/embeddedPythonRuntime", () => ({
 
 const configuration: EmbeddedRuntimePublicConfiguration = {
   version: 3,
-  defaultAgent: "reviewer-codex",
+  defaultAgent: "openai-codex",
+  reviewerVisible: false,
   proxyUrl: "http://127.0.0.1:3000/v1",
   model: "qwen3.5:0.8b",
   hasApiKey: true,
@@ -108,18 +109,35 @@ beforeEach(() => {
       profile_id: "openai",
       model: "gpt-5.6-luna",
     });
-  jest.mocked(configureEmbeddedPythonRuntime).mockResolvedValue({
-    ...configuration,
-    defaultAgent: "openai-codex",
-    providers: {
-      ...configuration.providers,
-      openai: {
-        ...configuration.providers.openai,
-        enabled: true,
-        hasApiKey: true,
-      },
-    },
-  });
+  jest
+    .mocked(configureEmbeddedPythonRuntime)
+    .mockImplementation(async (update) => ({
+      ...configuration,
+      defaultAgent: update.defaultAgent ?? configuration.defaultAgent,
+      reviewerVisible:
+        update.reviewerVisible ?? configuration.reviewerVisible,
+      providers: Object.fromEntries(
+        Object.entries(configuration.providers).map(([profileId, profile]) => {
+          const profileUpdate = update.providers?.[
+            profileId as keyof typeof configuration.providers
+          ];
+          return [
+            profileId,
+            {
+              ...profile,
+              enabled: profileUpdate?.enabled ?? profile.enabled,
+              baseUrl: profileUpdate?.baseUrl ?? profile.baseUrl,
+              model: profileUpdate?.model ?? profile.model,
+              authMode: profileUpdate?.authMode ?? profile.authMode,
+              hasApiKey:
+                profileUpdate?.clearApiKey === true
+                  ? false
+                  : Boolean(profileUpdate?.apiKey) || profile.hasApiKey,
+            },
+          ];
+        })
+      ) as EmbeddedRuntimePublicConfiguration["providers"],
+    }));
   jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValue({
     auth_status: {
       state: "pending",
@@ -158,27 +176,23 @@ beforeEach(() => {
   });
 });
 
-test("tests a candidate before saving and persists the selected default", async () => {
+test("tests the current candidate without persisting it", async () => {
   const { onSaved, screen } = renderModal();
   await waitFor(() =>
     expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy()
   );
 
-  fireEvent.changeText(
-    screen.getByTestId("embedded-provider-openai-api-key"),
-    "temporary-key"
-  );
   fireEvent.press(screen.getByTestId("embedded-provider-openai-test"));
 
   await waitFor(() =>
     expect(validateEmbeddedPythonRuntimeConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({
-        defaultAgent: "reviewer-codex",
+        defaultAgent: "openai-codex",
+        reviewerVisible: false,
         profileId: "openai",
         providers: expect.objectContaining({
           openai: expect.objectContaining({
             enabled: true,
-            apiKey: "temporary-key",
             authMode: "api",
           }),
         }),
@@ -191,23 +205,84 @@ test("tests a candidate before saving and persists the selected default", async 
   ).toBe("Connected to gpt-5.6-luna");
   expect(
     screen.getByTestId("embedded-provider-openai-enabled").props.value
-  ).toBe(true);
+  ).toBe(false);
+  expect(configureEmbeddedPythonRuntime).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
+});
 
-  fireEvent.press(screen.getByTestId("embedded-runtime-settings-save"));
+test("autosaves provider edits and default selection", async () => {
+  const { onSaved, screen } = renderModal();
   await waitFor(() =>
-    expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
-      expect.objectContaining({
-        defaultAgent: "openai-codex",
-        providers: expect.objectContaining({
-          openai: expect.objectContaining({
-            enabled: true,
-            apiKey: "temporary-key",
+    expect(screen.getByTestId("embedded-provider-openrouter")).toBeTruthy()
+  );
+
+  fireEvent.changeText(
+    screen.getByTestId("embedded-provider-openrouter-model"),
+    "openrouter/test-model"
+  );
+  fireEvent.press(
+    screen.getByTestId("embedded-provider-openrouter-default")
+  );
+
+  await waitFor(
+    () =>
+      expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultAgent: "openrouter-claude",
+          reviewerVisible: false,
+          providers: expect.objectContaining({
+            openrouter: expect.objectContaining({
+              model: "openrouter/test-model",
+            }),
           }),
-        }),
-      })
-    )
+        })
+      ),
+    { timeout: 2500 }
   );
   await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  expect(screen.queryByTestId("embedded-runtime-settings-save")).toBeNull();
+});
+
+test("keeps reviewer hidden until enabled and exposes only its API key", async () => {
+  const { screen } = renderModal();
+  await waitFor(() =>
+    expect(screen.getByTestId("embedded-reviewer-visible")).toBeTruthy()
+  );
+  expect(screen.queryByTestId("embedded-provider-reviewer")).toBeNull();
+
+  fireEvent(screen.getByTestId("embedded-reviewer-visible"), "valueChange", true);
+
+  await waitFor(() =>
+    expect(screen.getByTestId("embedded-provider-reviewer")).toBeTruthy()
+  );
+  expect(
+    screen.queryByTestId("embedded-provider-reviewer-enabled")
+  ).toBeNull();
+  expect(
+    screen.queryByTestId("embedded-provider-reviewer-base-url")
+  ).toBeNull();
+  expect(
+    screen.queryByTestId("embedded-provider-reviewer-model")
+  ).toBeNull();
+  expect(
+    screen.queryByTestId("embedded-provider-reviewer-tls-ca-bundle")
+  ).toBeNull();
+  expect(
+    screen.getByTestId("embedded-provider-reviewer-api-key")
+  ).toBeTruthy();
+  const providerChildren = screen.getByTestId("embedded-provider-list").props
+    .children as React.ReactElement<{ testID?: string }>[];
+  expect(providerChildren.at(-1)?.props.testID).toBe(
+    "embedded-provider-reviewer"
+  );
+
+  await waitFor(
+    () =>
+      expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
+        expect.objectContaining({ reviewerVisible: true })
+      ),
+    { timeout: 2500 }
+  );
 });
 
 test("runs plugin-driven ChatGPT login actions from provider settings", async () => {

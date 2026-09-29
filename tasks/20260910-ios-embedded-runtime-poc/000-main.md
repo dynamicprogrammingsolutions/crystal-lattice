@@ -47,17 +47,17 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] On-device OpenAI settings use an explicit API-key or ChatGPT default,
   expose plugin-driven ChatGPT login controls, and retain independent
   per-session overrides.
-- [ ] The embedded runtime is defined by a reviewable JSON configuration owned
+- [x] The embedded runtime is defined by a reviewable JSON configuration owned
   by the Python application, structurally aligned with the ordinary default
   config; the mobile/native layer supplies user settings through explicit
   env-like placeholder values instead of reconstructing the agent graph.
-- [ ] The embedded runtime includes the default-config plugins that are useful
+- [x] The embedded runtime includes the default-config plugins that are useful
   and feasible on iOS, including the system-message feature, while every
   omitted default plugin has an explicit compatibility or product rationale.
-- [ ] Consumer-facing connection names, profile labels, agent names, default
+- [x] Consumer-facing connection names, profile labels, agent names, default
   selection, profile order, and exposure of the proof-of-concept smoke agent
   are treated as provisional until explicitly approved.
-- [ ] Selecting or displaying the reviewer path cannot silently show or
+- [x] Selecting or displaying the reviewer path cannot silently show or
   activate the legacy Qwen/Ollama-compatible profile.
 
 ## Deferred configuration and product review

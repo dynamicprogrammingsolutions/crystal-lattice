@@ -210,6 +210,11 @@ async function configureProfile(options: {
   const scrollId = "embedded-runtime-settings-scroll";
   const scroll = by.id(scrollId);
   const prefix = `embedded-provider-${options.profileId}`;
+  if (options.profileId === "reviewer") {
+    await scrollUntilVisible(scrollId, "embedded-reviewer-visible");
+    await tapById("embedded-reviewer-visible");
+    await scrollUntilVisible(scrollId, prefix);
+  }
   if (options.profileId === "openai" && options.authMode === "chatgpt") {
     await scrollUntilVisible(
       scrollId,
@@ -217,8 +222,6 @@ async function configureProfile(options: {
     );
     await tapById("embedded-provider-openai-auth-chatgpt");
   }
-  await scrollUntilVisible(scrollId, `${prefix}-base-url`);
-
   const replaceProfileField = async (
     fieldId: string,
     value: string
@@ -236,13 +239,9 @@ async function configureProfile(options: {
     }
   };
 
-  await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
-  await replaceProfileField(`${prefix}-model`, options.model);
-  if (options.profileId === "reviewer" && options.tlsCaBundle) {
-    await replaceProfileField(
-      "embedded-provider-reviewer-tls-ca-bundle",
-      options.tlsCaBundle
-    );
+  if (options.profileId !== "reviewer") {
+    await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
+    await replaceProfileField(`${prefix}-model`, options.model);
   }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
   await scrollUntilVisible(scrollId, `${prefix}-test`);
@@ -252,11 +251,13 @@ async function configureProfile(options: {
     `Connected to ${options.model}`,
     120000
   );
-  await element(scroll).scrollTo("bottom");
-  await waitFor(element(by.id("embedded-runtime-settings-save")))
-    .toBeVisible()
-    .withTimeout(30000);
-  await tapById("embedded-runtime-settings-save");
+  if (options.profileId !== "reviewer") {
+    await scrollUntilVisible(scrollId, `${prefix}-enabled`);
+    await tapById(`${prefix}-enabled`);
+  }
+  await scrollUntilVisible(scrollId, `${prefix}-default`);
+  await tapById(`${prefix}-default`);
+  await new Promise<void>((resolve) => setTimeout(resolve, 900));
   await waitFor(element(by.text("Provider settings saved.")))
     .toBeVisible()
     .withTimeout(30000);

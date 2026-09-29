@@ -60,6 +60,7 @@ export interface EmbeddedProviderProfile {
 export interface EmbeddedRuntimeConfiguration {
   version?: 3;
   defaultAgent?: string;
+  reviewerVisible?: boolean;
   providers?: Partial<
     Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate>
   >;
@@ -73,10 +74,12 @@ export interface EmbeddedRuntimeConfiguration {
 export interface EmbeddedRuntimePublicConfiguration {
   version: 3;
   defaultAgent: string;
+  reviewerVisible: boolean;
   providers: Record<EmbeddedProviderProfileId, EmbeddedProviderProfile>;
   // Legacy reviewer setup aliases.
   proxyUrl: string;
   model: string;
+  selectedProfileId?: EmbeddedProviderProfileId;
   hasApiKey: boolean;
   inspectionOnly?: boolean;
 }

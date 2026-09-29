@@ -11,6 +11,7 @@
       "allowed_paths": [
         "${env:EMBEDDED_WORKSPACE_DIR}"
       ],
+      "cost_tracking_db_path": "${env:EMBEDDED_COST_TRACKING_DB_PATH}",
       "system_message_enabled": true,
       "system_message": {
         "template": ""

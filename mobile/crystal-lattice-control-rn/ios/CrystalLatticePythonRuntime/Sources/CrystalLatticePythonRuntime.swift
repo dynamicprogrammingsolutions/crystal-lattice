@@ -394,6 +394,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     return [
       "version": 3,
       "defaultAgent": "reviewer-codex",
+      "reviewerVisible": false,
       "providers": providers,
     ]
   }
@@ -445,28 +446,35 @@ final class CrystalLatticePythonRuntime: NSObject {
         (rawProfile["tlsCaBundle"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
       var profile: [String: Any] = [
-        "enabled": rawProfile["enabled"] as? Bool
-          ?? defaultProfile["enabled"] as? Bool
-          ?? false,
-        "baseUrl": !(baseUrl ?? "").isEmpty
-          ? baseUrl!
-          : defaultProfile["baseUrl"] as? String ?? "",
-        "model": !(model ?? "").isEmpty
-          ? model!
-          : defaultProfile["model"] as? String ?? "",
+        "enabled": profileId == "reviewer"
+          ? true
+          : rawProfile["enabled"] as? Bool
+            ?? defaultProfile["enabled"] as? Bool
+            ?? false,
+        "baseUrl": profileId == "reviewer"
+          ? defaultProfile["baseUrl"] as? String ?? ""
+          : !(baseUrl ?? "").isEmpty
+            ? baseUrl!
+            : defaultProfile["baseUrl"] as? String ?? "",
+        "model": profileId == "reviewer"
+          ? defaultProfile["model"] as? String ?? ""
+          : !(model ?? "").isEmpty
+            ? model!
+            : defaultProfile["model"] as? String ?? "",
       ]
       if profileId == "openai" {
         profile["authMode"] = authMode
       }
       if profileId == "reviewer" {
-        profile["tlsCaBundle"] = tlsCaBundle
-          ?? defaultProfile["tlsCaBundle"] as? String
-          ?? ""
+        profile["tlsCaBundle"] = reviewerCABundlePath()
       }
       providers[profileId] = profile
     }
     let requestedDefault =
       rawSettings["defaultAgent"] as? String ?? "reviewer-codex"
+    let reviewerVisible =
+      rawSettings["reviewerVisible"] as? Bool
+      ?? !apiKey(profileId: "reviewer").isEmpty
     let validAgents = Set(
       providerDefinitions.values.compactMap { $0["agentId"] }
     )
@@ -475,6 +483,7 @@ final class CrystalLatticePythonRuntime: NSObject {
       "defaultAgent": validAgents.contains(requestedDefault)
         ? requestedDefault
         : "reviewer-codex",
+      "reviewerVisible": reviewerVisible,
       "providers": providers,
     ]
   }
@@ -494,17 +503,22 @@ final class CrystalLatticePythonRuntime: NSObject {
       return migrated
     }
 
+    let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL") ?? ""
+    let legacyModel = defaults.string(forKey: "clcEmbeddedModel") ?? ""
+    let legacyKey = defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? ""
+    guard !legacyUrl.isEmpty || !legacyModel.isEmpty || !legacyKey.isEmpty else {
+      let settings = defaultProviderSettings()
+      saveProviderSettings(settings)
+      return settings
+    }
+
     var settings = defaultProviderSettings()
     var providers = settings["providers"] as? [String: Any] ?? [:]
     var compatible = providers["compatible"] as? [String: Any] ?? [:]
-    if let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL"),
-      !legacyUrl.isEmpty
-    {
+    if !legacyUrl.isEmpty {
       compatible["baseUrl"] = legacyUrl
     }
-    if let legacyModel = defaults.string(forKey: "clcEmbeddedModel"),
-      !legacyModel.isEmpty
-    {
+    if !legacyModel.isEmpty {
       compatible["model"] = legacyModel
     }
     compatible["enabled"] = true
@@ -513,9 +527,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     settings["defaultAgent"] = "compatible-claude"
     saveProviderSettings(settings)
 
-    if let legacyKey = defaults.string(
-      forKey: "clcEmbeddedProxyAPIKey"
-    ), !legacyKey.isEmpty {
+    if !legacyKey.isEmpty {
       try? setAPIKey(legacyKey, profileId: "compatible")
     }
     defaults.removeObject(forKey: "clcEmbeddedProxyAPIKey")
@@ -566,6 +578,8 @@ final class CrystalLatticePythonRuntime: NSObject {
         try? setAPIKey(legacyKey, profileId: "compatible")
         try? setAPIKey(nil, profileId: "reviewer")
       }
+    } else {
+      migrated["reviewerVisible"] = true
     }
     return normalizedProviderSettings(migrated)
   }
@@ -582,6 +596,9 @@ final class CrystalLatticePythonRuntime: NSObject {
   ) throws -> [String: Any] {
     var settings = storedProviderSettings()
     var providers = settings["providers"] as? [String: Any] ?? [:]
+    if let reviewerVisible = configuration["reviewerVisible"] as? Bool {
+      settings["reviewerVisible"] = reviewerVisible
+    }
     if let rawProviders = configuration["providers"] as? NSDictionary {
       for profileId in providerOrder {
         guard
@@ -590,10 +607,14 @@ final class CrystalLatticePythonRuntime: NSObject {
           continue
         }
         var profile = providers[profileId] as? [String: Any] ?? [:]
-        if let enabled = rawProfile["enabled"] as? Bool {
+        if profileId != "reviewer",
+          let enabled = rawProfile["enabled"] as? Bool
+        {
           profile["enabled"] = enabled
         }
-        if let baseUrl = rawProfile["baseUrl"] as? String {
+        if profileId != "reviewer",
+          let baseUrl = rawProfile["baseUrl"] as? String
+        {
           let normalized = baseUrl.trimmingCharacters(
             in: .whitespacesAndNewlines
           )
@@ -602,7 +623,9 @@ final class CrystalLatticePythonRuntime: NSObject {
           }
           profile["baseUrl"] = normalized
         }
-        if let model = rawProfile["model"] as? String {
+        if profileId != "reviewer",
+          let model = rawProfile["model"] as? String
+        {
           let normalized = model.trimmingCharacters(
             in: .whitespacesAndNewlines
           )
@@ -621,13 +644,6 @@ final class CrystalLatticePythonRuntime: NSObject {
             throw RuntimeError.invalidConfiguration
           }
           profile["authMode"] = normalized
-        }
-        if profileId == "reviewer",
-          let tlsCaBundle = rawProfile["tlsCaBundle"] as? String
-        {
-          profile["tlsCaBundle"] = tlsCaBundle.trimmingCharacters(
-            in: .whitespacesAndNewlines
-          )
         }
         providers[profileId] = profile
       }
@@ -651,7 +667,6 @@ final class CrystalLatticePythonRuntime: NSObject {
         in: .whitespacesAndNewlines
       )
       providers["compatible"] = compatible
-      settings["defaultAgent"] = "compatible-claude"
     }
     settings["providers"] = providers
     if let defaultAgent = configuration["defaultAgent"] as? String {
@@ -786,6 +801,7 @@ final class CrystalLatticePythonRuntime: NSObject {
       "version": 3,
       "default_agent": normalized["defaultAgent"] as? String
         ?? "reviewer-codex",
+      "reviewer_visible": normalized["reviewerVisible"] as? Bool ?? false,
       "providers": providers,
     ]
   }
@@ -829,18 +845,33 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     let compatible = providers["compatible"] as? [String: Any] ?? [:]
-    return [
+    let requestedProfileId = profileId(
+      forAgent: settings["defaultAgent"] as? String
+    )
+    let reviewerVisible = settings["reviewerVisible"] as? Bool ?? false
+    let selectedProfileId =
+      requestedProfileId == "reviewer" && !reviewerVisible
+      ? ""
+      : requestedProfileId
+    let selectedProfile =
+      providers[selectedProfileId] as? [String: Any] ?? [:]
+    var result: [String: Any] = [
       "version": 3,
       "defaultAgent": settings["defaultAgent"] as? String
         ?? "reviewer-codex",
+      "reviewerVisible": reviewerVisible,
       "providers": providers,
       "hasApiKey": compatible["hasApiKey"] as? Bool ?? false,
       "inspectionOnly": UserDefaults.standard.bool(
         forKey: "clcEmbeddedInspectionOnly"
       ),
-      "model": compatible["model"] as? String ?? "",
-      "proxyUrl": compatible["baseUrl"] as? String ?? "",
+      "model": selectedProfile["model"] as? String ?? "",
+      "proxyUrl": selectedProfile["baseUrl"] as? String ?? "",
     ]
+    if !selectedProfileId.isEmpty {
+      result["selectedProfileId"] = selectedProfileId
+    }
+    return result
   }
 
   private static func nowMs() -> Double {

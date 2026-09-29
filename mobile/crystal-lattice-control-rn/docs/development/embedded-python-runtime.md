@@ -1,7 +1,7 @@
 # Embedded Python runtime
 
 The iOS app runs a fixed Crystal Lattice `AgentApplication` in process. It
-bundles CPython, `agent_core`, `agent_app`, four provider packages, separate
+bundles CPython, `agent_core`, `agent_app`, five provider profiles, separate
 Claude-like and Codex-like tool packages, and selected session-management
 application plugins. React Native uses the ordinary `RestAgentBackend` over an
 `inProcess` transport; the app does not start FastAPI, bind a loopback server,
@@ -26,13 +26,20 @@ The `local` agent remains registered after real profiles are enabled so
 sessions created before configuration remain loadable. A successfully tested
 real profile becomes the default for subsequent sessions.
 
-Provider URLs, models, enabled flags, and the default agent are stored in a
+Editable provider URLs, models, enabled flags, and the default agent are stored in a
 versioned iOS preference document. Version 3 splits the old overloaded
 reviewer profile into generic-compatible and dedicated Responses reviewer
 profiles. Each provider API key is stored as a
 separate iOS Keychain generic-password item. JavaScript receives only
 `hasApiKey`; keys are not written to connection records or AsyncStorage. The
 old single reviewer key is migrated from `UserDefaults` to Keychain.
+
+The provider/agent/plugin graph is maintained by the Python application in
+`agent_terminal_app/default_config/embedded-ios/config.json`. Runtime
+preparation copies that JSON into the immutable Python archive. Native
+settings provide config-only `${env:...}` placeholder values for mutable
+settings, paths, readiness, and Keychain-backed credentials; Swift and
+TypeScript do not maintain a second agent graph.
 
 ## Runtime layout
 
@@ -60,9 +67,10 @@ history, and relevant tool inputs/results to the selected external service.
 
 The reusable OpenAI Responses provider supports `api`, `auto`, and `chatgpt`
 authentication modes. The embedded mobile profile deliberately exposes only
-**API key** and **ChatGPT**. Existing mobile `auto` values migrate to `api`;
-the selected mobile default remains visible and can still be overridden in
-session settings.
+**API key** and **ChatGPT** in On-device Provider Settings. Existing mobile
+`auto` values migrate to `api`. The ordinary session/plugin auth selector is
+suppressed for embedded agents so one session cannot accidentally switch away
+from the saved on-device choice.
 
 The bundle includes `chatgpt-auth-app` and the Responses ChatGPT auth feature.
 The OpenAI authentication card in On-device Provider Settings invokes the
@@ -78,8 +86,12 @@ OpenAI's device-auth endpoint can return a Cloudflare route error to
 iOS. The same verified CA setup covers login polling, token exchange,
 credential refresh, and ChatGPT/Codex discovery requests.
 
-The reviewer profile is preconfigured with the Ireland HTTPS URL,
-`gpt-5.6-luna`, and a custom CA bundle. The App Review build includes the
+The Reviewer profile is globally hidden by default. Enabling **Reviewer
+access** adds it at the bottom of the provider list and makes it available to
+the runtime once its caller key is present. Its Ireland HTTPS URL,
+`gpt-5.6-luna` model, provider protocol, tool family, and CA path are fixed by
+the maintained Python configuration and are not editable in the app. The App
+Review build includes the
 public Ireland reviewer certificate and retains TLS verification; private
 certificate keys and API credentials are not bundled. Runtime preparation
 preserves the tracked public certificate when regenerating resources.
@@ -148,18 +160,26 @@ On iOS:
    ChatGPT mode enables the plugin-driven login/status controls in the same
    settings window.
 4. Enable a profile and set its URL, model, and credentials when required.
-   Choose the default agent used when callers do not specify one. The
-   reviewer URL, model, and CA are already filled; App Review supplies only
-   its private caller key.
-5. **Test** validates a candidate without replacing saved settings. **Save
-   Settings** writes non-secrets to preferences and keys to Keychain.
+   Choose the default agent used when callers do not specify one. To use the
+   Reviewer, enable **Reviewer access** and enter only its private caller key.
+5. Every edit saves automatically after a short debounce. The status line
+   reports saving, success, or failure. **Test** validates the current
+   candidate without changing settings by itself.
 6. Open the built-in connection, create a session with an available agent, and
    use the ordinary Sessions and Messages screens.
 
-The legacy new-connection reviewer setup remains compatible. A failed
-candidate test leaves the saved configuration untouched. The next in-process
-request reconstructs `AgentApplication` when settings change while preserving
-sessions and workspace files.
+The built-in on-device connection is created automatically. The old
+new-connection form is no longer offered because it wrote the legacy
+compatible-provider aliases and could silently select Qwen. A failed candidate
+test leaves the autosaved configuration untouched. The next in-process request
+reconstructs `AgentApplication` when settings change while preserving sessions
+and workspace files.
+
+The maintained config also includes the default system-message,
+request-options, timestamp/duration, summarize-range, rebuild-native-history,
+and cost-tracking plugins. File context, web context, MCP, cloud-agent, and
+dotenv-editing plugins remain excluded or deferred for explicit iOS
+compatibility and product review.
 
 The Claude-like plugin package contains:
 
@@ -310,19 +330,10 @@ Run the Release simulator API matrix separately:
 npm run test:ios:embedded-providers:detox:api
 ```
 
-For a local reviewer HTTPS fixture, point the reviewer row at the TLS endpoint
-and set `REVIEWER_PROXY_TLS_CA_SOURCE` to its public PEM certificate. The test
-copies only that certificate into the simulator data container and enters the
-resulting app-sandbox path through the production reviewer CA setting. The
-private key stays on the host:
-
-```bash
-REVIEWER_PROXY_URL=https://127.0.0.1:3444/v1 \
-REVIEWER_PROXY_API_KEY=replace-with-local-caller-key \
-REVIEWER_PROXY_TLS_CA_SOURCE=/absolute/path/to/local-reviewer-ca.pem \
-python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_detox_matrix.py \
-  --row reviewer --skip-build
-```
+The production Reviewer row always uses the maintained Ireland URL, model,
+and bundled public CA. Local proxy development should use the generic
+OpenAI-compatible profile; the production Reviewer settings UI intentionally
+has no URL, model, or CA override.
 
 The default ChatGPT simulator command starts a real device-code login, proves
 that the plugin-driven URL/code actions are displayed, and cancels the
@@ -351,7 +362,7 @@ CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
   npm run test:ios:embedded-providers:detox:chatgpt
 ```
 
-Each gated run starts a fresh login. After saving settings, it closes the
+Each gated run starts a fresh login. After autosave succeeds, it closes the
 settings modal before relaunching the app. Detox cleanup removes the installed
 simulator app and its saved credentials between runs.
 

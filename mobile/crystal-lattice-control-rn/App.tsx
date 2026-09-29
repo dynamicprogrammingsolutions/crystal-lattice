@@ -70,6 +70,7 @@ import {
   configureEmbeddedPythonRuntime,
   getEmbeddedPythonRuntimeConfiguration,
   noteEmbeddedPythonRuntimeAppState,
+  type EmbeddedRuntimePublicConfiguration,
 } from './src/embeddedRuntime/embeddedPythonRuntime';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
@@ -90,18 +91,18 @@ const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
 const EMBEDDED_CONNECTION_ID = 'embedded-ios-runtime';
 
 function embeddedConnectionRecord(
-  configuration: {
-    proxyUrl: string;
-    model: string;
-  },
+  configuration: EmbeddedRuntimePublicConfiguration,
   lastUsedAt = Date.now(),
 ): EmbeddedConnectionRecord {
+  const selectedProfile = configuration.selectedProfileId
+    ? configuration.providers[configuration.selectedProfileId]
+    : undefined;
   return {
     id: EMBEDDED_CONNECTION_ID,
     kind: 'embedded',
     name: 'On-device Python agents',
-    proxyUrl: configuration.proxyUrl,
-    model: configuration.model,
+    proxyUrl: selectedProfile?.baseUrl ?? configuration.proxyUrl,
+    model: selectedProfile?.model ?? configuration.model,
     lastUsedAt,
   };
 }
@@ -467,16 +468,9 @@ function App(): React.JSX.Element {
       try {
         let records = await loadConnections(connectionsStore);
         if (Platform.OS === 'ios') {
-          let configuration = {
-            proxyUrl: 'http://127.0.0.1:3000/v1',
-            model: 'qwen3.5:0.8b',
-          };
+          let configuration: EmbeddedRuntimePublicConfiguration | null = null;
           try {
-            const stored = await getEmbeddedPythonRuntimeConfiguration();
-            configuration = {
-              proxyUrl: stored.proxyUrl,
-              model: stored.model,
-            };
+            configuration = await getEmbeddedPythonRuntimeConfiguration();
           } catch (error) {
             appendDebugNote({
               scope: 'app',
@@ -489,15 +483,17 @@ function App(): React.JSX.Element {
               record.id === EMBEDDED_CONNECTION_ID &&
               record.kind === 'embedded',
           );
-          records = [
-            embeddedConnectionRecord(
-              configuration,
-              prior?.lastUsedAt ?? Date.now(),
-            ),
-            ...records.filter(
-              (record) => record.id !== EMBEDDED_CONNECTION_ID,
-            ),
-          ];
+          if (configuration) {
+            records = [
+              embeddedConnectionRecord(
+                configuration,
+                prior?.lastUsedAt ?? Date.now(),
+              ),
+              ...records.filter(
+                (record) => record.id !== EMBEDDED_CONNECTION_ID,
+              ),
+            ];
+          }
         }
         setConnections(records);
       } catch (err) {
@@ -1247,18 +1243,6 @@ function App(): React.JSX.Element {
     <View style={styles.container}>
       <Text style={styles.title}>Select Connection Method</Text>
 
-      {Platform.OS === 'ios' ? (
-        <TouchableOpacity
-          testID="connection-method-embedded"
-          style={[styles.button, styles.methodButton]}
-          onPress={() => selectMethod('embedded')}>
-          <Text style={styles.buttonText}>On-device Python Agent</Text>
-          <Text style={styles.methodDescription}>
-            Run the fixed agent runtime inside this app
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-      
       <TouchableOpacity
         testID="connection-method-manual"
         style={[styles.button, styles.methodButton]}

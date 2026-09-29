@@ -192,8 +192,7 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
       .whileElement(scroll)
       .scroll(100, "down");
     await tapById("embedded-provider-openai-default");
-    await element(scroll).scrollTo("bottom");
-    await tapById("embedded-runtime-settings-save");
+    await new Promise<void>((resolve) => setTimeout(resolve, 900));
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
       .withTimeout(30000);

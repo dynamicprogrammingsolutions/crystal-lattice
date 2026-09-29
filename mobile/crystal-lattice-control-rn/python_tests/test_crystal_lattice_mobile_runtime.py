@@ -572,6 +572,12 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         full_configuration,
     )
     try:
+        raw_config = runtime.config_path.read_text(encoding="utf-8")
+        assert "${env:EMBEDDED_OPENAI_API_KEY}" in raw_config
+        assert "openai-key" not in raw_config
+        assert runtime.config_environment["EMBEDDED_OPENAI_API_KEY"] == (
+            "openai-key"
+        )
         assert runtime.application.list_agents() == [
             "anthropic-claude",
             "compatible-claude",
@@ -582,6 +588,17 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         ]
         default_session = runtime.create_session()
         assert default_session.metadata["agent_id"] == "openai-codex"
+        loaded = runtime.application.load_session(default_session.session_id)
+        assert loaded is not None
+        core, base_config, _session = loaded
+        ui_elements = core.get_ui_schema(base_config)
+        assert not any(
+            element.get("key") == "auth_mode" for element in ui_elements
+        )
+        assert any(
+            element.get("id") == "show_compiled_system_message"
+            for element in ui_elements
+        )
         assert {
             plugin["id"] for plugin in runtime.application.list_application_plugins()
         } == {
@@ -613,6 +630,60 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         }.issubset(plugin_ids)
     finally:
         runtime.application.close()
+
+
+def test_reviewer_agent_requires_global_visibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_runtime_module()
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    configuration = {
+        "version": 3,
+        "default_agent": "reviewer-codex",
+        "reviewer_visible": False,
+        "providers": {
+            "reviewer": {
+                "enabled": True,
+                "api_key": "review-key",
+                "base_url": "https://untrusted-user-value.test/v1",
+                "model": "user-model",
+                "tls_ca_bundle": "/runtime/reviewer-ca.pem",
+            }
+        },
+    }
+    hidden = module.MobileRuntime(str(tmp_path / "hidden"), configuration)
+    try:
+        assert "reviewer-codex" not in hidden.application.list_agents()
+        assert (
+            hidden.config_environment["EMBEDDED_REVIEWER_ENABLED"]
+            == "false"
+        )
+    finally:
+        hidden.application.close()
+
+    configuration["reviewer_visible"] = True
+    visible = module.MobileRuntime(str(tmp_path / "visible"), configuration)
+    try:
+        assert "reviewer-codex" in visible.application.list_agents()
+        assert (
+            visible.config_environment["EMBEDDED_REVIEWER_ENABLED"]
+            == "true"
+        )
+        resolved = module._config_payload(
+            configuration,
+            tmp_path / "visible" / "workspace",
+        )
+        assert resolved["providers"]["reviewer"]["base_url"] == (
+            "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1"
+        )
+        assert resolved["providers"]["reviewer"]["model"] == "gpt-5.6-luna"
+    finally:
+        visible.application.close()
 
 
 def test_chatgpt_profile_and_reviewer_ca_use_maintained_config(

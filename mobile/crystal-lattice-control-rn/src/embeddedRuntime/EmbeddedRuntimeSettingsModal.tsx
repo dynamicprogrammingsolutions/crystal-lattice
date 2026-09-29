@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Linking,
   StyleSheet,
@@ -30,10 +30,10 @@ import {
 
 const PROFILE_ORDER: EmbeddedProviderProfileId[] = [
   "openai",
-  "reviewer",
   "compatible",
   "openrouter",
   "anthropic",
+  "reviewer",
 ];
 
 type ProfileDraft = EmbeddedProviderProfile & {
@@ -78,15 +78,16 @@ function updatesFromDrafts(
       return [
         profileId,
         {
-          enabled:
-            profileId === forceEnabledProfile ? true : draft.enabled,
-          baseUrl: draft.baseUrl.trim(),
-          model: draft.model.trim(),
+          ...(profileId !== "reviewer"
+            ? {
+                enabled:
+                  profileId === forceEnabledProfile ? true : draft.enabled,
+                baseUrl: draft.baseUrl.trim(),
+                model: draft.model.trim(),
+              }
+            : {}),
           ...(profileId === "openai"
             ? { authMode: draft.authMode ?? "api" }
-            : {}),
-          ...(profileId === "reviewer"
-            ? { tlsCaBundle: draft.tlsCaBundle?.trim() ?? "" }
             : {}),
           ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
           ...(draft.clearApiKey ? { clearApiKey: true } : {}),
@@ -94,6 +95,19 @@ function updatesFromDrafts(
       ];
     })
   ) as Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate>;
+}
+
+function configurationFromDrafts(
+  drafts: Record<EmbeddedProviderProfileId, ProfileDraft>,
+  defaultAgent: string,
+  reviewerVisible: boolean
+) {
+  return {
+    version: 3 as const,
+    defaultAgent,
+    reviewerVisible,
+    providers: updatesFromDrafts(drafts),
+  };
 }
 
 const EmbeddedRuntimeSettingsModal: React.FC<
@@ -108,6 +122,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     ProfileDraft
   > | null>(null);
   const [defaultAgent, setDefaultAgent] = useState("reviewer-codex");
+  const [reviewerVisible, setReviewerVisible] = useState(false);
   const [status, setStatus] = useState<ValidationState>({
     tone: "idle",
     message: "",
@@ -125,6 +140,13 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     url: string;
     code: string;
   } | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastAutosavePayloadRef = useRef("");
+  const latestDefaultAgentRef = useRef(defaultAgent);
+  const latestReviewerVisibleRef = useRef(reviewerVisible);
+  latestDefaultAgentRef.current = defaultAgent;
+  latestReviewerVisibleRef.current = reviewerVisible;
 
   useEffect(() => {
     if (!visible) {
@@ -135,9 +157,18 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     void getEmbeddedPythonRuntimeConfiguration()
       .then((loaded) => {
         if (!active) return;
+        const loadedDrafts = draftsFromConfiguration(loaded);
+        lastAutosavePayloadRef.current = JSON.stringify(
+          configurationFromDrafts(
+            loadedDrafts,
+            loaded.defaultAgent,
+            loaded.reviewerVisible
+          )
+        );
         setConfiguration(loaded);
-        setDrafts(draftsFromConfiguration(loaded));
+        setDrafts(loadedDrafts);
         setDefaultAgent(loaded.defaultAgent);
+        setReviewerVisible(loaded.reviewerVisible);
         setValidation({});
         setChatGPTDisplay(null);
         setChatGPTActionId(null);
@@ -157,8 +188,109 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       });
     return () => {
       active = false;
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
     };
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !drafts || !configuration) {
+      return;
+    }
+    const payload = configurationFromDrafts(
+      drafts,
+      defaultAgent,
+      reviewerVisible
+    );
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastAutosavePayloadRef.current) {
+      return;
+    }
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      autosaveQueueRef.current = autosaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          setStatus({ tone: "busy", message: "Saving provider settings…" });
+          try {
+            const saved = await configureEmbeddedPythonRuntime(payload);
+            lastAutosavePayloadRef.current = serialized;
+            setConfiguration(saved);
+            setReviewerVisible(saved.reviewerVisible);
+            setDrafts((current) => {
+              if (!current) return current;
+              const currentSerialized = JSON.stringify(
+                configurationFromDrafts(
+                  current,
+                  latestDefaultAgentRef.current,
+                  latestReviewerVisibleRef.current
+                )
+              );
+              const saveWasLatest = currentSerialized === serialized;
+              const next = Object.fromEntries(
+                PROFILE_ORDER.map((profileId) => [
+                  profileId,
+                  {
+                    ...current[profileId],
+                    enabled: saved.providers[profileId].enabled,
+                    hasApiKey: saved.providers[profileId].hasApiKey,
+                    apiKey:
+                      saveWasLatest &&
+                      payload.providers[profileId]?.apiKey ===
+                        current[profileId].apiKey
+                        ? ""
+                        : current[profileId].apiKey,
+                    clearApiKey: false,
+                  },
+                ])
+              ) as Record<EmbeddedProviderProfileId, ProfileDraft>;
+              if (saveWasLatest) {
+                lastAutosavePayloadRef.current = JSON.stringify(
+                  configurationFromDrafts(
+                    next,
+                    saved.defaultAgent,
+                    saved.reviewerVisible
+                  )
+                );
+              }
+              return next;
+            });
+            setDefaultAgent(saved.defaultAgent);
+            setStatus({
+              tone: "success",
+              message: "Provider settings saved.",
+            });
+            onSaved?.(saved);
+          } catch (error) {
+            setStatus({
+              tone: "error",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Could not save settings.",
+            });
+          }
+        });
+    }, 450);
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [
+    configuration,
+    defaultAgent,
+    drafts,
+    onSaved,
+    reviewerVisible,
+    visible,
+  ]);
 
   const updateDraft = (
     profileId: EmbeddedProviderProfileId,
@@ -186,11 +318,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       const result = await validateEmbeddedPythonRuntimeConfiguration({
         version: 3,
         defaultAgent,
+        reviewerVisible,
         profileId,
         providers: updatesFromDrafts(drafts, profileId),
       });
-      updateDraft(profileId, { enabled: true });
-      setDefaultAgent(drafts[profileId].agentId);
       setValidation((current) => ({
         ...current,
         [profileId]: {
@@ -207,29 +338,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
             error instanceof Error ? error.message : "Validation failed.",
         },
       }));
-    }
-  };
-
-  const save = async (): Promise<void> => {
-    if (!drafts) return;
-    setStatus({ tone: "busy", message: "Saving provider settings…" });
-    try {
-      const saved = await configureEmbeddedPythonRuntime({
-        version: 3,
-        defaultAgent,
-        providers: updatesFromDrafts(drafts),
-      });
-      setConfiguration(saved);
-      setDrafts(draftsFromConfiguration(saved));
-      setDefaultAgent(saved.defaultAgent);
-      setStatus({ tone: "success", message: "Provider settings saved." });
-      onSaved?.(saved);
-    } catch (error) {
-      setStatus({
-        tone: "error",
-        message:
-          error instanceof Error ? error.message : "Could not save settings.",
-      });
     }
   };
 
@@ -310,7 +418,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       visible={visible}
       testID="embedded-runtime-settings"
       title="On-device Provider Settings"
-      subtitle="Keys stay in iOS Keychain. Test checks a candidate without replacing saved settings."
+      subtitle="Changes save automatically. Keys stay in iOS Keychain. Test validates without saving."
       onRequestClose={onRequestClose}
       statusText={status.message}
       statusTone={status.tone === "busy" ? "busy" : status.tone}
@@ -321,11 +429,26 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     >
       {drafts && configuration ? (
         <>
+          <View style={styles.profile} testID="embedded-reviewer-visibility-settings">
+            <View style={styles.profileHeader}>
+              <View style={styles.profileTitleGroup}>
+                <Text style={styles.profileTitle}>Reviewer access</Text>
+                <Text style={styles.profileMeta}>
+                  Show the preconfigured App Review provider.
+                </Text>
+              </View>
+              <Switch
+                testID="embedded-reviewer-visible"
+                value={reviewerVisible}
+                onValueChange={setReviewerVisible}
+              />
+            </View>
+          </View>
           <View style={styles.profile} testID="embedded-openai-auth-settings">
             <Text style={styles.profileTitle}>OpenAI authentication</Text>
             <Text style={styles.profileMeta}>
-              Choose the default for new OpenAI Responses sessions. Individual
-              sessions can override it.
+              Choose the authentication used by on-device OpenAI Responses
+              sessions.
             </Text>
             <View style={styles.choiceRow}>
               {(["api", "chatgpt"] as const).map((authMode) => {
@@ -439,16 +562,19 @@ const EmbeddedRuntimeSettingsModal: React.FC<
               </View>
             ) : null}
           </View>
-          {PROFILE_ORDER.map((profileId) => {
-            const draft = drafts[profileId];
-            const validationState = validation[profileId];
-            const isDefault = defaultAgent === draft.agentId;
-            return (
-              <View
-                key={profileId}
-                style={styles.profile}
-                testID={`embedded-provider-${profileId}`}
-              >
+          <View testID="embedded-provider-list">
+            {PROFILE_ORDER.filter(
+              (profileId) => profileId !== "reviewer" || reviewerVisible
+            ).map((profileId) => {
+              const draft = drafts[profileId];
+              const validationState = validation[profileId];
+              const isDefault = defaultAgent === draft.agentId;
+              return (
+                <View
+                  key={profileId}
+                  style={styles.profile}
+                  testID={`embedded-provider-${profileId}`}
+                >
                 <View style={styles.profileHeader}>
                   <View style={styles.profileTitleGroup}>
                     <Text style={styles.profileTitle}>{draft.label}</Text>
@@ -456,13 +582,15 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                       {draft.agentId} · {draft.toolFamily}
                     </Text>
                   </View>
-                  <Switch
-                    testID={`embedded-provider-${profileId}-enabled`}
-                    value={draft.enabled}
-                    onValueChange={(enabled) =>
-                      updateDraft(profileId, { enabled })
-                    }
-                  />
+                  {profileId !== "reviewer" ? (
+                    <Switch
+                      testID={`embedded-provider-${profileId}-enabled`}
+                      value={draft.enabled}
+                      onValueChange={(enabled) =>
+                        updateDraft(profileId, { enabled })
+                      }
+                    />
+                  ) : null}
                 </View>
 
                 <TouchableOpacity
@@ -483,40 +611,28 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   </Text>
                 </TouchableOpacity>
 
-                <Text style={styles.label}>Base URL</Text>
-                <TextInput
-                  testID={`embedded-provider-${profileId}-base-url`}
-                  style={styles.input}
-                  value={draft.baseUrl}
-                  onChangeText={(baseUrl) =>
-                    updateDraft(profileId, { baseUrl })
-                  }
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-
-                <Text style={styles.label}>Model</Text>
-                <TextInput
-                  testID={`embedded-provider-${profileId}-model`}
-                  style={styles.input}
-                  value={draft.model}
-                  onChangeText={(model) => updateDraft(profileId, { model })}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-
-                {profileId === "reviewer" ? (
+                {profileId !== "reviewer" ? (
                   <>
-                    <Text style={styles.label}>TLS CA bundle path</Text>
+                    <Text style={styles.label}>Base URL</Text>
                     <TextInput
-                      testID="embedded-provider-reviewer-tls-ca-bundle"
+                      testID={`embedded-provider-${profileId}-base-url`}
                       style={styles.input}
-                      value={draft.tlsCaBundle ?? ""}
-                      onChangeText={(tlsCaBundle) =>
-                        updateDraft(profileId, { tlsCaBundle })
+                      value={draft.baseUrl}
+                      onChangeText={(baseUrl) =>
+                        updateDraft(profileId, { baseUrl })
                       }
-                      placeholder="Optional custom CA certificate"
-                      placeholderTextColor={theme.textSecondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+
+                    <Text style={styles.label}>Model</Text>
+                    <TextInput
+                      testID={`embedded-provider-${profileId}-model`}
+                      style={styles.input}
+                      value={draft.model}
+                      onChangeText={(model) =>
+                        updateDraft(profileId, { model })
+                      }
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
@@ -590,16 +706,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                     {validationState.message}
                   </Text>
                 ) : null}
-              </View>
-            );
-          })}
-          <TouchableOpacity
-            testID="embedded-runtime-settings-save"
-            style={styles.saveButton}
-            onPress={() => void save()}
-          >
-            <Text style={styles.saveButtonText}>Save Settings</Text>
-          </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
         </>
       ) : null}
     </PanelModalFrame>
@@ -743,18 +853,6 @@ const createStyles = (theme: Theme) =>
     },
     validationSuccess: {
       color: theme.success,
-    },
-    saveButton: {
-      alignItems: "center",
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      backgroundColor: theme.primary,
-      marginBottom: 8,
-    },
-    saveButtonText: {
-      color: theme.textOnPrimary,
-      fontWeight: "700",
     },
   });
 

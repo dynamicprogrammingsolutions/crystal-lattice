@@ -7,38 +7,38 @@ behavior consistent without finalizing unapproved product names.
 
 ## Requirements checklist
 
-- [ ] The embedded runtime's providers, agents, plugins, application settings,
+- [x] The embedded runtime's providers, agents, plugins, application settings,
   and mixins are maintained in a JSON configuration under the Python
   application rather than reconstructed independently in the mobile app.
-- [ ] Native/mobile settings supply URLs, models, workspace paths,
+- [x] Native/mobile settings supply URLs, models, workspace paths,
   authentication mode, credential paths or values, reviewer visibility, and
   other mutable values through explicit env-like placeholder overrides.
-- [ ] API keys and ChatGPT credentials remain outside the maintained JSON;
+- [x] API keys and ChatGPT credentials remain outside the maintained JSON;
   secrets stay in Keychain or the plugin-owned credential store and are not
   persisted into generated configuration files.
-- [ ] The embedded runtime includes the useful, iOS-feasible default-config
+- [x] The embedded runtime includes the useful, iOS-feasible default-config
   plugins, including system message, request options, timestamp/duration,
   summarize range, rebuild native history, and cost tracking. Omitted default
   plugins have documented compatibility or product reasons.
-- [ ] A global on-device setting controls Reviewer visibility. Reviewer is
+- [x] A global on-device setting controls Reviewer visibility. Reviewer is
   absent from ordinary settings and agent selection while disabled and appears
   at the bottom when enabled.
-- [ ] Reviewer deployment URL, model, and CA path are fixed by the maintained
+- [x] Reviewer deployment URL, model, and CA path are fixed by the maintained
   config and hidden from the on-device form; only its caller API key is
   editable.
-- [ ] Every edit in the on-device provider form is persisted without requiring
+- [x] Every edit in the on-device provider form is persisted without requiring
   a separate Save action, with clear saving, saved, and error states.
-- [ ] OpenAI API-key versus ChatGPT authentication is controlled only from the
+- [x] OpenAI API-key versus ChatGPT authentication is controlled only from the
   on-device provider settings. The corresponding ordinary plugin/session
   setting is hidden or disabled for embedded agents and cannot override the
   saved global choice.
-- [ ] The embedded ChatGPT integration remains plugin-driven and may use an
+- [x] The embedded ChatGPT integration remains plugin-driven and may use an
   embedded-specific plugin variant to customize UI schema/actions without
   changing the ordinary OpenAI Responses or ChatGPT plugin behavior.
-- [ ] The built-in connection and session creation use and display the actual
+- [x] The built-in connection and session creation use and display the actual
   selected profile; legacy generic-compatible aliases or the old connection
   wizard cannot silently display or activate Qwen when Reviewer is selected.
-- [ ] Consumer-facing connection labels, profile/agent display names, profile
+- [x] Consumer-facing connection labels, profile/agent display names, profile
   ordering outside the settled Reviewer-last rule, default profile, and
   smoke-agent exposure remain explicitly provisional until user approval.
 - [ ] Existing local sessions, provider credentials, Reviewer, direct OpenAI,
@@ -174,17 +174,17 @@ and collect those decisions for user confirmation.
 
 ### Task checklist
 
-- [ ] Add regression tests for Reviewer/Qwen, visibility, hidden fields,
+- [x] Add regression tests for Reviewer/Qwen, visibility, hidden fields,
   autosave, and duplicate auth controls.
 - [x] Add and package the Python-owned embedded JSON configuration.
 - [x] Replace generated graph construction with placeholder overrides.
-- [ ] Add the settled default-config plugin subset and focused integration
+- [x] Add the settled default-config plugin subset and focused integration
   coverage.
-- [ ] Implement Reviewer opt-in visibility, last placement, and hidden fixed
+- [x] Implement Reviewer opt-in visibility, last placement, and hidden fixed
   fields.
-- [ ] Implement serialized autosave and remove the explicit-save dependency.
-- [ ] Add embedded-specific ChatGPT/session UI customization.
-- [ ] Remove or neutralize the legacy embedded connection configuration path.
+- [x] Implement serialized autosave and remove the explicit-save dependency.
+- [x] Add embedded-specific ChatGPT/session UI customization.
+- [x] Remove or neutralize the legacy embedded connection configuration path.
 - [ ] Run source, immutable ZIP, component, TypeScript, and Release-simulator
   regression coverage.
 - [ ] Present unresolved product and optional-plugin decisions for approval.
@@ -244,3 +244,31 @@ and collect those decisions for user confirmation.
   suppresses the provider's session auth selector while preserving the model,
   retry, and attachment UI. The generic provider retains its existing UI when
   the option is absent.
+- 2026-09-29: Native settings now persist a global `reviewerVisible` flag.
+  Reviewer is hidden by default, rendered last when enabled, and its form
+  exposes only the Keychain-backed caller key, Test, and default selection.
+  URL, model, CA, provider, and tools come from the maintained JSON.
+- 2026-09-29: Provider settings autosave through a debounced serialized queue.
+  Successful saves clear only the just-persisted key draft, preserve newer
+  edits, update connection metadata, and report saving/saved/error state.
+  Test remains a non-persisting validation action.
+- 2026-09-29: Removed the legacy on-device option from the New Connection
+  chooser. The built-in connection record now follows the selected profile
+  instead of the generic-compatible aliases. A Release-simulator Ollama setup
+  against a disposable authenticated proxy proved model/URL metadata,
+  autosave, Keychain persistence, connection activation, and relaunch.
+- 2026-09-29: Added application-owned developer documentation for the embedded
+  JSON and updated the mobile runtime guide for autosave, Reviewer opt-in,
+  fixed deployment fields, single auth control, plugin parity, and the removed
+  legacy form.
+- 2026-09-29: Verification passed for 30 focused Python config/runtime tests,
+  278 mobile Jest tests, TypeScript, Swift parsing, docs preparation, Release
+  simulator build, immutable ZIP provider tests, the local Ollama setup Detox
+  flow, and the ungated real ChatGPT login-start/cancel Detox flow.
+- 2026-09-29: Selected source package results: request-options/timestamp 58
+  passed; summarize-range 10 passed; rebuild-native 6 passed; cost-tracking 68
+  passed; system-message pure feature tests 34 passed. Seven existing
+  system-message AgentApplication/default-config integration tests fail in the
+  current worktree on request-checkpoint and omitted-mixin assumptions; the
+  embedded maintained-config and system-message UI boundary passes and those
+  tests were not weakened.

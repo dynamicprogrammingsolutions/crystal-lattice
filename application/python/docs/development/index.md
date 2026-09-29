@@ -6,6 +6,7 @@
 - [Application request execution](request-execution.md)
 - [Request cancellation specification](specifications/request-cancellation/index.md)
 - [Application operations](operations.md)
+- [Embedded iOS configuration](embedded-ios-configuration.md)
 - [Bridge registered-server adapter](bridge-server-adapter.md)
 - [Runtime owner integration](runtime-owner-integration.md)
 - [Terminal and HTTP feature development](terminal-and-http-features.md)
