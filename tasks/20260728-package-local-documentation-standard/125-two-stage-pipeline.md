@@ -54,14 +54,20 @@ parallel runner.
   `<think>` content re-sent); ollama strip =
   `path:${env:BUILTIN_PLUGINS}/interleaved-thinking` in the plugin list
   — the plugin is needed ONLY for ollama.
-- STAGE-SELECTED CONFIGS (user direction, September 28): every stage
-  declares a config file + agent id + optional effort override; all
-  settings ride in the config. The planning turn runs under its config
-  (include_tasks off for arm 2, thinking setting per variant); the
-  creation turn runs under the from-plan stage's config (include_tasks
-  on) restoring the planning session. The per-request include_tasks
-  flag-flipping from the earlier draft is REPLACED by this declarative
-  selection; delivery checks stay as verification.
+- STAGE-DECLARED BASE CONFIG + OVERRIDES (final, September 28): one
+  base config file per agent; every stage declares
+  `{config, agent_id, overrides}` in configuration.json, and small
+  variations are OVERRIDES via the existing core mechanism
+  (`resolve_request_config` merges a per-request override dict over the
+  base agent config; `_effective_overrides` stores them on the session
+  and shallow-merges later turns — so the zai thinking setting applied
+  at planning persists and the writing turn flips only `include_tasks`).
+  Examples: planning-unguided = `{include_tasks: false}`; zai preserve =
+  `{request_options: {thinking: {clear_thinking: false}}}`; ollama strip
+  = `{plugins: [...agent plugins + interleaved-thinking path...]}`;
+  model/effort = existing override keys. No per-variant config files.
+  The overrides are committed stage data applied through the core path;
+  delivery checks stay as verification.
 - Cross-model continuation: the shared plan is produced by GPT at max
   effort (recorded decision), and producer cells (glm/gpt) continue that
   session via `continue_from` + session restore; cell differences measure
