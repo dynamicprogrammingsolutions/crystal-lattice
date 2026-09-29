@@ -28,14 +28,6 @@ import {
   type EmbeddedRuntimePublicConfiguration,
 } from "./embeddedPythonRuntime";
 
-const PROFILE_ORDER: EmbeddedProviderProfileId[] = [
-  "openai",
-  "compatible",
-  "openrouter",
-  "anthropic",
-  "reviewer",
-];
-
 type ProfileDraft = EmbeddedProviderProfile & {
   apiKey: string;
   clearApiKey: boolean;
@@ -57,10 +49,10 @@ function draftsFromConfiguration(
   configuration: EmbeddedRuntimePublicConfiguration
 ): Record<EmbeddedProviderProfileId, ProfileDraft> {
   return Object.fromEntries(
-    PROFILE_ORDER.map((profileId) => [
+    Object.entries(configuration.providers).map(([profileId, profile]) => [
       profileId,
       {
-        ...configuration.providers[profileId],
+        ...profile,
         apiKey: "",
         clearApiKey: false,
       },
@@ -73,8 +65,8 @@ function updatesFromDrafts(
   forceEnabledProfile?: EmbeddedProviderProfileId
 ): Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate> {
   return Object.fromEntries(
-    PROFILE_ORDER.map((profileId) => {
-      const draft = drafts[profileId];
+    Object.entries(drafts).map(([rawProfileId, draft]) => {
+      const profileId = rawProfileId as EmbeddedProviderProfileId;
       return [
         profileId,
         {
@@ -233,7 +225,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
               );
               const saveWasLatest = currentSerialized === serialized;
               const next = Object.fromEntries(
-                PROFILE_ORDER.map((profileId) => [
+                Object.keys(current).map((rawProfileId) => {
+                  const profileId =
+                    rawProfileId as EmbeddedProviderProfileId;
+                  return [
                   profileId,
                   {
                     ...current[profileId],
@@ -247,7 +242,8 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                         : current[profileId].apiKey,
                     clearApiKey: false,
                   },
-                ])
+                  ];
+                })
               ) as Record<EmbeddedProviderProfileId, ProfileDraft>;
               if (saveWasLatest) {
                 lastAutosavePayloadRef.current = JSON.stringify(
@@ -563,7 +559,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
             ) : null}
           </View>
           <View testID="embedded-provider-list">
-            {PROFILE_ORDER.filter(
+            {configuration.profileOrder.filter(
               (profileId) => profileId !== "reviewer" || reviewerVisible
             ).map((profileId) => {
               const draft = drafts[profileId];

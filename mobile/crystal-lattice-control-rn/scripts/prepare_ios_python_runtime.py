@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "12"
+RUNTIME_LAYOUT_VERSION = "13"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -388,6 +388,10 @@ def prepare_runtime(archive: Path) -> None:
         staged_resources = extracted / "staged-resources"
         shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
         create_application_archive(staged_resources / "crystal_lattice_app.zip")
+        shutil.copy2(
+            EMBEDDED_CONFIG_PATH,
+            staged_resources / "embedded-ios-config.json",
+        )
         if REVIEWER_CA_PATH.is_file():
             shutil.copy2(
                 REVIEWER_CA_PATH,

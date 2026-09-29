@@ -52,49 +52,36 @@ class EmbeddedSmokeProvider(ProviderPlugin):
         yield {"content": "Embedded runtime smoke response"}
 
 
-PROFILE_ORDER = (
-    "compatible",
-    "reviewer",
-    "openai",
-    "openrouter",
-    "anthropic",
-)
+def _embedded_config_text() -> str:
+    return (
+        files("agent_terminal_app")
+        .joinpath("default_config")
+        .joinpath("embedded-ios")
+        .joinpath("config.json")
+        .read_text(encoding="utf-8")
+    )
+
+
+_EMBEDDED_CONFIG = json.loads(_embedded_config_text())
+_EMBEDDED_SETTINGS = _EMBEDDED_CONFIG["embedded_settings"]
+_PROFILE_DEFINITIONS = _EMBEDDED_SETTINGS["profiles"]
+PROFILE_ORDER = tuple(_EMBEDDED_SETTINGS["profileOrder"])
 PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "compatible": {
-        "enabled": False,
-        "base_url": "http://127.0.0.1:3000/v1",
-        "model": "qwen3.5:0.8b",
-    },
-    "reviewer": {
-        "enabled": True,
-        "base_url": "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
-        "model": "gpt-5.6-luna",
+    profile_id: {
+        "enabled": bool(definition.get("enabledByDefault", False)),
+        "base_url": str(definition.get("baseUrl") or ""),
+        "model": str(definition.get("model") or ""),
+        "auth_mode": str(definition.get("authMode") or "api"),
         "tls_ca_bundle": "",
-    },
-    "openai": {
-        "enabled": False,
-        "base_url": "https://api.openai.com/v1",
-        "model": "gpt-5.6-luna",
-        "auth_mode": "api",
-    },
-    "openrouter": {
-        "enabled": False,
-        "base_url": "https://openrouter.ai/api/v1",
-        "model": "anthropic/claude-haiku-4.5",
-    },
-    "anthropic": {
-        "enabled": False,
-        "base_url": "https://api.anthropic.com",
-        "model": "claude-haiku-4-5-20251001",
-    },
+    }
+    for profile_id, definition in _PROFILE_DEFINITIONS.items()
 }
 PROFILE_AGENTS = {
-    "compatible": "compatible-claude",
-    "reviewer": "reviewer-codex",
-    "openai": "openai-codex",
-    "openrouter": "openrouter-claude",
-    "anthropic": "anthropic-claude",
+    profile_id: str(definition["agentId"])
+    for profile_id, definition in _PROFILE_DEFINITIONS.items()
 }
+
+
 def _normalized_profile(
     profile_id: str,
     raw_profile: Any,
@@ -202,16 +189,6 @@ def _default_profile_id(configuration: dict[str, Any]) -> str:
         if default_agent == agent_id:
             return profile_id
     return "reviewer"
-
-
-def _embedded_config_text() -> str:
-    return (
-        files("agent_terminal_app")
-        .joinpath("default_config")
-        .joinpath("embedded-ios")
-        .joinpath("config.json")
-        .read_text(encoding="utf-8")
-    )
 
 
 def _embedded_config_environment(

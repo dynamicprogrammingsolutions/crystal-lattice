@@ -185,7 +185,7 @@ and collect those decisions for user confirmation.
 - [x] Implement serialized autosave and remove the explicit-save dependency.
 - [x] Add embedded-specific ChatGPT/session UI customization.
 - [x] Remove or neutralize the legacy embedded connection configuration path.
-- [ ] Run source, immutable ZIP, component, TypeScript, and Release-simulator
+- [x] Run source, immutable ZIP, component, TypeScript, and Release-simulator
   regression coverage.
 - [ ] Present unresolved product and optional-plugin decisions for approval.
 - [ ] Update documentation, requirement evidence, and completion notes.
@@ -272,3 +272,15 @@ and collect those decisions for user confirmation.
   current worktree on request-checkpoint and omitted-mixin assumptions; the
   embedded maintained-config and system-message UI boundary passes and those
   tests were not weakened.
+- 2026-09-29: Removed the remaining native/Python profile-definition
+  duplication. The maintained JSON now owns profile order, stable ids, current
+  labels, tool-family metadata, editable-provider defaults, and fixed Reviewer
+  values. Runtime preparation stages the identical JSON both inside the Python
+  ZIP and as a native-readable resource; the final built app resource matched
+  the maintained source byte-for-byte.
+- 2026-09-29: Final rebuild verification passed again: Release simulator
+  build, local authenticated Ollama setup/autosave/relaunch flow, ungated real
+  ChatGPT login start/cancel, immutable ZIP provider tests, TypeScript, Swift
+  parsing, and 30 focused Python config/runtime tests. The hosted Reviewer and
+  manually authorized ChatGPT tool requests remain explicit final gates
+  because their credentials/human approval are not available unattended.

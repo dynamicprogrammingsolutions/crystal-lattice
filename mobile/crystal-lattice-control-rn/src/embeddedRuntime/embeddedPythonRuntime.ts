@@ -75,6 +75,7 @@ export interface EmbeddedRuntimePublicConfiguration {
   version: 3;
   defaultAgent: string;
   reviewerVisible: boolean;
+  profileOrder: EmbeddedProviderProfileId[];
   providers: Record<EmbeddedProviderProfileId, EmbeddedProviderProfile>;
   // Legacy reviewer setup aliases.
   proxyUrl: string;

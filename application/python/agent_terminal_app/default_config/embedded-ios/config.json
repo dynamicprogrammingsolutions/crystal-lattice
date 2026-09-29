@@ -5,6 +5,60 @@
     "allow_node_tools": false,
     "allow_remote": false
   },
+  "embedded_settings": {
+    "defaultAgent": "reviewer-codex",
+    "profileOrder": [
+      "openai",
+      "compatible",
+      "openrouter",
+      "anthropic",
+      "reviewer"
+    ],
+    "profiles": {
+      "compatible": {
+        "agentId": "compatible-claude",
+        "label": "OpenAI-compatible",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "http://127.0.0.1:3000/v1",
+        "model": "qwen3.5:0.8b"
+      },
+      "reviewer": {
+        "agentId": "reviewer-codex",
+        "label": "OpenAI Responses reviewer",
+        "toolFamily": "codex-like",
+        "enabledByDefault": true,
+        "baseUrl": "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+        "model": "gpt-5.6-luna",
+        "usesBundledReviewerCA": true
+      },
+      "openai": {
+        "agentId": "openai-codex",
+        "label": "OpenAI Responses",
+        "toolFamily": "codex-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://api.openai.com/v1",
+        "model": "gpt-5.6-luna",
+        "authMode": "api"
+      },
+      "openrouter": {
+        "agentId": "openrouter-claude",
+        "label": "OpenRouter",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "model": "anthropic/claude-haiku-4.5"
+      },
+      "anthropic": {
+        "agentId": "anthropic-claude",
+        "label": "Anthropic",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://api.anthropic.com",
+        "model": "claude-haiku-4-5-20251001"
+      }
+    }
+  },
   "mixins": {
     "embedded_agent_defaults": {
       "working_directory": "${env:EMBEDDED_WORKSPACE_DIR}",

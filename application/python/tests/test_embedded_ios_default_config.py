@@ -54,7 +54,11 @@ def _config_environment(tmp_path: Path) -> dict[str, str]:
 def test_embedded_ios_config_is_python_owned_and_secret_free() -> None:
     raw_text = CONFIG_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
+    settings = raw["embedded_settings"]
 
+    assert settings["profileOrder"][-1] == "reviewer"
+    assert settings["profiles"]["reviewer"]["agentId"] == "reviewer-codex"
+    assert settings["profiles"]["reviewer"]["usesBundledReviewerCA"] is True
     assert raw["providers"]["reviewer"]["base_url"] == (
         "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1"
     )

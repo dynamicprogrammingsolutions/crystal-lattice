@@ -22,6 +22,13 @@ const configuration: EmbeddedRuntimePublicConfiguration = {
   version: 3,
   defaultAgent: "openai-codex",
   reviewerVisible: false,
+  profileOrder: [
+    "openai",
+    "compatible",
+    "openrouter",
+    "anthropic",
+    "reviewer",
+  ],
   proxyUrl: "http://127.0.0.1:3000/v1",
   model: "qwen3.5:0.8b",
   hasApiKey: true,

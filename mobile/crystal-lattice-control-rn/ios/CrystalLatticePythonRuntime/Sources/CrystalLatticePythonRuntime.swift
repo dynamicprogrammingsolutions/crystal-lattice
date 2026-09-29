@@ -23,53 +23,47 @@ final class CrystalLatticePythonRuntime: NSObject {
     "clcEmbeddedProviderSettingsV2"
   private static let providerKeychainService =
     "com.dynamicprogrammingsolutions.crystallattice.embedded-provider-key"
-  private static let providerOrder = [
-    "compatible",
-    "reviewer",
-    "openai",
-    "openrouter",
-    "anthropic",
-  ]
-  private static let providerDefinitions: [String: [String: String]] = [
-    "compatible": [
-      "agentId": "compatible-claude",
-      "baseUrl": "http://127.0.0.1:3000/v1",
-      "label": "OpenAI-compatible",
-      "model": "qwen3.5:0.8b",
-      "toolFamily": "claude-like",
-    ],
-    "reviewer": [
-      "agentId": "reviewer-codex",
-      "baseUrl":
-        "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
-      "label": "OpenAI Responses reviewer",
-      "model": "gpt-5.6-luna",
-      "tlsCaBundle": "",
-      "toolFamily": "codex-like",
-    ],
-    "openai": [
-      "agentId": "openai-codex",
-      "baseUrl": "https://api.openai.com/v1",
-      "label": "OpenAI Responses",
-      "model": "gpt-5.6-luna",
-      "authMode": "api",
-      "toolFamily": "codex-like",
-    ],
-    "openrouter": [
-      "agentId": "openrouter-claude",
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "label": "OpenRouter",
-      "model": "anthropic/claude-haiku-4.5",
-      "toolFamily": "claude-like",
-    ],
-    "anthropic": [
-      "agentId": "anthropic-claude",
-      "baseUrl": "https://api.anthropic.com",
-      "label": "Anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "toolFamily": "claude-like",
-    ],
-  ]
+  private static let embeddedSettings: [String: Any] = {
+    guard
+      let resourcesURL = Bundle.main.url(
+        forResource: "CrystalLatticePythonRuntimeResources",
+        withExtension: "bundle"
+      ),
+      let resources = Bundle(url: resourcesURL),
+      let configURL = resources.url(
+        forResource: "embedded-ios-config",
+        withExtension: "json"
+      ),
+      let data = try? Data(contentsOf: configURL),
+      let root = try? JSONSerialization.jsonObject(with: data)
+        as? [String: Any],
+      let settings = root["embedded_settings"] as? [String: Any]
+    else {
+      return [:]
+    }
+    return settings
+  }()
+  private static var providerOrder: [String] {
+    embeddedSettings["profileOrder"] as? [String] ?? []
+  }
+  private static var providerDefinitions: [String: [String: Any]] {
+    embeddedSettings["profiles"] as? [String: [String: Any]] ?? [:]
+  }
+  private static var configuredDefaultAgent: String {
+    if let value = embeddedSettings["defaultAgent"] as? String,
+      !value.isEmpty
+    {
+      return value
+    }
+    for profileId in providerOrder {
+      if let agentId = providerDefinitions[profileId]?["agentId"] as? String,
+        !agentId.isEmpty
+      {
+        return agentId
+      }
+    }
+    return ""
+  }
 
   @objc
   static func requiresMainQueueSetup() -> Bool {
@@ -377,23 +371,21 @@ final class CrystalLatticePythonRuntime: NSObject {
         continue
       }
       var profile: [String: Any] = [
-        "enabled": profileId == "reviewer",
+        "enabled": definition["enabledByDefault"] as? Bool ?? false,
         "baseUrl": definition["baseUrl"] ?? "",
         "model": definition["model"] ?? "",
       ]
       if let authMode = definition["authMode"] {
         profile["authMode"] = authMode
       }
-      if let tlsCaBundle = definition["tlsCaBundle"] {
-        profile["tlsCaBundle"] = tlsCaBundle.isEmpty
-          ? reviewerCABundlePath()
-          : tlsCaBundle
+      if definition["usesBundledReviewerCA"] as? Bool == true {
+        profile["tlsCaBundle"] = reviewerCABundlePath()
       }
       providers[profileId] = profile
     }
     return [
       "version": 3,
-      "defaultAgent": "reviewer-codex",
+      "defaultAgent": configuredDefaultAgent,
       "reviewerVisible": false,
       "providers": providers,
     ]
@@ -471,19 +463,22 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     let requestedDefault =
-      rawSettings["defaultAgent"] as? String ?? "reviewer-codex"
+      rawSettings["defaultAgent"] as? String ?? configuredDefaultAgent
     let reviewerVisible =
       rawSettings["reviewerVisible"] as? Bool
       ?? !apiKey(profileId: "reviewer").isEmpty
     let validAgents = Set(
-      providerDefinitions.values.compactMap { $0["agentId"] }
+      providerDefinitions.values.compactMap {
+        $0["agentId"] as? String
+      }
     )
     return [
       "version": 3,
       "defaultAgent": validAgents.contains(requestedDefault)
         ? requestedDefault
-        : "reviewer-codex",
+        : configuredDefaultAgent,
       "reviewerVisible": reviewerVisible,
+      "profileOrder": providerOrder,
       "providers": providers,
     ]
   }
@@ -524,7 +519,9 @@ final class CrystalLatticePythonRuntime: NSObject {
     compatible["enabled"] = true
     providers["compatible"] = compatible
     settings["providers"] = providers
-    settings["defaultAgent"] = "compatible-claude"
+    settings["defaultAgent"] =
+      providerDefinitions["compatible"]?["agentId"] as? String
+      ?? configuredDefaultAgent
     saveProviderSettings(settings)
 
     if !legacyKey.isEmpty {
@@ -550,9 +547,11 @@ final class CrystalLatticePythonRuntime: NSObject {
       legacyProviders["reviewer"] as? [String: Any] ?? [:]
     let legacyBaseUrl =
       legacyReviewer["baseUrl"] as? String ?? ""
-    let wasExternalReviewer = legacyBaseUrl.contains(
-      "ireland-s1.dynamicprogrammingsolutions.com"
-    )
+    let reviewerBaseUrl =
+      providerDefinitions["reviewer"]?["baseUrl"] as? String ?? ""
+    let reviewerHost = URL(string: reviewerBaseUrl)?.host ?? ""
+    let wasExternalReviewer =
+      !reviewerHost.isEmpty && legacyBaseUrl.contains(reviewerHost)
     let targetProfileId = wasExternalReviewer ? "reviewer" : "compatible"
     var target = providers[targetProfileId] as? [String: Any] ?? [:]
     for key in ["enabled", "baseUrl", "model"] {
@@ -567,10 +566,16 @@ final class CrystalLatticePythonRuntime: NSObject {
     migrated["providers"] = providers
 
     let legacyDefault = legacy["defaultAgent"] as? String
+    let reviewerAgent =
+      providerDefinitions["reviewer"]?["agentId"] as? String
+      ?? configuredDefaultAgent
+    let compatibleAgent =
+      providerDefinitions["compatible"]?["agentId"] as? String
+      ?? configuredDefaultAgent
     migrated["defaultAgent"] =
       legacyDefault == "reviewer-claude"
-        ? (wasExternalReviewer ? "reviewer-codex" : "compatible-claude")
-        : legacyDefault ?? "reviewer-codex"
+        ? (wasExternalReviewer ? reviewerAgent : compatibleAgent)
+        : legacyDefault ?? configuredDefaultAgent
 
     if !wasExternalReviewer {
       let legacyKey = apiKey(profileId: "reviewer")
@@ -761,11 +766,13 @@ final class CrystalLatticePythonRuntime: NSObject {
 
   private static func profileId(forAgent agentId: String?) -> String {
     for profileId in providerOrder {
-      if providerDefinitions[profileId]?["agentId"] == agentId {
+      if providerDefinitions[profileId]?["agentId"] as? String == agentId {
         return profileId
       }
     }
-    return "reviewer"
+    return providerDefinitions["reviewer"] == nil
+      ? providerOrder.first ?? ""
+      : "reviewer"
   }
 
   private static func runtimeConfiguration(
@@ -800,7 +807,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     return [
       "version": 3,
       "default_agent": normalized["defaultAgent"] as? String
-        ?? "reviewer-codex",
+        ?? configuredDefaultAgent,
       "reviewer_visible": normalized["reviewerVisible"] as? Bool ?? false,
       "providers": providers,
     ]
@@ -828,9 +835,9 @@ final class CrystalLatticePythonRuntime: NSObject {
       let definition = providerDefinitions[profileId] ?? [:]
       var profile: [String: Any] = [
         "id": profileId,
-        "label": definition["label"] ?? profileId,
-        "agentId": definition["agentId"] ?? "",
-        "toolFamily": definition["toolFamily"] ?? "",
+        "label": definition["label"] as? String ?? profileId,
+        "agentId": definition["agentId"] as? String ?? "",
+        "toolFamily": definition["toolFamily"] as? String ?? "",
         "enabled": stored["enabled"] as? Bool ?? false,
         "baseUrl": stored["baseUrl"] as? String ?? "",
         "model": stored["model"] as? String ?? "",
@@ -858,8 +865,9 @@ final class CrystalLatticePythonRuntime: NSObject {
     var result: [String: Any] = [
       "version": 3,
       "defaultAgent": settings["defaultAgent"] as? String
-        ?? "reviewer-codex",
+        ?? configuredDefaultAgent,
       "reviewerVisible": reviewerVisible,
+      "profileOrder": providerOrder,
       "providers": providers,
       "hasApiKey": compatible["hasApiKey"] as? Bool ?? false,
       "inspectionOnly": UserDefaults.standard.bool(
