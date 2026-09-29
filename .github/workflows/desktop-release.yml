@@ -93,6 +93,11 @@ jobs:
         working-directory: desktop/crystal-lattice-control-desktop-rn
         run: bundle exec fastlane mac verify
 
+      - name: Verify clean release source
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
       - name: Check signing credentials
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_ID }}

@@ -59,6 +59,28 @@ def release_build_number
   CrystalLatticeMacBuildNumber.resolve(env: ENV)
 end
 
+def capture_release_source_state!
+  source_commit, git_error, git_status = Open3.capture3(
+    "git", "-C", REPOSITORY_ROOT, "rev-parse", "HEAD"
+  )
+  UI.user_error!("Could not identify release source commit: #{git_error}") unless git_status.success?
+
+  source_changes, changes_error, changes_status = Open3.capture3(
+    "git",
+    "-C",
+    REPOSITORY_ROOT,
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  )
+  UI.user_error!("Could not inspect release source state: #{changes_error}") unless changes_status.success?
+
+  {
+    commit: source_commit.strip,
+    clean: source_changes.empty?,
+  }
+end
+
 def archive_arguments(build_number:, signed:)
   arguments = [
     "xcodebuild",
@@ -207,7 +229,7 @@ def capture_command!(*arguments)
   stdout
 end
 
-def package_and_notarize!(app_path)
+def package_and_notarize!(app_path, source_state:)
   identity = ENV["DEVELOPER_ID_APPLICATION_IDENTITY"]
   if identity.nil? || identity.strip.empty?
     UI.user_error!("Missing required environment variable: DEVELOPER_ID_APPLICATION_IDENTITY")
@@ -282,20 +304,6 @@ def package_and_notarize!(app_path)
   run_command("spctl", "--assess", "--type", "execute", "--verbose=4", app_path)
 
   checksum = Digest::SHA256.file(dmg_path).hexdigest
-  source_commit, git_error, git_status = Open3.capture3(
-    "git", "-C", REPOSITORY_ROOT, "rev-parse", "HEAD"
-  )
-  UI.user_error!("Could not identify release source commit: #{git_error}") unless git_status.success?
-  source_changes, changes_error, changes_status = Open3.capture3(
-    "git",
-    "-C",
-    REPOSITORY_ROOT,
-    "status",
-    "--porcelain=v1",
-    "--untracked-files=all",
-  )
-  UI.user_error!("Could not inspect release source state: #{changes_error}") unless changes_status.success?
-
   File.write(checksum_path, "#{checksum}  #{File.basename(dmg_path)}\n")
   File.write(
     File.join(OUTPUT_DIRECTORY, "release-metadata.json"),
@@ -307,8 +315,8 @@ def package_and_notarize!(app_path)
         build_number: Integer(build_number),
         architectures: %w[arm64 x86_64],
         minimum_macos: "14.0",
-        source_commit: source_commit.strip,
-        source_tree_clean: source_changes.empty?,
+        source_commit: source_state.fetch(:commit),
+        source_tree_clean: source_state.fetch(:clean),
         notarization_id: notarization_result.fetch("id"),
         notarization_status: notarization_result.fetch("status"),
         dmg: File.basename(dmg_path),
@@ -358,6 +366,7 @@ platform :mac do
 
   desc "Build, sign, notarize, staple, and validate the universal DMG"
   lane :release do
+    source_state = capture_release_source_state!
     verify unless true_env?("SKIP_DESKTOP_VERIFICATION")
 
     api_key = app_store_connect_key
@@ -371,6 +380,6 @@ platform :mac do
     )
 
     app_path = build_archive!(signed: true)
-    package_and_notarize!(app_path)
+    package_and_notarize!(app_path, source_state: source_state)
   end
 end

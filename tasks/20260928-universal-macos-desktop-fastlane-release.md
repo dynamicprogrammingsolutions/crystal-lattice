@@ -1531,3 +1531,17 @@ UI automation investigation:
   both lockfiles. A fresh detached worktree with no preexisting
   `node_modules` passed both installs and desktop TypeScript. No CI-only
   resolution override or product-code shortcut was added.
+- Follow-up build-only run `36629766253` on commit `63625af5...` passed
+  clean-checkout dependency installation, release verification, read-only
+  signing retrieval, universal Developer ID archive, Apple notarization,
+  stapling, and Gatekeeper validation. It failed before artifact upload
+  because metadata measured source cleanliness after the generated native
+  build and reported a dirty tree.
+- A second fresh detached worktree remained clean after root npm, desktop npm,
+  Bundler, and CocoaPods setup. The release contract now captures commit and
+  clean-tree state at the start of `mac release`, before generated build work,
+  and carries that immutable state into metadata. The workflow independently
+  runs `git diff --exit-code` and checks porcelain status after verification
+  and before loading signing credentials. Candidate validation still requires
+  `source_tree_clean = true`; the guard was moved to the correct boundary, not
+  weakened.
