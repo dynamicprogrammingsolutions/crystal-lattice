@@ -333,5 +333,18 @@ URL/code display without a certificate failure.
   and two successful `/v1/responses` calls.
 - 2026-09-29: The failed mirrored-layout staging left an unused
   `/home/irelandsrv/reviewer-openai-proxy/deploy/ireland/` directory with
-  mode-restricted staged files. It is not referenced by the running Compose
-  project and is deferred for separately confirmed cleanup.
+  mode-restricted staged files. With separate user approval, removed that
+  unused directory and verified that both running containers still mount
+  only the flattened deployment paths.
+- 2026-09-29: Gated ChatGPT simulator attempts received real device login
+  URL/code actions but never reached a terminal authenticated state within
+  the 15-minute human authorization window. The first attempts also exposed
+  two settings-host defects: polling read a Markdown scroll wrapper instead
+  of the plugin's structured `auth_status`, and follow-up polling replaced
+  the login card despite its `preserve_display` flag. Settings now displays
+  the structured auth state and retains the code/link during status checks;
+  the gated test skips the preliminary start/cancel scenario. The next
+  attempt's Detox trace and failure screenshot showed `pending` throughout
+  with Open-link and Copy-code still visible. No human browser approval was
+  observed, so the real authenticated tool request and relaunch requirement
+  remains incomplete. The ungated start/cancel case remains passing.

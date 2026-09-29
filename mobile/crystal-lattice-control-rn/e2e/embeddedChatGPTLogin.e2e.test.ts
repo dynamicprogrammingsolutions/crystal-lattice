@@ -3,10 +3,10 @@
 import * as detox from "detox";
 
 const detoxExpect = detox.expect;
-const gatedDescribe =
-  process.env.CRYSTAL_RUN_CHATGPT_LOGIN_E2E === "1"
-    ? describe
-    : describe.skip;
+const manualLoginEnabled =
+  process.env.CRYSTAL_RUN_CHATGPT_LOGIN_E2E === "1";
+const loginStartDescribe = manualLoginEnabled ? describe.skip : describe;
+const gatedDescribe = manualLoginEnabled ? describe : describe.skip;
 
 async function tapById(testId: string, timeoutMs = 15000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -59,18 +59,26 @@ async function readText(testId: string): Promise<string> {
 
 async function waitForChatGPTLogin(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let lastStatus = "";
   while (Date.now() < deadline) {
     await tapById("action-display-action-check-chatgpt-login-status");
     const status = await readText(
-      "embedded-provider-openai-chatgpt-display"
+      "embedded-provider-openai-chatgpt-auth-state"
     );
-    if (status.includes("ChatGPT login is active.")) return;
-    if (status.includes("ChatGPT login failed.")) {
+    lastStatus = status;
+    if (status === "ChatGPT status: authenticated") return;
+    if (
+      status === "ChatGPT status: failed" ||
+      status === "ChatGPT status: expired" ||
+      status === "ChatGPT status: denied"
+    ) {
       throw new Error(status);
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
   }
-  throw new Error("ChatGPT device login was not completed.");
+  throw new Error(
+    `ChatGPT device login was not completed; last status: ${lastStatus || "unavailable"}. Approve the code shown in the simulator's ChatGPT Login card before the device-code attempt expires.`
+  );
 }
 
 async function openChatGPTSettings(deleteData: boolean): Promise<void> {
@@ -103,7 +111,7 @@ async function openChatGPTSettings(deleteData: boolean): Promise<void> {
     .withTimeout(30000);
 }
 
-describe("embedded OpenAI Responses ChatGPT login start", () => {
+loginStartDescribe("embedded OpenAI Responses ChatGPT login start", () => {
   it("shows a real device-login URL and code and can cancel", async () => {
     await openChatGPTSettings(true);
     await tapById("embedded-provider-openai-chatgpt-login_start");

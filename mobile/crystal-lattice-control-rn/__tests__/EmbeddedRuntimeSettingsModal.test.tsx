@@ -121,6 +121,9 @@ beforeEach(() => {
     },
   });
   jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValue({
+    auth_status: {
+      state: "pending",
+    },
     display: {
       format: "markdown",
       title: "ChatGPT Login",
@@ -232,12 +235,23 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
     })
   );
   expect(
+    screen.getByTestId("embedded-provider-openai-chatgpt-auth-state")
+  ).toHaveTextContent("ChatGPT status: pending");
+  expect(
     screen.getByTestId("action-display-action-open-chatgpt-login-link")
   ).toBeTruthy();
   expect(
     screen.getByTestId("action-display-action-copy-chatgpt-login-code")
   ).toBeTruthy();
 
+  jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValueOnce({
+    auth_status: { state: "authenticated" },
+    display: {
+      format: "markdown",
+      title: "ChatGPT Login Status",
+      body: "ChatGPT login is active.",
+    },
+  });
   fireEvent.press(
     screen.getByTestId("action-display-action-check-chatgpt-login-status")
   );
@@ -249,6 +263,14 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
       inputs: {},
     })
   );
+  await waitFor(() =>
+    expect(
+      screen.getByTestId("embedded-provider-openai-chatgpt-auth-state")
+    ).toHaveTextContent("ChatGPT status: authenticated")
+  );
+  expect(
+    screen.getByTestId("action-display-action-open-chatgpt-login-link")
+  ).toBeTruthy();
 });
 
 test("shows candidate validation failure without persisting it", async () => {

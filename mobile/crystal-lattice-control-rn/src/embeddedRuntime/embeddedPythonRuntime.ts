@@ -183,6 +183,10 @@ export async function getEmbeddedPythonRuntimeLifecycleStatus(): Promise<Embedde
 
 export interface EmbeddedRuntimeApplicationActionResult {
   display?: ActionDisplayPayload;
+  auth_status?: {
+    state?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 

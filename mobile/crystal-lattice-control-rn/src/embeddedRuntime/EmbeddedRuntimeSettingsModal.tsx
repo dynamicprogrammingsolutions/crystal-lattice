@@ -118,6 +118,9 @@ const EmbeddedRuntimeSettingsModal: React.FC<
   const [chatGPTDisplay, setChatGPTDisplay] =
     useState<ActionDisplayPayload | null>(null);
   const [chatGPTActionId, setChatGPTActionId] = useState<string | null>(null);
+  const [chatGPTAuthState, setChatGPTAuthState] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (!visible) {
@@ -134,6 +137,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         setValidation({});
         setChatGPTDisplay(null);
         setChatGPTActionId(null);
+        setChatGPTAuthState(null);
         setStatus({ tone: "idle", message: "" });
       })
       .catch((error) => {
@@ -230,6 +234,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       pluginId?: string;
       actionOwner?: string;
       inputs?: Record<string, unknown>;
+      preserveDisplay?: boolean;
     }
   ): Promise<void> => {
     setChatGPTActionId(actionId);
@@ -240,7 +245,12 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         actionOwner: options?.actionOwner,
         inputs: options?.inputs,
       });
-      setChatGPTDisplay(result.display ?? null);
+      if (options?.preserveDisplay !== true) {
+        setChatGPTDisplay(result.display ?? null);
+      }
+      if (typeof result.auth_status?.state === "string") {
+        setChatGPTAuthState(result.auth_status.state);
+      }
       setStatus({ tone: "idle", message: "" });
     } catch (error) {
       setStatus({
@@ -273,6 +283,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         pluginId: action.plugin,
         actionOwner: action.action_owner,
         inputs: action.fixed_params as Record<string, unknown> | undefined,
+        preserveDisplay: action.preserve_display === true,
       });
     }
   };
@@ -332,6 +343,12 @@ const EmbeddedRuntimeSettingsModal: React.FC<
               style={styles.profileMeta}
             >
               Selected authentication: {drafts.openai.authMode ?? "api"}
+            </Text>
+            <Text
+              testID="embedded-provider-openai-chatgpt-auth-state"
+              style={styles.profileMeta}
+            >
+              ChatGPT status: {chatGPTAuthState ?? "not checked"}
             </Text>
             <View style={styles.chatGPTPanel}>
               <Text style={styles.label}>ChatGPT account</Text>
