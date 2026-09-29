@@ -226,6 +226,19 @@ directories and connections; the matrix command set stays unchanged.
   parallel runner); the remaining gate before evaluation runs is the
   candidate review/promotion decision plus the D-stage build.
 
+- September 27, 2026 (D started — subtask created): the non-lossy
+  two-stage pipeline now has its own subtask file
+  `tasks/20260728-package-local-documentation-standard/125-two-stage-pipeline.md`
+  with the full concrete plan. Favorable mechanics verified while
+  scoping: fixture guidance targets compile AGENTS.md with NO tasks
+  slot, so the tasks guidance reaches the agent only through the
+  per-request `include_tasks` flag (already used by assessments) — the
+  guided/unguided arms reduce to that flag, the writing turn always
+  compiles with it on, and preserve-thinking is the
+  interleaved-thinking plugin in an agent-config variant. GPT
+  limitation recorded: the plugin requires the openai-compatible
+  provider, so preserve-thinking variants are GLM-only.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
