@@ -16,7 +16,7 @@ Task files are standalone handoffs for agents without the current conversation.
 Create or modify a task file only when the user requests task-file tracking or names a task file to work from.
 
 When you are asked to create task files:
-1. Confirm which format the user wants: a single task file, or a main task with subtasks.
+1. Determine the task structure from the request and the decomposition rules below: default to a single task file and use a main task with subtasks only when children are justified. Ask the user only when their structure preference is material and cannot be inferred from the request.
 2. Review prior work and record what is known, decided, unresolved, and left.
 3. Follow the structure and status rules below plus any user instructions.
 4. Record task relations only when explicitly requested.
@@ -55,6 +55,26 @@ Creating a task file does not itself authorize execution.
 
 ### Task with subtasks: directory + file layout
 
+Default to one task. Create a child only when it delivers an independently
+acceptable result, owned responsibility, compatibility state, or material
+decision boundary.
+
+- Do not split implementation, testing, documentation, integration, cleanup,
+  or review into separate children when they only complete another delivery.
+- A technical layer is separate only when it has independent users, ownership,
+  compatibility, or acceptance; otherwise split by end-to-end capability.
+- Keep focused tests and documentation with the child that owns the outcome.
+- Declare dependencies that make every permitted execution order safe;
+  filename numbering is not a dependency.
+- Map each parent requirement to one owning child or an explicit combination.
+  Give every important product connection one owner and one named decisive
+  check through the actual production path. Separate per-side checks — for
+  example a component test with the transport mocked plus a direct route
+  test — do not satisfy this, and the check may not be waived or made
+  conditional on harness convenience: if one automated test cannot exercise
+  the full connection, name the check that still traverses the real
+  components together, such as a manual command with its exact invocation.
+
 - Create a dedicated subdirectory: `tasks/<task-dir>/`.
 - Use `<task-dir>` as `<kebab-case-slug>` or `<YYYYMMDD>-<kebab-case-slug>` (timestamp prefix recommended).
 - If the directory already exists, append a numeric suffix.
@@ -88,6 +108,8 @@ Creating a task file does not itself authorize execution.
 ## Execution plans
 
 Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: Approved`, then a substantive free-form body with the approach and details another agent needs. Structure it as the task requires.
+
+In a nontrivial plan, explain the decided design before ordered execution steps: component responsibilities, interfaces or data flow, compatibility and dependency states, material decisions, and verification strategy. Ordered steps alone are not a design. Keep plan depth proportionate to the work.
 
 End every plan with these H3 sections exactly once and in this order: `### Implementation decisions and open questions`, `### Documentation`, `### Task checklist`, `### Requirement verification`, then optional `### Additional implementation verification`. Do not use these headings earlier in the plan. Execution tasks use checkboxes.
 
