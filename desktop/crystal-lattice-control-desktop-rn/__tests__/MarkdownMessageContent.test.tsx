@@ -1,7 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { StyleSheet, Text } from 'react-native';
-import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   DISPLAY_TYPOGRAPHY_PRESETS,
@@ -13,6 +12,7 @@ import {
 import MarkdownMessageContent, {
   createDesktopMarkdownTypographyStyles,
 } from '../src/chat/MarkdownMessageContent';
+import SyntaxHighlighter from '../src/chat/NativeSyntaxHighlighter';
 
 describe('desktop markdown typography adapter', () => {
   it('uses the shared mobile-equivalent default', () => {

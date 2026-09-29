@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  GitHub Actions OIDC deploy role for Crystal Lattice CLI release downloads.
+  GitHub Actions OIDC deploy role for Crystal Lattice release downloads.
 
 Parameters:
   GitHubOwner:
@@ -40,6 +40,9 @@ Parameters:
   DownloadsPrefix:
     Type: String
     Description: S3 prefix for CLI download artifacts.
+  DesktopDownloadsPrefix:
+    Type: String
+    Description: S3 prefix for Crystal Lattice Desktop download artifacts.
   DownloadsDistributionId:
     Type: String
     Description: CloudFront distribution ID for CLI downloads.
@@ -80,6 +83,7 @@ Resources:
                 token.actions.githubusercontent.com:sub:
                   - !Sub "repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"
                   - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/tags/crystal-lattice-cli-v*"
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/tags/crystal-lattice-desktop-v*"
                   - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
       Policies:
         - PolicyName: CrystalLatticeCliDownloadsPublish
@@ -96,13 +100,17 @@ Resources:
                     s3:prefix:
                       - !Sub "${DownloadsPrefix}"
                       - !Sub "${DownloadsPrefix}/*"
+                      - !Sub "${DesktopDownloadsPrefix}"
+                      - !Sub "${DesktopDownloadsPrefix}/*"
               - Sid: WriteDownloadsObjects
                 Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:PutObjectTagging
-                Resource: !Sub "arn:aws:s3:::${DownloadsBucket}/${DownloadsPrefix}/*"
+                Resource:
+                  - !Sub "arn:aws:s3:::${DownloadsBucket}/${DownloadsPrefix}/*"
+                  - !Sub "arn:aws:s3:::${DownloadsBucket}/${DesktopDownloadsPrefix}/*"
               - Sid: InvalidateDownloadsDistribution
                 Effect: Allow
                 Action:

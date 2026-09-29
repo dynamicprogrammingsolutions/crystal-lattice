@@ -52,6 +52,7 @@ aws_out cloudformation deploy \
     DownloadDomainName="$DOWNLOAD_DOMAIN" \
     BucketNamePrefix="$BUCKET_NAME_PREFIX" \
     DownloadPrefix="$DOWNLOAD_PREFIX" \
+    DesktopDownloadPrefix="$DESKTOP_DOWNLOAD_PREFIX" \
   --tags \
     Project=crystal-lattice \
     Component=cli-downloads \

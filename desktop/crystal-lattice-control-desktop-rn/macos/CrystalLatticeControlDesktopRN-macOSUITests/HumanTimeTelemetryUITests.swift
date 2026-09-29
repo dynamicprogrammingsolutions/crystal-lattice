@@ -48,7 +48,7 @@ final class HumanTimeTelemetryUITests: XCTestCase {
 
   private func openGlobalSettings(_ app: XCUIApplication) {
     let applicationMenu =
-      app.menuBars.menuBarItems["CrystalLatticeControlDesktopRN"]
+      app.menuBars.menuBarItems["Crystal Lattice Desktop"]
     XCTAssertTrue(
       applicationMenu.waitForExistence(timeout: 20),
       app.debugDescription

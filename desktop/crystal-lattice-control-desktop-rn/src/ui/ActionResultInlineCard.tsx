@@ -65,7 +65,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       marginHorizontal: 12,
       marginTop: 10,
       marginBottom: 10,
-      shadowColor: theme.shadow,
+      shadowColor: '#000',
       shadowOpacity: 0.1,
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 3 },

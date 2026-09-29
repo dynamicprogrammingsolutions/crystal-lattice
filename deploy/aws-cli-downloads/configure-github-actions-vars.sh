@@ -65,12 +65,17 @@ read_output() {
 downloads_bucket="$(read_output DOWNLOADS_BUCKET)"
 downloads_prefix="$(read_output DOWNLOADS_PREFIX)"
 downloads_base_url="$(read_output DOWNLOADS_BASE_URL)"
+desktop_downloads_prefix="$(read_output DESKTOP_DOWNLOADS_PREFIX)"
+desktop_downloads_base_url="$(read_output DESKTOP_DOWNLOADS_BASE_URL)"
 downloads_distribution_id="$(read_output DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID)"
 aws_region="$(read_output AWS_REGION)"
 
 if [ -z "$downloads_bucket" ] || [ -z "$downloads_prefix" ] ||
   [ -z "$downloads_base_url" ] || [ -z "$downloads_distribution_id" ] ||
-  [ -z "$aws_region" ]; then
+  [ -z "$desktop_downloads_prefix" ] ||
+  [ -z "$desktop_downloads_base_url" ] || [ -z "$aws_region" ] ||
+  [ "$desktop_downloads_prefix" = "None" ] ||
+  [ "$desktop_downloads_base_url" = "None" ]; then
   echo "Could not read required outputs from download stack: $STACK_NAME" >&2
   exit 1
 fi
@@ -109,6 +114,8 @@ set_variable AWS_REGION "$aws_region"
 set_variable CLI_DOWNLOADS_BUCKET "$downloads_bucket"
 set_variable CLI_DOWNLOADS_PREFIX "$downloads_prefix"
 set_variable CLI_DOWNLOADS_BASE_URL "$downloads_base_url"
+set_variable DESKTOP_DOWNLOADS_PREFIX "$desktop_downloads_prefix"
+set_variable DESKTOP_DOWNLOADS_BASE_URL "$desktop_downloads_base_url"
 set_variable CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID "$downloads_distribution_id"
 run_gh secret set CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME --repo "$REPO" --body "$ROLE_ARN"
 

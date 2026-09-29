@@ -11,6 +11,7 @@
     "start": "react-native start",
     "rn": "react-native",
     "start-no-cache": "react-native start --reset-cache",
+    "tsc": "tsc --noEmit",
     "test": "jest",
     "test:integration": "jest --config jest.integration.config.js --runInBand",
     "test:macos-ui": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests",
@@ -20,7 +21,9 @@
     "test:macos-ui:transcript-range": "CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/TranscriptRangeNavigationUITests",
     "test:macos-ui:action-display": "CLC_ENABLE_ACTION_DISPLAY_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ActionDisplayWindowUITests",
     "test:macos-ui:human-time": "jest --config jest.macos-ui.config.js --runInBand --runTestsByPath __native__/humanTimeTelemetry.native.test.ts",
-    "pod-install": "cd macos && pod install && cd .."
+    "pod-install": "bundle exec pod install --project-directory=macos",
+    "release:verify": "bundle exec fastlane mac verify",
+    "release:build": "bundle exec fastlane mac build"
   },
   "dependencies": {
     "@crystal-lattice/frontend-rn-components": "file:../../packages/frontend-rn-components",
@@ -34,9 +37,8 @@
     "react-native-macos": "0.81.8",
     "react-native-markdown-display": "^7.0.2",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-syntax-highlighter": "git+https://github.com/ferenci84/react-native-syntax-highlighter.git#feature/native-line-height",
     "react-native-vector-icons": "^10.2.0",
-    "react-syntax-highlighter": "^6.1.2"
+    "react-syntax-highlighter": "15.6.6"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -62,5 +64,13 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "react-native-markdown-display": {
+      "markdown-it": "15.0.2"
+    },
+    "markdown-it": {
+      "linkify-it": "6.1.0"
+    }
   }
 }

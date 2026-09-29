@@ -1,0 +1,7 @@
+app_identifier(
+  ENV.fetch(
+    "DESKTOP_APP_IDENTIFIER",
+    "com.dynamicprogrammingsolutions.crystallatticecontrol.macos",
+  ),
+)
+team_id(ENV.fetch("APPLE_TEAM_ID", "73Q43R2PD4"))

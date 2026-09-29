@@ -68,6 +68,12 @@ fi
 
 downloads_bucket="$(stack_output DownloadsBucket)"
 downloads_prefix="$(stack_output DownloadsPrefix)"
+desktop_downloads_prefix="$(stack_output DesktopDownloadsPrefix)"
+if [ -z "$desktop_downloads_prefix" ] ||
+  [ "$desktop_downloads_prefix" = "None" ]; then
+  echo "Download stack does not expose DesktopDownloadsPrefix. Update it before the OIDC role." >&2
+  exit 1
+fi
 downloads_distribution_id="$(stack_output DownloadsCloudFrontDistributionId)"
 
 oidc_provider_arn="$(
@@ -101,6 +107,7 @@ aws --region "$REGION" cloudformation deploy \
     ExistingOidcProviderArn="$oidc_provider_arn" \
     DownloadsBucket="$downloads_bucket" \
     DownloadsPrefix="$downloads_prefix" \
+    DesktopDownloadsPrefix="$desktop_downloads_prefix" \
     DownloadsDistributionId="$downloads_distribution_id" \
   --tags \
     Project=crystal-lattice \

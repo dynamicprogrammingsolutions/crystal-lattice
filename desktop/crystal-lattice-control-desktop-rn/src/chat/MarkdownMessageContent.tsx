@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import SyntaxHighlighter from 'react-native-syntax-highlighter';
-import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/styles/hljs';
+import {
+  atomOneDark,
+  atomOneLight,
+} from 'react-syntax-highlighter/dist/cjs/styles/hljs';
 
 import {
   deriveMarkdownTypography,
@@ -10,6 +12,8 @@ import {
   useTheme,
   type MarkdownDisplayPreferences,
 } from '@crystal-lattice/frontend-rn-components';
+
+import SyntaxHighlighter from './NativeSyntaxHighlighter';
 
 export type MarkdownMessageVariant = 'assistant' | 'tool' | 'system' | 'user';
 

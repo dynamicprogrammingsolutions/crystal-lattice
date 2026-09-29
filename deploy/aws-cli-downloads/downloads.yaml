@@ -21,6 +21,11 @@ Parameters:
     Default: crystal-lattice-cli
     AllowedPattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]$"
     Description: URL/S3 prefix under the download domain.
+  DesktopDownloadPrefix:
+    Type: String
+    Default: crystal-lattice-desktop
+    AllowedPattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]$"
+    Description: URL/S3 prefix for Crystal Lattice Desktop downloads.
 
 Mappings:
   CloudFront:
@@ -197,6 +202,48 @@ Resources:
             ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
             TargetOriginId: cli-downloads-s3-origin
             ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: !Sub "${DesktopDownloadPrefix}/*.dmg"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref ArchiveCachePolicy
+            Compress: false
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: cli-downloads-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: !Sub "${DesktopDownloadPrefix}/*.sha256"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref ArchiveCachePolicy
+            Compress: true
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: cli-downloads-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: !Sub "${DesktopDownloadPrefix}/*.json"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref ArchiveCachePolicy
+            Compress: true
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: cli-downloads-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
         ViewerCertificate:
           AcmCertificateArn: !Ref DownloadsCertificate
           MinimumProtocolVersion: TLSv1.2_2021
@@ -251,6 +298,12 @@ Outputs:
   DownloadsBaseUrl:
     Description: Public base URL containing install.sh, latest.txt, and archives.
     Value: !Sub "https://${DownloadDomainName}/${DownloadPrefix}"
+  DesktopDownloadsPrefix:
+    Description: S3/URL prefix for Crystal Lattice Desktop downloads.
+    Value: !Ref DesktopDownloadPrefix
+  DesktopDownloadsBaseUrl:
+    Description: Public base URL for Crystal Lattice Desktop downloads.
+    Value: !Sub "https://${DownloadDomainName}/${DesktopDownloadPrefix}"
   DownloadsCloudFrontDistributionId:
     Description: CloudFront distribution ID for CLI downloads.
     Value: !Ref DownloadsDistribution

@@ -42,7 +42,7 @@
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* CrystalLatticeControlDesktopRN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrystalLatticeControlDesktopRN.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		514201492437B4B30078DB4F /* CrystalLatticeControlDesktopRN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrystalLatticeControlDesktopRN.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		514201492437B4B30078DB4F /* Crystal Lattice Desktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Crystal Lattice Desktop.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		5142014B2437B4B30078DB4F /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		5142014C2437B4B30078DB4F /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		514201512437B4B40078DB4F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -156,7 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* CrystalLatticeControlDesktopRN.app */,
-				514201492437B4B30078DB4F /* CrystalLatticeControlDesktopRN.app */,
+				514201492437B4B30078DB4F /* Crystal Lattice Desktop.app */,
 				8D1000030000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests.xctest */,
 			);
 			name = Products;
@@ -225,7 +225,7 @@
 			);
 			name = "CrystalLatticeControlDesktopRN-macOS";
 			productName = CrystalLatticeControlDesktopRN;
-			productReference = 514201492437B4B30078DB4F /* CrystalLatticeControlDesktopRN.app */;
+			productReference = 514201492437B4B30078DB4F /* Crystal Lattice Desktop.app */;
 			productType = "com.apple.product-type.application";
 		};
 		8D10000A0000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests */ = {
@@ -332,7 +332,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export NODE_BINARY=\"/Users/ferenci84/.nvm/versions/node/v20.19.5/bin/node\"\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "if [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Set NODE_BINARY or add node to PATH.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 		038EBB609777869271167CC2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -418,7 +418,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export NODE_BINARY=\"/Users/ferenci84/.nvm/versions/node/v20.19.5/bin/node\"\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "if [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Set NODE_BINARY or add node to PATH.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -539,17 +539,19 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.9.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.$(PRODUCT_NAME:rfc1034identifier)";
-				PRODUCT_NAME = CrystalLatticeControlDesktopRN;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				PRODUCT_NAME = "Crystal Lattice Desktop";
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
@@ -559,23 +561,26 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 73Q43R2PD4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.9.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.$(PRODUCT_NAME:rfc1034identifier)";
-				PRODUCT_NAME = CrystalLatticeControlDesktopRN;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				PRODUCT_NAME = "Crystal Lattice Desktop";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
@@ -706,7 +711,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -728,7 +733,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "CrystalLatticeControlDesktopRN-macOSUITests";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.CrystalLatticeControlDesktopRN-macOSUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

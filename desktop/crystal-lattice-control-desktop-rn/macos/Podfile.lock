@@ -33,9 +33,9 @@ PODS:
   - FBLazyVector (0.81.8)
   - fmt (12.1.0)
   - glog (0.3.5)
-  - hermes-engine (0.81.5):
-    - hermes-engine/Pre-built (= 0.81.5)
-  - hermes-engine/Pre-built (0.81.5)
+  - hermes-engine (0.81.6):
+    - hermes-engine/Pre-built (= 0.81.6)
+  - hermes-engine/Pre-built (0.81.6)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2641,7 +2641,7 @@ SPEC CHECKSUMS:
   FBLazyVector: 3b2a51be15bc2f31a5e38d1bb4c007eef833372b
   fmt: 4cf0c5ec5864511c96d8d4bd7b03c3c69040af06
   glog: 0b31c25149b9d350b2666c7d459229861a00ec07
-  hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
+  hermes-engine: 7219f6e751ad6ec7f3d7ec121830ee34dae40749
   RCT-Folly: a3d9b23289a456c318f4814703664bdc33c771cc
   RCTDeprecation: 777decf5c531f5f1ce3cf2b292e9c4b07e0d3253
   RCTRequired: 52ab26a5abbaec60bc25f9b00e46c55be4facfc6
@@ -2710,6 +2710,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 9f9bacf26f441fa32d25c32e5583ff72f6d2806d
 
-PODFILE CHECKSUM: fc6275e52aa61df16dd14fa6d649bf24f0d8bfbd
+PODFILE CHECKSUM: 8fc0a38833489375d14444f465e0ac0004d110b9
 
 COCOAPODS: 1.16.2

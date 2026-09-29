@@ -1,0 +1,241 @@
+name: Crystal Lattice Desktop release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_download:
+        description: Publish the verified candidate to download.crystallattice.dev
+        required: true
+        type: boolean
+        default: false
+      build_number:
+        description: Optional positive integer; defaults to this workflow run number
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Verify, sign, and notarize universal desktop app
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      APPLE_TEAM_ID: ${{ vars.IOS_APPLE_TEAM_ID }}
+      DESKTOP_MATCH_GIT_URL: ${{ vars.IOS_MATCH_GIT_URL }}
+      DESKTOP_MATCH_GIT_BRANCH: ${{ vars.IOS_MATCH_GIT_BRANCH }}
+      DESKTOP_MATCH_READONLY: "true"
+      MACOS_BUILD_NUMBER: ${{ inputs.build_number }}
+      DEVELOPER_ID_APPLICATION_IDENTITY: "Developer ID Application: Dynamic Programming Solutions Korlatolt Felelossegu Tarsasag (73Q43R2PD4)"
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check release configuration
+        run: |
+          test -n "${APPLE_TEAM_ID}"
+          test -n "${DESKTOP_MATCH_GIT_URL}"
+          test -n "${DESKTOP_MATCH_GIT_BRANCH}"
+          if [ -n "${MACOS_BUILD_NUMBER}" ]; then
+            [[ "${MACOS_BUILD_NUMBER}" =~ ^[1-9][0-9]*$ ]]
+          fi
+
+      - name: Select Xcode 26.1.1
+        run: sudo xcode-select --switch /Applications/Xcode_26.1.1.app/Contents/Developer
+
+      - name: Validate Xcode
+        run: |
+          xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "${xcode_version}"
+          grep -Eq '^Xcode 26\.1\.1$' <<< "${xcode_version}"
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: desktop/crystal-lattice-control-desktop-rn/package-lock.json
+
+      - name: Install JavaScript dependencies
+        working-directory: desktop/crystal-lattice-control-desktop-rn
+        run: npm ci
+
+      - name: Set up Ruby and Bundler
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1 at 2026-07-22
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+          working-directory: desktop/crystal-lattice-control-desktop-rn
+
+      - name: Install CocoaPods dependencies
+        working-directory: desktop/crystal-lattice-control-desktop-rn
+        run: bundle exec pod install --project-directory=macos
+
+      - name: Verify desktop release
+        working-directory: desktop/crystal-lattice-control-desktop-rn
+        run: bundle exec fastlane mac verify
+
+      - name: Check signing credentials
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.IOS_APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_CONTENT }}
+          MATCH_ENCRYPTION_PASSWORD: ${{ secrets.IOS_MATCH_PASSWORD }}
+          MATCH_DEPLOY_KEY_CONTENT: ${{ secrets.IOS_MATCH_GIT_PRIVATE_KEY }}
+        run: |
+          test -n "${APP_STORE_CONNECT_KEY_ID}"
+          test -n "${APP_STORE_CONNECT_ISSUER_ID}"
+          test -n "${APP_STORE_CONNECT_KEY_CONTENT}"
+          test -n "${MATCH_ENCRYPTION_PASSWORD}"
+          test -n "${MATCH_DEPLOY_KEY_CONTENT}"
+
+      - name: Prepare read-only signing-repository key
+        env:
+          MATCH_DEPLOY_KEY_CONTENT: ${{ secrets.IOS_MATCH_GIT_PRIVATE_KEY }}
+        run: |
+          key_path="${RUNNER_TEMP}/crystal-lattice-desktop-match-key"
+          install -m 600 /dev/null "${key_path}"
+          printf '%s\n' "${MATCH_DEPLOY_KEY_CONTENT}" > "${key_path}"
+          echo "MATCH_GIT_PRIVATE_KEY=${key_path}" >> "${GITHUB_ENV}"
+
+      - name: Build, notarize, and validate release
+        working-directory: desktop/crystal-lattice-control-desktop-rn
+        env:
+          SKIP_DESKTOP_VERIFICATION: "true"
+          MATCH_PASSWORD: ${{ secrets.IOS_MATCH_PASSWORD }}
+          DESKTOP_APP_STORE_CONNECT_KEY_ID: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_ID }}
+          DESKTOP_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.IOS_APP_STORE_CONNECT_ISSUER_ID }}
+          DESKTOP_APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.IOS_APP_STORE_CONNECT_KEY_CONTENT }}
+          DESKTOP_APP_STORE_CONNECT_KEY_CONTENT_BASE64: "true"
+        run: bundle exec fastlane mac release
+
+      - name: Validate and stage release candidate
+        working-directory: desktop/crystal-lattice-control-desktop-rn
+        run: |
+          source_dir="build/macos-release"
+          candidate_dir="${RUNNER_TEMP}/desktop-release-candidate"
+          mkdir -p "${candidate_dir}"
+          cp "${source_dir}/Crystal-Lattice-Desktop-v0.9.0-universal.dmg" "${candidate_dir}/"
+          cp "${source_dir}/Crystal-Lattice-Desktop-v0.9.0-universal.dmg.sha256" "${candidate_dir}/"
+          cp "${source_dir}/release-metadata.json" "${candidate_dir}/"
+          cp "${source_dir}/notarization.json" "${candidate_dir}/"
+          python3 scripts/verify_desktop_release_candidate.py \
+            "${candidate_dir}" --commit "${GITHUB_SHA}"
+
+      - name: Upload verified candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: crystal-lattice-desktop-candidate
+          path: ${{ runner.temp }}/desktop-release-candidate/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Remove temporary signing credentials and keychain
+        if: always()
+        run: |
+          rm -f "${RUNNER_TEMP}/crystal-lattice-desktop-match-key"
+          if [ -e "${HOME}/Library/Keychains/crystal_lattice_desktop_release-db" ]; then
+            security delete-keychain "${HOME}/Library/Keychains/crystal_lattice_desktop_release-db"
+          fi
+
+  publish:
+    name: Publish verified desktop download
+    needs: build
+    if: inputs.publish_download == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      DOWNLOADS_BUCKET: ${{ vars.CLI_DOWNLOADS_BUCKET }}
+      CLI_DOWNLOADS_PREFIX: ${{ vars.CLI_DOWNLOADS_PREFIX }}
+      CLI_DOWNLOADS_BASE_URL: ${{ vars.CLI_DOWNLOADS_BASE_URL }}
+      DOWNLOADS_DISTRIBUTION_ID: ${{ vars.CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID }}
+      DESKTOP_DOWNLOADS_PREFIX: ${{ vars.DESKTOP_DOWNLOADS_PREFIX }}
+      DESKTOP_DOWNLOADS_BASE_URL: ${{ vars.DESKTOP_DOWNLOADS_BASE_URL }}
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download verified candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: crystal-lattice-desktop-candidate
+          path: release-candidate
+
+      - name: Verify publication configuration
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
+        run: |
+          test -n "${AWS_REGION}"
+          test -n "${DOWNLOADS_BUCKET}"
+          test -n "${CLI_DOWNLOADS_PREFIX}"
+          test -n "${CLI_DOWNLOADS_BASE_URL}"
+          test -n "${DOWNLOADS_DISTRIBUTION_ID}"
+          test -n "${DESKTOP_DOWNLOADS_PREFIX}"
+          test -n "${DESKTOP_DOWNLOADS_BASE_URL}"
+          test -n "${AWS_ROLE_TO_ASSUME}"
+
+      - name: Verify candidate before AWS authentication
+        run: |
+          python3 desktop/crystal-lattice-control-desktop-rn/scripts/verify_desktop_release_candidate.py \
+            release-candidate --commit "${GITHUB_SHA}"
+
+      - name: Install AWS CLI
+        run: python3 -m pip install awscli
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Publish versioned desktop download
+        env:
+          ALLOW_AWS_DEPLOY: "1"
+        run: |
+          bash deploy/aws-desktop-downloads/publish-assets.sh \
+            --assets-dir release-candidate \
+            --version 0.9.0 \
+            --source-commit "${GITHUB_SHA}" \
+            --region "${AWS_REGION}" \
+            --bucket "${DOWNLOADS_BUCKET}" \
+            --prefix "${DESKTOP_DOWNLOADS_PREFIX}" \
+            --base-url "${DESKTOP_DOWNLOADS_BASE_URL}" \
+            --distribution-id "${DOWNLOADS_DISTRIBUTION_ID}"
+
+      - name: Verify public desktop download
+        run: |
+          ready=0
+          for attempt in $(seq 1 20); do
+            echo "Checking desktop CDN publication (attempt ${attempt}/20)"
+            if bash deploy/aws-desktop-downloads/smoke.sh \
+              --base-url "${DESKTOP_DOWNLOADS_BASE_URL}" \
+              --version 0.9.0; then
+              ready=1
+              break
+            fi
+            sleep 15
+          done
+          if [ "${ready}" -ne 1 ]; then
+            echo "Published desktop files did not become consistent before timeout" >&2
+            exit 1
+          fi

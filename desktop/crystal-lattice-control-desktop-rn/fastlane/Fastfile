@@ -1,0 +1,376 @@
+# frozen_string_literal: true
+
+require "base64"
+require "digest"
+require "fileutils"
+require "json"
+require "open3"
+require "shellwords"
+require "tempfile"
+require_relative "build_number"
+
+opt_out_usage
+default_platform(:mac)
+
+APP_ROOT = File.expand_path("..", __dir__)
+REPOSITORY_ROOT = File.expand_path("../..", APP_ROOT)
+XCODE_WORKSPACE = File.join(
+  APP_ROOT,
+  "macos/CrystalLatticeControlDesktopRN.xcworkspace",
+)
+XCODE_SCHEME = "CrystalLatticeControlDesktopRN-macOS"
+APP_IDENTIFIER = ENV.fetch(
+  "DESKTOP_APP_IDENTIFIER",
+  "com.dynamicprogrammingsolutions.crystallatticecontrol.macos",
+)
+APPLE_TEAM_ID = ENV.fetch("APPLE_TEAM_ID", "73Q43R2PD4")
+PRODUCT_NAME = "Crystal Lattice Desktop"
+DEFAULT_MARKETING_VERSION = "0.9.0"
+OUTPUT_DIRECTORY = File.join(APP_ROOT, "build/macos-release")
+ARCHIVE_PATH = File.join(OUTPUT_DIRECTORY, "CrystalLatticeDesktop.xcarchive")
+APP_PATH = File.join(
+  ARCHIVE_PATH,
+  "Products/Applications/#{PRODUCT_NAME}.app",
+)
+
+def true_env?(name, default: false)
+  value = ENV[name]
+  return default if value.nil? || value.strip.empty?
+
+  %w[1 true yes].include?(value.downcase)
+end
+
+def require_environment!(*names)
+  missing = names.select { |name| ENV[name].nil? || ENV[name].strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!("Missing required environment variables: #{missing.join(', ')}")
+end
+
+def run_command(*arguments)
+  sh(Shellwords.join(arguments))
+end
+
+def marketing_version
+  ENV.fetch("MACOS_MARKETING_VERSION", DEFAULT_MARKETING_VERSION)
+end
+
+def release_build_number
+  CrystalLatticeMacBuildNumber.resolve(env: ENV)
+end
+
+def archive_arguments(build_number:, signed:)
+  arguments = [
+    "xcodebuild",
+    "-workspace",
+    XCODE_WORKSPACE,
+    "-scheme",
+    XCODE_SCHEME,
+    "-configuration",
+    "Release",
+    "-archivePath",
+    ARCHIVE_PATH,
+    "clean",
+    "archive",
+    "ARCHS=arm64 x86_64",
+    "ONLY_ACTIVE_ARCH=NO",
+    "MACOSX_DEPLOYMENT_TARGET=14.0",
+    "MARKETING_VERSION=#{marketing_version}",
+    "CURRENT_PROJECT_VERSION=#{build_number}",
+  ]
+
+  if signed
+    arguments.concat(
+      [
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Developer ID Application",
+        "DEVELOPMENT_TEAM=#{APPLE_TEAM_ID}",
+        "OTHER_CODE_SIGN_FLAGS=--timestamp",
+      ],
+    )
+  else
+    arguments.concat(
+      [
+        "CODE_SIGNING_ALLOWED=NO",
+        "CODE_SIGNING_REQUIRED=NO",
+      ],
+    )
+  end
+
+  arguments
+end
+
+def build_archive!(signed:)
+  build_number = release_build_number
+  FileUtils.rm_rf(OUTPUT_DIRECTORY)
+  FileUtils.mkdir_p(OUTPUT_DIRECTORY)
+
+  UI.message(
+    "Building #{PRODUCT_NAME} #{marketing_version} (#{build_number}) " \
+    "for arm64 and x86_64",
+  )
+  run_command(*archive_arguments(build_number: build_number, signed: signed))
+
+  UI.user_error!("Archive did not contain #{APP_PATH}") unless File.directory?(APP_PATH)
+
+  ENV["MACOS_MARKETING_VERSION"] = marketing_version
+  ENV["MACOS_BUILD_NUMBER"] = build_number
+  run_command(
+    File.join(APP_ROOT, "scripts/verify_macos_release.sh"),
+    APP_PATH,
+  )
+
+  APP_PATH
+end
+
+def app_store_connect_key
+  require_environment!(
+    "DESKTOP_APP_STORE_CONNECT_KEY_ID",
+    "DESKTOP_APP_STORE_CONNECT_ISSUER_ID",
+  )
+
+  options = {
+    key_id: ENV.fetch("DESKTOP_APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("DESKTOP_APP_STORE_CONNECT_ISSUER_ID"),
+    duration: 1_200,
+    in_house: false,
+  }
+
+  key_path = ENV["DESKTOP_APP_STORE_CONNECT_KEY_PATH"]
+  if key_path && !key_path.strip.empty?
+    options[:key_filepath] = File.expand_path(key_path)
+  else
+    require_environment!("DESKTOP_APP_STORE_CONNECT_KEY_CONTENT")
+    options[:key_content] = ENV.fetch("DESKTOP_APP_STORE_CONNECT_KEY_CONTENT")
+    options[:is_key_content_base64] = true_env?(
+      "DESKTOP_APP_STORE_CONNECT_KEY_CONTENT_BASE64",
+      default: true,
+    )
+  end
+
+  app_store_connect_api_key(**options)
+end
+
+def sync_developer_id_signing(api_key:, readonly:)
+  require_environment!("DESKTOP_MATCH_GIT_URL", "MATCH_PASSWORD")
+
+  options = {
+    type: "developer_id",
+    app_identifier: [APP_IDENTIFIER],
+    team_id: APPLE_TEAM_ID,
+    git_url: ENV.fetch("DESKTOP_MATCH_GIT_URL"),
+    git_branch: ENV.fetch("DESKTOP_MATCH_GIT_BRANCH", "main"),
+    readonly: readonly,
+    skip_provisioning_profiles: true,
+    shallow_clone: true,
+    api_key: api_key,
+  }
+
+  git_private_key = ENV["MATCH_GIT_PRIVATE_KEY"]
+  if git_private_key && !git_private_key.strip.empty?
+    options[:git_private_key] = git_private_key
+  end
+
+  match(**options)
+end
+
+def with_notary_key
+  configured_path = ENV["DESKTOP_APP_STORE_CONNECT_KEY_PATH"]
+  if configured_path && !configured_path.strip.empty?
+    return yield File.expand_path(configured_path)
+  end
+
+  require_environment!("DESKTOP_APP_STORE_CONNECT_KEY_CONTENT")
+  content = ENV.fetch("DESKTOP_APP_STORE_CONNECT_KEY_CONTENT")
+  if true_env?("DESKTOP_APP_STORE_CONNECT_KEY_CONTENT_BASE64", default: true)
+    content = Base64.strict_decode64(content)
+  end
+
+  key_file = Tempfile.new(["crystal-lattice-notary-key", ".p8"])
+  begin
+    key_file.binmode
+    key_file.write(content)
+    key_file.flush
+    File.chmod(0o600, key_file.path)
+    yield key_file.path
+  ensure
+    key_file.close!
+  end
+end
+
+def capture_command!(*arguments)
+  stdout, stderr, status = Open3.capture3(*arguments)
+  UI.message(stdout) unless stdout.empty?
+  UI.error(stderr) unless stderr.empty?
+  UI.user_error!("Command failed: #{Shellwords.join(arguments)}") unless status.success?
+
+  stdout
+end
+
+def package_and_notarize!(app_path)
+  identity = ENV["DEVELOPER_ID_APPLICATION_IDENTITY"]
+  if identity.nil? || identity.strip.empty?
+    UI.user_error!("Missing required environment variable: DEVELOPER_ID_APPLICATION_IDENTITY")
+  end
+
+  build_number = release_build_number
+  filename = "Crystal-Lattice-Desktop-v#{marketing_version}-universal.dmg"
+  dmg_path = File.join(OUTPUT_DIRECTORY, filename)
+  checksum_path = "#{dmg_path}.sha256"
+  staging_directory = File.join(OUTPUT_DIRECTORY, "dmg-root")
+  notarization_log = File.join(OUTPUT_DIRECTORY, "notarization.json")
+
+  FileUtils.rm_rf(staging_directory)
+  FileUtils.mkdir_p(staging_directory)
+  begin
+    run_command("ditto", app_path, File.join(staging_directory, "#{PRODUCT_NAME}.app"))
+    FileUtils.ln_s("/Applications", File.join(staging_directory, "Applications"))
+
+    run_command(
+      "hdiutil",
+      "create",
+      "-volname",
+      PRODUCT_NAME,
+      "-srcfolder",
+      staging_directory,
+      "-ov",
+      "-format",
+      "UDZO",
+      dmg_path,
+    )
+  ensure
+    FileUtils.rm_rf(staging_directory)
+  end
+  run_command(
+    "codesign",
+    "--force",
+    "--timestamp",
+    "--sign",
+    identity,
+    dmg_path,
+  )
+
+  require_environment!(
+    "DESKTOP_APP_STORE_CONNECT_KEY_ID",
+    "DESKTOP_APP_STORE_CONNECT_ISSUER_ID",
+  )
+  notarization_result = with_notary_key do |key_path|
+    output = capture_command!(
+      "xcrun",
+      "notarytool",
+      "submit",
+      dmg_path,
+      "--key",
+      key_path,
+      "--key-id",
+      ENV.fetch("DESKTOP_APP_STORE_CONNECT_KEY_ID"),
+      "--issuer",
+      ENV.fetch("DESKTOP_APP_STORE_CONNECT_ISSUER_ID"),
+      "--wait",
+      "--output-format",
+      "json",
+    )
+    File.write(notarization_log, output)
+    result = JSON.parse(output)
+    UI.user_error!("Notarization was not accepted: #{result}") unless result["status"] == "Accepted"
+    result
+  end
+
+  run_command("xcrun", "stapler", "staple", dmg_path)
+  run_command("xcrun", "stapler", "validate", dmg_path)
+  run_command("codesign", "--verify", "--deep", "--strict", "--verbose=2", app_path)
+  run_command("spctl", "--assess", "--type", "execute", "--verbose=4", app_path)
+
+  checksum = Digest::SHA256.file(dmg_path).hexdigest
+  source_commit, git_error, git_status = Open3.capture3(
+    "git", "-C", REPOSITORY_ROOT, "rev-parse", "HEAD"
+  )
+  UI.user_error!("Could not identify release source commit: #{git_error}") unless git_status.success?
+  source_changes, changes_error, changes_status = Open3.capture3(
+    "git",
+    "-C",
+    REPOSITORY_ROOT,
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  )
+  UI.user_error!("Could not inspect release source state: #{changes_error}") unless changes_status.success?
+
+  File.write(checksum_path, "#{checksum}  #{File.basename(dmg_path)}\n")
+  File.write(
+    File.join(OUTPUT_DIRECTORY, "release-metadata.json"),
+    JSON.pretty_generate(
+      {
+        product: PRODUCT_NAME,
+        bundle_id: APP_IDENTIFIER,
+        marketing_version: marketing_version,
+        build_number: Integer(build_number),
+        architectures: %w[arm64 x86_64],
+        minimum_macos: "14.0",
+        source_commit: source_commit.strip,
+        source_tree_clean: source_changes.empty?,
+        notarization_id: notarization_result.fetch("id"),
+        notarization_status: notarization_result.fetch("status"),
+        dmg: File.basename(dmg_path),
+        sha256: checksum,
+      },
+    ) + "\n",
+  )
+
+  dmg_path
+end
+
+platform :mac do
+  desc "Run verification required before a macOS desktop release"
+  lane :verify do
+    Dir.chdir(APP_ROOT) do
+      sh("bundle", "exec", "ruby", "fastlane/spec/build_number_test.rb")
+      sh("bundle", "exec", "ruby", "fastlane/spec/notary_key_test.rb")
+      sh("npm", "run", "tsc")
+      sh("npm", "test", "--", "--runInBand")
+      sh(
+        "xcodebuild",
+        "-workspace",
+        XCODE_WORKSPACE,
+        "-scheme",
+        XCODE_SCHEME,
+        "-configuration",
+        "Release",
+        "-showBuildSettings",
+      )
+    end
+  end
+
+  desc "Build and inspect an unsigned universal Release archive"
+  lane :build do
+    build_archive!(signed: false)
+  end
+
+  desc "Create or update Developer ID signing assets locally"
+  lane :setup_signing do
+    UI.user_error!("mac setup_signing must not run in CI") if ENV["CI"]
+
+    sync_developer_id_signing(
+      api_key: app_store_connect_key,
+      readonly: false,
+    )
+  end
+
+  desc "Build, sign, notarize, staple, and validate the universal DMG"
+  lane :release do
+    verify unless true_env?("SKIP_DESKTOP_VERIFICATION")
+
+    api_key = app_store_connect_key
+    setup_ci(
+      keychain_name: "crystal_lattice_desktop_release",
+      timeout: 0,
+    ) if ENV["CI"]
+    sync_developer_id_signing(
+      api_key: api_key,
+      readonly: true_env?("DESKTOP_MATCH_READONLY", default: true),
+    )
+
+    app_path = build_archive!(signed: true)
+    package_and_notarize!(app_path)
+  end
+end

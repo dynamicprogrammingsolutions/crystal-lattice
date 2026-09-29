@@ -145,7 +145,7 @@ final class MarkdownDisplayMenuUITests: XCTestCase {
     app.activate()
 
     let applicationMenu =
-      app.menuBars.menuBarItems["CrystalLatticeControlDesktopRN"]
+      app.menuBars.menuBarItems["Crystal Lattice Desktop"]
     XCTAssertTrue(
       applicationMenu.waitForExistence(timeout: 20),
       app.debugDescription

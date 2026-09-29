@@ -1059,6 +1059,17 @@ export const ChatPane = React.memo(function ChatPane({
 
   const hasAttachments = attachmentsAbove.length + attachmentsBelow.length > 0;
 
+  const richActionSession = useMemo<SessionSummary>(
+    () =>
+      sessionSummary ?? {
+        session_id: sessionId,
+        modified: 0,
+        preview: '',
+        metadata: {},
+      },
+    [sessionId, sessionSummary],
+  );
+
   const pluginSessionActionDefs: ActionDefinition[] = useMemo(() => {
     if (!backend) {
       return [];
@@ -1683,14 +1694,18 @@ export const ChatPane = React.memo(function ChatPane({
         filename: filename || 'attachment',
       });
       try {
+        const resolvedPluginId =
+          typeof pluginId === 'string' ? pluginId.trim() : '';
+        if (!resolvedPluginId) {
+          throw new Error(
+            'The attachment action did not identify its owning plugin.',
+          );
+        }
         await deleteSessionAttachment({
           backend,
           sessionId,
           assetId,
-          pluginId:
-            typeof pluginId === 'string' && pluginId.trim()
-              ? pluginId.trim()
-              : undefined,
+          pluginId: resolvedPluginId,
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -2025,6 +2040,14 @@ export const ChatPane = React.memo(function ChatPane({
         filename: params.filename,
       });
       try {
+        const resolvedPluginId = resolveAttachmentActionPluginId(
+          params.element,
+        );
+        if (!resolvedPluginId) {
+          throw new Error(
+            'The attachment action did not identify its owning plugin.',
+          );
+        }
         const stored = await storeSessionAttachment({
           backend,
           sessionId,
@@ -2032,8 +2055,7 @@ export const ChatPane = React.memo(function ChatPane({
           filename: params.filename,
           mimeType: params.mimeType,
           dataBase64: params.dataBase64,
-          pluginId:
-            resolveAttachmentActionPluginId(params.element) ?? undefined,
+          pluginId: resolvedPluginId,
         });
 
         beginAddDraftAttachment({
@@ -2801,17 +2823,6 @@ export const ChatPane = React.memo(function ChatPane({
       presentActionDisplay,
       sessionId,
     ],
-  );
-
-  const richActionSession = useMemo<SessionSummary>(
-    () =>
-      sessionSummary ?? {
-        session_id: sessionId,
-        modified: 0,
-        preview: '',
-        metadata: {},
-      },
-    [sessionId, sessionSummary],
   );
 
   const executeRichSessionAction = useCallback(

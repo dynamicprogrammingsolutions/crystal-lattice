@@ -1,7 +1,10 @@
 # AWS CLI Downloads Deployment
 
 This deployment hosts Crystal Lattice CLI release downloads on AWS using a
-private S3 bucket, CloudFront Origin Access Control, ACM, and Route 53.
+private S3 bucket, CloudFront Origin Access Control, ACM, and Route 53. The
+same bucket, distribution, certificate, and domain also serve Crystal Lattice
+Desktop from the separate `crystal-lattice-desktop` prefix; desktop-specific
+publishing lives under `deploy/aws-desktop-downloads/`.
 
 It is intentionally separate from the binary build itself. Official release
 archives are built by the GitHub Actions matrix in
@@ -38,6 +41,8 @@ testing domain to production does not require rewriting release scripts.
 - Route 53 `A` and `AAAA` alias records for the download domain.
 - Short cache policy for `install.sh`, `install.ps1`, and `latest.txt`.
 - Long cache policy for immutable versioned `.tar.gz` and `.zip` archives.
+- Long cache behavior for versioned desktop `.dmg`, `.sha256`, and `.json`
+  files under the desktop prefix.
 - Conservative security response headers.
 
 The public URL layout is:
@@ -52,6 +57,12 @@ The public URL layout is:
 <base-url>/crystal-lattice-python-runtime-v<version>-darwin-arm64.tar.gz
 <base-url>/crystal-lattice-python-runtime-v<version>-windows-amd64.zip
 <base-url>/crystal-lattice-python-runtime-v<version>-windows-arm64.zip
+```
+
+Desktop uses:
+
+```text
+https://download.crystallattice.dev/crystal-lattice-desktop/
 ```
 
 ## Prerequisites
@@ -204,6 +215,8 @@ CLI_DOWNLOADS_PREFIX
 CLI_DOWNLOADS_BASE_URL
 CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID
 CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME
+DESKTOP_DOWNLOADS_PREFIX
+DESKTOP_DOWNLOADS_BASE_URL
 ```
 
 It also creates or updates the `cli-release` environment and requires its only

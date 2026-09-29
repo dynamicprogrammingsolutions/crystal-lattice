@@ -23,6 +23,7 @@ Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-d
 
 - [Desktop development](docs/development/index.md)
 - [Human-time telemetry](docs/development/human-time-telemetry.md)
+- [macOS release maintenance](docs/development/macos-release.md)
 
 # Getting Started
 

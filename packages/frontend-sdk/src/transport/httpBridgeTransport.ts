@@ -14,7 +14,15 @@ function generateUuid(): string {
 }
 
 export function deriveBridgeHttpBaseUrl(bridgeUrl: string): string {
-  const parsed = new URL(bridgeUrl);
+  // React Native's ambient URL declaration is intentionally minimal even
+  // though its runtime implementation exposes the standard mutable fields.
+  const parsed = new URL(bridgeUrl) as unknown as {
+    protocol: string;
+    pathname: string;
+    search: string;
+    hash: string;
+    toString(): string;
+  };
   if (parsed.protocol === 'ws:') {
     parsed.protocol = 'http:';
   } else if (parsed.protocol === 'wss:') {

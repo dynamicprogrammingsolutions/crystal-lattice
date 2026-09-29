@@ -27,6 +27,7 @@ PRIVILEGED_TRIGGER_RE = re.compile(
 
 ALLOWED_WRITE_PERMISSIONS = {
     ("deploy-static-sites.yml", "deploy", "id-token"),
+    ("desktop-release.yml", "publish", "id-token"),
     ("release-crystal-lattice-cli.yml", "publish", "contents"),
     ("release-crystal-lattice-cli.yml", "publish-downloads", "id-token"),
 }
@@ -153,6 +154,7 @@ def validate_publication_triggers(
 ) -> None:
     if path.name not in {
         "deploy-static-sites.yml",
+        "desktop-release.yml",
         "ios-testflight.yml",
         "release-crystal-lattice-cli.yml",
     }:

@@ -14,6 +14,7 @@ HOSTED_ZONE_ID=""
 DOWNLOAD_DOMAIN=""
 BUCKET_NAME_PREFIX=""
 DOWNLOAD_PREFIX="crystal-lattice-cli"
+DESKTOP_DOWNLOAD_PREFIX="crystal-lattice-desktop"
 JSON_OUTPUT=0
 
 LOG_STEP_TOTAL=0
@@ -51,6 +52,7 @@ Common options:
   --download-domain DOMAIN
   --bucket-name-prefix PREFIX
   --prefix PREFIX
+  --desktop-prefix PREFIX
   --json
 
 Defaults:
@@ -66,6 +68,7 @@ Defaults:
 
   region:              us-east-1
   prefix:              crystal-lattice-cli
+  desktop prefix:      crystal-lattice-desktop
 USAGE
 }
 
@@ -80,6 +83,7 @@ parse_common_args() {
       --download-domain) DOWNLOAD_DOMAIN="$2"; shift 2 ;;
       --bucket-name-prefix) BUCKET_NAME_PREFIX="$2"; shift 2 ;;
       --prefix) DOWNLOAD_PREFIX="$2"; shift 2 ;;
+      --desktop-prefix) DESKTOP_DOWNLOAD_PREFIX="$2"; shift 2 ;;
       --json) JSON_OUTPUT=1; shift ;;
       --help|-h) usage_common; exit 0 ;;
       *) echo "Unknown option: $1" >&2; usage_common >&2; exit 2 ;;
@@ -196,6 +200,9 @@ EOF
 
 content_type_for_path() {
   case "$1" in
+    *.dmg) printf '%s\n' "application/x-apple-diskimage" ;;
+    *.json) printf '%s\n' "application/json; charset=utf-8" ;;
+    *.sha256) printf '%s\n' "text/plain; charset=utf-8" ;;
     *.zip) printf '%s\n' "application/zip" ;;
     *.tar.gz) printf '%s\n' "application/gzip" ;;
     *.sh) printf '%s\n' "text/x-shellscript; charset=utf-8" ;;
@@ -207,7 +214,7 @@ content_type_for_path() {
 
 cache_control_for_path() {
   case "$1" in
-    *.zip|*.tar.gz) printf '%s\n' "public, max-age=31536000, immutable" ;;
+    *.zip|*.tar.gz|*.dmg|*.sha256|*.json) printf '%s\n' "public, max-age=31536000, immutable" ;;
     install.sh|install.ps1|latest.txt) printf '%s\n' "public, max-age=60" ;;
     *) printf '%s\n' "public, max-age=300" ;;
   esac
@@ -224,10 +231,12 @@ invalidate_download_paths() {
 }
 
 print_stack_outputs() {
-  local bucket prefix base_url distribution cloudfront certificate hosted_zone domain
+  local bucket prefix base_url desktop_prefix desktop_base_url distribution cloudfront certificate hosted_zone domain
   bucket="$(stack_output DownloadsBucket)"
   prefix="$(stack_output DownloadsPrefix)"
   base_url="$(stack_output DownloadsBaseUrl)"
+  desktop_prefix="$(stack_output DesktopDownloadsPrefix)"
+  desktop_base_url="$(stack_output DesktopDownloadsBaseUrl)"
   distribution="$(stack_output DownloadsCloudFrontDistributionId)"
   cloudfront="$(stack_output DownloadsCloudFrontDomainName)"
   certificate="$(stack_output CertificateArn)"
@@ -235,13 +244,15 @@ print_stack_outputs() {
   domain="$(stack_output DownloadDomainName)"
 
   if [ "$JSON_OUTPUT" -eq 1 ]; then
-    printf '{"AWS_REGION":"%s","DOWNLOADS_BUCKET":"%s","DOWNLOADS_PREFIX":"%s","DOWNLOADS_BASE_URL":"%s","DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID":"%s","DOWNLOADS_CLOUDFRONT_DOMAIN":"%s","DOWNLOAD_DOMAIN":"%s","CERTIFICATE_ARN":"%s","HOSTED_ZONE_ID":"%s"}\n' \
-      "$REGION" "$bucket" "$prefix" "$base_url" "$distribution" "$cloudfront" "$domain" "$certificate" "$hosted_zone"
+    printf '{"AWS_REGION":"%s","DOWNLOADS_BUCKET":"%s","DOWNLOADS_PREFIX":"%s","DOWNLOADS_BASE_URL":"%s","DESKTOP_DOWNLOADS_PREFIX":"%s","DESKTOP_DOWNLOADS_BASE_URL":"%s","DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID":"%s","DOWNLOADS_CLOUDFRONT_DOMAIN":"%s","DOWNLOAD_DOMAIN":"%s","CERTIFICATE_ARN":"%s","HOSTED_ZONE_ID":"%s"}\n' \
+      "$REGION" "$bucket" "$prefix" "$base_url" "$desktop_prefix" "$desktop_base_url" "$distribution" "$cloudfront" "$domain" "$certificate" "$hosted_zone"
   else
     echo "AWS_REGION=$REGION"
     echo "DOWNLOADS_BUCKET=$bucket"
     echo "DOWNLOADS_PREFIX=$prefix"
     echo "DOWNLOADS_BASE_URL=$base_url"
+    echo "DESKTOP_DOWNLOADS_PREFIX=$desktop_prefix"
+    echo "DESKTOP_DOWNLOADS_BASE_URL=$desktop_base_url"
     echo "DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID=$distribution"
     echo "DOWNLOADS_CLOUDFRONT_DOMAIN=$cloudfront"
     echo "DOWNLOAD_DOMAIN=$domain"
