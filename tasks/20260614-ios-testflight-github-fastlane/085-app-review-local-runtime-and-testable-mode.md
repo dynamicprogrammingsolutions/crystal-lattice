@@ -9,7 +9,7 @@ users can drive with their own provider credentials.
 - [ ] A fresh install exposes a testable path without requiring the reviewer
   to install the desktop CLI, join a private LAN, or provide reviewer-owned
   provider credentials.
-- [ ] App Review may use a supplied private Crystal Lattice reviewer login
+- [x] App Review may use a supplied private Crystal Lattice reviewer login
   backed by a live public OpenAI Responses service.
 - [ ] API-key or supported ChatGPT-backed authorization is the first-class
   normal-user model path; an actual on-device/platform model is a fallback.

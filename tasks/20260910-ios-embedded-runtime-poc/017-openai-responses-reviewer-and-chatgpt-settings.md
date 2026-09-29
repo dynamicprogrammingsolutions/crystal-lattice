@@ -12,7 +12,7 @@ ChatGPT authentication an explicit plugin-driven choice in on-device settings.
 - [x] The reviewer profile is preconfigured with the Ireland HTTPS endpoint,
   `gpt-5.6-luna`, and the bundled reviewer CA, so App Review only needs the
   private incoming caller key.
-- [ ] The reviewer agent uses the Codex-like tool package, including
+- [x] The reviewer agent uses the Codex-like tool package, including
   `apply_patch`, and a real Release-simulator request through Ireland visibly
   completes a tool call and survives application relaunch.
 - [x] The generic OpenAI-compatible provider remains a separate endpoint-
@@ -192,7 +192,7 @@ URL/code display without a certificate failure.
   the saved default.
 - [x] Rebuild the iOS bundle and run focused provider, proxy, mobile, bundle,
   TypeScript, documentation, and simulator verification.
-- [ ] Obtain exact-command approval, update/redeploy Ireland, and pass the
+- [x] Obtain exact-command approval, update/redeploy Ireland, and pass the
   external reviewer Responses row.
 - [ ] Run the manually gated real ChatGPT simulator flow through tool use and
   relaunch.
@@ -313,3 +313,25 @@ URL/code display without a certificate failure.
   across app-data deletion; its stronger `Read`/`Write`, workspace-output,
   application-route, and relaunch assertions still prove that the
   `compatible-claude` path ran.
+- 2026-09-29: After exact-command confirmation, updated the live Ireland
+  deployment at `/home/irelandsrv/reviewer-openai-proxy`. The host uses a
+  flattened Compose layout, so the first mirrored-layout staging attempt
+  stopped before container recreation; the corrected deployment preserved
+  the existing caller key, TLS certificate/private key, and budget ledger,
+  while replacing the upstream key with the current root `.env` key.
+- 2026-09-29: Live health reports bearer authentication, only
+  `gpt-5.6-luna`, only `/models` and `/responses`, a `$1` budget, no cooldown,
+  and `$0.000797` spent. Chat Completions returns `404`, unauthenticated model
+  access returns `401`, request headers remain hidden, bodies remain
+  unlogged, and the on-disk ledger remains readable by the non-root proxy
+  container.
+- 2026-09-29: The external Release-simulator reviewer row passed in 139
+  seconds. It configured the prefilled Ireland profile with the preserved
+  caller key, retained a credential-free local session, invoked
+  `apply_patch`, produced `MATRIX_REVIEWER`, and recovered the same provider
+  session after relaunch. Proxy logs show five successful `/v1/models` calls
+  and two successful `/v1/responses` calls.
+- 2026-09-29: The failed mirrored-layout staging left an unused
+  `/home/irelandsrv/reviewer-openai-proxy/deploy/ireland/` directory with
+  mode-restricted staged files. It is not referenced by the running Compose
+  project and is deferred for separately confirmed cleanup.

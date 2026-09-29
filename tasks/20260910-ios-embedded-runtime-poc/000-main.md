@@ -39,7 +39,7 @@ session-management parity, then add the next research-oriented capabilities.
 - [ ] Release-simulator real-API Detox covers the generic OpenAI-compatible,
   OpenAI Responses API-key, OpenAI Responses ChatGPT-action login, OpenRouter,
   Anthropic, and external reviewer paths.
-- [ ] An externally reachable, authenticated, model-limited, cost-limited
+- [x] An externally reachable, authenticated, model-limited, cost-limited
   GPT-5.6 Luna proxy makes the app usable by App Review without exposing the
   upstream OpenAI credential.
 - [x] Sessions created with the credential-free `local` agent remain usable
