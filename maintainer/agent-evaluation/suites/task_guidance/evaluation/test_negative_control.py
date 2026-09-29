@@ -22,7 +22,8 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.negative_control]
 @pytest.mark.requirements("TGEVAL-004", "TGEVAL-008")
 def test_negative_control(
     agent_harness,
+    run_label: str,
     run_options: dict[str, object],
     case: CellCase,
 ) -> None:
-    execute_negative_control(agent_harness, run_options, case)
+    execute_negative_control(agent_harness, run_label, run_options, case)

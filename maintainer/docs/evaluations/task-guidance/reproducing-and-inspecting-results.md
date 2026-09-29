@@ -61,9 +61,36 @@ python -m pip install -e "core/python[dev]"
 python -m pip install -e application/python
 ```
 
-The recorded GLM profile uses `glm-5.3-flash:cloud` at max effort. The GPT
-profile uses `gpt-5.6-luna` through the ChatGPT login and expects the normal
-Crystal Lattice credentials, usually under `~/.crystal`.
+The GLM profile defaults to `glm-5.3-flash` on the Z.ai provider and can
+be switched to Ollama (`glm-5.3-flash:cloud`) with
+`TASK_GUIDANCE_GLM_PROVIDER=ollama`; `ZAI_API_KEY` comes from the
+repository `.env`. The GPT profile uses `gpt-5.6-luna` through the
+ChatGPT login and expects the normal Crystal Lattice credentials, usually
+under `~/.crystal`.
+
+## Running the evaluation with one command
+
+The parallel runner executes the whole matrix — or any slice — with one
+command instead of one pytest invocation per stage, preserving every
+stage dependency (producers, then dependent stages, then assessments)
+and honoring per-agent maximum parallelism from a config file:
+
+```bash
+cd maintainer/agent-evaluation
+python -m suites.task_guidance.run --label b1v4-r1
+python -m suites.task_guidance.run --label b1v4-r1 \
+  --stages task-creation,handoff-plan --scenarios tg01,tg02 --agents glm
+python -m suites.task_guidance.run --label probe --dry-run
+```
+
+Cases, prompts, validity checks, and records come from the same shared
+recipes as the parametrized live tests, so both paths stay identical.
+`--parallelism parallelism.json` (for example `{"glm": 2, "gpt": 4}`)
+raises an agent's concurrency; without it agents run serially while
+different agents still run concurrently. Raise a cap only after verifying
+the agent's run machinery tolerates concurrent runs under one label.
+Per-case outcomes print live (`.` ok, `s` skipped, `F` failed) and the
+exit code is non-zero when any case fails.
 
 Run deterministic checks before spending model quota:
 

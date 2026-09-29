@@ -27,7 +27,8 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.handoff_plan]
 )
 def test_handoff_plan(
     agent_harness,
+    run_label: str,
     run_options: dict[str, object],
     case: CellCase,
 ) -> None:
-    execute_handoff_plan(agent_harness, run_options, case)
+    execute_handoff_plan(agent_harness, run_label, run_options, case)

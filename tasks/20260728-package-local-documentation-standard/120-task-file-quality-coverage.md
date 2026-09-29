@@ -202,6 +202,30 @@ directories and connections; the matrix command set stays unchanged.
   two-turn zai e2e with the plugin loaded passed (both turns completed,
   final response correct). plugins/docs/index.md lists the plugin.
 
+- September 27, 2026 (infrastructure items 2+4 DONE — shared recipes +
+  parallel runner): all ten live-test case recipes moved verbatim into
+  `evaluation/execution.py` (producers, dependent stages, and the five
+  assessments, uniform `(harness_factory, run_label, options, case)`
+  signature; assessments raise `CaseSkipped` instead of pytest.skip);
+  every parametrized live test is now a thin wrapper over the same
+  function, so the pytest path and the CLI path share one recipe. New
+  CLI `python -m suites.task_guidance.run`: one command for the whole
+  evaluation or any slice (--stages/--scenarios/--agents,
+  dependency-ordered stage groups: producers → dependent stages →
+  assessments), per-agent maximum parallelism from a JSON config
+  (`--parallelism`, default serial per agent with cross-agent
+  concurrency), live per-case outcomes (. ok, s skipped, F failed),
+  non-zero exit on any failure, and --dry-run. Verified: the CLI
+  enumerates exactly the same 179 cases as the pytest live matrix;
+  228 deterministic tests green (9 new runner tests cover stage
+  ordering, slicing, parallelism config validation, and
+  skip/fail outcome reporting); ruff+black clean. The runner is
+  documented in the reproducing-and-inspecting results page. All four
+  prerequisite infrastructure items are now DONE (provider switch +
+  minimal configs, interleaved-thinking plugin, shared recipes +
+  parallel runner); the remaining gate before evaluation runs is the
+  candidate review/promotion decision plus the D-stage build.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the

@@ -29,7 +29,8 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.task_creation]
 )
 def test_task_creation(
     agent_harness,
+    run_label: str,
     run_options: dict[str, object],
     case: CellCase,
 ) -> None:
-    execute_task_creation(agent_harness, run_options, case)
+    execute_task_creation(agent_harness, run_label, run_options, case)

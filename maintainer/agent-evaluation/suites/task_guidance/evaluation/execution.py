@@ -72,6 +72,7 @@ def _options(options: Mapping[str, object]) -> tuple[bool, int]:
 
 def execute_task_creation(
     harness_factory: HarnessFactory,
+    run_label: str,
     options: Mapping[str, object],
     case: CellCase,
 ) -> None:
@@ -190,6 +191,7 @@ def _summary_markdown(record: dict) -> str:
 
 def execute_handoff_plan(
     harness_factory: HarnessFactory,
+    run_label: str,
     options: Mapping[str, object],
     case: CellCase,
 ) -> None:
@@ -253,6 +255,7 @@ def _record_plan_run(
 
 def execute_continuation(
     harness_factory: HarnessFactory,
+    run_label: str,
     options: Mapping[str, object],
     case: CellCase,
 ) -> None:
@@ -345,6 +348,7 @@ def _record_continuation_run(
 
 def execute_generated_plan(
     harness_factory: HarnessFactory,
+    run_label: str,
     options: Mapping[str, object],
     case: CellCase,
 ) -> None:
@@ -414,6 +418,7 @@ def _record_generated_plan_run(
 
 def execute_negative_control(
     harness_factory: HarnessFactory,
+    run_label: str,
     options: Mapping[str, object],
     case: CellCase,
 ) -> None:

@@ -20,7 +20,8 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.continuation]
 @pytest.mark.parametrize("case", continuation_cases(), ids=lambda item: item.id)
 def test_continuation(
     agent_harness,
+    run_label: str,
     run_options: dict[str, object],
     case: CellCase,
 ) -> None:
-    execute_continuation(agent_harness, run_options, case)
+    execute_continuation(agent_harness, run_label, run_options, case)

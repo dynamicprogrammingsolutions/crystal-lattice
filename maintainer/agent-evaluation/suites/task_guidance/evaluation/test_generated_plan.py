@@ -21,7 +21,8 @@ pytestmark = [pytest.mark.agent_eval, pytest.mark.generated_plan]
 @pytest.mark.parametrize("case", generated_plan_cases(), ids=lambda item: item.id)
 def test_generated_plan(
     agent_harness,
+    run_label: str,
     run_options: dict[str, object],
     case: CellCase,
 ) -> None:
-    execute_generated_plan(agent_harness, run_options, case)
+    execute_generated_plan(agent_harness, run_label, run_options, case)
