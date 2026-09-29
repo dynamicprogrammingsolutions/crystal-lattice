@@ -501,9 +501,93 @@ identity-blind judge; packages `20260926-task-quality-coverage` and
   assessment prompt wording use the current name and update with the
   candidate — or the fixtures are already replaced by Theme D's
   generated setups by then, whichever lands first.
+- ADDITIONAL wording directions (September 27, 2026): the agent
+  DECIDES how much planning to include in the file, working by default
+  without explicit user instruction (the omit case becomes a single
+  additional instructed test on top of prior planning); the
+  implementation-plan section carries a RESTATEMENT duty — restate the
+  decided design completely, never invent detail the planning did not
+  establish (correct under both the one-shot and two-stage pipelines);
+  acceptance evidence names the decisive boundary AND what it
+  deliberately does not cover (GENERIC-5 sits at 55%).
 - Re-measurement after wording: kind scenarios + tg04 cells first
   (multi-sample, 3 per flaky cell), full matrix if the wording touches
-  anything broader.
+  anything broader; per the September 27 ordering, the re-measurement
+  RUN waits for the candidate AND the prerequisite infrastructure
+  (zai provider, minimal configs, interleaved-thinking, parallel
+  runner).
+
+### D amendment — non-lossy add-and-compare design (approved
+### September 27, 2026; supersedes the replacement above)
+
+D no longer replaces the one-shot producer. The one-shot task-creation
+stage STAYS (b0/B1v3/C comparability preserved), and the two-stage
+pipeline is ADDED as parallel arms:
+
+- Arm 0: one-shot (current, unchanged).
+- Arm 1: plan-then-create, GUIDED planning (tasks guidance present in
+  the planning turn; creation turn continues the session).
+- Arm 2: plan-then-create, UNGUIDED planning (normal repo guidance
+  only; tasks guidance delivered between the turns).
+- Preserve-thinking variant: tried in ALL variations (arms 1–2 ×
+  with/without preserving the planning turn's reasoning into the
+  creation turn); kept wherever it CAUSES VARIANCE. Every scenario
+  must run correctly both with and without preserve-thinking.
+
+Clarified rules:
+
+- "Winner" means ANY arm with added value, not a single survivor.
+  Prune only arms that merely replicate their parent (trial subset
+  first, then matrix-wide only the survivors).
+- KIND scenarios get only the one most useful stage (at most two): no
+  separate omit-plan, no separate preserve-thinking. First candidate:
+  preserved thinking + task creation after prior planning WITH the
+  task guidance given in planning; add the unguided-planning case only
+  if it adds value. SELECTION RULE: keep the arm that shows meaningful
+  new or different MISTAKES — not the best results; the worst
+  (defect-showing) results are what the suite exists to find.
+- OMIT-PLAN becomes a single additional test ON TOP OF PRIOR PLANNING
+  (an instruction variant of the creation turn), NOT the current
+  hand-made canonical omit fixture — the existing canonical omit case
+  is plain wrong under this design. The guidance candidate must make
+  the agent DECIDE how much planning to include, working by default
+  without explicit user instruction; the omit test then verifies the
+  instructed-omission path only.
+- Planning sessions stay per-scenario and gated by the plan target
+  (Layer 1 machinery); arm 1 and arm 2 need separate gated plans.
+
+### Prerequisite infrastructure changes (approved September 27, 2026;
+### must exist before any new evaluation runs)
+
+1. GLM provider switch ollama → zai, SELECTABLE (config/env chooses
+   between ollama and zai). Reason: ollama has no preserve-thinking
+   setting; zai is wanted for GLM anyway. GPT stays as is.
+2. Runtime agent configs MINIMALIZED: drop the unused snippets and
+   plugins the current fixtures carry; keep only what the suite's runs
+   actually use.
+3. New plugin `interleaved-thinking` for the openai-compatible
+   provider: omits thinking blocks from previous turns when building
+   the request. Including/excluding the plugin in the agent config is
+   the preserve-thinking switch, provider-independently (works on both
+   zai and ollama).
+4. A PARALLEL RUNNER: one command runs the whole evaluation (like a
+   B1v3) or any slice, replacing the current multiple per-stage
+   pytest invocations. Per-provider maximum parallelism comes from
+   config; execution respects every stage dependency (planning before
+   creation-from-plan, producers before their assessments, parent
+   links) without breaking any of them.
+
+### Ordering after C (decided September 27, 2026)
+
+1. Guidance candidate FIRST (calibration drafting — the six gaps plus
+   the new directions below).
+2. The prerequisite infrastructure changes above.
+3. The non-lossy D stages (amendment design).
+4. Evaluation runs LAST, only after BOTH the candidate and the test
+   changes are done: re-run the latest B1v3 and C under the new
+   provider with the new candidate; then the D-arm trial. b0 is NOT
+   re-run after the changes (not a priority; the committed b0 package
+   stays as the historical reference).
 
 ### E. Workflow step coverage (recorded September 26, 2026; future work)
 
