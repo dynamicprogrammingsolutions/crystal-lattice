@@ -4,10 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       publish_download:
-        description: Publish the verified candidate to download.crystallattice.dev
+        description: Publish a previously verified candidate to download.crystallattice.dev
         required: true
         type: boolean
         default: false
+      candidate_run_id:
+        description: Successful build-only workflow run ID to publish; required when publishing
+        required: false
+        type: string
       build_number:
         description: Optional positive integer; defaults to this workflow run number
         required: false
@@ -27,7 +31,7 @@ defaults:
 jobs:
   build:
     name: Verify, sign, and notarize universal desktop app
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && inputs.publish_download == false
     runs-on: macos-26
     timeout-minutes: 120
     env:
@@ -167,11 +171,11 @@ jobs:
 
   publish:
     name: Publish verified desktop download
-    needs: build
-    if: inputs.publish_download == true
+    if: github.ref == 'refs/heads/main' && inputs.publish_download == true
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
+      actions: read
       contents: read
       id-token: write
     env:
@@ -188,16 +192,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download verified candidate
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: crystal-lattice-desktop-candidate
-          path: release-candidate
-
       - name: Verify publication configuration
         env:
           AWS_ROLE_TO_ASSUME: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
         run: |
+          [[ "${CANDIDATE_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
           test -n "${AWS_REGION}"
           test -n "${DOWNLOADS_BUCKET}"
           test -n "${CLI_DOWNLOADS_PREFIX}"
@@ -207,10 +207,37 @@ jobs:
           test -n "${DESKTOP_DOWNLOADS_BASE_URL}"
           test -n "${AWS_ROLE_TO_ASSUME}"
 
+      - name: Verify candidate workflow run
+        env:
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_json="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${CANDIDATE_RUN_ID}"
+          )"
+          test "$(jq -r '.name' <<< "${run_json}")" = "Crystal Lattice Desktop release"
+          test "$(jq -r '.path' <<< "${run_json}")" = ".github/workflows/desktop-release.yml"
+          test "$(jq -r '.event' <<< "${run_json}")" = "workflow_dispatch"
+          test "$(jq -r '.head_branch' <<< "${run_json}")" = "main"
+          test "$(jq -r '.status' <<< "${run_json}")" = "completed"
+          test "$(jq -r '.conclusion' <<< "${run_json}")" = "success"
+          candidate_commit="$(jq -r '.head_sha' <<< "${run_json}")"
+          [[ "${candidate_commit}" =~ ^[0-9a-f]{40}$ ]]
+          echo "CANDIDATE_SOURCE_COMMIT=${candidate_commit}" >> "${GITHUB_ENV}"
+
+      - name: Download verified candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: crystal-lattice-desktop-candidate
+          path: release-candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+
       - name: Verify candidate before AWS authentication
         run: |
           python3 desktop/crystal-lattice-control-desktop-rn/scripts/verify_desktop_release_candidate.py \
-            release-candidate --commit "${GITHUB_SHA}"
+            release-candidate --commit "${CANDIDATE_SOURCE_COMMIT}"
 
       - name: Install AWS CLI
         run: python3 -m pip install awscli
@@ -228,7 +255,7 @@ jobs:
           bash deploy/aws-desktop-downloads/publish-assets.sh \
             --assets-dir release-candidate \
             --version 0.9.0 \
-            --source-commit "${GITHUB_SHA}" \
+            --source-commit "${CANDIDATE_SOURCE_COMMIT}" \
             --region "${AWS_REGION}" \
             --bucket "${DOWNLOADS_BUCKET}" \
             --prefix "${DESKTOP_DOWNLOADS_PREFIX}" \

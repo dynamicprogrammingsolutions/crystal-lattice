@@ -83,8 +83,14 @@ the current working tree, so use a reviewed commit for a release candidate.
 The `Crystal Lattice Desktop release` workflow runs **only by manual dispatch
 from `main`**. Its safe default, `publish_download = false`, verifies, signs,
 notarizes, and stores the candidate as a seven-day workflow artifact without
-making it public. Setting `publish_download = true` sends that exact verified
-candidate to the existing private S3/CloudFront download infrastructure:
+making it public.
+
+After reviewing the run's source commit, version/build, checksum, and
+notarization result, dispatch again with `publish_download = true` and set
+`candidate_run_id` to that successful build-only run. The publication job
+verifies the referenced run is a completed successful execution of this
+workflow on `main`, downloads that exact artifact, and sends it to the existing
+private S3/CloudFront download infrastructure without rebuilding:
 
 ```text
 https://download.crystallattice.dev/crystal-lattice-desktop/

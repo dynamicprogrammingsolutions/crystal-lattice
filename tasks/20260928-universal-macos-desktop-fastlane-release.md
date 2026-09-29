@@ -795,7 +795,7 @@ both architecture acceptance boundaries.
       workflow.
 - [x] **AGENT + HUMAN as needed:** Confirm the existing GitHub variables,
       secrets, and read-only deploy key; create new credentials only if needed.
-- [ ] **AGENT:** Complete a successful build-only workflow.
+- [x] **AGENT:** Complete a successful build-only workflow.
 - [ ] **HUMAN JUDGMENT:** Approve the release source, version, build, notes,
       assets, and checksums.
 - [ ] **AGENT + HUMAN:** Publish and verify the versioned CloudFront download.
@@ -1554,3 +1554,32 @@ UI automation investigation:
   after the cached bundle installation. The installed gems remain available,
   while CocoaPods, verification, and release source capture see the committed
   configuration.
+- Build-only workflow run `36633536807` completed successfully on clean commit
+  `1a04b8689eab0821727be2c3efc9213e57ebafe7` from September 29, 2026
+  21:28–21:49 UTC. The publication job was skipped.
+- Hosted candidate evidence:
+  - marketing version/build: `0.9.0 (4)`;
+  - architectures: `arm64`, `x86_64`;
+  - minimum macOS: `14.0`;
+  - source tree clean: `true`;
+  - notarization submission:
+    `72cd6073-9071-4bfa-aad5-56d7ea704be2`, status `Accepted`;
+  - DMG size: 10,268,972 bytes;
+  - SHA-256:
+    `8bbd119552de60eee53dd4d45fb8cd360faa1a7a788b780114e274ee46959bb5`.
+- The downloaded workflow artifact independently passed:
+  - the four-file candidate validator against the exact source commit;
+  - checksum verification;
+  - Developer ID DMG signature and timestamp inspection;
+  - staple validation and Gatekeeper DMG acceptance;
+  - mounted app strict deep signature and Gatekeeper acceptance;
+  - exact app-plus-Applications-shortcut contents;
+  - universal `x86_64 arm64` executable inspection;
+  - embedded build number `4`.
+- Publication was redesigned before use so human approval can refer to this
+  exact checksum. A publication dispatch must set
+  `publish_download = true` and `candidate_run_id = 36633536807`. The publish
+  job verifies the referenced run is this workflow, completed successfully on
+  `main`, obtains its source commit from GitHub, downloads that retained
+  artifact, revalidates it, and only then assumes AWS credentials. It does not
+  rebuild or substitute a new candidate.

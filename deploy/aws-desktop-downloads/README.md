@@ -9,8 +9,10 @@ https://download.crystallattice.dev/crystal-lattice-desktop
 ```
 
 The desktop GitHub Actions workflow builds, signs, notarizes, and validates a
-clean candidate before an optional manual publication job assumes the existing
-AWS OIDC role. No long-lived AWS key is used.
+clean candidate. A later manual publication dispatch references that exact
+successful build-only run ID, downloads its retained artifact without
+rebuilding, and assumes the existing AWS OIDC role. No long-lived AWS key is
+used.
 
 Publication writes only under `crystal-lattice-desktop/`:
 
