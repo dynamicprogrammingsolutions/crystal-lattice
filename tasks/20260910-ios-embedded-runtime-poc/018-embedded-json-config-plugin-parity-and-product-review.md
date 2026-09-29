@@ -187,7 +187,7 @@ and collect those decisions for user confirmation.
 - [x] Remove or neutralize the legacy embedded connection configuration path.
 - [x] Run source, immutable ZIP, component, TypeScript, and Release-simulator
   regression coverage.
-- [ ] Present unresolved product and optional-plugin decisions for approval.
+- [x] Present unresolved product and optional-plugin decisions for approval.
 - [ ] Update documentation, requirement evidence, and completion notes.
 
 ### Requirement verification
