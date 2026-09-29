@@ -150,6 +150,9 @@ the embedded implementation and its staged tool/provider enhancements.
 - Subtask `015` is complete historical implementation and verification.
 - Subtask `017` completed the approved reviewer Responses and ChatGPT
   settings/TLS correction.
+- Subtask `018` owns the approved JSON-config, plugin-parity, Reviewer
+  visibility, autosave, and single-auth-control follow-up and is under
+  execution.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
 - ChatGPT authorization settings and the corrected production reviewer
@@ -162,5 +165,6 @@ the embedded implementation and its staged tool/provider enhancements.
 - [x] `tasks/20260910-ios-embedded-runtime-poc/010-embedded-runtime-openai-proxy-and-file-tools.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
+- [ ] `tasks/20260910-ios-embedded-runtime-poc/018-embedded-json-config-plugin-parity-and-product-review.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`
