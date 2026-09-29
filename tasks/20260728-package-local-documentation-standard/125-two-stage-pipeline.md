@@ -47,10 +47,21 @@ parallel runner.
   AGENTS.md has NO tasks slot, so arm differences reduce to the
   `include_tasks` request flag already used by assessments; the writing
   turn always compiles with `include_tasks=True`.
-- Preserve-thinking = agent-config variant: `agent_config_file` gains a
-  variant parameter that appends
-  `path:${env:BUILTIN_PLUGINS}/interleaved-thinking` to the plugin list
-  (present = prior thinking omitted; absent = provider default). GLM only.
+- Preserve-thinking is CONFIG-FILE-DRIVEN per provider (corrected
+  September 28 per the zai reasoning tests): zai preserves via
+  `request_options.thinking.clear_thinking: false` (server-side state,
+  no plugin); zai strip = default. Ollama preserves by default (inline
+  `<think>` content re-sent); ollama strip =
+  `path:${env:BUILTIN_PLUGINS}/interleaved-thinking` in the plugin list
+  — the plugin is needed ONLY for ollama.
+- STAGE-SELECTED CONFIGS (user direction, September 28): every stage
+  declares a config file + agent id + optional effort override; all
+  settings ride in the config. The planning turn runs under its config
+  (include_tasks off for arm 2, thinking setting per variant); the
+  creation turn runs under the from-plan stage's config (include_tasks
+  on) restoring the planning session. The per-request include_tasks
+  flag-flipping from the earlier draft is REPLACED by this declarative
+  selection; delivery checks stay as verification.
 - Cross-model continuation: the shared plan is produced by GPT at max
   effort (recorded decision), and producer cells (glm/gpt) continue that
   session via `continue_from` + session restore; cell differences measure
