@@ -1731,6 +1731,51 @@ class AgentApplication:
         return dict(updates)
 
     @staticmethod
+    def _validate_workspace_session_updates(
+        base_config: Dict[str, Any],
+        updates: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        raw_workspace_root = base_config.get("workspace_root")
+        if not isinstance(raw_workspace_root, str) or not raw_workspace_root.strip():
+            return updates
+
+        locked_keys = {"workspace_root", "allowed_paths"}
+        attempted_locked = sorted(locked_keys.intersection(updates))
+        if attempted_locked:
+            raise ValueError(
+                "session settings cannot override fixed workspace keys: "
+                + ", ".join(attempted_locked)
+            )
+
+        if "working_directory" not in updates:
+            return updates
+
+        raw_working_directory = updates.get("working_directory")
+        if (
+            not isinstance(raw_working_directory, str)
+            or not raw_working_directory.strip()
+        ):
+            raise ValueError("working_directory must be a non-empty string")
+
+        workspace_root = Path(raw_workspace_root).expanduser().resolve()
+        working_path = Path(raw_working_directory).expanduser()
+        if not working_path.is_absolute():
+            working_path = workspace_root / working_path
+        working_directory = working_path.resolve()
+
+        try:
+            working_directory.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ValueError(
+                "working_directory must be contained by workspace_root"
+            ) from exc
+
+        if not working_directory.is_dir():
+            raise ValueError("working_directory must identify an existing directory")
+
+        return {**updates, "working_directory": str(working_directory)}
+
+    @staticmethod
     def _changed_setting_keys(
         old_settings: Dict[str, Any],
         new_settings: Dict[str, Any],
@@ -1862,6 +1907,10 @@ class AgentApplication:
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
+            normalized_updates = self._validate_workspace_session_updates(
+                base_config,
+                normalized_updates,
+            )
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
             old_settings = dict(self._normalized_settings(metadata.get("overrides")))
             new_settings = {**old_settings, **normalized_updates}

@@ -61,6 +61,7 @@
   },
   "mixins": {
     "embedded_agent_defaults": {
+      "workspace_root": "${env:EMBEDDED_WORKSPACE_DIR}",
       "working_directory": "${env:EMBEDDED_WORKSPACE_DIR}",
       "allowed_paths": [
         "${env:EMBEDDED_WORKSPACE_DIR}"
@@ -98,7 +99,6 @@
       "image_attachment_mode": "inline",
       "show_flex_processing_ui": false,
       "show_fast_mode_ui": false,
-      "native_compaction_enabled": false,
       "timeout": 180
     },
     "openai": {
@@ -142,8 +142,6 @@
     "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
     "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
     "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
-    "openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin",
-    "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
     "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
     "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
     "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
@@ -168,6 +166,7 @@
     "timestamp_extension.timestamp_extension.TimestampExtension",
     "timestamp_extension.duration_extension.DurationExtension",
     "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
+    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature",
     "chatgpt_auth_app.ChatGPTAuthAppPlugin",
     "generate_title_app.GenerateTitleAppPlugin",
     "session_actions_app.SessionActionsAppPlugin",

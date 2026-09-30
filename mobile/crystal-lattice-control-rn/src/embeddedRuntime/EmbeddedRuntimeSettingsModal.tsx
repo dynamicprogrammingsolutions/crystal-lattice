@@ -579,13 +579,35 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                     </Text>
                   </View>
                   {profileId !== "reviewer" ? (
-                    <Switch
+                    <View
                       testID={`embedded-provider-${profileId}-enabled`}
-                      value={draft.enabled}
-                      onValueChange={(enabled) =>
-                        updateDraft(profileId, { enabled })
-                      }
-                    />
+                      accessible
+                      accessibilityRole="switch"
+                      accessibilityLabel={`Enable ${draft.label}`}
+                      accessibilityState={{ checked: draft.enabled }}
+                      accessibilityActions={[
+                        {
+                          name: "activate",
+                          label: draft.enabled
+                            ? "Disable provider"
+                            : "Enable provider",
+                        },
+                      ]}
+                      onAccessibilityAction={(event) => {
+                        if (event.nativeEvent.actionName === "activate") {
+                          updateDraft(profileId, { enabled: !draft.enabled });
+                        }
+                      }}
+                    >
+                      <Switch
+                        testID={`embedded-provider-${profileId}-enabled-control`}
+                        value={draft.enabled}
+                        onValueChange={(enabled) =>
+                          updateDraft(profileId, { enabled })
+                        }
+                        accessible={false}
+                      />
+                    </View>
                   ) : null}
                 </View>
 
@@ -596,6 +618,20 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                     isDefault && styles.defaultButtonSelected,
                   ]}
                   onPress={() => setDefaultAgent(draft.agentId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isDefault
+                      ? `${draft.label} is the default agent`
+                      : `Make ${draft.label} the default agent`
+                  }
+                  accessibilityActions={[
+                    { name: "activate", label: "Make default" },
+                  ]}
+                  onAccessibilityAction={(event) => {
+                    if (event.nativeEvent.actionName === "activate") {
+                      setDefaultAgent(draft.agentId);
+                    }
+                  }}
                 >
                   <Text
                     style={[
@@ -667,6 +703,16 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                     testID={`embedded-provider-${profileId}-test`}
                     style={styles.secondaryButton}
                     onPress={() => void testProfile(profileId)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Test ${draft.label} provider`}
+                    accessibilityActions={[
+                      { name: "activate", label: "Test provider" },
+                    ]}
+                    onAccessibilityAction={(event) => {
+                      if (event.nativeEvent.actionName === "activate") {
+                        void testProfile(profileId);
+                      }
+                    }}
                   >
                     <Text style={styles.secondaryButtonText}>Test</Text>
                   </TouchableOpacity>

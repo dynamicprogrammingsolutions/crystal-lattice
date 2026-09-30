@@ -84,6 +84,7 @@ APPLICATION_PLUGIN_SOURCES = tuple(
         "summarize-range-app",
         "rebuild-native-app",
         "cost-tracking",
+        "embedded-workspace-settings",
     )
 )
 
@@ -616,6 +617,16 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             element.get("id") == "show_compiled_system_message"
             for element in ui_elements
         )
+        working_directory_element = next(
+            element
+            for element in ui_elements
+            if element.get("key") == "working_directory"
+        )
+        assert working_directory_element["type"] == "directory"
+        assert working_directory_element["options"][0] == {
+            "value": str(runtime.workspace_dir.resolve()),
+            "label": "Workspace root",
+        }
         assert {
             plugin["id"] for plugin in runtime.application.list_application_plugins()
         } == {
@@ -634,7 +645,6 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             "session_title",
             "session_asset_attachments",
             "cost_tracking_app",
-            "openai_responses_native_compaction_app",
         }
         plugin_ids = {
             plugin["id"] for plugin in runtime.application.list_plugins()
@@ -662,8 +672,6 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         assert "enable_web_search" in reviewer_keys
         assert "enable_flex_processing" not in reviewer_keys
         assert "enable_fast_mode" not in reviewer_keys
-        assert "use_chatgpt_auth_for_compaction" not in reviewer_keys
-
         openrouter_session = runtime.create_session(agent_id="openrouter-claude")
         openrouter_loaded = runtime.application.load_session(
             openrouter_session.session_id
@@ -681,6 +689,120 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             and element.get("attachment_action_plugin") == "openrouter_attachments"
             for element in openrouter_ui
         )
+    finally:
+        runtime.application.close()
+
+
+def test_sessions_select_independent_contained_working_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = load_runtime_module()
+    from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
+
+    monkeypatch.setattr(
+        OpenAICompatibleProvider,
+        "get_models",
+        lambda self, config: [],
+    )
+    runtime = module.MobileRuntime(
+        str(tmp_path / "runtime"),
+        {
+            "version": 3,
+            "default_agent": "compatible-claude",
+            "providers": {
+                "compatible": {
+                    "enabled": True,
+                    "api_key": "test-key",
+                    "base_url": "http://127.0.0.1:3000/v1",
+                    "model": "test-model",
+                }
+            },
+        },
+    )
+    try:
+        alpha = runtime.workspace_dir / "projects" / "alpha"
+        beta = runtime.workspace_dir / "projects" / "beta"
+        alpha.mkdir(parents=True)
+        beta.mkdir(parents=True)
+        first = runtime.create_session(agent_id="compatible-claude")
+        second = runtime.create_session(agent_id="compatible-claude")
+
+        runtime.application.patch_session_settings(
+            first.session_id,
+            {"working_directory": str(alpha)},
+        )
+        runtime.application.patch_session_settings(
+            second.session_id,
+            {"working_directory": str(beta)},
+        )
+        with pytest.raises(ValueError, match="contained"):
+            runtime.application.patch_session_settings(
+                first.session_id,
+                {"working_directory": str(tmp_path)},
+            )
+        module._runtime = runtime
+        try:
+            rejected = json.loads(
+                module.execute_json(
+                    json.dumps(
+                        {
+                            "method": "PATCH",
+                            "path": f"/sessions/{first.session_id}/overrides",
+                            "body": {
+                                "values": {
+                                    "working_directory": str(tmp_path),
+                                }
+                            },
+                            "runtimeConfiguration": runtime.runtime_configuration,
+                        }
+                    ),
+                    str(runtime.root),
+                )
+            )
+        finally:
+            module._runtime = None
+        assert rejected["status"] == 400
+        assert "contained" in rejected["data"]["detail"]
+
+        for session, expected_directory, content in (
+            (first, alpha, "first"),
+            (second, beta, "second"),
+        ):
+            loaded = runtime.application.load_session(session.session_id)
+            assert loaded is not None
+            core, base_config, stored = loaded
+            effective = runtime.application.resolve_effective_config(
+                base_config,
+                stored,
+            )
+            assert effective["working_directory"] == str(
+                expected_directory.resolve()
+            )
+            result = core.execute_tool_calls(
+                [
+                    {
+                        "id": f"write-{content}",
+                        "type": "function",
+                        "function": {
+                            "name": "Write",
+                            "arguments": json.dumps(
+                                {
+                                    "file_path": "session.txt",
+                                    "content": content,
+                                }
+                            ),
+                        },
+                    }
+                ],
+                effective,
+            )
+            assert result[0]["metadata"]["tool_name"] == "Write"
+            assert (expected_directory / "session.txt").read_text(
+                encoding="utf-8"
+            ) == content
+
+        assert not (alpha / "session.txt").samefile(beta / "session.txt")
     finally:
         runtime.application.close()
 

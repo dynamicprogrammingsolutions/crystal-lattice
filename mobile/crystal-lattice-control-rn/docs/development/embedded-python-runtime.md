@@ -54,6 +54,19 @@ SDKs and native dependencies such as `jiter` and `pydantic-core` are not
 bundled. The embedded dependency list pins the requests/certificate closure,
 and the Release simulator smoke constructs both provider clients.
 
+The OpenAI Responses profile registers native web search, inline-image
+attachments, Flex, Fast mode, prompt caching, and verbosity. OpenRouter
+registers its native web search, image attachments, Claude caching, and
+verbosity extensions. Flex and Fast settings are available for direct OpenAI
+API authentication but hidden for ChatGPT and Reviewer. Reviewer still
+receives native Responses web search, while its service tier remains fixed.
+
+The requests transport sends OpenAI images inline. It does not implement the
+OpenAI Files API, so the embedded UI does not advertise PDF or upload-backed
+image modes. OpenAI native compaction is also omitted because that extension
+imports the OpenAI SDK, which is deliberately outside the lightweight
+requests-only iOS dependency set.
+
 Embedded `/send` and `/send_message` start streamed requests when the
 effective OpenAI Responses authentication mode is ChatGPT (including a
 session or request override). The other embedded profiles retain their
@@ -113,6 +126,19 @@ writes, search, enumeration, and patches are bounded UTF-8 text operations.
 Session snapshots, selected-snapshot state, application settings, and
 session-owned attachments stay under the app-support root.
 
+The workspace root is fixed for the application. Each session may select the
+root or an existing descendant as its own working directory from **Session
+settings → Working directory**. The directory picker shows relative names
+such as `projects/alpha`, while the persisted override uses the canonical
+app-container path. Different sessions retain independent choices.
+
+The in-process override adapter delegates to `AgentApplication`, which rejects
+attempts to override the workspace root or allowed paths and rejects a working
+directory outside the root. The shared Claude-like and Codex-like tool engine
+performs the same containment check before tool execution. Arbitrary
+Files/iCloud directory selection and security-scoped bookmarks are not part of
+this version.
+
 Prepare the runtime and CocoaPods dependencies from the mobile package:
 
 ```bash
@@ -167,6 +193,9 @@ On iOS:
    candidate without changing settings by itself.
 6. Open the built-in connection, create a session with an available agent, and
    use the ordinary Sessions and Messages screens.
+7. To scope relative file operations for one session, open its **Session
+   settings**, choose **Working directory**, and select the workspace root or
+   an existing descendant.
 
 The built-in on-device connection is created automatically. The old
 new-connection form is no longer offered because it wrote the legacy
@@ -177,8 +206,10 @@ and workspace files.
 
 The maintained config also includes the default system-message,
 request-options, timestamp/duration, summarize-range, rebuild-native-history,
-and cost-tracking plugins. File context, web context, MCP, cloud-agent, and
-dotenv-editing plugins remain excluded or deferred for explicit iOS
+cost-tracking, and workspace-settings plugins. Provider-native OpenAI
+Responses and OpenRouter web search and image attachments are included.
+Provider-neutral Tavily search, file context, web context, MCP, cloud-agent,
+and dotenv-editing plugins remain excluded or deferred for explicit iOS
 compatibility and product review.
 
 The Claude-like plugin package contains:
@@ -212,8 +243,9 @@ The model-visible schemas and result presentation belong to
 operations, enumeration, search, patching, and public URL validation belong to
 `embedded-tools-shared`; the mobile bridge does not define tool classes.
 
-Tavily web search and Python execution are intentionally not part of this
-runtime configuration yet.
+Tavily provider-neutral web search and Python execution are intentionally not
+part of this runtime configuration yet. OpenAI Responses and OpenRouter native
+web search are already available through their provider extensions.
 
 ## Application plugins and route parity
 
@@ -226,12 +258,12 @@ The embedded runtime loads the iOS-safe default session plugins for:
 - pin, archive, and status metadata;
 - generic session-asset download.
 
-The in-process router delegates application actions and UI schema, session
-plugin overrides, snapshots, readonly snapshot selection, restore/delete,
+The in-process router delegates application actions and UI schema, validated
+session overrides, snapshots, readonly snapshot selection, restore/delete,
 fork, message deletion, and server settings to `AgentApplication`. Message
 deletion creates an automatic pre-delete snapshot. The dotenv-writing
-`application-config-app`, MCP, cloud, rebuild, subprocess export, and
-provider-native attachment extensions are not included.
+`application-config-app`, MCP, cloud, and subprocess export plugins are not
+included.
 
 ## Persistence and background behavior
 
@@ -295,6 +327,12 @@ npm run detox:test:embedded-python-background:ios
 The real-model tests assert tool/message structure, persisted file content,
 process-relaunch state, and lifecycle timestamps. They do not assert exact
 assistant prose.
+
+The hosted provider matrix also reports provider-native search/attachment
+availability and verifies that a model-created descendant can be selected as
+one session's working directory without changing another session. It rejects
+an outside override through the production in-process transport and confirms
+the selection after relaunch.
 
 Run the hosted tool-family matrix from the repository root:
 

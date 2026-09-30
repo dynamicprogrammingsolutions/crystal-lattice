@@ -72,6 +72,24 @@ function renderSettingsModal() {
         },
         {
           ui_type: 'config',
+          key: 'working_directory',
+          type: 'directory',
+          label: 'Working directory',
+          description: 'Choose a workspace directory.',
+          placeholder: 'Select a workspace directory',
+          options: [
+            {
+              value: '/app/workspace',
+              label: 'Workspace root',
+            },
+            {
+              value: '/app/workspace/projects/alpha',
+              label: 'projects/alpha',
+            },
+          ],
+        },
+        {
+          ui_type: 'config',
           key: 'generic_readonly',
           type: 'readonly',
           label: 'Generic readonly',
@@ -91,6 +109,7 @@ function renderSettingsModal() {
         { key: 'generic_enabled', default: false },
         { key: 'generic_provider', default: 'local' },
         { key: 'generic_name', default: 'Alpha' },
+        { key: 'working_directory' },
         { key: 'generic_readonly', default: 'Read only value' },
         { key: 'generic_unknown', default: 'Fallback value' },
       ],
@@ -98,6 +117,7 @@ function renderSettingsModal() {
         generic_enabled: false,
         generic_provider: 'local',
         generic_name: 'Alpha',
+        working_directory: '/app/workspace',
         generic_readonly: 'Read only value',
         generic_unknown: 'Fallback value',
       },
@@ -182,6 +202,9 @@ test('session settings modal renders generic settings control types', () => {
   expect(screen.getByText('Local')).toBeTruthy();
   expect(screen.getByText('Generic name')).toBeTruthy();
   expect(screen.getByDisplayValue('Alpha')).toBeTruthy();
+  expect(screen.getByText('Working directory')).toBeTruthy();
+  expect(screen.getByText('Workspace root')).toBeTruthy();
+  expect(screen.queryByText('/app/workspace')).toBeNull();
   expect(screen.getByText('Generic readonly')).toBeTruthy();
   expect(screen.getByText('Read only value')).toBeTruthy();
   expect(screen.getByText('Generic fallback')).toBeTruthy();
@@ -274,6 +297,22 @@ test('session settings dropdown patches an arbitrary custom value', async () => 
     expect(patchOverride).toHaveBeenCalledWith(
       'generic_provider',
       'custom/provider'
+    );
+  });
+});
+
+test('session settings directory opens contained options and persists selection', async () => {
+  renderSettingsModal();
+
+  fireEvent.press(
+    screen.getByTestId('session-setting-directory-working_directory')
+  );
+  fireEvent.press(screen.getByText('projects/alpha'));
+
+  await waitFor(() => {
+    expect(patchOverride).toHaveBeenCalledWith(
+      'working_directory',
+      '/app/workspace/projects/alpha'
     );
   });
 });

@@ -54,10 +54,10 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] The embedded runtime includes the default-config plugins that are useful
   and feasible on iOS, including the system-message feature, while every
   omitted default plugin has an explicit compatibility or product rationale.
-- [ ] Provider-native OpenAI Responses and OpenRouter web search, image
+- [x] Provider-native OpenAI Responses and OpenRouter web search, image
   attachments, and applicable API controls are enabled where the embedded
   transport supports them.
-- [ ] Each session can select a working directory contained by the fixed
+- [x] Each session can select a working directory contained by the fixed
   application workspace through a dedicated directory setting without
   expanding filesystem access.
 - [x] Consumer-facing connection names, profile labels, agent names, default
@@ -174,6 +174,6 @@ the embedded implementation and its staged tool/provider enhancements.
 - [x] `tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/018-embedded-json-config-plugin-parity-and-product-review.md`
-- [ ] `tasks/20260910-ios-embedded-runtime-poc/019-session-working-directory-selector.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/019-session-working-directory-selector.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`

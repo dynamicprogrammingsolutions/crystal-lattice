@@ -86,17 +86,19 @@ def test_embedded_ios_config_resolves_selected_plugins_and_agents(
     assert resolved["agents"]["openai-codex"]["enabled"] == "true"
     assert resolved["agents"]["reviewer-codex"]["enabled"] == "false"
     assert resolved["providers"]["openai"]["api_key"] == "test-key"
+    assert resolved["agents"]["openai-codex"]["workspace_root"] == str(
+        tmp_path / "workspace"
+    )
     assert {
         "feature_system_message.system_message_feature.SystemMessageFeature",
         "feature_request_options.RequestOptionsFeature",
         "timestamp_extension.timestamp_extension.TimestampExtension",
         "timestamp_extension.duration_extension.DurationExtension",
         "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
+        "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature",
         "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
         "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
         "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
-        "openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin",
-        "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
         "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
         "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
         "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension",
@@ -111,6 +113,5 @@ def test_embedded_ios_config_resolves_selected_plugins_and_agents(
 
     assert resolved["providers"]["reviewer"]["show_flex_processing_ui"] is False
     assert resolved["providers"]["reviewer"]["show_fast_mode_ui"] is False
-    assert resolved["providers"]["reviewer"]["native_compaction_enabled"] is False
     assert resolved["providers"]["reviewer"]["image_attachment_mode"] == "inline"
     assert resolved["providers"]["openai"]["image_attachment_mode"] == "inline"

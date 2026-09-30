@@ -191,6 +191,50 @@ def test_apply_patch_uses_freeform_responses_schema_and_shared_guard(
     assert not (tmp_path / "outside.txt").exists()
 
 
+def test_apply_patch_uses_session_directory_within_fixed_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    selected = workspace / "projects" / "alpha"
+    sibling = workspace / "projects" / "beta"
+    selected.mkdir(parents=True)
+    sibling.mkdir()
+    tool = CodexLikeApplyPatchTool()
+    state = tool.init(
+        {
+            "workspace_root": str(workspace),
+            "allowed_paths": [str(workspace)],
+            "working_directory": str(selected),
+        }
+    )
+
+    result = tool.execute_tool(
+        "apply_patch",
+        """*** Begin Patch
+*** Add File: session.txt
++alpha
+*** End Patch
+""",
+        state,
+        payload_kind="text",
+    )
+    escaped = tool.execute_tool(
+        "apply_patch",
+        """*** Begin Patch
+*** Add File: ../beta/escape.txt
++blocked
+*** End Patch
+""",
+        state,
+        payload_kind="text",
+    )
+
+    assert result["success"]
+    assert (selected / "session.txt").read_text(encoding="utf-8") == "alpha"
+    assert not escaped["success"]
+    assert not (sibling / "escape.txt").exists()
+
+
 def test_curl_uses_shared_fetch_and_bash_like_output(
     tmp_path: Path,
     monkeypatch,

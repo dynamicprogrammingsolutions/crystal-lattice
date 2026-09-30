@@ -669,6 +669,102 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         </View>
       );
     },
+    directory: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const options = normalizeOptions((item.element as any).options);
+      if (!options.length) {
+        return null;
+      }
+      const selected =
+        typeof item.effectiveValue === "string"
+          ? item.effectiveValue
+          : String(item.effectiveValue ?? "");
+      const selectedLabel =
+        options.find((option) => option.value === selected)?.label ??
+        "Unavailable directory";
+      return (
+        <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === "config"
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === "config"
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => ctx.actions.revertToDefault(item.key)}
+                  disabled={item.disabled}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {item.description ? (
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
+                {item.description}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              testID={`session-setting-directory-${item.key}`}
+              style={[
+                styles.dropdownButton,
+                item.disabled && styles.dropdownButtonDisabled,
+              ]}
+              disabled={item.disabled}
+              onPress={() => {
+                setDropdownState({
+                  key: item.key,
+                  label: item.label,
+                  options,
+                  selected,
+                  placeholder:
+                    typeof (item.element as any).placeholder === "string"
+                      ? (item.element as any).placeholder
+                      : "Select a workspace directory",
+                });
+              }}
+            >
+              <Icon name="folder" size={14} color={theme.textSecondary} />
+              <Text style={styles.dropdownButtonValue} numberOfLines={1}>
+                {selectedLabel}
+              </Text>
+              <Icon name="chevron-down" size={14} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
     text: renderTextLike,
     multiline: renderTextLike,
   };

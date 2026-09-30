@@ -1012,26 +1012,33 @@ def _handle_session_request(
         return _response(200, {"config": base_config})
 
     if tail == ["overrides"]:
-        _core, _base_config, session = _session_context(runtime, session_id)
         if method == "GET":
+            _core, _base_config, session = _session_context(runtime, session_id)
             return _response(200, {"overrides": _session_overrides(session)})
         if method == "PATCH":
             values = body.get("values")
             if not isinstance(values, dict):
                 raise ValueError("Override values must be an object")
-            metadata = dict(session.metadata)
-            metadata["overrides"] = {**_session_overrides(session), **values}
-            _update_session_metadata(runtime, session, metadata)
-            return _response(200, {"status": "ok"})
+            updated = application.patch_session_settings(
+                session_id,
+                values,
+                source="api",
+            )
+            return _response(
+                200,
+                {"status": "ok", "session": updated.to_dict()},
+            )
 
     if len(tail) == 2 and tail[0] == "overrides" and method == "DELETE":
-        _core, _base_config, session = _session_context(runtime, session_id)
-        metadata = dict(session.metadata)
-        overrides = dict(_session_overrides(session))
-        overrides.pop(tail[1], None)
-        metadata["overrides"] = overrides
-        _update_session_metadata(runtime, session, metadata)
-        return _response(200, {"status": "ok"})
+        updated = application.delete_session_setting(
+            session_id,
+            tail[1],
+            source="api",
+        )
+        return _response(
+            200,
+            {"status": "ok", "session": updated.to_dict()},
+        )
 
     if tail == ["actions"] and method == "POST":
         return _response(

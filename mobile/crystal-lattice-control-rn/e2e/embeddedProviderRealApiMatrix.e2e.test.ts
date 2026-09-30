@@ -57,14 +57,15 @@ async function settleAfterModalTransition(): Promise<void> {
 
 async function scrollUntilVisible(
   scrollId: string,
-  testId: string
+  testId: string,
+  direction: "up" | "down" = "up"
 ): Promise<void> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
       await waitFor(element(by.id(testId))).toBeVisible().withTimeout(1500);
       return;
     } catch {
-      await element(by.id(scrollId)).swipe("up", "fast", 0.45);
+      await element(by.id(scrollId)).swipe(direction, "fast", 0.45);
     }
   }
   throw new Error(`${testId} never became visible`);
@@ -168,6 +169,12 @@ async function waitForEnabled(testId: string): Promise<void> {
   throw new Error(`${testId} did not become enabled`);
 }
 
+async function ensureToggleOn(testId: string): Promise<void> {
+  const target = element(by.id(testId));
+  await target.performAccessibilityAction("activate");
+  await new Promise<void>((resolve) => setTimeout(resolve, 500));
+}
+
 async function createSession(agentId: string): Promise<void> {
   await waitFor(element(by.id("sessions-actions-menu")))
     .toBeVisible()
@@ -177,7 +184,9 @@ async function createSession(agentId: string): Promise<void> {
     .toBeVisible()
     .withTimeout(30000);
   await waitForEnabled("actions-menu-action-newSession");
-  await tapById("actions-menu-action-newSession");
+  await element(
+    by.id("actions-menu-action-newSession")
+  ).performAccessibilityAction("activate");
   await waitFor(element(by.id(`new-session-agent-${agentId}`)))
     .toBeVisible()
     .withTimeout(30000);
@@ -244,19 +253,25 @@ async function configureProfile(options: {
     await replaceProfileField(`${prefix}-model`, options.model);
   }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
+  await element(by.id(`${prefix}-api-key`)).tapReturnKey();
   await scrollUntilVisible(scrollId, `${prefix}-test`);
-  await tapById(`${prefix}-test`);
+  await element(by.id(`${prefix}-test`)).performAccessibilityAction(
+    "activate"
+  );
+  await scrollUntilVisible(scrollId, `${prefix}-validation`);
   await waitForTextValue(
     `${prefix}-validation`,
     `Connected to ${options.model}`,
     120000
   );
   if (options.profileId !== "reviewer") {
-    await scrollUntilVisible(scrollId, `${prefix}-enabled`);
-    await tapById(`${prefix}-enabled`);
+    await scrollUntilVisible(scrollId, `${prefix}-enabled`, "down");
+    await ensureToggleOn(`${prefix}-enabled`);
   }
-  await scrollUntilVisible(scrollId, `${prefix}-default`);
-  await tapById(`${prefix}-default`);
+  await scrollUntilVisible(scrollId, `${prefix}-default`, "down");
+  await element(by.id(`${prefix}-default`)).performAccessibilityAction(
+    "activate"
+  );
   await new Promise<void>((resolve) => setTimeout(resolve, 900));
   await waitFor(element(by.text("Provider settings saved.")))
     .toBeVisible()
@@ -330,10 +345,45 @@ describe("embedded provider real API matrix", () => {
         ? "apply_patch"
         : "Write"
     );
+    if (profileId === "openai") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText(
+        authMode === "chatgpt"
+          ? "web_search,image"
+          : "web_search,image,flex,fast"
+      );
+    } else if (profileId === "reviewer" || profileId === "openrouter") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText("web_search,image");
+    }
     const sessionId = await readText("embedded-provider-matrix-session");
     await detoxExpect(
-      element(by.id("embedded-provider-matrix-assistant"))
+      element(by.id("embedded-provider-matrix-tool-evidence"))
     ).toHaveText(marker);
+    if (profileId === "openai") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText(
+        authMode === "chatgpt"
+          ? "web_search,image"
+          : "web_search,image,flex,fast"
+      );
+    } else if (profileId === "reviewer" || profileId === "openrouter") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText("web_search,image");
+    }
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace"))
+    ).toHaveText("matrix-alpha");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-boundary"))
+    ).toHaveText("rejected");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-isolation"))
+    ).toHaveText("isolated");
 
     await device.terminateApp();
     await device.launchApp({
@@ -352,5 +402,17 @@ describe("embedded provider real API matrix", () => {
     await detoxExpect(
       element(by.id("embedded-provider-matrix-session"))
     ).toHaveText(sessionId);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-tool-evidence"))
+    ).toHaveText(marker);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace"))
+    ).toHaveText("matrix-alpha");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-boundary"))
+    ).toHaveText("rejected");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-isolation"))
+    ).toHaveText("isolated");
   }, 600000);
 });

@@ -16,12 +16,54 @@ class ResolvedWorkspacePath:
     logical_path: str
 
 
+def resolve_workspace_boundaries(config: Mapping[str, Any]) -> tuple[Path, ...]:
+    configured: list[str] = []
+    raw_workspace_root = config.get("workspace_root")
+    if isinstance(raw_workspace_root, str) and raw_workspace_root.strip():
+        configured.append(raw_workspace_root)
+    else:
+        raw_allowed_paths = config.get("allowed_paths")
+        if isinstance(raw_allowed_paths, (list, tuple)):
+            configured.extend(
+                value
+                for value in raw_allowed_paths
+                if isinstance(value, str) and value.strip()
+            )
+
+    boundaries: list[Path] = []
+    for raw_path in configured:
+        resolved = Path(raw_path).expanduser().resolve()
+        if resolved not in boundaries:
+            boundaries.append(resolved)
+    return tuple(boundaries)
+
+
+def _is_contained(path: Path, roots: tuple[Path, ...]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            continue
+        return True
+    return False
+
+
 def resolve_workspace_root(config: Mapping[str, Any]) -> Path:
     raw_root = config.get("working_directory")
     if not isinstance(raw_root, str) or not raw_root.strip():
         raise WorkspacePathError("working_directory is required")
     root = Path(raw_root).expanduser().resolve()
+    boundaries = resolve_workspace_boundaries(config)
+    if boundaries and not _is_contained(root, boundaries):
+        raise WorkspacePathError(
+            "working_directory escapes the configured workspace boundary"
+        )
     root.mkdir(parents=True, exist_ok=True)
+    root = root.resolve()
+    if boundaries and not _is_contained(root, boundaries):
+        raise WorkspacePathError(
+            "working_directory escapes the configured workspace boundary"
+        )
     return root
 
 

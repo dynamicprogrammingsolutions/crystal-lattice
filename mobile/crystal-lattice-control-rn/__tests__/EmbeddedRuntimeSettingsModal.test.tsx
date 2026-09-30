@@ -211,7 +211,8 @@ test("tests the current candidate without persisting it", async () => {
     screen.getByTestId("embedded-provider-openai-validation").props.children
   ).toBe("Connected to gpt-5.6-luna");
   expect(
-    screen.getByTestId("embedded-provider-openai-enabled").props.value
+    screen.getByTestId("embedded-provider-openai-enabled").props
+      .accessibilityState.checked
   ).toBe(false);
   expect(configureEmbeddedPythonRuntime).not.toHaveBeenCalled();
   expect(onSaved).not.toHaveBeenCalled();

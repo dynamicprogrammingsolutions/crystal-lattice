@@ -221,7 +221,19 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
       element(by.id("embedded-provider-matrix-tools"))
     ).toHaveText("apply_patch");
     await detoxExpect(
-      element(by.id("embedded-provider-matrix-assistant"))
+      element(by.id("embedded-provider-matrix-tool-evidence"))
     ).toHaveText("MATRIX_OPENAI");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-provider-capabilities"))
+    ).toHaveText("web_search,image");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace"))
+    ).toHaveText("matrix-alpha");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-boundary"))
+    ).toHaveText("rejected");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-isolation"))
+    ).toHaveText("isolated");
   }, 1_500_000);
 });

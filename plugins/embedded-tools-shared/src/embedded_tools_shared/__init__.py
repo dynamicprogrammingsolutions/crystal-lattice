@@ -42,6 +42,7 @@ from .text_files import (
 from .workspace import (
     ResolvedWorkspacePath,
     WorkspacePathError,
+    resolve_workspace_boundaries,
     resolve_workspace_path,
     resolve_workspace_root,
 )
@@ -79,6 +80,7 @@ __all__ = [
     "extract_html_text",
     "fetch_public_url",
     "read_text_file",
+    "resolve_workspace_boundaries",
     "resolve_workspace_path",
     "resolve_workspace_root",
     "search_workspace_text",

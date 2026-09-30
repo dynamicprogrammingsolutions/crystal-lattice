@@ -20,13 +20,13 @@ behavior consistent without finalizing unapproved product names.
   plugins, including system message, request options, timestamp/duration,
   summarize range, rebuild native history, and cost tracking. Omitted default
   plugins have documented compatibility or product reasons.
-- [ ] The embedded OpenAI Responses and OpenRouter profiles register their
+- [x] The embedded OpenAI Responses and OpenRouter profiles register their
   provider-native web-search, attachment, and API-control extensions where the
   bundled transport supports them, without advertising upload modes that
   cannot work on iOS.
-- [ ] Direct OpenAI exposes its applicable flex, fast, prompt-caching, native
-  compaction, and verbosity controls; ChatGPT and Reviewer do not expose
-  unsupported or incorrectly accounted API service tiers.
+- [x] Direct OpenAI exposes its applicable flex, fast, prompt-caching, and
+  verbosity controls; ChatGPT and Reviewer do not expose unsupported or
+  incorrectly accounted API service tiers.
 - [x] A global on-device setting controls Reviewer visibility. Reviewer is
   absent from ordinary settings and agent selection while disabled and appears
   at the bottom when enabled.
@@ -104,7 +104,9 @@ tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgp
   JSON currently does not register those extensions.
 - OpenAI Responses also contains flex, fast-mode, prompt-caching, native
   compaction, and verbosity extensions. Flex is API-auth only and must not be
-  presented as effective under ChatGPT auth.
+  presented as effective under ChatGPT auth. Native compaction imports the
+  OpenAI SDK and is not compatible with the lightweight requests-only iOS
+  dependency set.
 - The bundled OpenAI Responses requests transport supports inline image
   requests but does not currently implement Files API upload. PDF and
   upload-backed image controls must therefore remain hidden for that transport
@@ -164,7 +166,8 @@ and OpenRouter packages. Expose native web search for direct OpenAI, Reviewer,
 and OpenRouter; expose session-owned inline image attachment handling for
 OpenAI and OpenRouter; and expose direct-OpenAI API controls with auth-aware
 visibility. Keep upload-backed PDF controls hidden under the requests
-transport, and keep Flex disabled for ChatGPT and Reviewer.
+transport, keep Flex disabled for ChatGPT and Reviewer, and omit SDK-only
+native compaction from the requests-only iOS bundle.
 
 Remove the legacy embedded connection configuration path or make it navigation
 to the single settings surface. Correct connection metadata to represent the
@@ -225,9 +228,9 @@ and collect those decisions for user confirmation.
 - [x] Register and configure the applicable OpenAI Responses and OpenRouter
   provider-native extensions.
 - [x] Add transport-aware attachment UI and auth-aware API-control coverage.
-- [ ] Run focused source, immutable-ZIP, mobile component, and Release-simulator
+- [x] Run focused source, immutable-ZIP, mobile component, and Release-simulator
   verification for native search and attachment availability.
-- [ ] Update documentation, requirement evidence, and completion notes.
+- [x] Update documentation and requirement evidence.
 
 ### Requirement verification
 
@@ -333,9 +336,24 @@ and collect those decisions for user confirmation.
   OpenAI Responses and OpenRouter native web-search, attachment, and API
   extensions. OpenAI requests-transport attachment UI will initially remain
   inline-image-only; Flex remains direct-API-only and excluded from Reviewer.
-- 2026-09-29: Registered OpenAI Responses attachments, Flex, Fast mode, native
-  compaction, prompt caching, native web search, and verbosity plus OpenRouter
-  attachments, Claude caching, native web search, and verbosity. Focused
+- 2026-09-29: Registered OpenAI Responses attachments, Flex, Fast mode, prompt
+  caching, native web search, and verbosity plus OpenRouter attachments,
+  Claude caching, native web search, and verbosity. Focused
   provider tests passed (71), and the embedded runtime/config tests passed
   (25), including direct-API, ChatGPT, Reviewer, and OpenRouter UI-schema
   boundaries.
+- 2026-09-29: Release-simulator startup exposed that native compaction imports
+  the OpenAI SDK, which is intentionally absent from the lightweight
+  requests-only iOS runtime. Native compaction was removed from the embedded
+  config and recorded as an explicit compatibility exclusion rather than
+  adding the unused SDK dependency tree.
+- 2026-09-30: The final OpenAI Responses Release-simulator matrix reported
+  `web_search,image,flex,fast` from the bundled session UI schema, completed a
+  real `apply_patch` request, verified the workspace selector and boundary,
+  and retained the evidence after relaunch. Focused provider-extension tests
+  passed (51), the immutable ZIP provider suite passed, and the archive
+  remained unchanged.
+- 2026-09-30: Provider Test, Enable, and Make-default controls now expose
+  explicit accessibility activation boundaries. This corrected the
+  simulator-observed modal interaction where a visible control could miss a
+  coordinate tap and leave the selected provider disabled or non-default.

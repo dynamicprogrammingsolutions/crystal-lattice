@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "13"
+RUNTIME_LAYOUT_VERSION = "14"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -63,6 +63,7 @@ APP_PLUGIN_PACKAGES = (
     ("summarize-range-app", "summarize_range_app"),
     ("rebuild-native-app", "rebuild_native_app"),
     ("cost-tracking", "cost_tracking_plugins"),
+    ("embedded-workspace-settings", "embedded_workspace_settings"),
 )
 EMBEDDED_CONFIG_ROOT = (
     REPO_ROOT
