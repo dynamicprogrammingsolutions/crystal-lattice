@@ -14,31 +14,31 @@ user-approved reconciliation of the broader macOS distribution task.
 
 ## Requirements checklist
 
-- [ ] Crystal Lattice Desktop `0.9.0` is released outside the Mac App Store as
+- [x] Crystal Lattice Desktop `0.9.0` is released outside the Mac App Store as
       one app-only DMG containing a universal `arm64` and `x86_64` application.
-- [ ] The released application uses product name `Crystal Lattice Desktop`,
+- [x] The released application uses product name `Crystal Lattice Desktop`,
       bundle ID `com.dynamicprogrammingsolutions.crystallatticecontrol.macos`,
       Apple team `73Q43R2PD4`, minimum macOS 14.0, and an intentional,
       inspectable build number.
-- [ ] The application has a complete production macOS icon, bundles its
+- [x] The application has a complete production macOS icon, bundles its
       production JavaScript, launches without Metro or a source checkout, and
       preserves the existing supported connection/session behavior.
-- [ ] The application and all nested executable code are signed with a valid
+- [x] The application and all nested executable code are signed with a valid
       Developer ID Application identity, Hardened Runtime, a secure timestamp,
       and only justified Release entitlements.
-- [ ] The final DMG is signed where applicable, submitted to Apple's current
+- [x] The final DMG is signed where applicable, submitted to Apple's current
       notarization service, accepted, stapled, and independently validated by
       Gatekeeper and strict code-signature checks.
-- [ ] Package-local Fastlane automation provides repeatable verification,
+- [x] Package-local Fastlane automation provides repeatable verification,
       universal build, signing, DMG creation, notarization, stapling,
       validation, and checksum generation without committing credentials.
-- [ ] A manually dispatched GitHub Actions workflow reproduces the local
+- [x] A manually dispatched GitHub Actions workflow reproduces the local
       release path, uses read-only signing retrieval and an ephemeral
       keychain, prevents untrusted publication, and optionally publishes the
       DMG, checksum, and bounded verification metadata through the existing
       private-S3/CloudFront download infrastructure without exposing
       credentials.
-- [ ] The published DMG is downloaded through its public release URL and
+- [x] The published DMG is downloaded through its public release URL and
       passes checksum, signature, notarization, stapling, architecture,
       installation, launch, and focused product smoke verification.
 - [ ] Human acceptance covers installation and launch on Apple Silicon.
@@ -48,10 +48,10 @@ user-approved reconciliation of the broader macOS distribution task.
 - [ ] After release acceptance, the landing-page header contains a small,
       keyboard-accessible download icon whose accessible name identifies the
       macOS download and whose HTTPS target is the verified versioned DMG.
-- [ ] Current desktop release documentation explains local and GitHub Actions
+- [x] Current desktop release documentation explains local and GitHub Actions
       release operation, required credentials, verification, recovery, and
       installation without exposing secret values.
-- [ ] The existing broader macOS distribution task and subtasks remain
+- [x] The existing broader macOS distribution task and subtasks remain
       unchanged during this task.
 
 ## Scope
@@ -789,21 +789,21 @@ both architecture acceptance boundaries.
       exported; encrypted match import remains pending).
 - [x] **AGENT:** Verify read-only signing retrieval and notarization
       authentication.
-- [ ] **AGENT + HUMAN JUDGMENT:** Produce and accept the first local signed,
+- [x] **AGENT + HUMAN JUDGMENT:** Produce and accept the first local signed,
       notarized, stapled universal DMG.
 - [x] **AGENT:** Implement the manual GitHub Actions desktop release
       workflow.
 - [x] **AGENT + HUMAN as needed:** Confirm the existing GitHub variables,
       secrets, and read-only deploy key; create new credentials only if needed.
 - [x] **AGENT:** Complete a successful build-only workflow.
-- [ ] **HUMAN JUDGMENT:** Approve the release source, version, build, notes,
+- [x] **HUMAN JUDGMENT:** Approve the release source, version, build, notes,
       assets, and checksums.
-- [ ] **AGENT + HUMAN:** Publish and verify the versioned CloudFront download.
+- [x] **AGENT + HUMAN:** Publish and verify the versioned CloudFront download.
 - [ ] **AGENT + HUMAN:** Complete Apple Silicon public-artifact acceptance.
 - [x] **HUMAN JUDGMENT:** Defer real Intel hardware acceptance to initial
       tester feedback while retaining mandatory automated `x86_64` checks.
-- [ ] **HUMAN JUDGMENT:** Accept the release for public universal download.
-- [ ] **AGENT:** Add and test the website download metadata and header icon.
+- [x] **HUMAN JUDGMENT:** Accept the release for public universal download.
+- [x] **AGENT:** Add and test the website download metadata and header icon.
 - [ ] **HUMAN JUDGMENT:** Approve the icon placement and presentation.
 - [ ] **HUMAN — MANDATORY:** Approve production website publication.
 - [ ] **AGENT:** Deploy through the existing protected site workflow and
@@ -1583,3 +1583,49 @@ UI automation investigation:
   `main`, obtains its source commit from GitHub, downloads that retained
   artifact, revalidates it, and only then assumes AWS credentials. It does not
   rebuild or substitute a new candidate.
+
+### Public release and website download candidate
+
+- The user explicitly authorized publication of candidate run `36633536807`.
+  Publication-only workflow run `36685765746` completed successfully on
+  September 30, 2026 from workflow commit `955d470a...`.
+- The build job was skipped. The publication job verified the approved run,
+  downloaded its retained artifact, revalidated the exact source commit and
+  checksum before AWS authentication, assumed the scoped OIDC role, uploaded
+  the versioned files, invalidated CloudFront, and passed its anonymous public
+  smoke test.
+- Independent post-publication verification confirmed:
+  - `latest.txt` contains `crystal-lattice-desktop-v0.9.0`;
+  - the public checksum is
+    `8bbd119552de60eee53dd4d45fb8cd360faa1a7a788b780114e274ee46959bb5`;
+  - release metadata identifies `0.9.0 (4)`, clean source commit
+    `1a04b8689eab0821727be2c3efc9213e57ebafe7`, universal `arm64` and
+    `x86_64`, minimum macOS 14.0, and accepted notarization;
+  - the DMG returns HTTP 200 as `application/x-apple-diskimage` with immutable
+    one-year cache control;
+  - a fresh public download passed checksum, release-bundle inspection,
+    universal Mach-O checks, strict code-signature verification, Gatekeeper,
+    and an eight-second launch smoke without Metro or release diagnostics.
+- A local website candidate now reads one maintained release document at
+  `landing_page/src/content/releases/desktop.yaml`. The document contains the
+  accepted product/version/build, minimum macOS, architectures, exact
+  versioned HTTPS DMG URL, and SHA-256 checksum.
+- The shared header has one icon-only ordinary link with accessible name
+  `Download Crystal Lattice Desktop for macOS`, visible focus styling, and no
+  browser architecture detection or CLI-install implication.
+- Local website verification passed:
+  - five content tests, including release metadata and header-link contracts;
+  - four analytics tests;
+  - warning-free production Astro build;
+  - focused desktop and 390-pixel phone visibility, containment, and keyboard
+    checks;
+  - the complete 19-test visual/browser suite on an isolated preview port.
+- Port 4321 was already occupied by a long-running local Astro development
+  server configured with local documentation URLs. The visual config now
+  accepts `PLAYWRIGHT_PORT` and
+  `PLAYWRIGHT_REUSE_EXISTING_SERVER=false`, allowing a fresh production-like
+  test server without stopping or altering that user process.
+- Website source changes remain local and unpushed. A push touching
+  `landing_page/**` automatically invokes the protected production static-site
+  workflow, so the task remains paused for human icon-placement review and
+  explicit production website publication approval.

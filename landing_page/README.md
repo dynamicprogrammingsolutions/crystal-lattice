@@ -25,6 +25,13 @@ the package-owned specification, research findings belong under
 under `research/`, and disposable output belongs under the ignored
 `artifacts/` directory.
 
+The accepted public desktop release metadata used by the shared header
+download link is maintained in
+`src/content/releases/desktop.yaml`. Update its version, build number,
+supported macOS version, architectures, exact versioned DMG URL, and checksum
+only after the release artifact is publicly available and independently
+verified.
+
 ## Packages
 
 | Package | Version | Purpose |

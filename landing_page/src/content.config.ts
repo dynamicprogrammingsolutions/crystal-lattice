@@ -22,4 +22,20 @@ const markdown = defineCollection({
   schema: z.object({}).passthrough(),
 });
 
-export const collections = { pages, markdown };
+const releases = defineCollection({
+  type: "data",
+  schema: z.object({
+    product: z.string(),
+    version: z.string(),
+    buildNumber: z.number().int().positive(),
+    minimumMacos: z.string(),
+    architectures: z.array(z.string()).min(1),
+    dmg: z.object({
+      filename: z.string(),
+      url: z.string().url(),
+      sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    }),
+  }),
+});
+
+export const collections = { pages, markdown, releases };

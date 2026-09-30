@@ -1,0 +1,11 @@
+product: "Crystal Lattice Desktop"
+version: "0.9.0"
+buildNumber: 4
+minimumMacos: "14.0"
+architectures:
+  - "arm64"
+  - "x86_64"
+dmg:
+  filename: "Crystal-Lattice-Desktop-v0.9.0-universal.dmg"
+  url: "https://download.crystallattice.dev/crystal-lattice-desktop/Crystal-Lattice-Desktop-v0.9.0-universal.dmg"
+  sha256: "8bbd119552de60eee53dd4d45fb8cd360faa1a7a788b780114e274ee46959bb5"

@@ -12,6 +12,18 @@ Current page content is authored under:
 src/content/pages/
 ```
 
+Accepted public release metadata used by shared website controls is authored
+under:
+
+```text
+src/content/releases/
+```
+
+The desktop release document owns the exact versioned DMG URL, version/build,
+minimum macOS version, universal architectures, and SHA-256 checksum used by
+the shared header download link. Update it only from independently verified
+public release evidence.
+
 Long-form Markdown used by pages is authored under:
 
 ```text

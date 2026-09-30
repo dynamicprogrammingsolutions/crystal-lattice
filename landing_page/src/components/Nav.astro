@@ -1,12 +1,15 @@
 ---
 import { docsUrl } from "../config/publicUrls";
+import { loadDesktopRelease } from "../content/loadDesktopRelease";
+
+const desktopRelease = loadDesktopRelease();
 ---
 
 <header
   class="sticky top-0 z-50 border-b border-line bg-[var(--nav-bg)] backdrop-blur-md transition-colors"
 >
   <div
-    class="mx-auto flex h-14 max-w-[1100px] items-center justify-between gap-8 px-6 max-sm:px-4"
+    class="mx-auto flex h-14 max-w-[1100px] items-center justify-between gap-8 px-6 max-sm:gap-2 max-sm:px-4"
   >
     <a
       href="/"
@@ -105,6 +108,29 @@ import { docsUrl } from "../config/publicUrls";
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
       </button>
+      <a
+        href={desktopRelease.dmg.url}
+        aria-label="Download Crystal Lattice Desktop for macOS"
+        title={`Download Crystal Lattice Desktop ${desktopRelease.version} for macOS`}
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line bg-transparent text-fg-3 transition-colors hover:border-line-strong hover:bg-surface hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        data-desktop-download
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 3v12"></path>
+          <path d="m7 10 5 5 5-5"></path>
+          <path d="M5 21h14"></path>
+        </svg>
+      </a>
       <a
         href={docsUrl}
         aria-label="Documentation"
