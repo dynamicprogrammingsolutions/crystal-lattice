@@ -49,8 +49,11 @@ mobile-download step.
   placeholders, draft-content hooks, a responsive baseline, and a local
   review build.
 - `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
-  owns approval and finalization of public copy, proof assets, highlight
-  ordering, and the visual layout after the structure is reviewed in context.
+  owns approved public copy, the logo-led download layout, exact planned-visual
+  descriptions, and the durable design-decision record.
+- `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
+  owns the real product improvements, screenshot-only presentation decisions,
+  reviewed fixtures, and final proof asset production.
 - `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
   owns the deployed waitlist service and then adds the actual working form to
   the reviewed website.
@@ -86,8 +89,9 @@ mobile-download step.
 
 ## Subtasks
 
-- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
+- [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
+- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
 
 ## Execution plan
@@ -102,11 +106,14 @@ contracts, placeholder states, responsive baseline, and integration boundary.
 It renders draft copy solely for contextual review and does not approve that
 copy, new assets, highlight ordering, or the overall visual layout.
 
-Subtask `015` starts from that working structure. Human review selects the
-sixth highlight and approves or revises all draft copy, proof assets, card
-ordering, spacing, composition, and responsive visual treatment. It produces
-the complete reviewed website candidate but still does not publish a fake
-waitlist form.
+Subtask `015` starts from that working structure and applies the selected copy,
+platform-logo download layout, and detailed placeholder descriptions. It also
+creates the durable decision record while preserving the selected alternatives.
+
+Subtask `018` then makes any approved backend/SDK/Desktop improvements needed
+for truthful proof, resolves whether screenshot-specific ordering/hiding uses
+real product controls or capture-only plugins, and produces reviewed visual
+assets.
 
 Subtask `020` then deploys the minimal AWS service, verifies confirmation and
 withdrawal behavior, and adds the actual form to the reviewed mobile-download
@@ -182,11 +189,13 @@ repository files, or application logs.
 
 - [x] **HUMAN JUDGMENT:** Select the sixth highlight: durable session
       workspaces.
-- [ ] **AGENT:** Complete and locally verify structural subtask `010`.
-- [ ] **HUMAN JUDGMENT:** Review the structure in context without treating
+- [x] **AGENT:** Complete and locally verify structural subtask `010`.
+- [x] **HUMAN JUDGMENT:** Review the structure in context without treating
       draft copy, placeholders, ordering, or layout as approved.
 - [ ] **AGENT:** Complete content/assets/layout subtask `015` after its
       decisions are approved.
+- [ ] **AGENT:** Complete visual/product-improvement subtask `018` after its
+      material product and capture-only decisions are approved.
 - [ ] **HUMAN JUDGMENT:** Approve the finalized homepage copy, proof assets,
       ordering, and visual layout.
 - [ ] **AGENT:** Complete and verify the AWS service plus integrated form in

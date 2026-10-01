@@ -200,9 +200,9 @@ unsettled visual decisions.
 - [x] **AGENT:** Run the production-configured build and browser verification.
 - [x] **AGENT:** Provide LAN review links and desktop/phone light/dark
       screenshots.
-- [ ] **HUMAN JUDGMENT:** Review structure in context without approving copy,
+- [x] **HUMAN JUDGMENT:** Review structure in context without approving copy,
       proof assets, ordering, or final layout.
-- [ ] **AGENT:** Record the review outcome and hand off to subtask `015`.
+- [x] **AGENT:** Record the review outcome and hand off to subtask `015`.
 
 ### Requirement verification
 
@@ -283,6 +283,24 @@ unsettled visual decisions.
   explains that the host defaults to `127.0.0.1` and uses `9000` for the
   documented workspace command; automatic discovery and address-entry choices
   were removed from this step.
+
+## Completion Notes
+
+- Outcome: the homepage now renders the approved hero → unframed six-highlight
+  editorial structure → open six-step Getting Started flow, with maintained
+  installation/release data and explicit planned-visual placeholders.
+- Human review produced and verified two structural iterations: framed cards
+  were replaced by text-led highlights, and nested onboarding frames were
+  replaced by an open numbered flow with stronger hierarchy.
+- Verification: seven content tests, four analytics tests, a production Astro
+  build, and the complete 22-test Playwright suite passed. Nineteen
+  visual-asset framework unit tests passed; catalog freshness remains deferred
+  because `mobile-workbench` needs an asset-phase refresh.
+- Commit evidence: `89883b92` (`Build homepage structure`).
+- Deferred scope: final copy/download presentation belongs to subtask `015`;
+  product improvements and proof assets belong to subtask `018`; the working
+  waitlist belongs to subtask `020`.
+- No push, AWS mutation, or production publication occurred.
 - 2026-09-30: Replaced the old computer-to-phone section and anchors with the
   new Getting Started flow. The mobile page's installation link now targets
   the same canonical section.

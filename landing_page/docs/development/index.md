@@ -7,6 +7,9 @@
 - [Visual Asset Framework Architecture](visual-content-and-screenshot-generation.md):
   catalog and asset construction, dispatch, contexts, selection, prepared
   mutation, services, testing, and extension invariants.
+- [Homepage positioning and visual decisions](homepage-positioning-and-visual-decisions.md):
+  selected homepage values, retained copy/visual alternatives, platform
+  download patterns, proof concepts, and revision rationale.
 
 ## Product Communication
 

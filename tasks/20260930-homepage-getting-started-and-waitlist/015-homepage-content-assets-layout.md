@@ -1,4 +1,4 @@
-# Finalize Homepage Copy, Proof Assets, Ordering, And Layout
+# Apply Homepage Copy, Platform Downloads, And Decision Record
 
 Parent Task:
 `tasks/20260930-homepage-getting-started-and-waitlist/000-main.md`
@@ -6,57 +6,59 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
 
-Start from the approved structural prototype and finalize the homepage's public
-copy, sixth highlight, proof assets, highlight ordering, responsive visual
-composition, and getting-started presentation through contextual and visual
-human review. This subtask still leaves the actual waitlist form to subtask
-`020`.
+Start from the approved structural prototype and apply the selected feature
+copy, value-led title ordering, current-platform-first Desktop download
+presentation, grayed logo-led coming-soon controls, detailed visual
+placeholders, and durable decision record. Real product improvements and proof
+asset production belong to subtask `018`; the working waitlist form belongs to
+subtask `020`.
 
 ## Requirements checklist
 
-- [ ] The structural prototype is reviewed in context before copy, assets,
+- [x] The structural prototype is reviewed in context before copy, assets,
       ordering, or visual layout are treated as approved.
-- [ ] The hero's final public title, short description, and actions are
-      approved in the rendered page.
-- [ ] The six-card visual highlights section has human-approved copy,
-      ordering, proof, and responsive composition.
-- [ ] Five highlight themes are implemented as approved: one workspace for
+- [x] The current hero remains unchanged unless a separately approved copy
+      decision is made.
+- [x] The six-highlight section uses the selected titles, bodies, ordering,
+      and detailed planned-visual descriptions.
+- [x] Five highlight themes are implemented as approved: one workspace for
       model-family-oriented agents; replaceable plugin surfaces; transparent,
       open-source and inspectable operation; work from anywhere; and
       adaptability to workflows beyond development.
-- [ ] The sixth highlight presents durable session workspaces with approved
-      copy and proof.
-- [ ] The general-purpose-agent highlight uses **Vibe code—or vibe anything.**
+- [x] The sixth highlight presents durable session workspaces with approved
+      copy and a detailed planned-proof description; final proof belongs to
+      subtask `018`.
+- [x] The general-purpose-agent highlight uses **Vibe code—or vibe anything.**
       as its selected working title unless contextual review explicitly
       approves another preserved variation.
 - [ ] Getting Started retains exactly six ordered steps—install CLI, start
       workspace, download Desktop, connect Desktop, get the mobile app, and
       connect from mobile—with final copy and visual treatment approved in
       context.
-- [ ] Step 1 reuses the maintained CLI installation chooser rather than
+- [x] Step 1 reuses the maintained CLI installation chooser rather than
       duplicating installer commands.
-- [ ] Step 3 uses maintained desktop release metadata for the macOS download
+- [x] Step 3 uses maintained desktop release metadata for the macOS download
       and marks Windows and Linux Desktop as coming soon without implying the
       CLI is unavailable there.
-- [ ] Step 5 accurately marks public App Store and Google Play distribution as
+- [x] Step 5 accurately marks public App Store and Google Play distribution as
       coming soon. This subtask provides only a waitlist integration slot and
       does not submit email data.
-- [ ] Existing verified macOS header-download behavior is retained as a
+- [x] Existing verified macOS header-download behavior is retained as a
       persistent shortcut unless explicitly changed by the user.
-- [ ] Desktop download presentation includes Apple/macOS, Windows, and Linux
+- [x] Desktop download presentation includes Apple/macOS, Windows, and Linux
       logos with text labels; macOS is active, while Windows and Linux are
       grayed out and explicitly marked **Coming soon**.
-- [ ] Mobile availability presentation includes Apple/iOS and Android logos
+- [x] Mobile availability presentation includes Apple/iOS and Android logos
       with text labels; both are grayed out and explicitly marked
       **Coming soon** until real store listings exist.
-- [ ] Existing useful technical deep dives remain below the new primary flow,
+- [x] Existing useful technical deep dives remain below the new primary flow,
       while the duplicate computer-to-phone guide and superseded CTA/anchors
       are removed or rewritten.
-- [ ] The finalized local candidate is responsive, keyboard accessible,
-      semantically ordered, theme-correct, and built only from approved public
-      copy and reviewed proof assets.
-- [ ] No production website push occurs in this subtask.
-- [ ] A durable landing-package development document records the committed
+- [x] The local candidate is responsive, keyboard accessible, semantically
+      ordered, theme-correct, and contains approved copy plus explicit planned
+      visual descriptions pending subtask `018`.
+- [x] No production website push occurs in this subtask.
+- [x] A durable landing-package development document records the committed
       pre-revision prototype, every viable intermediary title/body/visual
       alternative, statement-oriented versus action-oriented copy theory,
       final decisions and rationale, and rejected-but-still-viable variations
@@ -579,30 +581,25 @@ the official App Store and Google Play badges.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-Start from the approved structural prototype and review the five draft cards,
-sixth-card options, hero copy, getting-started copy, and retained deep dives in
-their real desktop and phone context. Record copy and ordering changes before
-producing new assets so proof work follows the approved narrative.
+Apply the selected six-title set and approved bodies to the existing editorial
+structure. Replace the generic placeholders with detailed descriptions of the
+planned reviewed compositions, without creating or promoting visual assets.
 
-After the copy direction and sixth theme are selected, produce only the proof
-assets required by the approved cards. New captures must traverse real product
-paths with deterministic reviewed state. Conceptual architecture graphics
-must be visibly illustrative and must not imitate screenshots.
+Implement Desktop layout A: Apple/macOS is the prominent current platform with
+the verified universal DMG; a subordinate all-platforms area shows grayed
+Windows and Linux logo controls marked **Coming soon**. Implement grayed
+Apple/iOS and Android logo controls for the mobile step and preserve the
+non-functional waitlist slot.
 
-Then refine card ordering, image composition, dimensions, spacing, typography,
-and responsive behavior through LAN previews and light/dark screenshots. The
-three-column/two-column/one-column structure from the prototype is a starting
-point, not a locked visual requirement.
+Create the package-owned durable decision record from the task's retained
+snapshot, alternatives, theory, research, selected decisions, and deferred
+visual/product questions. Link it from the landing development index and task.
 
-Finalize the six getting-started steps in context, including the balance
-between download controls, code, explanatory text, and reviewed media. Keep
-the waitlist position non-functional but visually ready for subtask `020`.
-
-No push occurs during this subtask. Its completion is a human-approved local
-website candidate with reviewed copy, reviewed proof, approved ordering, and
-approved visual layout.
+Update focused tests, run production build and browser verification, and
+provide a refreshed LAN preview. Do not implement agent metadata, screenshot
+fixtures, row hiding/reordering, or final proof assets in this subtask.
 
 ### Implementation decisions and open questions
 
@@ -625,8 +622,10 @@ approved visual layout.
   Apple/iOS, and Android logos with text labels.
 - Decision: unavailable Windows, Linux, iOS, and Android controls are grayed
   out and explicitly marked **Coming soon**.
-- Open design question: use Desktop layout A (current platform first) or
-  layout B (platform matrix).
+- Decision: use Desktop layout A (current platform first); retain layout B in
+  the durable record as a viable alternative.
+- Decision: use **Transparency by design.**, **Work from anywhere.**, and
+  **Sessions become workspaces.** as the first options selected in review.
 - Open positioning question: whether and where to use **You are in control.**
 - Decision: retain the header macOS download icon as a persistent shortcut
   while Getting Started owns explanatory download content.
@@ -640,8 +639,7 @@ approved visual layout.
   change maintainer workflow.
 - Update `landing_page/docs/development/content-system.md` with the
   getting-started and extended feature-showcase authoring contracts.
-- Update visual-asset documentation or catalog metadata for each new reviewed
-  proof asset.
+- Defer visual-asset catalog/provenance updates to subtask `018`.
 - Keep public content focused on delivered behavior; do not publish planning
   labels, approval state, internal fixture names, or placeholder visuals.
 - Before closure, create and link a durable
@@ -658,32 +656,33 @@ approved visual layout.
 
 - [x] **HUMAN JUDGMENT:** Select **Vibe code—or vibe anything.** as the current
       working general-purpose title.
-- [ ] **HUMAN JUDGMENT:** Review and revise all six draft card copies in the
+- [x] **HUMAN JUDGMENT:** Select **Transparency by design.**, **Work from
+      anywhere.**, and **Sessions become workspaces.**
+- [x] **HUMAN JUDGMENT:** Select Desktop layout A, current platform first.
+- [x] **HUMAN JUDGMENT:** Review and revise all six draft card copies in the
       rendered structural prototype.
-- [ ] **HUMAN JUDGMENT:** Approve or revise the highlight ordering.
-- [ ] **HUMAN JUDGMENT:** Approve the hero and getting-started copy direction.
-- [ ] **AGENT:** Produce, review, promote, and bind required new proof assets.
-- [ ] **AGENT:** Apply approved copy and proof to the existing structure.
-- [ ] **AGENT:** Refine the card and getting-started visual layout through
-      responsive local review.
-- [ ] **AGENT:** Add the non-functional waitlist integration slot for subtask
+- [x] **HUMAN JUDGMENT:** Approve the highlight ordering.
+- [x] **AGENT:** Apply approved copy and detailed visual descriptions to the
+      existing structure.
+- [x] **AGENT:** Implement logo-led Desktop and mobile platform presentation.
+- [x] **AGENT:** Add the non-functional waitlist integration slot for subtask
       `020` without collecting data.
-- [ ] **AGENT:** Add content, accessibility, responsive, link, and visual
+- [x] **AGENT:** Add content, accessibility, responsive, link, and visual
       tests.
-- [ ] **AGENT:** Create the durable homepage positioning/visual decision
+- [x] **AGENT:** Create the durable homepage positioning/visual decision
       record and reconcile it with the final implementation before closure.
-- [ ] **AGENT:** Build and provide a LAN-accessible preview.
-- [ ] **HUMAN JUDGMENT:** Approve the local website redesign and proof.
-- [ ] **AGENT:** Hand the approved integration contract to subtask `020`.
+- [x] **AGENT:** Build and provide a LAN-accessible preview.
+- [ ] **HUMAN JUDGMENT:** Approve the local copy/download candidate.
+- [ ] **AGENT:** Hand approved copy/download decisions to subtask `018`.
 
 ### Requirement verification
 
 - Primary-order verification: built HTML and browser tests show Hero,
   Highlights, and Getting Started in the approved order before retained deep
   dives.
-- Highlight verification: content tests require six cards, exact approved
-  theme IDs, reviewed media, useful alt text, and the user-selected sixth
-  theme; visual tests cover both themes and desktop/tablet/phone layouts.
+- Highlight verification: content tests require six exact selected titles,
+  approved bodies/order, and detailed planned-visual descriptions; visual
+  tests cover both themes and desktop/tablet/phone layouts.
 - Configured-agent claim verification: proof and copy are checked against
   current configured agents and model-family tool plugins without claiming
   official upstream application identity.
@@ -712,10 +711,44 @@ approved visual layout.
 - Run landing content/analytics tests, TypeScript/Astro build, visual-asset
   checks, and the complete production-configured Playwright suite on an
   isolated port.
-- Confirm active theme images are the only variants loaded initially and all
-  new media respects dimensions and byte budgets.
-- Confirm no placeholders, unverified APIs, private data, or upstream-product
-  parity claims appear.
+- Confirm no new asset is promoted and all placeholders clearly describe the
+  planned proof owned by subtask `018`.
 - Confirm existing direct desktop download metadata and checksum tests remain
   intact.
 - Confirm no website source is pushed or deployed in this subtask.
+
+## Implementation Notes
+
+- 2026-10-01: The user selected the first retained option for each open copy
+  decision: **Transparency by design.**, **Work from anywhere.**,
+  **Sessions become workspaces.**, and Desktop layout A (current platform
+  first). **Vibe code—or vibe anything.** remains the selected
+  general-purpose title.
+- 2026-10-01: Applied all six selected titles and revised bodies. The sixth
+  body now states that title, subtitle, status, pinned state, snapshots,
+  attachments, and actions are plugin-driven and may be disabled, replaced, or
+  refined.
+- 2026-10-01: Replaced generic proof placeholders with the approved detailed
+  descriptions for the planned agent/tool, provider/plugin, transparency,
+  cross-device, general-purpose, and session-workspace compositions.
+- 2026-10-01: Implemented current-platform-first Desktop presentation with
+  Apple/macOS, Windows, and Linux logos. macOS exposes the verified universal
+  DMG; Windows and Linux are grayed and marked **Coming soon**.
+- 2026-10-01: Implemented grayed Apple/iOS and Android logo states marked
+  **Coming soon** while retaining the non-functional waitlist slot.
+- 2026-10-01: Created
+  `landing_page/docs/development/homepage-positioning-and-visual-decisions.md`
+  and linked it from the landing development index. It records baseline commit
+  `89883b92`, copy theory, every viable retained variation, selected rationale,
+  download research, proof concepts, and the revision procedure.
+- 2026-10-01: Split real product improvements and proof production into Draft
+  subtask
+  `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`.
+  No agent metadata, fixture, row-order/hide behavior, or proof asset was
+  implemented in this subtask.
+- 2026-10-01: Seven content tests, four analytics tests, the
+  production-configured Astro build, ten focused structural/download browser
+  tests, and the complete 22-test Playwright suite passed.
+- 2026-10-01: Refreshed LAN preview and desktop/phone light/dark captures all
+  return HTTP 200. No push, AWS mutation, waitlist implementation, or
+  production deployment occurred.

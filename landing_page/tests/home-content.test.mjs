@@ -27,11 +27,11 @@ test('homepage identifies the project as open source', async () => {
   assert.equal(hero.badge, 'Open Source');
   assert.match(
     highlights.items[2].description,
-    /because those layers are explicit and user-modifiable/,
+    /Framework and plugin boundaries make .* visible and user-modifiable/,
   );
   assert.match(
     highlights.items[2].description,
-    /open-source implementation adds source-level transparency/,
+    /Open source adds full source-level transparency/,
   );
 });
 
@@ -73,10 +73,10 @@ test('homepage renders six draft highlight shells in the prototype order', async
     [
       'One workspace for every model family.',
       'Replace the parts you disagree with.',
-      'See what the agent is actually using.',
-      'Start at your desk. Continue wherever you are.',
-      'Shape it around your workflow.',
-      'Sessions become durable workspaces.',
+      'Transparency by design.',
+      'Work from anywhere.',
+      'Vibe code—or vibe anything.',
+      'Sessions become workspaces.',
     ],
   );
   assert.equal(highlights.items.length, 6);
@@ -86,6 +86,13 @@ test('homepage renders six draft highlight shells in the prototype order', async
     assert.ok(item.media.desktop);
     assert.equal(item.media.src, undefined);
   }
+  assert.match(highlights.items[0].media.desktop, /Codex selected/);
+  assert.match(highlights.items[0].media.desktop, /Claude selected/);
+  assert.match(highlights.items[1].media.desktop, /authentication mode/);
+  assert.match(highlights.items[1].media.desktop, /flex processing/);
+  assert.match(highlights.items[4].media.desktop, /initial agent reasoning/);
+  assert.match(highlights.items[5].description, /plugin-driven/);
+  assert.match(highlights.items[5].media.desktop, /todo, in-progress, and done/);
 });
 
 test('getting started owns the supported installation methods in one chooser', async () => {

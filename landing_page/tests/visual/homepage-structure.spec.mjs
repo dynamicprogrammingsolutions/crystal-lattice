@@ -87,6 +87,18 @@ test("renders the approved homepage structure and disabled waitlist slot", async
     page.locator('[data-desktop-platform="macos"] svg'),
   ).toHaveCount(1);
   await expect(
+    page.locator('#download-desktop [data-platform-logo="apple"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('#download-desktop [data-platform-logo="windows"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('#download-desktop [data-platform-logo="linux"]'),
+  ).toHaveCount(1);
+  await expect(page.locator("#download-desktop")).toContainText(
+    "All platforms",
+  );
+  await expect(
     page.locator('[data-desktop-platform="windows"]'),
   ).toHaveAttribute("aria-disabled", "true");
   await expect(
@@ -99,6 +111,12 @@ test("renders the approved homepage structure and disabled waitlist slot", async
   await expect(waitlist.locator('input[type="email"]')).toHaveCount(0);
   await expect(waitlist.locator("form")).toHaveCount(0);
   await expect(page.locator("[data-mobile-platform] svg")).toHaveCount(2);
+  await expect(
+    page.locator('#get-mobile [data-platform-logo="apple"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('#get-mobile [data-platform-logo="android"]'),
+  ).toHaveCount(1);
 });
 
 test("uses a provisional responsive highlights baseline without overflow", async ({
