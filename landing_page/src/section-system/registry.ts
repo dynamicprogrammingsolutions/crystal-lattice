@@ -7,6 +7,7 @@ import { ctaSection } from "../sections/cta";
 import { actionGuideSection } from "../sections/actionGuide";
 import { featureMatrixSection } from "../sections/featureMatrix";
 import { featureShowcaseSection } from "../sections/featureShowcase";
+import { gettingStartedSection } from "../sections/gettingStarted";
 import { featureCodeShowcaseSection } from "../sections/featureCodeShowcase";
 import { screenshotGallerySection } from "../sections/screenshotGallery";
 import { promptBlockSection } from "../sections/promptBlock";
@@ -25,6 +26,7 @@ export const sectionDefinitions: SectionDefinition[] = [
   actionGuideSection,
   featureMatrixSection,
   featureShowcaseSection,
+  gettingStartedSection,
   featureCodeShowcaseSection,
   screenshotGallerySection,
   promptBlockSection,

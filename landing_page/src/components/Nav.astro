@@ -32,11 +32,11 @@ const desktopRelease = loadDesktopRelease();
       <span>Crystal Lattice</span>
     </a>
 
-    <nav class="flex items-center gap-7 max-sm:hidden">
+    <nav class="flex items-center gap-7 max-[900px]:hidden">
       <a
-        href="/#computer-to-phone"
+        href="/#getting-started"
         class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
-        data-section="computer-to-phone">Connect</a
+        data-section="getting-started">Get started</a
       >
       <a
         href="/#model-native-harnesses"
@@ -134,13 +134,13 @@ const desktopRelease = loadDesktopRelease();
       <a
         href={docsUrl}
         aria-label="Documentation"
-        class="hidden items-center rounded-md px-2.5 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-sm:inline-flex"
+        class="hidden items-center rounded-md px-2.5 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-[900px]:inline-flex"
       >
         Docs
       </a>
       <a
         href="https://github.com/dynamicprogrammingsolutions/crystal-lattice"
-        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-sm:hidden"
+        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-fg-3 transition-colors hover:bg-surface hover:text-fg max-[900px]:hidden"
         target="_blank"
         rel="noopener"
       >
@@ -152,7 +152,7 @@ const desktopRelease = loadDesktopRelease();
         GitHub
       </a>
       <a
-        href="/#computer-to-phone"
+        href="/#getting-started"
         class="inline-flex items-center rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
         >Start</a
       >
@@ -193,7 +193,7 @@ const desktopRelease = loadDesktopRelease();
     };
     const sections = Array.from(
       document.querySelectorAll(
-        '[id="computer-to-phone"], [id="everything-replaceable"], [id="model-native-harnesses"]',
+        '[id="getting-started"], [id="everything-replaceable"], [id="model-native-harnesses"]',
       ),
     );
     let ticking = false;

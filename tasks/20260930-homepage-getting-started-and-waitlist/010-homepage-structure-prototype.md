@@ -10,35 +10,35 @@ highlight ordering, and the final visual layout outside this approved scope.
 
 ## Requirements checklist
 
-- [ ] The local homepage has the intended primary section order: concise hero,
+- [x] The local homepage has the intended primary section order: concise hero,
       six-card highlights shell, then six-step Getting Started.
-- [ ] The existing CLI installation chooser is moved from the hero into
+- [x] The existing CLI installation chooser is moved from the hero into
       Getting Started step 1 without duplicating its maintained commands.
-- [ ] The hero links to `#getting-started` and retains the existing GitHub and
+- [x] The hero links to `#getting-started` and retains the existing GitHub and
       verified macOS header-download behavior unless the prototype review
       recommends a later change.
-- [ ] The highlights shell renders six typed cards and supports draft title,
+- [x] The highlights shell renders six typed cards and supports draft title,
       description, status, and media fields.
-- [ ] New or not-yet-approved proof assets render as clearly identifiable
+- [x] New or not-yet-approved proof assets render as clearly identifiable
       placeholders; no fabricated screenshot or conceptual image is presented
       as production evidence.
-- [ ] The six selected themes remain explicitly unapproved copy used only to
+- [x] The six selected themes remain explicitly unapproved copy used only to
       review structure in context.
-- [ ] The Getting Started shell renders exactly six semantic ordered steps:
+- [x] The Getting Started shell renders exactly six semantic ordered steps:
       install CLI, start workspace, download Desktop, connect Desktop, get the
       mobile app, and connect from mobile.
-- [ ] The structural Desktop step reads maintained release metadata and
+- [x] The structural Desktop step reads maintained release metadata and
       presents truthful macOS availability plus Windows/Linux Desktop
       coming-soon states.
-- [ ] The structural mobile step presents truthful store-coming-soon states
+- [x] The structural mobile step presents truthful store-coming-soon states
       and a non-functional waitlist slot that cannot submit or collect email.
-- [ ] Duplicate top-level computer-to-phone content is removed from the
+- [x] Duplicate top-level computer-to-phone content is removed from the
       prototype, and affected navigation/CTA anchors resolve to the new
       Getting Started section.
-- [ ] One reviewable baseline is responsive, keyboard navigable,
+- [x] One reviewable baseline is responsive, keyboard navigable,
       semantically ordered, light/dark compatible, and free from horizontal
       overflow, while its final visual composition remains unsettled.
-- [ ] The prototype is built, tested, and shared through a local/LAN preview;
+- [x] The prototype is built, tested, and shared through a local/LAN preview;
       it may be committed locally under the user's explicit authorization but
       is not pushed or published without a later explicit instruction.
 
@@ -100,8 +100,8 @@ not intended for production.
 
 - Extend the existing feature-showcase model or introduce the smallest
   equivalent typed structure needed for six cards.
-- Establish a review baseline of three columns on wide screens, two on
-  intermediate screens, and one on phones.
+- Establish a review baseline of two editorial columns on wide and
+  intermediate screens and one column on phones.
 - Support per-card title, description, media, alt text, and review status.
 - Use placeholder panels for all new proof requirements.
 - Existing reviewed images may be temporarily displayed only when clearly
@@ -186,19 +186,19 @@ unsettled visual decisions.
 
 ### Task checklist
 
-- [ ] **AGENT:** Define the structural content types and section registration.
-- [ ] **AGENT:** Make the hero installation chooser optional and move it to
+- [x] **AGENT:** Define the structural content types and section registration.
+- [x] **AGENT:** Make the hero installation chooser optional and move it to
       Getting Started step 1.
-- [ ] **AGENT:** Add six highlight shells with draft/proof status support.
-- [ ] **AGENT:** Add all six getting-started structural step types.
-- [ ] **AGENT:** Integrate maintained Desktop release metadata and platform
+- [x] **AGENT:** Add six highlight shells with draft/proof status support.
+- [x] **AGENT:** Add all six getting-started structural step types.
+- [x] **AGENT:** Integrate maintained Desktop release metadata and platform
       states.
-- [ ] **AGENT:** Add the disabled waitlist integration slot.
-- [ ] **AGENT:** Reorder sections and update affected anchors/CTAs.
-- [ ] **AGENT:** Add focused content, semantic, keyboard, responsive, and
+- [x] **AGENT:** Add the disabled waitlist integration slot.
+- [x] **AGENT:** Reorder sections and update affected anchors/CTAs.
+- [x] **AGENT:** Add focused content, semantic, keyboard, responsive, and
       placeholder tests.
-- [ ] **AGENT:** Run the production-configured build and browser verification.
-- [ ] **AGENT:** Provide LAN review links and desktop/phone light/dark
+- [x] **AGENT:** Run the production-configured build and browser verification.
+- [x] **AGENT:** Provide LAN review links and desktop/phone light/dark
       screenshots.
 - [ ] **HUMAN JUDGMENT:** Review structure in context without approving copy,
       proof assets, ordering, or final layout.
@@ -250,3 +250,57 @@ unsettled visual decisions.
   additional source-level transparency value, not the primary mechanism.
 - 2026-09-30: The user explicitly authorized a commit before structural
   implementation.
+- 2026-09-30: Baseline commit `d3fe28a6` captured the reviewed Desktop download
+  candidate and task approval boundaries before structural implementation.
+- 2026-09-30: Added a registered `gettingStarted` section with six bounded step
+  kinds, moved the canonical installer into step 1, and made hero installation
+  optional.
+- 2026-09-30: Extended the feature showcase with a provisional unframed
+  two-column editorial mode, six draft items, source-level review state, and
+  proof placeholders. No new product asset was created or promoted.
+- 2026-09-30: Human review rejected the initial framed highlight cards,
+  section-level marketing preamble, and nested Getting Started cards. The
+  revised prototype attaches text-led highlights directly to the hero and uses
+  an open numbered onboarding flow with icon-led platform controls.
+- 2026-09-30: The feature section no longer renders an eyebrow, section title,
+  subtitle, review badge, top divider, or card frames. Feature headlines are
+  the dominant typography in an unframed two-column editorial layout.
+- 2026-09-30: Getting Started now renders one section title and an open
+  numbered sequence with stronger text contrast, wide content columns, and
+  separators instead of nested outer/header/content frames.
+- 2026-09-30: Direct macOS download uses a download icon, platform label, and
+  architecture detail. Unavailable Desktop and mobile targets use neutral
+  icon-led coming-soon controls; official store badges remain deferred until
+  real store listings exist.
+- 2026-09-30: The refreshed complete Playwright suite again passed all 22
+  tests. Focused assertions now verify the unframed hero/highlight transition,
+  headline-to-body type hierarchy, icon presence, disabled store/waitlist
+  states, and absence of visible prototype preamble text.
+- 2026-10-01: Human review requested that placeholders describe their planned
+  visual rather than show a generic label. Feature and connection placeholders
+  now render the maintained visual-description text.
+- 2026-10-01: Desktop step 04 now presents only the local port entry. It
+  explains that the host defaults to `127.0.0.1` and uses `9000` for the
+  documented workspace command; automatic discovery and address-entry choices
+  were removed from this step.
+- 2026-09-30: Replaced the old computer-to-phone section and anchors with the
+  new Getting Started flow. The mobile page's installation link now targets
+  the same canonical section.
+- 2026-09-30: Focused content tests, analytics tests, and the
+  production-configured Astro build passed. The complete Playwright suite
+  passed all 22 tests across desktop/phone and light/dark themes.
+- 2026-09-30: Initial browser verification exposed tablet navigation overflow
+  and hero-specific phone-width installer styling. The navigation now
+  collapses below 900 pixels, and the nested installer remains contained in
+  its step card.
+- 2026-09-30: All 19 visual-asset framework unit tests passed. The subsequent
+  catalog freshness check stopped because the pre-existing `mobile-workbench`
+  runtime UI fixture is stale. Refreshing/promoting it belongs to the deferred
+  asset phase and was not performed under structural-only approval.
+- 2026-09-30: No push, AWS mutation, waitlist implementation, or production
+  deployment was performed.
+- 2026-09-30: The production-built prototype is available on the current LAN
+  at `http://192.168.8.227:4326/`. Full-page review captures are served from
+  `http://192.168.8.227:4327/` as
+  `home-desktop-light-full.png`, `home-desktop-dark-full.png`,
+  `home-phone-light-full.png`, and `home-phone-dark-full.png`.

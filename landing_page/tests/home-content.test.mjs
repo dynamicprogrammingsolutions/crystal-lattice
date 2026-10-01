@@ -18,20 +18,89 @@ async function loadHome() {
 test('homepage identifies the project as open source', async () => {
   const home = await loadHome();
   const hero = home.sections.find((section) => section.type === 'hero');
+  const highlights = home.sections.find(
+    (section) => section.id === 'product-highlights',
+  );
 
   assert.ok(hero);
+  assert.ok(highlights);
   assert.equal(hero.badge, 'Open Source');
+  assert.match(
+    highlights.items[2].description,
+    /because those layers are explicit and user-modifiable/,
+  );
+  assert.match(
+    highlights.items[2].description,
+    /open-source implementation adds source-level transparency/,
+  );
 });
 
-test('homepage owns the supported installation methods in one chooser', async () => {
+test('homepage starts with hero, draft highlights, and getting started', async () => {
   const home = await loadHome();
-  const hero = home.sections.find((section) => section.type === 'hero');
+  const primarySections = home.sections.slice(0, 3);
 
-  assert.ok(hero);
-  assert.equal(hero.install.ariaLabel, 'Install Crystal Lattice');
-  assert.equal(hero.install.defaultMethod, 'macos-linux');
   assert.deepEqual(
-    hero.install.methods.map(({ id, tabLabel, kind }) => ({
+    primarySections.map(({ type, id }) => ({ type, id })),
+    [
+      { type: 'hero', id: 'hero' },
+      { type: 'featureShowcase', id: 'product-highlights' },
+      { type: 'gettingStarted', id: 'getting-started' },
+    ],
+  );
+
+  const hero = primarySections[0];
+  assert.equal(hero.install, undefined);
+  assert.equal(hero.actions[0].label, 'Get started');
+  assert.equal(hero.actions[0].href, '#getting-started');
+  assert.equal(
+    home.sections.some((section) => section.id === 'computer-to-phone'),
+    false,
+  );
+});
+
+test('homepage renders six draft highlight shells in the prototype order', async () => {
+  const home = await loadHome();
+  const highlights = home.sections.find(
+    (section) => section.id === 'product-highlights',
+  );
+
+  assert.ok(highlights);
+  assert.equal(highlights.layout, 'two-column');
+  assert.equal(highlights.presentation, 'editorial');
+  assert.match(highlights.reviewStatus, /Structural prototype/);
+  assert.deepEqual(
+    highlights.items.map(({ title }) => title),
+    [
+      'One workspace for every model family.',
+      'Replace the parts you disagree with.',
+      'See what the agent is actually using.',
+      'Start at your desk. Continue wherever you are.',
+      'Shape it around your workflow.',
+      'Sessions become durable workspaces.',
+    ],
+  );
+  assert.equal(highlights.items.length, 6);
+  for (const item of highlights.items) {
+    assert.match(item.reviewStatus, /Draft/);
+    assert.equal(item.media.status, 'placeholder-needed');
+    assert.ok(item.media.desktop);
+    assert.equal(item.media.src, undefined);
+  }
+});
+
+test('getting started owns the supported installation methods in one chooser', async () => {
+  const home = await loadHome();
+  const gettingStarted = home.sections.find(
+    (section) => section.type === 'gettingStarted',
+  );
+  const installStep = gettingStarted.steps[0];
+
+  assert.ok(gettingStarted);
+  assert.equal(installStep.kind, 'install');
+  assert.equal(installStep.install.ariaLabel, 'Install Crystal Lattice');
+  assert.equal(installStep.install.defaultMethod, 'macos-linux');
+  assert.deepEqual(
+    installStep.install.methods.map(({ id, tabLabel, kind }) => ({
       id,
       tabLabel,
       kind,
@@ -43,7 +112,7 @@ test('homepage owns the supported installation methods in one chooser', async ()
     ],
   );
 
-  const macosLinux = hero.install.methods[0];
+  const macosLinux = installStep.install.methods[0];
   assert.equal(macosLinux.panelLabel, 'Terminal');
   assert.equal(macosLinux.prompt, '$');
   assert.equal(macosLinux.command, shellInstaller);
@@ -53,7 +122,7 @@ test('homepage owns the supported installation methods in one chooser', async ()
   );
   assert.equal(macosLinux.documentation.href, installationDocs);
 
-  const windows = hero.install.methods[1];
+  const windows = installStep.install.methods[1];
   assert.equal(windows.panelLabel, 'Windows PowerShell');
   assert.equal(windows.prompt, 'PS>');
   assert.equal(windows.command, powershellInstaller);
@@ -63,7 +132,7 @@ test('homepage owns the supported installation methods in one chooser', async ()
   );
   assert.equal(windows.documentation.href, installationDocs);
 
-  const manual = hero.install.methods[2];
+  const manual = installStep.install.methods[2];
   assert.deepEqual(manual.platforms, [
     'macOS Intel',
     'macOS Apple silicon',
@@ -79,25 +148,63 @@ test('homepage owns the supported installation methods in one chooser', async ()
   assert.equal(manual.download.target, '_blank');
   assert.equal(manual.documentation.href, installationDocs);
 
-  const contentOutsideHero = JSON.stringify(
-    home.sections.filter((section) => section !== hero),
+  const contentOutsideInstallStep = JSON.stringify(
+    home.sections.flatMap((section) =>
+      section === gettingStarted
+        ? [{ ...section, steps: section.steps.slice(1) }]
+        : [section],
+    ),
   );
-  assert.doesNotMatch(contentOutsideHero, /crystal-lattice-cli\/install\.(?:sh|ps1)/);
+  assert.doesNotMatch(
+    contentOutsideInstallStep,
+    /crystal-lattice-cli\/install\.(?:sh|ps1)/,
+  );
   assert.doesNotMatch(JSON.stringify(home), /pipx install crystal-lattice-cli/i);
 });
 
-test('first-success guide links to the chooser instead of repeating installation', async () => {
+test('getting started defines the six approved structural steps', async () => {
   const home = await loadHome();
-  const guide = home.sections.find(
-    (section) =>
-      section.type === 'actionGuide' && section.id === 'computer-to-phone',
+  const gettingStarted = home.sections.find(
+    (section) => section.type === 'gettingStarted',
   );
 
-  assert.ok(guide);
-  const installStep = guide.action.steps[0];
-  assert.equal(installStep.label, 'Install the CLI');
-  assert.equal(installStep.link.href, '#install');
-  assert.equal(installStep.link.label, 'Choose an installation method');
-  assert.equal(installStep.code.trim(), '$ crystal-lattice --help');
-  assert.doesNotMatch(JSON.stringify(installStep), /install\.(?:sh|ps1)/);
+  assert.ok(gettingStarted);
+  assert.deepEqual(
+    gettingStarted.steps.map(({ id, kind }) => ({ id, kind })),
+    [
+      { id: 'install-cli', kind: 'install' },
+      { id: 'start-workspace', kind: 'command' },
+      { id: 'download-desktop', kind: 'desktop-download' },
+      { id: 'connect-desktop', kind: 'desktop-connect' },
+      { id: 'get-mobile', kind: 'mobile-download' },
+      { id: 'connect-mobile', kind: 'mobile-connect' },
+    ],
+  );
+
+  const desktop = gettingStarted.steps[2];
+  assert.deepEqual(
+    desktop.platforms.map(({ id, status }) => ({ id, status })),
+    [
+      { id: 'macos', status: 'available' },
+      { id: 'windows', status: 'coming-soon' },
+      { id: 'linux', status: 'coming-soon' },
+    ],
+  );
+
+  const desktopConnection = gettingStarted.steps[3];
+  assert.equal(desktopConnection.methods.length, 1);
+  assert.equal(desktopConnection.methods[0].title, 'Enter the port');
+  assert.match(desktopConnection.methods[0].description, /127\.0\.0\.1/);
+  assert.equal(desktopConnection.methods[0].code, '9000');
+
+  const mobile = gettingStarted.steps[4];
+  assert.deepEqual(
+    mobile.platforms.map(({ id, status }) => ({ id, status })),
+    [
+      { id: 'ios', status: 'coming-soon' },
+      { id: 'android', status: 'coming-soon' },
+    ],
+  );
+  assert.equal(mobile.waitlist.status, 'disabled-prototype');
+  assert.doesNotMatch(JSON.stringify(mobile), /type=["']?email/i);
 });

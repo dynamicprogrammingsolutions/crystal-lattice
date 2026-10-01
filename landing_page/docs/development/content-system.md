@@ -61,12 +61,25 @@ pre-rendered HTML
 components. Section definitions may prepare source content before rendering,
 including loading and transforming referenced Markdown.
 
-The product-page hero owns its installation choices as one `install` object in
-the page content. That object defines the default method, tab labels, exact
+The product-page hero may optionally render installation content, but the
+current homepage owns its canonical installation choices in Getting Started
+step 1. That `install` object defines the default method, tab labels, exact
 commands, platform support text, manual-download action, and documentation
-routes. `InstallationChooser.astro` renders the accessible selector, while the
-later first-success guide links back to it instead of maintaining another
-installer command.
+routes. `InstallationChooser.astro` renders the accessible selector; installer
+commands are not duplicated elsewhere on the page.
+
+The `gettingStarted` section is a semantic ordered workflow with bounded step
+kinds for the current onboarding path: installation chooser, command,
+release-backed Desktop download, Desktop connection, mobile availability, and
+mobile connection. The Desktop download reads maintained release metadata
+rather than embedding a second artifact URL.
+
+Feature-showcase sections may opt into card or editorial presentation and
+attach review status to the section or individual items. The homepage
+prototype uses an unframed, text-led two-column editorial layout attached
+directly to the hero. Missing proof can render as a clearly labeled placeholder
+only in an explicitly approved local structural prototype. Draft labels and
+placeholder panels are not publication-ready product evidence.
 
 ## Current Section Types
 
@@ -77,6 +90,7 @@ include:
 - hero and call-to-action sections;
 - provider or configured-agent strips;
 - feature grids and matrices;
+- ordered getting-started workflows;
 - action guides;
 - feature/code showcases;
 - screenshot galleries;

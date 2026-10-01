@@ -63,6 +63,8 @@ landing_page/
 │   ├── components/         # Sections used on the main page
 │   │   ├── Nav.astro
 │   │   ├── Hero.astro
+│   │   ├── FeatureShowcase.astro
+│   │   ├── GettingStarted.astro
 │   │   ├── Providers.astro
 │   │   ├── Features.astro
 │   │   ├── Quickstart.astro
@@ -111,6 +113,11 @@ the reviewed source masters and executable asset catalog.
 explicit candidate-to-reviewed-source lifecycle for generated captures.
 `yarn test:visual:headed` runs the same visual contracts with visible browser
 windows.
+
+The homepage structural prototype keeps draft feature copy and missing proof
+explicit through review-status metadata and placeholder panels. Those states
+exist for local contextual review only; copy, proof, ordering, and visual
+layout must be approved before publication.
 
 ## Public URL Configuration
 

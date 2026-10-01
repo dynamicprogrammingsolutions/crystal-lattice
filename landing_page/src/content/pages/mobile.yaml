@@ -125,4 +125,4 @@ sections:
         icon: github
         sub: "Available today"
         name: "Run from source"
-    noteHtml: 'Need Crystal Lattice on your computer first? <a href="/#computer-to-phone">Install Crystal Lattice</a>'
+    noteHtml: 'Need Crystal Lattice on your computer first? <a href="/#getting-started">Install Crystal Lattice</a>'

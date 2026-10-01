@@ -75,7 +75,7 @@ export type HeroSection = SectionBase<"hero"> & {
   titleHtml: string;
   subtitle: string;
   actions?: LinkAction[];
-  install: InstallationChooserContent;
+  install?: InstallationChooserContent;
 };
 
 export type ProvidersSection = SectionBase<"providers"> & {
@@ -138,12 +138,59 @@ export type FeatureMatrixSection = SectionBase<"featureMatrix"> & {
 
 export type FeatureShowcaseSection = SectionBase<"featureShowcase"> & {
   body?: string[];
+  layout?: "two-column" | "three-column";
+  presentation?: "cards" | "editorial";
+  reviewStatus?: string;
   items?: Array<{
     title: string;
     description: string;
+    reviewStatus?: string;
     media?: MediaPlaceholder;
   }>;
   visual?: MediaPlaceholder;
+};
+
+export type GettingStartedPlatform = {
+  id: string;
+  label: string;
+  status: "available" | "coming-soon";
+  detail?: string;
+};
+
+export type GettingStartedMethod = {
+  title: string;
+  description: string;
+  code?: string;
+};
+
+export type GettingStartedStep = {
+  id: string;
+  kind:
+    | "install"
+    | "command"
+    | "desktop-download"
+    | "desktop-connect"
+    | "mobile-download"
+    | "mobile-connect";
+  title: string;
+  description: string;
+  reviewStatus?: string;
+  install?: InstallationChooserContent;
+  code?: string;
+  platforms?: GettingStartedPlatform[];
+  methods?: GettingStartedMethod[];
+  media?: MediaPlaceholder;
+  waitlist?: {
+    label: string;
+    status: "disabled-prototype";
+    note?: string;
+  };
+};
+
+export type GettingStartedSection = SectionBase<"gettingStarted"> & {
+  intro?: string;
+  reviewStatus?: string;
+  steps?: GettingStartedStep[];
 };
 
 export type FeatureCodeShowcaseSection = SectionBase<"featureCodeShowcase"> & {
@@ -259,6 +306,7 @@ export type PageSection =
   | ActionGuideSection
   | FeatureMatrixSection
   | FeatureShowcaseSection
+  | GettingStartedSection
   | FeatureCodeShowcaseSection
   | ScreenshotGallerySection
   | PromptBlockSection

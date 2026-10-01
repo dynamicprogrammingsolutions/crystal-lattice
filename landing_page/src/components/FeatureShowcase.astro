@@ -11,18 +11,58 @@ const { section } = Astro.props;
 const body = Array.isArray(section.body) ? section.body : [];
 const items = Array.isArray(section.items) ? section.items : [];
 const visual = section.visual && typeof section.visual === "object" ? section.visual : null;
+const isEditorial = section.presentation === "editorial";
+const gridClass =
+  isEditorial
+    ? "grid-cols-2 gap-x-14 gap-y-4 max-[760px]:grid-cols-1"
+    : section.layout === "three-column"
+    ? "grid-cols-3 max-[900px]:grid-cols-2 max-[620px]:grid-cols-1"
+    : "grid-cols-2 max-[700px]:grid-cols-1";
 ---
 
-<SectionShell id={section.id}>
-  <div class="mb-11 max-w-[720px]">
-    {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
-    <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
-    {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
-  </div>
+<SectionShell
+  id={section.id}
+  border={!isEditorial}
+  spacing={isEditorial ? "flush-top" : "normal"}
+>
+  {!isEditorial && (
+    <div class="mb-11 max-w-[720px]">
+      {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+      <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+      {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
+      {section.reviewStatus && (
+        <p class="mt-4 inline-flex rounded-full border border-line bg-raised px-3 py-1 font-mono text-[0.6875rem] uppercase tracking-[0.06em] text-fg-5">
+          {section.reviewStatus}
+        </p>
+      )}
+    </div>
+  )}
 
-  <div class="grid grid-cols-2 gap-6 max-[700px]:grid-cols-1">
+  <div class:list={["grid", !isEditorial && "gap-6", gridClass]} data-feature-showcase-grid>
     {items.map((item) => (
-      <article class="flex min-h-full flex-col gap-4 rounded-xl border border-line bg-raised p-5">
+      <article
+        class:list={[
+          "flex min-h-full flex-col",
+          isEditorial
+            ? "gap-4 py-9 max-sm:py-7"
+            : "gap-4 rounded-xl border border-line bg-raised p-5",
+        ]}
+        data-feature-highlight
+        data-review-status={item.reviewStatus}
+      >
+        <h3 class:list={[
+          "font-bold leading-[1.08] tracking-[-0.03em] text-fg",
+          isEditorial
+            ? "max-w-[520px] text-[clamp(1.65rem,3vw,2.4rem)]"
+            : "text-[0.9375rem] text-fg-2",
+        ]}>{item.title}</h3>
+        <p class:list={[
+          "leading-relaxed",
+          isEditorial
+            ? "max-w-[560px] text-[1rem] text-fg-3"
+            : "text-sm leading-snug text-fg-4",
+        ]}>{item.description}</p>
+
         {item.media && (
           item.media.src && item.media.status !== "placeholder-needed" ? (
             <ThemedImage
@@ -33,17 +73,33 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
               height={item.media.height}
               loading="lazy"
               decoding="async"
-              class="block aspect-[3/4] w-full rounded-lg border border-line bg-white object-cover"
+              class:list={[
+                "block w-full rounded-xl object-cover",
+                isEditorial
+                  ? "aspect-video bg-raised"
+                  : "aspect-[3/4] border border-line bg-white",
+              ]}
             />
           ) : (
-            <div class="flex aspect-[3/4] flex-col justify-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-4">
-              <span class="font-mono text-xs text-accent-pale">{item.media.kind ?? "feature"}</span>
-              <p class="text-xs text-fg-5">{item.media.status ?? "ready"}</p>
+            <div
+              class:list={[
+                "flex flex-col items-center justify-center rounded-xl bg-raised text-center",
+                isEditorial
+                  ? "mt-2 aspect-video"
+                  : "aspect-[4/3] border border-dashed border-line-strong p-4",
+              ]}
+              data-proof-placeholder
+              aria-label={item.media.desktop ?? item.media.status ?? "Visual placeholder"}
+            >
+              <span class="font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-fg-5">
+                Planned visual
+              </span>
+              <p class="mt-3 max-w-[440px] px-6 text-sm leading-relaxed text-fg-4">
+                {item.media.desktop ?? item.media.status ?? "Visual description pending."}
+              </p>
             </div>
           )
         )}
-        <h3 class="text-[0.9375rem] font-semibold text-fg-2">{item.title}</h3>
-        <p class="text-sm leading-snug text-fg-4">{item.description}</p>
       </article>
     ))}
   </div>

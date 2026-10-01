@@ -18,8 +18,8 @@ sections:
       Codex, Claude, Gemini, Qwen, Kimi, and Grok-style defaults, and your config
       can replace them.
     actions:
-      - label: "Start a workspace"
-        href: "#computer-to-phone"
+      - label: "Get started"
+        href: "#getting-started"
         variant: primary
         icon: arrow
       - label: "View on GitHub"
@@ -27,51 +27,229 @@ sections:
         variant: outline
         icon: github
         target: "_blank"
-    install:
-      ariaLabel: "Install Crystal Lattice"
-      defaultMethod: "macos-linux"
-      methods:
-        - id: "macos-linux"
-          tabLabel: "macOS/Linux"
-          panelLabel: "Terminal"
-          kind: "command"
-          prompt: "$"
-          command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
-          support: "macOS Intel or Apple silicon · Linux x64 or ARM64"
-          documentation:
-            label: "Installation guide"
-            href: "$docsUrl/packages/application-python/installation/"
-        - id: "windows"
-          tabLabel: "Windows"
-          panelLabel: "Windows PowerShell"
-          kind: "command"
-          prompt: "PS>"
-          command: "irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex"
-          support: "Windows x64 or ARM64 · No admin rights, Python, Git Bash, or WSL needed"
-          documentation:
-            label: "Installation guide"
-            href: "$docsUrl/packages/application-python/installation/"
-        - id: "manual"
-          tabLabel: "Manual"
-          panelLabel: "Manual download"
-          kind: "manual"
-          description: >-
-            Download an immutable release archive to inspect it, launch it
-            directly, or install the command yourself.
-          platforms:
-            - "macOS Intel"
-            - "macOS Apple silicon"
-            - "Linux x64"
-            - "Linux ARM64"
-            - "Windows x64"
-            - "Windows ARM64"
-          download:
-            label: "Open latest downloads"
-            href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/releases/latest"
-            target: "_blank"
-          documentation:
-            label: "Manual installation guide"
-            href: "$docsUrl/packages/application-python/installation/"
+
+  - type: featureShowcase
+    id: product-highlights
+    layout: "two-column"
+    presentation: "editorial"
+    reviewStatus: "Structural prototype · copy and proof unapproved"
+    items:
+      - title: "One workspace for every model family."
+        description: >-
+          Use Codex-, Claude-, Gemini-, Qwen-, Kimi-, and Grok-oriented profiles
+          from the same workspace. Each profile can provide model-family
+          defaults for instructions, tools, and request behavior while sessions
+          stay in one application.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Configured agents"
+          status: "placeholder-needed"
+          desktop: "New reviewed Desktop agent-picker capture required."
+      - title: "Replace the parts you disagree with."
+        description: >-
+          Providers, toolsets, features, actions, settings, and UI elements are
+          plugin surfaces. Keep the defaults that fit your workflow and replace
+          the rest through configuration.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Plugin architecture"
+          status: "placeholder-needed"
+          desktop: "Reviewed settings capture and illustrative plugin-layer diagram required."
+      - title: "See what the agent is actually using."
+        description: >-
+          Crystal Lattice makes effective instructions, enabled plugins, tools,
+          and provider metadata visible because those layers are explicit and
+          user-modifiable. Usage, cache, duration, and cost stay visible when
+          the provider supplies them. Its open-source implementation adds
+          source-level transparency over the whole platform.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Inspectable execution"
+          status: "placeholder-needed"
+          desktop: "Compiled-instructions and usage-metadata proof composition required."
+      - title: "Start at your desk. Continue wherever you are."
+        description: >-
+          Open the same runtime sessions from the terminal, Desktop app, or
+          phone. Use automatic discovery on the same network or a self-hosted
+          bridge when you are away.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Cross-device session"
+          status: "placeholder-needed"
+          desktop: "Matching Desktop and mobile views of one reviewed session required."
+      - title: "Shape it around your workflow."
+        description: >-
+          Build with custom agents, tools, actions, plugins, and the Python SDK.
+          Use the same platform for software work, research, operations,
+          evaluations, content workflows, and internal automation.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Non-development workflow"
+          status: "placeholder-needed"
+          desktop: "New reviewed non-development workflow capture required."
+      - title: "Sessions become durable workspaces."
+        description: >-
+          Titles, pinned state, snapshots, attachments, settings, and plugin
+          actions turn a conversation into work you can return to, inspect, and
+          recover.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Durable sessions"
+          status: "placeholder-needed"
+          desktop: "Reviewed session history and recovery proof composition required."
+
+  - type: gettingStarted
+    id: getting-started
+    title: "Getting started"
+    reviewStatus: "Structural prototype · visual treatment unsettled"
+    steps:
+      - id: "install-cli"
+        kind: "install"
+        title: "Install the CLI"
+        description: >-
+          Install the local Crystal Lattice runtime for your platform. This is
+          the process that owns agents, sessions, tools, and client connections.
+        reviewStatus: "Structure approved · copy draft"
+        install:
+          ariaLabel: "Install Crystal Lattice"
+          defaultMethod: "macos-linux"
+          methods:
+            - id: "macos-linux"
+              tabLabel: "macOS/Linux"
+              panelLabel: "Terminal"
+              kind: "command"
+              prompt: "$"
+              command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
+              support: "macOS Intel or Apple silicon · Linux x64 or ARM64"
+              documentation:
+                label: "Installation guide"
+                href: "$docsUrl/packages/application-python/installation/"
+            - id: "windows"
+              tabLabel: "Windows"
+              panelLabel: "Windows PowerShell"
+              kind: "command"
+              prompt: "PS>"
+              command: "irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex"
+              support: "Windows x64 or ARM64 · No admin rights, Python, Git Bash, or WSL needed"
+              documentation:
+                label: "Installation guide"
+                href: "$docsUrl/packages/application-python/installation/"
+            - id: "manual"
+              tabLabel: "Manual"
+              panelLabel: "Manual download"
+              kind: "manual"
+              description: >-
+                Download an immutable release archive to inspect it, launch it
+                directly, or install the command yourself.
+              platforms:
+                - "macOS Intel"
+                - "macOS Apple silicon"
+                - "Linux x64"
+                - "Linux ARM64"
+                - "Windows x64"
+                - "Windows ARM64"
+              download:
+                label: "Open latest downloads"
+                href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/releases/latest"
+                target: "_blank"
+              documentation:
+                label: "Manual installation guide"
+                href: "$docsUrl/packages/application-python/installation/"
+      - id: "start-workspace"
+        kind: "command"
+        title: "Start a workspace"
+        description: >-
+          Run Crystal Lattice in the project directory where you want the agent
+          to work, expose the local server, and enable same-network discovery.
+        reviewStatus: "Structure approved · copy draft"
+        code: |
+          $ mkdir -p ~/crystal-lattice-demo
+          $ cd ~/crystal-lattice-demo
+
+          $ crystal-lattice \
+              --server \
+              --console \
+              --config-local \
+              --host 0.0.0.0 \
+              --port 9000 \
+              --enable-bonjour
+      - id: "download-desktop"
+        kind: "desktop-download"
+        title: "Download Crystal Lattice Desktop"
+        description: >-
+          Install the app UI after the CLI runtime is available. The current
+          macOS DMG contains the app only and does not install or launch the CLI.
+        reviewStatus: "Structure approved · copy draft"
+        platforms:
+          - id: "macos"
+            label: "macOS"
+            status: "available"
+            detail: "Universal Apple silicon and Intel build for macOS 14 or later."
+          - id: "windows"
+            label: "Windows Desktop"
+            status: "coming-soon"
+            detail: "Desktop application package is not available yet."
+          - id: "linux"
+            label: "Linux Desktop"
+            status: "coming-soon"
+            detail: "Desktop application package is not available yet."
+      - id: "connect-desktop"
+        kind: "desktop-connect"
+        title: "Connect Desktop to the workspace"
+        description: >-
+          Desktop uses the local computer by default. Enter the same port used
+          when starting the CLI runtime.
+        reviewStatus: "Structure approved · proof needed"
+        methods:
+          - title: "Enter the port"
+            description: "The host defaults to 127.0.0.1. For the command above, enter port 9000."
+            code: "9000"
+        media:
+          kind: "Desktop connection proof"
+          status: "placeholder-needed"
+          desktop: "Desktop connection editor with the default local host and the port field set to 9000."
+      - id: "get-mobile"
+        kind: "mobile-download"
+        title: "Get the mobile app"
+        description: >-
+          Public App Store and Google Play distribution are planned. The
+          working waitlist form will be added only after its AWS service is
+          deployed and reviewed.
+        reviewStatus: "Structure approved · form deferred"
+        platforms:
+          - id: "ios"
+            label: "App Store"
+            status: "coming-soon"
+            detail: "Public iOS distribution is not available yet."
+          - id: "android"
+            label: "Google Play"
+            status: "coming-soon"
+            detail: "Public Android distribution is not available yet."
+        waitlist:
+          label: "Join the mobile release waitlist"
+          status: "disabled-prototype"
+          note: "No email is collected in this structural prototype."
+      - id: "connect-mobile"
+        kind: "mobile-connect"
+        title: "Connect from mobile"
+        description: >-
+          Use the same runtime sessions from a phone through a manual address,
+          automatic local discovery, or a self-hosted bridge.
+        reviewStatus: "Structure approved · proof needed"
+        methods:
+          - title: "Manual address"
+            description: "Enter the runtime's local HTTP address when you already know it."
+            code: "http://192.168.1.42:9000"
+          - title: "Automatic discovery"
+            description: "Find the runtime automatically while both devices are on the same network."
+            code: "crystal-lattice ... --enable-bonjour"
+          - title: "Bridge pairing"
+            description: "Use a reachable self-hosted bridge when the phone is outside the local network."
+            code: "crystal-lattice ... --bridge-url wss://<bridge>/ws/websocket"
+        media:
+          kind: "Mobile connection proof"
+          status: "placeholder-needed"
+          desktop: "Reviewed mobile connection and active-session composition required."
 
   - type: providers
     id: harness-strip
@@ -83,47 +261,6 @@ sections:
       - "Qwen-oriented tools"
       - "Kimi-oriented tools"
       - "Grok-oriented tools"
-
-  - type: actionGuide
-    id: computer-to-phone
-    eyebrow: "Computer to phone"
-    title: "Start at your desk. Keep going from your phone."
-    body:
-      - >-
-        Start Crystal Lattice in the project folder where you want the agent to
-        work. The terminal UI can stay open, but the work is not trapped there:
-        the app UIs can open the same sessions and watch responses stream.
-      - >-
-        On the same Wi-Fi, Crystal Lattice Control can find your computer
-        automatically. Choose Automatic Discovery, select your computer, and
-        continue the same workspace from your phone.
-    action:
-      title: "Run the local workspace"
-      steps:
-        - label: "Install the CLI"
-          text: "Choose the installation method for your platform above, then verify that the command is available."
-          link:
-            label: "Choose an installation method"
-            href: "#install"
-          code: |
-            $ crystal-lattice --help
-        - label: "Start Crystal Lattice with local discovery"
-          code: |
-            mkdir -p ~/crystal-lattice-demo
-            cd ~/crystal-lattice-demo
-
-            crystal-lattice \
-              --server \
-              --console \
-              --config-local \
-              --host 0.0.0.0 \
-              --port 9000 \
-              --enable-bonjour
-        - label: "Open the mobile app"
-          text: "Open Crystal Lattice Control, choose Automatic Discovery, and select your computer."
-    note: >-
-      Automatic discovery uses the local network. If your phone is outside that
-      network, use the bridge section below.
 
   - type: actionGuide
     id: bridge
@@ -475,7 +612,7 @@ sections:
       harness your workflow disagrees with.
     actions:
       - label: "Install the CLI"
-        href: "#computer-to-phone"
+        href: "#getting-started"
         variant: primary
         icon: arrow
       - label: "Mobile apps coming soon"

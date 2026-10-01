@@ -174,10 +174,10 @@ test("contains long commands within the chooser on a narrow phone", async ({
   expect(chooserMetrics.scrollWidth).toBeLessThanOrEqual(
     chooserMetrics.clientWidth + 1,
   );
-  expect(Math.abs(chooserMetrics.left)).toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(chooserMetrics.right - chooserMetrics.viewportWidth),
-  ).toBeLessThanOrEqual(1);
+  expect(chooserMetrics.left).toBeGreaterThanOrEqual(0);
+  expect(chooserMetrics.right).toBeLessThanOrEqual(
+    chooserMetrics.viewportWidth,
+  );
 
   const macosLinuxTab = chooser.getByRole("tab", { name: "macOS/Linux" });
   const tabMetrics = await macosLinuxTab.evaluate((element) => ({
@@ -203,21 +203,22 @@ test("contains long commands within the chooser on a narrow phone", async ({
   ).toBeVisible();
 });
 
-test("first-success path returns to the canonical installation chooser", async ({
+test("hero getting-started path reaches the canonical installation chooser", async ({
   page,
 }) => {
   await page.goto("/", { waitUntil: "networkidle" });
 
-  const guide = page.locator("#computer-to-phone");
-  const link = guide.getByRole("link", {
-    name: "Choose an installation method",
+  const hero = page.locator("#hero");
+  const link = hero.getByRole("link", {
+    name: "Get started",
   });
-  await expect(link).toHaveAttribute("href", "#install");
-  await expect(guide).toContainText("crystal-lattice --help");
-  await expect(guide).not.toContainText("install.sh");
-  await expect(guide).not.toContainText("install.ps1");
+  await expect(link).toHaveAttribute("href", "#getting-started");
+  await expect(hero.locator("[data-installation-chooser]")).toHaveCount(0);
 
   await link.click();
-  await expect(page).toHaveURL(/#install$/);
-  await expect(page.locator("#install")).toBeVisible();
+  await expect(page).toHaveURL(/#getting-started$/);
+  await expect(page.locator("#getting-started")).toBeVisible();
+  await expect(
+    page.locator("#getting-started [data-installation-chooser]"),
+  ).toBeVisible();
 });

@@ -1,0 +1,176 @@
+---
+import InstallationChooser from "./InstallationChooser.astro";
+import SectionShell from "./SectionShell.astro";
+import ShellCommand from "./ShellCommand.astro";
+import { loadDesktopRelease } from "../content/loadDesktopRelease";
+import type {
+  GettingStartedSection,
+  GettingStartedStep,
+} from "../content/pageTypes";
+
+interface Props {
+  section: GettingStartedSection;
+}
+
+const { section } = Astro.props;
+const steps = Array.isArray(section.steps) ? section.steps : [];
+const desktopRelease = loadDesktopRelease();
+
+const icons = {
+  download: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>`,
+  desktop: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8"></path><path d="M12 16v4"></path></svg>`,
+  mobile: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"></rect><path d="M11 18h2"></path></svg>`,
+  mail: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3 7 9 6 9-6"></path></svg>`,
+};
+
+function methodsFor(step: GettingStartedStep) {
+  return Array.isArray(step.methods) ? step.methods : [];
+}
+---
+
+<SectionShell id={section.id} tone="alt" border={false}>
+  {section.title && (
+    <h2 class="mb-5 text-[clamp(2rem,4vw,3rem)] font-bold leading-none tracking-[-0.04em] text-fg">
+      {section.title}
+    </h2>
+  )}
+
+  <ol class="divide-y divide-line" data-getting-started-list>
+    {steps.map((step, index) => (
+      <li
+        id={step.id}
+        class="scroll-mt-24 grid grid-cols-[220px_minmax(0,1fr)] gap-16 py-14 first:pt-9 max-[820px]:grid-cols-1 max-[820px]:gap-5 max-sm:py-10"
+        data-getting-started-step={step.kind}
+        data-review-status={step.reviewStatus}
+      >
+        <div>
+          <span class="font-mono text-xs font-bold tracking-[0.1em] text-accent">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <h3 class="mt-3 max-w-[300px] text-[clamp(1.45rem,2.4vw,2rem)] font-bold leading-[1.12] tracking-[-0.025em] text-fg">
+            {step.title}
+          </h3>
+        </div>
+
+        <div class="min-w-0">
+          <p class="max-w-[720px] text-[1rem] leading-[1.7] text-fg-3">
+            {step.description}
+          </p>
+
+          <div class="mt-7">
+            {step.kind === "install" && step.install && (
+              <InstallationChooser install={step.install} />
+            )}
+
+            {step.kind === "command" && step.code && (
+              <ShellCommand code={step.code} />
+            )}
+
+            {step.kind === "desktop-download" && (
+              <div class="flex flex-col gap-5">
+                <div class="flex flex-wrap gap-3" data-platform-grid>
+                  {(step.platforms ?? []).map((platform) => (
+                    platform.status === "available" && platform.id === "macos" ? (
+                      <a
+                        href={desktopRelease.dmg.url}
+                        class="inline-flex min-h-[76px] min-w-[280px] items-center gap-4 rounded-xl bg-accent px-5 py-3.5 text-white shadow-[0_10px_30px_rgba(10,132,255,0.18)] transition-colors hover:bg-accent-hover hover:text-white max-sm:min-w-0 max-sm:w-full"
+                        data-desktop-platform={platform.id}
+                        aria-label={`Download Crystal Lattice Desktop ${desktopRelease.version} for macOS`}
+                      >
+                        <span class="shrink-0" set:html={icons.download}></span>
+                        <span class="min-w-0">
+                          <strong class="block text-[0.98rem] leading-tight">Download for macOS</strong>
+                          <span class="mt-1 block text-xs leading-tight text-white/75">
+                            Universal · Apple silicon + Intel
+                          </span>
+                        </span>
+                      </a>
+                    ) : (
+                      <div
+                        class="inline-flex min-h-[76px] min-w-[210px] items-center gap-4 rounded-xl border border-line bg-canvas px-5 py-3.5 text-fg-4 max-sm:min-w-0 max-sm:w-full"
+                        data-desktop-platform={platform.id}
+                        aria-disabled="true"
+                      >
+                        <span class="shrink-0 text-fg-5" set:html={icons.desktop}></span>
+                        <span>
+                          <strong class="block text-[0.9375rem] leading-tight text-fg-3">{platform.label}</strong>
+                          <span class="mt-1 block text-xs leading-tight text-fg-5">Coming soon</span>
+                        </span>
+                      </div>
+                    )
+                  ))}
+                </div>
+                <p class="text-xs leading-relaxed text-fg-5">
+                  Crystal Lattice Desktop {desktopRelease.version} · macOS {desktopRelease.minimumMacos}+ · app-only DMG
+                </p>
+              </div>
+            )}
+
+            {(step.kind === "desktop-connect" || step.kind === "mobile-connect") && (
+              <div class="flex flex-col gap-8">
+                <div class="grid grid-cols-3 gap-8 max-[880px]:grid-cols-1" data-connection-methods>
+                  {methodsFor(step).map((method) => (
+                    <article class="min-w-0 border-l-2 border-line pl-4">
+                      <h4 class="text-[0.95rem] font-semibold text-fg-2">{method.title}</h4>
+                      <p class="mt-2 text-sm leading-relaxed text-fg-4">{method.description}</p>
+                      {method.code && (
+                        <code class="mt-3 block max-w-full overflow-x-auto whitespace-nowrap bg-transparent p-0 text-xs text-accent-soft">
+                          {method.code}
+                        </code>
+                      )}
+                    </article>
+                  ))}
+                </div>
+                {step.media && (
+                  <div
+                    class="flex min-h-[210px] items-center justify-center rounded-xl bg-canvas text-center"
+                    data-proof-placeholder
+                    aria-label={step.media.desktop ?? step.media.status ?? "Visual placeholder"}
+                  >
+                    <span class="font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-fg-5">
+                      Planned visual
+                    </span>
+                    <p class="mt-3 max-w-[620px] px-6 text-sm leading-relaxed text-fg-4">
+                      {step.media.desktop ?? step.media.status ?? "Visual description pending."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step.kind === "mobile-download" && (
+              <div class="flex flex-col gap-6">
+                <div class="flex flex-wrap gap-3" data-mobile-platforms>
+                  {(step.platforms ?? []).map((platform) => (
+                    <div
+                      class="inline-flex min-h-[76px] min-w-[240px] items-center gap-4 rounded-xl border border-line bg-canvas px-5 py-3.5 text-fg-4 max-sm:min-w-0 max-sm:w-full"
+                      aria-disabled="true"
+                      data-mobile-platform={platform.id}
+                    >
+                      <span class="shrink-0 text-fg-5" set:html={icons.mobile}></span>
+                      <span>
+                        <strong class="block text-[0.9375rem] leading-tight text-fg-3">{platform.label}</strong>
+                        <span class="mt-1 block text-xs leading-tight text-fg-5">Coming soon</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {step.waitlist && (
+                  <div
+                    class="flex flex-wrap items-center gap-3 text-fg-5"
+                    data-waitlist-slot
+                    aria-disabled="true"
+                  >
+                    <span class="shrink-0" set:html={icons.mail}></span>
+                    <span class="text-sm font-medium">{step.waitlist.label}</span>
+                    <span class="text-xs">Form added in the waitlist phase</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </li>
+    ))}
+  </ol>
+</SectionShell>
