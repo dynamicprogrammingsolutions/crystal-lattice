@@ -32,6 +32,11 @@ mobile-download step.
 - [ ] The redesigned page, waitlist form, confirmation flow, and public
       downloads are responsive, keyboard accessible, semantically structured,
       privacy-conscious, and verified through their real production paths.
+- [ ] Before the task closes, a durable package-owned design record preserves
+      the intermediary homepage copy and visual alternatives, the theory and
+      tradeoffs behind them, the final selections, and the reasons viable
+      alternatives were not selected, so later revisions do not require
+      reconstructing the design discussion.
 - [ ] Production website and AWS publication occur only after explicit human
       review and approval.
 - [ ] The existing desktop-release task remains the evidence source for the
@@ -161,6 +166,11 @@ repository files, or application logs.
 - Update landing-package documentation for the new homepage section model,
   maintained proof bindings, waitlist build configuration, and local preview
   workflow.
+- Create a durable homepage positioning and visual-decision record under the
+  landing package's development documentation before closing the parent task.
+  It must include the committed pre-revision prototype, intermediary variants,
+  selection criteria, final decisions, and viable alternatives worth testing
+  later.
 - Update the privacy policy with the approved waitlist purpose, data fields,
   AWS/SES processing, retention, withdrawal, and contact route.
 - Add package-local waitlist deployment and operations documentation under
@@ -214,6 +224,10 @@ repository files, or application logs.
 - Production publication requirement: the protected workflow must complete,
   and anonymous production checks must verify the new page, downloads, form,
   confirmation state, and absence of broken or placeholder actions.
+- Durable decision-record requirement: documentation inspection must show the
+  pre-revision prototype, intermediary alternatives, copy-orientation theory,
+  visual/download research, final decisions and rationale, and
+  rejected-but-viable options, with links from the completed task.
 
 ### Additional implementation verification
 
