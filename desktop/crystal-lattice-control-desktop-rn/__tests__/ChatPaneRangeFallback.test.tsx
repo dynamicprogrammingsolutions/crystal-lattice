@@ -105,7 +105,7 @@ describe('ChatPane compaction range fallback', () => {
     const onUpdateCache = jest.fn();
     const backend = makeFakeBackend();
 
-    render(
+    const screen = render(
       <ChatPaneTabStack
         tabs={tabs}
         activeTabId={tabs[0].tabId}
@@ -118,6 +118,10 @@ describe('ChatPane compaction range fallback', () => {
         onOpenSessionTab={() => {}}
       />,
     );
+
+    const sessionId = screen.getByTestId('chat-header-session-id');
+    expect(sessionId.props.children).toBe('session-1');
+    expect(sessionId.props.selectable).toBe(true);
 
     // The invalid absolute range is requested once, then the default
     // suffix window is loaded automatically.

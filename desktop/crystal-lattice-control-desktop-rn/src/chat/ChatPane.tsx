@@ -4115,7 +4115,12 @@ export const ChatPane = React.memo(function ChatPane({
               {connectionName}
             </Text>
             <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText} numberOfLines={1}>
+            <Text
+              style={styles.metaText}
+              numberOfLines={1}
+              selectable
+              testID="chat-header-session-id"
+            >
               {sessionId}
             </Text>
             <Text style={styles.metaDot}>•</Text>

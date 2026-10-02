@@ -16,20 +16,93 @@ const CONNECTION_ID = 'transcript-range-navigation';
 const SESSION_ID = 'transcript-range-navigation-session';
 const MESSAGE_COUNT = 200;
 
-const ALL_MESSAGES: IndexedMessage[] = Array.from(
-  { length: MESSAGE_COUNT },
-  (_, index) => ({
-    index,
-    message: {
+const RAW_SCROLL_MESSAGE_INDEX = 101;
+
+type TextSurfaceScenario = 'none' | 'raw' | 'code' | 'reasoning' | 'tool';
+
+function normalizeTextSurfaceScenario(value: string): TextSurfaceScenario {
+  return value === 'raw' ||
+    value === 'code' ||
+    value === 'reasoning' ||
+    value === 'tool'
+    ? value
+    : 'none';
+}
+
+function buildMessages(textSurfaceScenario: TextSurfaceScenario): IndexedMessage[] {
+  return Array.from({ length: MESSAGE_COUNT }, (_, index) => {
+    const defaultMessage = {
       role: index % 4 === 0 ? 'user' : 'assistant',
       content: Array.from(
         { length: 2 + (index % 4) },
         (_unused, line) =>
           `Desktop range navigation message ${index}, line ${line + 1}.`,
       ).join('\n'),
-    },
-  }),
-);
+    };
+    if (index !== RAW_SCROLL_MESSAGE_INDEX) {
+      return { index, message: defaultMessage };
+    }
+    if (textSurfaceScenario === 'raw') {
+      return {
+        index,
+        message: {
+          role: 'assistant',
+          content: Array.from(
+            { length: 90 },
+            (_unused, line) =>
+              `Desktop raw scroll message ${index}, line ${line + 1}.`,
+          ).join('\n'),
+        },
+      };
+    }
+    if (textSurfaceScenario === 'code') {
+      return {
+        index,
+        message: {
+          role: 'assistant',
+          content: [
+            '```typescript',
+            ...Array.from(
+              { length: 90 },
+              (_unused, line) => `const codeLine${line + 1} = ${line + 1};`,
+            ),
+            '```',
+          ].join('\n'),
+        },
+      };
+    }
+    if (textSurfaceScenario === 'reasoning') {
+      return {
+        index,
+        message: {
+          role: 'assistant',
+          content: 'Reasoning harness answer.',
+          metadata: {
+            reasoning: Array.from(
+              { length: 80 },
+              (_unused, line) =>
+                `Desktop reasoning detail ${index}, line ${line + 1}.`,
+            ).join('\n'),
+          },
+        },
+      };
+    }
+    if (textSurfaceScenario === 'tool') {
+      return {
+        index,
+        message: {
+          role: 'tool',
+          content: Array.from(
+            { length: 80 },
+            (_unused, line) =>
+              `Desktop tool result ${index}, line ${line + 1}.`,
+          ).join('\n'),
+        },
+      };
+    }
+    return { index, message: defaultMessage };
+  });
+}
 
 const SESSION_SUMMARY: SessionSummary = {
   session_id: SESSION_ID,
@@ -51,11 +124,22 @@ function normalizeBound(value: number | undefined, fallback: number): number {
   return Math.max(0, Math.min(MESSAGE_COUNT, relative));
 }
 
-export function DesktopTranscriptRangeNavigationHarness(): React.JSX.Element {
+export function DesktopTranscriptRangeNavigationHarness({
+  transcriptTextSurfaceScenario = 'none',
+}: {
+  transcriptTextSurfaceScenario?: string;
+}): React.JSX.Element {
   (globalThis as any).CLC_DEBUG_TRANSCRIPT_RANGE_NAVIGATION = true;
   (globalThis as any).CLC_DEBUG_CHAT_SCROLL_COORDINATOR = true;
   const theme = useDesktopTheme();
   const [loadedRange, setLoadedRange] = useState('loading');
+  const textSurfaceScenario = normalizeTextSurfaceScenario(
+    transcriptTextSurfaceScenario,
+  );
+  const allMessages = useMemo(
+    () => buildMessages(textSurfaceScenario),
+    [textSurfaceScenario],
+  );
   const backend = useMemo(
     () =>
       ({
@@ -76,7 +160,7 @@ export function DesktopTranscriptRangeNavigationHarness(): React.JSX.Element {
         ) => {
           const start = normalizeBound(params.start, 0);
           const end = normalizeBound(params.end, MESSAGE_COUNT);
-          const messages = ALL_MESSAGES.slice(start, end);
+          const messages = allMessages.slice(start, end);
           setLoadedRange(
             messages.length > 0
               ? `${messages[0].index}:${messages[messages.length - 1].index}`
@@ -107,7 +191,7 @@ export function DesktopTranscriptRangeNavigationHarness(): React.JSX.Element {
           cursorExpired: false,
         }),
       }) as unknown as AgentBackend,
-    [],
+    [allMessages],
   );
 
   return (
@@ -140,7 +224,7 @@ export function DesktopTranscriptRangeNavigationHarness(): React.JSX.Element {
             cachedEntry={{
               connectionId: CONNECTION_ID,
               sessionId: SESSION_ID,
-              messages: ALL_MESSAGES.slice(100, 200),
+              messages: allMessages.slice(100, 200),
               lastLoadedAt: 1,
               cursorEventId: 'range-navigation:1',
               activeRequestId: null,
