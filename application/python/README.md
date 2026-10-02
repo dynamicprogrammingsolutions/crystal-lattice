@@ -959,12 +959,12 @@ dist/crystal-lattice-python-runtime/
 Bundled-Python archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.5-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-linux-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-windows-amd64.zip
-crystal-lattice-python-runtime-v0.1.5-windows-arm64.zip
+crystal-lattice-python-runtime-v0.2.0-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-linux-arm64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.2.0-windows-arm64.zip
 ```
 
 From that full package, users can create optimized config-specific PyInstaller
@@ -998,12 +998,12 @@ dist/crystal-lattice/
 Bundled-Python runtime archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.5-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-linux-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.5-windows-amd64.zip
-crystal-lattice-python-runtime-v0.1.5-windows-arm64.zip
+crystal-lattice-python-runtime-v0.2.0-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-linux-arm64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.2.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.2.0-windows-arm64.zip
 ```
 
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
@@ -1169,7 +1169,7 @@ Manual republish:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile prod \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.5
+  --version 0.2.0
 ```
 
 To change or retire the public download endpoint, use the deployment scripts in
@@ -1230,8 +1230,8 @@ Official releases are created by pushing a tag that matches the CLI package
 version:
 
 ```bash
-git tag crystal-lattice-cli-v0.1.5
-git push origin crystal-lattice-cli-v0.1.5
+git tag crystal-lattice-cli-v0.2.0
+git push origin crystal-lattice-cli-v0.2.0
 ```
 
 The tag must match `application/python/pyproject.toml`'s `project.version`.
