@@ -21,6 +21,9 @@ updates.
 - [Initial planning discussion retention map](discussion-retention-map.md):
   where important planning points are stored, partially retained, or
   intentionally omitted.
+- [Current product and compatibility baseline](findings/current-product-and-compatibility-baseline.md):
+  accepted configured-profile, provider, feature, tool, client, limitation,
+  and canonical website-draft findings.
 
 Retained normalized records, manifests, datasets, and review ledgers belong
 under `landing_page/research/`. Disposable raw responses, browser output,

@@ -83,15 +83,27 @@ class TestShellToolSelection:
         assert "shell" not in tool_names, "shell should be disabled in auto mode with codex-variant"
         assert "shell_command" in tool_names, "shell_command should be enabled in auto mode with codex-variant"
 
-    def test_gpt_5_4_auto_mode_enables_shell_command(self):
-        """gpt-5.4 should follow the shell_command family."""
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "openai/gpt-5.4",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-6-sol",
+            "gpt-6-luna",
+            "gpt-6-astra",
+        ],
+    )
+    def test_shell_command_family_auto_mode_enables_shell_command(self, model: str):
+        """Named modern GPT variants should select the string shell."""
         core = AgentCore()
         core.register_provider(MockProvider)
         core.register_feature(CodexVariantFeature)
         core.register_tool(ShellArrayTool)
         core.register_tool(ShellCommandTool)
 
-        config = {"shell_tool_mode": "auto", "model": "openai/gpt-5.4"}
+        config = {"shell_tool_mode": "auto", "model": model}
 
         provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
         tool_names = [t.name for t in tools]
@@ -228,8 +240,14 @@ class TestCodexVariantFeaturePatterns:
             ("openai/gpt-5.2-codex", True),
             ("openai/gpt-5.4", True),
             ("openai/gpt-5.4-mini", True),
+            ("openai/gpt-5.6-sol", True),
+            ("gpt-5.6-terra", True),
+            ("gpt-5.6-luna", True),
             ("openai/gpt-6", True),
             ("openai/gpt-6.1", True),
+            ("gpt-6-sol", True),
+            ("openai/gpt-6-luna", True),
+            ("gpt-6-astra", True),
         ],
     )
     def test_codex_variant_feature_matches_expected_models(

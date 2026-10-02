@@ -1,0 +1,1132 @@
+{
+  "schema_version": "1.0.0",
+  "status": "accepted",
+  "status_vocabulary": {
+    "supported": "Implemented for this row without an additional feature gate beyond ordinary configuration.",
+    "conditional": "Implemented, but availability depends on model capability, provider response, account mode, explicit enablement, or another prerequisite.",
+    "planned": "Not implemented in the current row, but explicitly owned by a maintained future requirement or task.",
+    "unsupported": "Not implemented for this row and not represented as current support.",
+    "not_applicable": "The feature does not meaningfully apply to this row.",
+    "unknown": "Evidence is insufficient to classify the cell."
+  },
+  "features": [
+    {
+      "feature_id": "api_key_auth",
+      "label": "API-key authentication"
+    },
+    {
+      "feature_id": "subscription_account_auth",
+      "label": "Subscription-account authentication"
+    },
+    {
+      "feature_id": "model_discovery",
+      "label": "Model discovery"
+    },
+    {
+      "feature_id": "streaming",
+      "label": "Streaming responses"
+    },
+    {
+      "feature_id": "tool_calling",
+      "label": "Native tool calling"
+    },
+    {
+      "feature_id": "reasoning",
+      "label": "Native reasoning controls and metadata"
+    },
+    {
+      "feature_id": "verbosity",
+      "label": "Native verbosity control"
+    },
+    {
+      "feature_id": "usage_tokens",
+      "label": "Usage and token metadata"
+    },
+    {
+      "feature_id": "cost_reporting",
+      "label": "Cost reporting or estimation"
+    },
+    {
+      "feature_id": "prompt_caching",
+      "label": "Native prompt caching"
+    },
+    {
+      "feature_id": "native_web_search",
+      "label": "Native provider web search"
+    },
+    {
+      "feature_id": "native_compaction",
+      "label": "Native provider compaction"
+    },
+    {
+      "feature_id": "flex_processing",
+      "label": "Flex processing"
+    },
+    {
+      "feature_id": "fast_mode",
+      "label": "Fast or priority processing tier"
+    },
+    {
+      "feature_id": "image_input",
+      "label": "Image input"
+    },
+    {
+      "feature_id": "pdf_input",
+      "label": "PDF or file input"
+    },
+    {
+      "feature_id": "image_generation",
+      "label": "Image generation"
+    },
+    {
+      "feature_id": "provider_routing",
+      "label": "Provider routing controls"
+    },
+    {
+      "feature_id": "retry_rate_limit",
+      "label": "Retry and rate-limit policy"
+    }
+  ],
+  "providers": [
+    {
+      "provider_id": "openai-api",
+      "label": "OpenAI Responses \u2014 API key",
+      "implementation": "openai_responses",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "conditional",
+          "note": "Shown for supported model families, currently GPT-5-class models."
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "supported",
+          "note": "Locally estimated from response usage and maintained pricing data."
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "conditional",
+          "note": "Requires upload-before-send through the Files API."
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "openai-chatgpt",
+      "label": "OpenAI Responses \u2014 saved ChatGPT account",
+      "implementation": "openai_responses",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "conditional",
+          "note": "Uses saved-account model discovery with maintained fallbacks."
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": "Current ChatGPT route is streaming-only."
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "conditional",
+          "note": "Model-gated."
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": "API-equivalent local estimate, not subscription billing."
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "conditional",
+          "note": "Session cache keys are supported; 24-hour retention is suppressed."
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": "The ChatGPT-hosted endpoint does not support flex processing."
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "supported",
+          "note": "Uses the ChatGPT backend's priority-tier wire name."
+        },
+        {
+          "feature_id": "image_input",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "conditional",
+          "note": "Requires provider upload/file support."
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "openrouter-chat",
+      "label": "OpenRouter Chat Completions",
+      "implementation": "openrouter",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": "Selected-model capability discovery must report tools support."
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": "Selected-model capability discovery must report reasoning support."
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "conditional",
+          "note": "Selected-model capability discovery must report verbosity support."
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": "Requires usage data in the provider response."
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": "Uses provider-returned cost metadata when present."
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "conditional",
+          "note": "Claude-style cache controls apply to compatible Anthropic model routes."
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": "Image attachments depend on model/provider acceptance."
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "conditional",
+          "note": "Implemented through the separate OpenRouter image-generation route."
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "openrouter-responses",
+      "label": "OpenRouter Responses",
+      "implementation": "openrouter_responses",
+      "availability": "optional",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "conditional",
+          "note": "Claude-style cache behavior for compatible routes."
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "conditional",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "anthropic",
+      "label": "Anthropic Messages",
+      "implementation": "anthropic-compatible",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "planned",
+          "note": "OAuth is owned by a separate maintained provider task."
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "planned",
+          "note": "Maintained pricing-based cost estimation requirement is not started."
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "planned",
+          "note": "Server web tools are deferred to a maintained provider subtask."
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "planned",
+          "note": "Native compaction/context editing is deferred to a maintained provider subtask."
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "planned",
+          "note": "Fast mode and service tiers are deferred provider work."
+        },
+        {
+          "feature_id": "image_input",
+          "status": "planned",
+          "note": "Image attachments are deferred provider work."
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "planned",
+          "note": "Files/PDF/document support is deferred provider work."
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "ollama",
+      "label": "Ollama-compatible local route",
+      "implementation": "reference-openai-compatible-provider",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "not_applicable",
+          "note": "The checked-in route has no API-key field."
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unknown",
+          "note": "Cloud-named model identifiers may impose external account requirements."
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "conditional",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "fireworks",
+      "label": "Fireworks OpenAI-compatible route",
+      "implementation": "reference-openai-compatible-provider",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "zai",
+      "label": "Z.ai OpenAI-compatible route",
+      "implementation": "reference-openai-compatible-provider",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "supported",
+          "note": "Checked-in General and Coding endpoint choices."
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "supported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "custom-openai-compatible",
+      "label": "Custom OpenAI-compatible endpoint",
+      "implementation": "reference-openai-compatible-provider",
+      "availability": "optional",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "conditional",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "provider_id": "openrouter-image",
+      "label": "OpenRouter image generation",
+      "implementation": "openrouter",
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "api_key_auth",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "subscription_account_auth",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "model_discovery",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "streaming",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "tool_calling",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "verbosity",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "usage_tokens",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "cost_reporting",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "prompt_caching",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "native_web_search",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "native_compaction",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "flex_processing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "fast_mode",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "image_input",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "pdf_input",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "image_generation",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_routing",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "retry_rate_limit",
+          "status": "unknown",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

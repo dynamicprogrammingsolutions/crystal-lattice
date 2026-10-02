@@ -1,0 +1,402 @@
+{
+  "status": "complete",
+  "observed_at_utc": "2026-09-29T13:51:53Z",
+  "source_commit": "add5f5e71de3bb1676851bb840dfd77620f63ddb",
+  "source_config": "application/python/agent_terminal_app/default_config/config.json",
+  "source_config_sha256": "c6554538356a1bf48b340a726d97758d822bc61b363550069b0400f3cee3025a",
+  "transformation_version": "compatibility-baseline-v2",
+  "inspected_distribution": "source_checkout",
+  "distribution_targets_pending": [
+    "bundled_python_runtime",
+    "optimized_bundle",
+    "cloud_runtime"
+  ],
+  "config_resolution_inputs": {
+    "CONFIG_DIR": "application/python/agent_terminal_app/default_config",
+    "BUILTIN_PLUGINS": "plugins",
+    "WORKING_DIR": "repository_worktree",
+    "credential_values_retained": false
+  },
+  "resolved_config_summary": {
+    "agent_ids": 20,
+    "provider_routes": 7,
+    "global_plugin_specs": 28,
+    "selected_plugin_projects": 33,
+    "selected_local_plugin_projects": 37,
+    "warning_types": []
+  },
+  "delegated_trial_checkpoint": {
+    "completed_at_utc": "2026-09-29T13:57:41Z",
+    "runtime_config_role": "personal_investigator_only",
+    "investigator_agent_id": "codex-openai",
+    "investigator_model": "gpt-6-sol",
+    "investigator_reasoning_effort": "high",
+    "investigator_access_section": "a per-request false override was requested, but initial compiled messages in the runner log still contained access guidance; actual provider prompt after the override was not checked",
+    "shared_runtime_startup_seconds": 6.8,
+    "parallel_wall_seconds_including_startup": 121.82,
+    "trial_turns_per_session": 2,
+    "source_revision_for_read_only_prompts": "add5f5e71de3bb1676851bb840dfd77620f63ddb",
+    "session_summaries": [
+      {
+        "topic": "configured_agents",
+        "session_id": "5bbe6ea8-9ae9-4bce-8dea-da5d6f23f0a1",
+        "elapsed_seconds": [
+          61.12,
+          52.37
+        ],
+        "api_equivalent_estimated_cost_usd": 0.1946172
+      },
+      {
+        "topic": "provider_accounts",
+        "session_id": "8959ffa0-b4d3-4c39-85eb-df20cd3258b6",
+        "elapsed_seconds": [
+          59.9,
+          49.22
+        ],
+        "api_equivalent_estimated_cost_usd": 0.1661458
+      },
+      {
+        "topic": "application_features",
+        "session_id": "db521fc8-4771-4fb8-ad05-a0bd718c4cdf",
+        "elapsed_seconds": [
+          59.28,
+          55.68
+        ],
+        "api_equivalent_estimated_cost_usd": 0.1495134
+      }
+    ],
+    "all_six_turns_succeeded": true,
+    "cost_bucket": "openai-responses-chatgpt",
+    "total_api_equivalent_estimated_cost_usd": 0.5102764,
+    "actual_billing": "unknown; ChatGPT subscription runs are not billed at the API-equivalent estimate",
+    "transcript_location": "existing_user_session_store",
+    "disposable_runner_and_final_answers": "landing_page/artifacts/research/020-current-product-and-compatibility-baseline/",
+    "catalog_claims_accepted": false
+  },
+  "gpt56_calibration": {
+    "completed_at_utc": "2026-09-29T18:15:09Z",
+    "private_config": "~/.crystal/config-020-audit-calibration.json",
+    "system_prompt_strategy": "ordinary Codex model instructions plus appended task-020 evidence-auditor guidance",
+    "assignment": "cross-layer Codex/OpenAI configured-agent compatibility slice",
+    "cost_ceiling_usd": 30.0,
+    "total_api_equivalent_estimated_cost_usd": 14.49803498,
+    "actual_billing": "unknown; runs used the ChatGPT route and estimates are API-equivalent",
+    "recommended_default": {
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "high"
+    },
+    "recommended_alternatives": [
+      {
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "high",
+        "use": "broad or test-heavy package sweeps"
+      },
+      {
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "xhigh",
+        "use": "narrow high-risk synthesis with incremental packet writes"
+      }
+    ],
+    "not_recommended_for_this_audit_shape": [
+      "gpt-5.6-sol high",
+      "gpt-5.6-sol xhigh",
+      "gpt-5.6-luna xhigh"
+    ],
+    "complete_packets": [
+      "task020-audit-gpt56-terra-high",
+      "task020-audit-gpt56-luna-high",
+      "task020-audit-gpt56-terra-xhigh"
+    ],
+    "partial_or_missing_packets": [
+      "task020-audit-gpt56-sol-high",
+      "task020-audit-gpt56-sol-xhigh",
+      "task020-audit-gpt56-luna-xhigh"
+    ],
+    "catalog_claims_accepted": false
+  },
+  "broader_audit_estimate": {
+    "planned_at_utc": "2026-09-29T18:30:00Z",
+    "base_sessions": 8,
+    "base_mix": {
+      "gpt-5.6-terra/high": 5,
+      "gpt-5.6-luna/high": 3
+    },
+    "optional_sessions": {
+      "gpt-5.6-terra/xhigh": 1
+    },
+    "observed_calibration_rate_projection_usd": 6.81986778,
+    "expected_additional_api_equivalent_cost_usd": {
+      "low": 8.0,
+      "high": 12.0
+    },
+    "additional_stop_ceiling_usd": 18.0,
+    "pre_synthesis_report_threshold_usd": 15.0,
+    "completed_calibration_sunk_cost_usd": 14.49803498,
+    "expected_combined_cost_usd": {
+      "low": 22.49803498,
+      "high": 26.49803498
+    },
+    "maximum_combined_if_reserve_consumed_usd": 32.49803498,
+    "hosted_provider_verification_included": false,
+    "billing_note": "ChatGPT-route API-equivalent estimates; not subscription invoices"
+  },
+  "broader_audit_execution": {
+    "status": "complete",
+    "wave1": {
+      "completed_at_utc": "2026-09-29T21:24:37Z",
+      "wall_seconds": 779.94,
+      "api_equivalent_estimated_cost_usd": 2.9902856,
+      "packets_complete": 3,
+      "sessions": [
+        {
+          "batch": "claude_anthropic",
+          "agent_id": "task020-wave1-claude-terra-high",
+          "session_id": "15b5b52a-60b5-4732-9190-9cdea6be7fdb",
+          "elapsed_seconds": 638.35,
+          "tool_starts": 41,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 1.2504302,
+          "review_disposition": "proposed_source_config_and_local_test_evidence"
+        },
+        {
+          "batch": "model_family_profiles",
+          "agent_id": "task020-wave1-model-families-terra-high",
+          "session_id": "b5eb8d84-184c-4bfe-9489-dbbde3778c98",
+          "elapsed_seconds": 755.9,
+          "tool_starts": 44,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 1.0451172,
+          "review_disposition": "proposed_config_and_conditional_capability_evidence"
+        },
+        {
+          "batch": "reference_compatible_routes",
+          "agent_id": "task020-wave1-reference-routes-terra-high",
+          "session_id": "e44698f6-377f-4e72-93f3-b5e3726543a9",
+          "elapsed_seconds": 432.26,
+          "tool_starts": 32,
+          "checkpoint_state": "completed_before_checkpoint",
+          "checkpoint_note": "Runner serialized pending before its monitor observed request completion; the claim map existed after about two minutes.",
+          "api_equivalent_estimated_cost_usd": 0.6947382,
+          "review_disposition": "proposed_source_config_and_reproduced_unit_evidence"
+        }
+      ],
+      "independent_verification": {
+        "reference_provider_tests_passed": 121,
+        "openrouter_focused_tests_passed": 80,
+        "openrouter_broader_tests_passed": 94,
+        "claude_tools_tests_passed": 84,
+        "anthropic_tests_passed": 58,
+        "anthropic_tests_blocked_missing_optional_sdk": 0,
+        "claude_default_config_tests_passed": 4,
+        "claude_default_config_tests_failed_plugin_cache_import": 3
+      },
+      "real_provider_verification": "not_run"
+    },
+    "wave2": {
+      "completed_at_utc": "2026-09-29T21:40:57Z",
+      "wall_seconds": 812.66,
+      "api_equivalent_estimated_cost_usd": 1.71422046,
+      "cumulative_broader_audit_cost_usd": 4.70450606,
+      "packets_complete": 3,
+      "sessions": [
+        {
+          "batch": "specialists_and_distribution",
+          "agent_id": "task020-wave2-specialists-terra-high",
+          "session_id": "54f5f21b-1141-49f3-baa5-4cceae47c6a0",
+          "elapsed_seconds": 719.12,
+          "tool_starts": 58,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 1.3537684,
+          "review_disposition": "proposed_source_builder_and_local_test_evidence"
+        },
+        {
+          "batch": "history_compaction_export_background",
+          "agent_id": "task020-wave2-history-luna-high",
+          "session_id": "6ee3e665-2e60-4c9d-8f67-79e288f13b67",
+          "elapsed_seconds": 795.27,
+          "tool_starts": 76,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 0.18058832,
+          "review_disposition": "proposed_mutation_artifact_and_optional_feature_evidence"
+        },
+        {
+          "batch": "session_list_organization",
+          "agent_id": "task020-wave2-session-list-luna-high",
+          "session_id": "de853df1-06c4-4909-9ed0-bb6565f56a47",
+          "elapsed_seconds": 805.28,
+          "tool_starts": 62,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 0.17986374,
+          "review_disposition": "proposed_session_list_api_and_generic_client_evidence"
+        }
+      ],
+      "independent_verification": {
+        "session_list_http_tests_passed": 5,
+        "session_list_http_tests_deselected": 6,
+        "core_session_listing_tests_passed": 33,
+        "snapshot_asset_projection_notification_tests_passed": 61,
+        "frontend_sdk_tests_passed": 88,
+        "frontend_sdk_react_tests_passed": 6,
+        "image_provider_attachment_tests_passed": 9,
+        "cloud_plugin_tests_passed": 12,
+        "cloud_bundle_source_tests_passed": 12
+      },
+      "real_provider_verification": "not_run",
+      "produced_artifact_verification": "not_run",
+      "native_client_verification": "not_run"
+    },
+    "wave3": {
+      "completed_at_utc": "2026-09-29T22:10:10Z",
+      "wall_seconds": 1032.79,
+      "api_equivalent_estimated_cost_usd": 1.47747262,
+      "cumulative_broader_audit_cost_usd": 6.18197868,
+      "packets_complete": 2,
+      "sessions": [
+        {
+          "batch": "configuration_auth_mcp_context_transparency",
+          "agent_id": "task020-wave3-transparency-terra-high",
+          "session_id": "1474d08d-e9f4-4e86-84f2-d9da74ae64ec",
+          "elapsed_seconds": 686.12,
+          "tool_starts": 58,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 1.2181784,
+          "review_disposition": "proposed_configuration_transparency_and_privacy_boundary_evidence"
+        },
+        {
+          "batch": "production_client_matrix",
+          "agent_id": "task020-wave3-clients-luna-high",
+          "session_id": "d0b442bd-8954-49c6-bade-e6d78bc36669",
+          "elapsed_seconds": 1024.99,
+          "tool_starts": 86,
+          "checkpoint_state": "passed",
+          "api_equivalent_estimated_cost_usd": 0.25929422,
+          "review_disposition": "proposed_layered_http_sdk_terminal_mobile_desktop_headless_evidence"
+        }
+      ],
+      "client_verification": {
+        "backend_sdk_integration_tests_passed": 21,
+        "independent_fresh_cache_rerun": "19 passed; 2 backend-startup timeouts during path-plugin installation",
+        "independent_warm_cache_retry": "21 passed",
+        "request_status_integration_tests_passed": 1,
+        "action_display_integration_tests_passed": 1,
+        "frontend_sdk_react_tests_passed": 24,
+        "frontend_rn_component_tests_passed": 76,
+        "selected_mobile_tests_passed": 10,
+        "desktop_tests_passed": 195,
+        "native_mobile_tests_run": false,
+        "native_macos_tests_run": false
+      },
+      "export_verification": {
+        "declared_dependencies_installed": true,
+        "full_suite": "timed_out",
+        "reduced_non_browser_subset": "timed_out",
+        "classification": "incomplete"
+      },
+      "real_provider_verification": "not_run"
+    },
+    "challenge": {
+      "completed_at_utc": "2026-09-30T05:40:00Z",
+      "agent_id": "task020-challenge-terra-xhigh",
+      "session_id": "f5224148-a8fa-4f0e-8c49-62f888b90897",
+      "elapsed_seconds": 1219.76,
+      "tool_starts": 79,
+      "checkpoint_state": "passed",
+      "api_equivalent_estimated_cost_usd": 2.306117,
+      "review_disposition": "proposed_contradiction_resolutions_and_runtime_loading_boundary"
+    },
+    "totals": {
+      "broader_audit_api_equivalent_estimated_cost_usd": 8.48809568,
+      "calibration_plus_broader_audit_estimated_cost_usd": 22.98613066,
+      "broader_audit_packets_complete": 9,
+      "broader_audit_packets_incomplete": 0,
+      "claim_map_checkpoints_effectively_passed": 9
+    },
+    "human_review": {
+      "status": "approved",
+      "approved_date": "2026-10-01",
+      "approved_decisions": 9,
+      "configured_agent_rows": 20,
+      "provider_account_rows": 7,
+      "application_feature_rows": 33,
+      "claim_evidence_records": 24,
+      "review_state": "accepted",
+      "verification_summary": "verification-summary.md"
+    }
+  },
+  "worktree_note": "The checkout has unrelated pending runtime-layout/test changes and approved website task-file edits. Product-default counts and the config fingerprint use the checked-in default config; personal runtime configuration is investigator tooling, not product evidence.",
+  "authoritative_outputs": [
+    "feature-catalog.json",
+    "feature-catalog.csv",
+    "provider-support-matrix.json",
+    "provider-support-matrix.csv",
+    "model-family-feature-matrix.json",
+    "model-family-feature-matrix.csv",
+    "compatibility-matrices.md",
+    "claim-evidence.jsonl",
+    "verification-summary.md"
+  ],
+  "supporting_normalized_outputs": [
+    "configured-agent-compatibility.csv",
+    "provider-account-compatibility.csv",
+    "application-feature-compatibility.csv"
+  ],
+  "pending_outputs": [],
+  "completion_manifest": "completion-manifest.json",
+  "catalog_schema": "catalog-schema.json",
+  "extractor": "extract_baseline.py",
+  "matrix_source": "compatibility-matrix-source.json",
+  "matrix_generator": "generate_compatibility_matrices.py",
+  "catalog_outputs": {
+    "configured_agent_rows": 20,
+    "provider_account_rows": 7,
+    "application_feature_rows": 33,
+    "global_application_feature_rows": 28,
+    "optional_application_feature_rows": 5,
+    "generated_fields_refreshable": true,
+    "review_fields_preserved_on_refresh": true,
+    "human_review_complete": true
+  },
+  "authoritative_matrix_outputs": {
+    "status": "accepted",
+    "generated_date": "2026-10-01",
+    "feature_catalog": {
+      "json": "feature-catalog.json",
+      "csv": "feature-catalog.csv",
+      "plugin_projects": 66
+    },
+    "provider_support": {
+      "json": "provider-support-matrix.json",
+      "csv": "provider-support-matrix.csv",
+      "providers": 10,
+      "features": 19,
+      "cells": 190,
+      "planned_cells": 7
+    },
+    "model_family_features": {
+      "json": "model-family-feature-matrix.json",
+      "csv": "model-family-feature-matrix.csv",
+      "families": 12,
+      "features": 21,
+      "cells": 252
+    },
+    "human_review_markdown": "compatibility-matrices.md",
+    "numeric_task_references_in_generated_content": false
+  },
+  "website_projection": {
+    "status": "accepted_draft",
+    "review_state": "accepted",
+    "maturity": "draft",
+    "approved_date": "2026-10-02",
+    "selection_source": "website-compatibility-selection.json",
+    "generator": "generate_website_compatibility_data.py",
+    "json": "website-compatibility-data.json",
+    "markdown": "website-compatibility-data.md",
+    "features": 9,
+    "provider_rows": 9,
+    "provider_columns": 6,
+    "model_families": 6,
+    "tool_rows": 71,
+    "internal_task_paths_in_public_output": false,
+    "numeric_task_references_in_public_output": false
+  }
+}
