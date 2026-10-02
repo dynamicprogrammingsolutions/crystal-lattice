@@ -115,7 +115,7 @@ Human-readable finding:
 Retained research package:
 
 ```text
-landing_page/research/020-current-product-and-compatibility-baseline/
+landing_page/research/current-product-and-compatibility-baseline/
 ├── input-manifest.json
 ├── compatibility-matrix-source.json
 ├── generate_compatibility_matrices.py
@@ -166,7 +166,7 @@ Required updates:
 - Do not create provider or compatibility claims without checking the owning
   source and appropriate verification boundary.
 - Store disposable inspection output under
-  `landing_page/artifacts/research/020-current-product-and-compatibility-baseline/`.
+  `landing_page/artifacts/research/current-product-and-compatibility-baseline/`.
 
 ## Execution plan
 
@@ -396,9 +396,10 @@ their owning tasks.
 - [x] Record the user's approval of all nine decision-bearing
       classifications and update the 60 normalized catalog rows and 24 claim
       records to `accepted`.
-- [x] Generate the canonical website projection with 9 non-overlapping
-      product features, 9 provider rows × 6 selected columns, and 71 current
-      or planned package-specific tool rows across 6 model-family bundles.
+- [x] Generate the canonical website projection with 24 complete per-plugin
+      application/session feature rows, 9 provider rows × 6 selected columns,
+      and 71 current or planned package-specific tool rows across 6
+      model-family bundles.
 - [x] Record user verification or corrections for the canonical website
       projection and update its review state.
 - [x] Write the finding and `completion-manifest.json`, finalize the existing
@@ -448,7 +449,7 @@ their owning tasks.
 - Approved execution started on 2026-09-29 with an explicit checkpoint: two
   or three trial turns in each of three distinct investigator sessions,
   followed by a report and pause before expanding delegated work.
-- Created `landing_page/research/020-current-product-and-compatibility-baseline/input-manifest.json`
+- Created `landing_page/research/current-product-and-compatibility-baseline/input-manifest.json`
   for the pinned source checkout and checked-in default config. An initial
   packaging-analysis call inherited `CONFIG_DIR` from the live personal
   runtime and incorrectly reported missing personal instruction files.
@@ -711,13 +712,15 @@ their owning tasks.
   all nine decision-bearing classifications. Updated all 20 configured-agent,
   7 provider/account, 33 application-feature, and 24 claim-evidence review
   states to `accepted`. Added a separate canonical website selection and
-  deterministic transformation. The proposed public projection contains 9
-  non-overlapping application/session features, 9 provider rows with 6
-  user-relevant native-capability columns, and 71 package-specific current or
-  planned tool rows across Codex-, Claude-, Gemini-, Qwen-, Grok-, and
-  Kimi-oriented bundles. Implemented tool rows validate against package
-  descriptors; planned rows validate against maintained task files. Internal
-  task paths and numeric task identifiers are stripped from public output.
+  deterministic transformation. The initial proposed public projection
+  contained 9 grouped application/session feature summaries, 9 provider rows
+  with 6 user-relevant native-capability columns, and 71 package-specific
+  current or planned tool rows across Codex-, Claude-, Gemini-, Qwen-, Grok-,
+  and Kimi-oriented bundles. The grouped feature summaries were superseded by
+  the October 2 post-completion correction below. Implemented tool rows
+  validate against package descriptors; planned rows validate against
+  maintained task files. Internal task paths and numeric task identifiers are
+  stripped from public output.
 - **Accepted draft and closure (2026-10-02):** The user accepted the canonical
   website projection as a draft that downstream website work may refine.
   Exhaustive matrices, normalized catalogs, claim evidence, and the website
@@ -769,3 +772,20 @@ their owning tasks.
   runtime loading remains unresolved; message-export verification remained
   timeout-incomplete; and cost values remain provider-reported or local
   estimates rather than invoice truth.
+
+## Post-completion follow-up
+
+- **Canonical feature-row correction (2026-10-02):** Replaced the grouped
+  nine-row website feature summary with 24 complete per-plugin rows. Each row
+  now retains the plugin ID, actual `plugins/...` path, implementation status,
+  package description, and accepted limitations. The other nine
+  application-feature records are explicitly classified as provider support,
+  model-family features, or internal infrastructure rather than silently
+  omitted or duplicated.
+- **Research-package naming correction (2026-10-02):** Moved the retained
+  package to
+  `landing_page/research/current-product-and-compatibility-baseline/` and the
+  disposable artifact directory to the matching product-named path. Updated
+  repository references to use that path. Outside task content, task
+  references now use descriptive links backed by complete task paths rather
+  than standalone task numbers.

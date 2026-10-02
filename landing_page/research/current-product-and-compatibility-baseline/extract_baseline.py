@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract stable task-020 catalog rows from the checked-in default config."""
+"""Extract stable compatibility catalog rows from the checked-in default config."""
 
 from __future__ import annotations
 

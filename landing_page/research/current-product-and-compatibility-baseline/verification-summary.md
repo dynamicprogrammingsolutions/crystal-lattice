@@ -40,15 +40,15 @@ Validation:
 
 ```text
 .venv/bin/python \
-  landing_page/research/020-current-product-and-compatibility-baseline/extract_baseline.py \
+  landing_page/research/current-product-and-compatibility-baseline/extract_baseline.py \
   --check
 
 .venv/bin/python \
-  landing_page/research/020-current-product-and-compatibility-baseline/generate_compatibility_matrices.py \
+  landing_page/research/current-product-and-compatibility-baseline/generate_compatibility_matrices.py \
   --check
 
 .venv/bin/python \
-  landing_page/research/020-current-product-and-compatibility-baseline/generate_website_compatibility_data.py \
+  landing_page/research/current-product-and-compatibility-baseline/generate_website_compatibility_data.py \
   --check
 ```
 
@@ -257,7 +257,8 @@ rows, and 24 claim records now carry `accepted`.
 Accepted by the user on October 2, 2026 as a draft input for downstream
 website work. The projection contains:
 
-- 9 application/session feature rows selected to avoid provider/tool overlap;
+- 24 complete per-plugin application/session feature rows selected to avoid
+  provider/tool overlap, with plugin IDs and repository paths retained;
 - 9 provider rows with 6 user-relevant native-capability columns;
 - 71 package-specific current or planned tool rows across 6 model-family
   bundles.
@@ -273,8 +274,27 @@ Files:
 
 The generator validates current tools against package descriptors, planned
 tools against maintained task files, simple provider cells against the
-exhaustive provider matrix, and feature rows against catalog plugins or
-accepted claims. Internal task paths and numeric task identifiers are excluded
-from public output. The downstream website task may refine selection, wording,
-grouping, and presentation while preserving the accepted compatibility
-boundaries and source traceability.
+exhaustive provider matrix, and every application-feature row against a
+per-plugin feature row or explicit overlap classification. Internal task paths
+and numeric task identifiers are excluded from public output. The downstream
+website task may refine selection, wording, grouping, and presentation while
+preserving the complete retained data, accepted compatibility boundaries, and
+source traceability.
+
+## Post-completion corrections
+
+- On October 2, 2026, the retained package moved to
+  `landing_page/research/current-product-and-compatibility-baseline/`. The
+  product-named path is durable and does not encode the task file's local
+  sequence number.
+- The canonical feature projection now contains 24 complete per-plugin rows
+  rather than nine grouped capability summaries. Each row retains the plugin
+  ID, actual repository path, accepted status, package description, and
+  limitations. The other nine application-feature records are explicitly
+  represented by the provider matrix, model-family matrix, or internal
+  infrastructure classification.
+- The extractor and exhaustive matrices remain pinned to product source
+  revision `add5f5e71de3bb1676851bb840dfd77620f63ddb`. A refresh check on the
+  later `develop` revision reports expected source drift, including newer
+  Anthropic descriptor entries. That drift is a trigger for a future
+  re-audit, not permission to rewrite the accepted historical snapshot.

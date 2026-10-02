@@ -70,13 +70,13 @@
     "total_api_equivalent_estimated_cost_usd": 0.5102764,
     "actual_billing": "unknown; ChatGPT subscription runs are not billed at the API-equivalent estimate",
     "transcript_location": "existing_user_session_store",
-    "disposable_runner_and_final_answers": "landing_page/artifacts/research/020-current-product-and-compatibility-baseline/",
+    "disposable_runner_and_final_answers": "landing_page/artifacts/research/current-product-and-compatibility-baseline/",
     "catalog_claims_accepted": false
   },
   "gpt56_calibration": {
     "completed_at_utc": "2026-09-29T18:15:09Z",
-    "private_config": "~/.crystal/config-020-audit-calibration.json",
-    "system_prompt_strategy": "ordinary Codex model instructions plus appended task-020 evidence-auditor guidance",
+    "private_config": "private compatibility-audit calibration config (not retained)",
+    "system_prompt_strategy": "ordinary Codex model instructions plus appended compatibility evidence-auditor guidance",
     "assignment": "cross-layer Codex/OpenAI configured-agent compatibility slice",
     "cost_ceiling_usd": 30.0,
     "total_api_equivalent_estimated_cost_usd": 14.49803498,
@@ -103,14 +103,14 @@
       "gpt-5.6-luna xhigh"
     ],
     "complete_packets": [
-      "task020-audit-gpt56-terra-high",
-      "task020-audit-gpt56-luna-high",
-      "task020-audit-gpt56-terra-xhigh"
+      "compatibility-audit-gpt56-terra-high",
+      "compatibility-audit-gpt56-luna-high",
+      "compatibility-audit-gpt56-terra-xhigh"
     ],
     "partial_or_missing_packets": [
-      "task020-audit-gpt56-sol-high",
-      "task020-audit-gpt56-sol-xhigh",
-      "task020-audit-gpt56-luna-xhigh"
+      "compatibility-audit-gpt56-sol-high",
+      "compatibility-audit-gpt56-sol-xhigh",
+      "compatibility-audit-gpt56-luna-xhigh"
     ],
     "catalog_claims_accepted": false
   },
@@ -150,7 +150,7 @@
       "sessions": [
         {
           "batch": "claude_anthropic",
-          "agent_id": "task020-wave1-claude-terra-high",
+          "run_label": "compatibility-wave1-claude-terra-high",
           "session_id": "15b5b52a-60b5-4732-9190-9cdea6be7fdb",
           "elapsed_seconds": 638.35,
           "tool_starts": 41,
@@ -160,7 +160,7 @@
         },
         {
           "batch": "model_family_profiles",
-          "agent_id": "task020-wave1-model-families-terra-high",
+          "run_label": "compatibility-wave1-model-families-terra-high",
           "session_id": "b5eb8d84-184c-4bfe-9489-dbbde3778c98",
           "elapsed_seconds": 755.9,
           "tool_starts": 44,
@@ -170,7 +170,7 @@
         },
         {
           "batch": "reference_compatible_routes",
-          "agent_id": "task020-wave1-reference-routes-terra-high",
+          "run_label": "compatibility-wave1-reference-routes-terra-high",
           "session_id": "e44698f6-377f-4e72-93f3-b5e3726543a9",
           "elapsed_seconds": 432.26,
           "tool_starts": 32,
@@ -201,7 +201,7 @@
       "sessions": [
         {
           "batch": "specialists_and_distribution",
-          "agent_id": "task020-wave2-specialists-terra-high",
+          "run_label": "compatibility-wave2-specialists-terra-high",
           "session_id": "54f5f21b-1141-49f3-baa5-4cceae47c6a0",
           "elapsed_seconds": 719.12,
           "tool_starts": 58,
@@ -211,7 +211,7 @@
         },
         {
           "batch": "history_compaction_export_background",
-          "agent_id": "task020-wave2-history-luna-high",
+          "run_label": "compatibility-wave2-history-luna-high",
           "session_id": "6ee3e665-2e60-4c9d-8f67-79e288f13b67",
           "elapsed_seconds": 795.27,
           "tool_starts": 76,
@@ -221,7 +221,7 @@
         },
         {
           "batch": "session_list_organization",
-          "agent_id": "task020-wave2-session-list-luna-high",
+          "run_label": "compatibility-wave2-session-list-luna-high",
           "session_id": "de853df1-06c4-4909-9ed0-bb6565f56a47",
           "elapsed_seconds": 805.28,
           "tool_starts": 62,
@@ -254,7 +254,7 @@
       "sessions": [
         {
           "batch": "configuration_auth_mcp_context_transparency",
-          "agent_id": "task020-wave3-transparency-terra-high",
+          "run_label": "compatibility-wave3-transparency-terra-high",
           "session_id": "1474d08d-e9f4-4e86-84f2-d9da74ae64ec",
           "elapsed_seconds": 686.12,
           "tool_starts": 58,
@@ -264,7 +264,7 @@
         },
         {
           "batch": "production_client_matrix",
-          "agent_id": "task020-wave3-clients-luna-high",
+          "run_label": "compatibility-wave3-clients-luna-high",
           "session_id": "d0b442bd-8954-49c6-bade-e6d78bc36669",
           "elapsed_seconds": 1024.99,
           "tool_starts": 86,
@@ -296,7 +296,7 @@
     },
     "challenge": {
       "completed_at_utc": "2026-09-30T05:40:00Z",
-      "agent_id": "task020-challenge-terra-xhigh",
+      "run_label": "compatibility-challenge-terra-xhigh",
       "session_id": "f5224148-a8fa-4f0e-8c49-62f888b90897",
       "elapsed_seconds": 1219.76,
       "tool_starts": 79,
@@ -324,6 +324,7 @@
     }
   },
   "worktree_note": "The checkout has unrelated pending runtime-layout/test changes and approved website task-file edits. Product-default counts and the config fingerprint use the checked-in default config; personal runtime configuration is investigator tooling, not product evidence.",
+  "run_label_note": "Temporary configured-agent IDs are normalized to descriptive compatibility-audit run labels; persisted session IDs retain exact execution lineage.",
   "authoritative_outputs": [
     "feature-catalog.json",
     "feature-catalog.csv",
@@ -391,7 +392,7 @@
     "generator": "generate_website_compatibility_data.py",
     "json": "website-compatibility-data.json",
     "markdown": "website-compatibility-data.md",
-    "features": 9,
+    "features": 24,
     "provider_rows": 9,
     "provider_columns": 6,
     "model_families": 6,

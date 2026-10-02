@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
 import json
 import re
 from pathlib import Path
@@ -15,8 +16,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SOURCE = HERE / "website-compatibility-selection.json"
 FEATURE_CATALOG = HERE / "feature-catalog.json"
+APPLICATION_FEATURES = HERE / "application-feature-compatibility.csv"
 PROVIDER_MATRIX = HERE / "provider-support-matrix.json"
-CLAIM_EVIDENCE = HERE / "claim-evidence.jsonl"
 OUTPUT_JSON = HERE / "website-compatibility-data.json"
 OUTPUT_MARKDOWN = HERE / "website-compatibility-data.md"
 
@@ -39,6 +40,17 @@ SIMPLE_PROVIDER_STATUS_MAP = {
     "unknown": {"not_verified"},
 }
 
+APPLICATION_STATUS_MAP = {
+    "current": "available",
+    "partial": "conditional",
+    "optional": "optional",
+    "experimental": "conditional",
+    "planned": "planned",
+    "unsupported": "unavailable",
+    "not_applicable": "not_applicable",
+    "unknown": "not_verified",
+}
+
 INTERNAL_KEYS = {
     "source_plugins",
     "source_claim_ids",
@@ -52,12 +64,19 @@ def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _claim_ids() -> set[str]:
-    return {
-        json.loads(line)["claim_id"]
-        for line in CLAIM_EVIDENCE.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    }
+def _application_feature_rows() -> dict[str, dict[str, str]]:
+    with APPLICATION_FEATURES.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    result: dict[str, dict[str, str]] = {}
+    for row in rows:
+        source_path = str(row.get("source_path") or "")
+        plugin_id = (
+            source_path.removeprefix("plugins/")
+            if source_path.startswith("plugins/")
+            else str(row["row_id"]).removeprefix("feature:")
+        )
+        result[plugin_id] = row
+    return result
 
 
 def _descriptor_entries(package_id: str) -> set[str]:
@@ -81,24 +100,104 @@ def _validate_status(status: str, context: str) -> None:
 def _validate_features(
     source: Mapping[str, Any],
     *,
-    plugin_ids: set[str],
-    claim_ids: set[str],
+    feature_catalog: Mapping[str, Any],
+    application_rows: Mapping[str, Mapping[str, str]],
 ) -> None:
-    rows = source["feature_selection"]["rows"]
-    _unique([row["feature_id"] for row in rows], "feature selection")
-    for row in rows:
-        context = f"feature:{row['feature_id']}"
-        _validate_status(row["status"], context)
-        plugins = row.get("source_plugins") or []
-        claims = row.get("source_claim_ids") or []
-        if not plugins and not claims:
-            raise ValueError(f"{context}: missing source reference")
-        missing_plugins = set(plugins) - plugin_ids
-        if missing_plugins:
-            raise ValueError(f"{context}: unknown plugins {sorted(missing_plugins)}")
-        missing_claims = set(claims) - claim_ids
-        if missing_claims:
-            raise ValueError(f"{context}: unknown claims {sorted(missing_claims)}")
+    selection = source["feature_selection"]
+    selected = [str(value) for value in selection["plugin_ids"]]
+    _unique(selected, "feature plugin selection")
+    catalog_rows = {
+        str(row["plugin_id"]): row for row in feature_catalog["rows"]
+    }
+    excluded_groups = selection.get("excluded_overlaps") or {}
+    excluded = [
+        str(plugin_id)
+        for values in excluded_groups.values()
+        for plugin_id in values
+    ]
+    _unique(excluded, "feature overlap exclusions")
+    overlap = set(selected) & set(excluded)
+    if overlap:
+        raise ValueError(
+            f"feature selection appears in both selected and excluded sets: "
+            f"{sorted(overlap)}"
+        )
+    missing_catalog = set(selected) - set(catalog_rows)
+    if missing_catalog:
+        raise ValueError(
+            f"feature selection has unknown catalog plugins: "
+            f"{sorted(missing_catalog)}"
+        )
+    missing_application = set(selected) - set(application_rows)
+    if missing_application:
+        raise ValueError(
+            f"feature selection has unknown application rows: "
+            f"{sorted(missing_application)}"
+        )
+    classified = set(selected) | set(excluded)
+    if classified != set(application_rows):
+        raise ValueError(
+            "feature selection must classify every application-feature row; "
+            f"missing={sorted(set(application_rows) - classified)}, "
+            f"extra={sorted(classified - set(application_rows))}"
+        )
+    for plugin_id in selected:
+        catalog_row = catalog_rows[plugin_id]
+        expected_path = f"plugins/{plugin_id}"
+        if catalog_row.get("source_path") != expected_path:
+            raise ValueError(
+                f"feature:{plugin_id}: expected source path {expected_path!r}, "
+                f"got {catalog_row.get('source_path')!r}"
+            )
+        capability_state = str(
+            application_rows[plugin_id].get("capability_state") or "unknown"
+        )
+        status = APPLICATION_STATUS_MAP.get(capability_state)
+        if status is None:
+            raise ValueError(
+                f"feature:{plugin_id}: unknown capability state "
+                f"{capability_state!r}"
+            )
+        _validate_status(status, f"feature:{plugin_id}")
+
+
+def _public_features(
+    source: Mapping[str, Any],
+    feature_catalog: Mapping[str, Any],
+    application_rows: Mapping[str, Mapping[str, str]],
+) -> dict[str, Any]:
+    selection = source["feature_selection"]
+    catalog_rows = {
+        str(row["plugin_id"]): row for row in feature_catalog["rows"]
+    }
+    rows = []
+    for plugin_id in selection["plugin_ids"]:
+        catalog_row = catalog_rows[plugin_id]
+        application_row = application_rows[plugin_id]
+        capability_state = str(
+            application_row.get("capability_state") or "unknown"
+        )
+        rows.append(
+            {
+                "feature_id": plugin_id,
+                "plugin_id": plugin_id,
+                "plugin_path": catalog_row["source_path"],
+                "status": APPLICATION_STATUS_MAP[capability_state],
+                "capability_state": capability_state,
+                "lifecycle_status": catalog_row["lifecycle_status"],
+                "default_selected": bool(catalog_row["default_selected"]),
+                "description": catalog_row["description"],
+                "limitations": application_row.get("limitations") or "",
+            }
+        )
+    return {
+        "title": selection["title"],
+        "description": selection["description"],
+        "rows": rows,
+        "represented_elsewhere": copy.deepcopy(
+            selection.get("excluded_overlaps") or {}
+        ),
+    }
 
 
 def _provider_lookup(provider_matrix: Mapping[str, Any]) -> tuple[
@@ -213,7 +312,11 @@ def _strip_internal(value: Any) -> Any:
     return value
 
 
-def _public_payload(source: Mapping[str, Any]) -> dict[str, Any]:
+def _public_payload(
+    source: Mapping[str, Any],
+    feature_catalog: Mapping[str, Any],
+    application_rows: Mapping[str, Mapping[str, str]],
+) -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
         "review_state": source["review_state"],
@@ -224,7 +327,11 @@ def _public_payload(source: Mapping[str, Any]) -> dict[str, Any]:
             "Compatibility profiles and tool bundles are Crystal Lattice "
             "implementations, not official upstream applications or sessions."
         ),
-        "features": _strip_internal(source["feature_selection"]),
+        "features": _public_features(
+            source,
+            feature_catalog,
+            application_rows,
+        ),
         "providers": _strip_internal(source["provider_selection"]),
         "model_family_tools": _strip_internal(source["model_tool_selection"]),
     }
@@ -255,16 +362,27 @@ def _markdown(payload: Mapping[str, Any]) -> str:
         "",
         payload["features"]["description"],
         "",
-        "| Feature | Status | Description |",
-        "|---|---|---|",
+        "| Plugin | Path | Status | Description | Limitations |",
+        "|---|---|---|---|---|",
     ]
     for row in payload["features"]["rows"]:
         lines.append(
-            "| {} | {} | {} |".format(
-                _escape(row["name"]),
+            "| `{}` | `{}` | {} | {} | {} |".format(
+                _escape(row["plugin_id"]),
+                _escape(row["plugin_path"]),
                 _escape(_status_label(payload, row["status"])),
                 _escape(row["description"]),
+                _escape(row["limitations"]),
             )
+        )
+    lines.extend(["", "### Represented in the other matrices", ""])
+    for group, plugin_ids in payload["features"][
+        "represented_elsewhere"
+    ].items():
+        label = str(group).replace("_", " ").title()
+        lines.append(
+            f"- **{_escape(label)}:** "
+            + ", ".join(f"`{_escape(plugin_id)}`" for plugin_id in plugin_ids)
         )
 
     providers = payload["providers"]
@@ -328,12 +446,16 @@ def _markdown(payload: Mapping[str, Any]) -> str:
 def _outputs() -> dict[Path, str]:
     source = _load_json(SOURCE)
     feature_catalog = _load_json(FEATURE_CATALOG)
+    application_rows = _application_feature_rows()
     provider_matrix = _load_json(PROVIDER_MATRIX)
-    plugin_ids = {row["plugin_id"] for row in feature_catalog["rows"]}
-    _validate_features(source, plugin_ids=plugin_ids, claim_ids=_claim_ids())
+    _validate_features(
+        source,
+        feature_catalog=feature_catalog,
+        application_rows=application_rows,
+    )
     _validate_providers(source, provider_matrix)
     _validate_model_tools(source)
-    payload = _public_payload(source)
+    payload = _public_payload(source, feature_catalog, application_rows)
     return {
         OUTPUT_JSON: json.dumps(payload, indent=2) + "\n",
         OUTPUT_MARKDOWN: _markdown(payload),

@@ -45,7 +45,7 @@ views:
    subagent dimensions.
 
 The human-readable exhaustive review is
-[Product Compatibility Matrices](../../../../research/020-current-product-and-compatibility-baseline/compatibility-matrices.md).
+[Product Compatibility Matrices](../../../../research/current-product-and-compatibility-baseline/compatibility-matrices.md).
 Machine-readable JSON and long-form CSV are retained beside it.
 
 The supporting normalized evidence preserves 20 configured-agent rows,
@@ -57,16 +57,16 @@ user.
 
 A smaller website projection was accepted as a downstream draft:
 
-- 9 application/session feature rows that avoid provider and model-tool
-  duplication;
+- 24 complete per-plugin application/session feature rows that avoid provider
+  and model-tool duplication and retain each plugin's actual repository path;
 - 9 provider rows with 6 selected user-relevant columns;
 - 71 current or planned tool rows across Codex-, Claude-, Gemini-, Qwen-,
   Grok-, and Kimi-oriented bundles.
 
 The draft is retained as
-[Website Compatibility Data](../../../../research/020-current-product-and-compatibility-baseline/website-compatibility-data.md)
+[Website Compatibility Data](../../../../research/current-product-and-compatibility-baseline/website-compatibility-data.md)
 and
-[machine-readable JSON](../../../../research/020-current-product-and-compatibility-baseline/website-compatibility-data.json).
+[machine-readable JSON](../../../../research/current-product-and-compatibility-baseline/website-compatibility-data.json).
 
 The downstream website rewrite may refine selection, grouping, wording, and
 presentation. It must preserve the accepted identity, status, evidence, and

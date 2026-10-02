@@ -9,19 +9,40 @@ Downstream website work may refine selection, wording, grouping, and presentatio
 
 ## Product features
 
-Current application and session capabilities that are not repeated in the provider or model-family tool tables.
+Complete per-plugin application and session feature rows that are not repeated in the provider or model-family tool tables. Publication work may later shorten descriptions or hide review-only columns.
 
-| Feature | Status | Description |
-|---|---|---|
-| Session organization | Available | Search and filter sessions, edit titles, pin important work, archive sessions, assign workflow status, and keep useful ordering. |
-| Session actions | Available | Copy, fork, and delete sessions through application-owned actions. |
-| Generated titles | Conditional | Generate a session title and description with a configured model. |
-| Range summaries | Conditional | Summarize a selected range of conversation history without replacing provider-native compaction. |
-| Snapshots and recovery | Available | Create and restore recovery points around destructive history changes and compaction workflows. |
-| File and URL context | Conditional | Insert local file content or fetched web-page context through composer markers. |
-| Configuration and prompt control | Available | Inspect and adjust provider options, system messages, session settings, and plugin-contributed controls. |
-| Usage, cost, and timing | Conditional | Show provider usage, locally estimated or provider-reported cost, timestamps, and optional duration information when available. |
-| Message and session export | Optional | Export selected content as Markdown, PDF, or EPUB/Kindle-compatible files. |
+| Plugin | Path | Status | Description | Limitations |
+|---|---|---|---|---|
+| `application-config-app` | `plugins/application-config-app` | Available | Provides application-level actions to request a complete application reload and to update explicitly allowlisted provider keys in a configured dotenv file. | Process environment is externally managed; secret input does not prove exhaustive log/cache/history redaction. |
+| `cloud-agent-app` | `plugins/cloud-agent-app` | Conditional | Cloud agent application plugin and managed SSH transfer adapter. | No Docker, orchestrator, SSH, transfer, cloud link, deployment, or produced runtime executed. |
+| `cost-tracking` | `plugins/cost-tracking` | Available | Generic, provider-agnostic cost tracking plugin for the Crystal Lattice platform. | Provider-reported or locally estimated values are not invoices; availability differs by route. |
+| `duration-tracking` | `plugins/duration-tracking` | Optional | Generic, provider-agnostic duration tracking plugin for the Crystal Lattice platform. | Not selected in checked-in default; distinct from selected timestamp message-duration metadata. |
+| `feature-file-context` | `plugins/feature-file-context` | Available | Feature plugin providing `@file:` marker expansion and file completions. | No dedicated mobile/desktop completion UI established; inserted content has ordinary prompt/history privacy risk. |
+| `feature-request-options` | `plugins/feature-request-options` | Conditional | Feature plugin that merges `request_options` from config into the provider payload, with support for declarative UI configuration using flat override keys. | Schema exposure does not prove upstream provider accepts every option or model is available. |
+| `feature-system-message` | `plugins/feature-system-message` | Available | Feature plugin providing configurable system-message templating for request-time prompt composition. | Interactive terminal and standalone CLI/Python have no generic session-action executor; terminal request composition/history rendering still applies. Compiled text can contain sensitive project context. |
+| `feature-web-context` | `plugins/feature-web-context` | Conditional | Feature plugin providing `@web:` marker expansion and URL completions. | No remote fetch was run; URL safety, reachability, and extraction success are unverified. |
+| `generate-title-app` | `plugins/generate-title-app` | Conditional | Application-level plugin for generating session titles (and descriptions). | Default model override availability/entitlement unknown; generation can race with message changes. |
+| `message-export-actions` | `plugins/message-export-actions` | Optional | Optional application actions for exporting messages or sessions as Markdown, PDF, EPUB/Kindle-compatible files, and generated session assets. | Not selected by default; no generic terminal action execution; conversion/browser/pandoc/SMTP/Keychain/native-share workflows not completed. |
+| `rebuild-native-app` | `plugins/rebuild-native-app` | Available | Application-level plugin to rebuild provider-native history from core messages. | No automatic snapshot policy in this action; provider-native representation remains provider-specific. |
+| `session-actions-app` | `plugins/session-actions-app` | Available | Application-level plugin providing copy/fork/delete session actions. | No generic terminal action runner established; unknown-agent deletion and concurrency edges need resolution. |
+| `session-archive-app` | `plugins/session-archive-app` | Available | Application-level plugin that archives and restores sessions. | Default filter changes visible membership; generic client support is not native UI verification. |
+| `session-asset-attachments` | `plugins/session-asset-attachments` | Conditional | Generic application-level actions for downloading session-owned attachment assets. | Generic storage/download does not mean every provider accepts attachments; terminal/headless workflow not established. |
+| `session-main-search-app` | `plugins/session-main-search-app` | Available | Application plugin that contributes the ordinary declarative main search and focused text filters for session lists. | Does not search all messages or assistant/tool content; client fallback omits first_user_message; no server full-text endpoint. |
+| `session-message-count-meta-app` | `plugins/session-message-count-meta-app` | Available | Application-level plugin that computes message-count fields for sessions. | Derived count, not separately persisted; generic client metadata rendering is source/test bounded. |
+| `session-ordering-buckets-app` | `plugins/session-ordering-buckets-app` | Available | Application-level plugin defining bucketed ordering for session lists. | Ordering is time-sensitive and plugin-derived; no arbitrary user sort control established. |
+| `session-pinned-app` | `plugins/session-pinned-app` | Available | Application-level plugin that toggles and filters pinned state on sessions. | No generic terminal action execution; native UI suites not run. |
+| `session-status-app` | `plugins/session-status-app` | Available | Application-level plugin for assigning and filtering session workflow status. | Application adds public order metadata that one plugin test does not expect; workflow status is distinct from request execution status. |
+| `session-timestamp-meta-app` | `plugins/session-timestamp-meta-app` | Available | Application-level plugin that computes timestamp-derived fields for sessions and contributes the `modified_after` timezone-aware session-list filter. | Derived projection; fallback/time-bound behavior can change without metadata mutation. |
+| `session-title-app` | `plugins/session-title-app` | Available | Application-level plugin providing actions and UI schema for editing session titles. | Event-store test drift is not title behavior proof; generic terminal action execution unknown. |
+| `sleep-prevention-app` | `plugins/sleep-prevention-app` | Optional | Application plugin that exposes a live server setting for keeping the local server process awake. | Not selected by default; no real OS hold or native client workflow run. |
+| `summarize-range-app` | `plugins/summarize-range-app` | Conditional | Application-level plugin providing summarize-range session actions. | No hosted summarization result; action does not itself establish a recovery snapshot. |
+| `timestamp-extension` | `plugins/timestamp-extension` | Available | Timing-related feature plugins. | Distinct from optional duration-tracking reports and human-time telemetry. |
+
+### Represented in the other matrices
+
+- **Provider Support:** `anthropic-compatible`, `chatgpt-auth-app`, `openai_responses`, `openrouter`, `reference-openai-compatible-provider`
+- **Model Family Features:** `gemini-compaction-app`, `gemini-compaction-feature`, `mcp-runtime-app`
+- **Internal Infrastructure:** `plugins-tool-gating-feature-toolgatingfeature`
 
 ## Provider support
 

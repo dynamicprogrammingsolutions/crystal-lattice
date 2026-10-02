@@ -34,14 +34,14 @@ It does not duplicate their findings.
 - `landing_page/docs/development/research/findings/current-product-and-compatibility-baseline.md`
   — accepted product, provider, configured-profile, feature, tool, client,
   limitation, and website-draft conclusions.
-- `landing_page/research/020-current-product-and-compatibility-baseline/compatibility-matrices.md`
+- `landing_page/research/current-product-and-compatibility-baseline/compatibility-matrices.md`
   — exhaustive human-readable plugin, provider, and model-family matrices.
-- `landing_page/research/020-current-product-and-compatibility-baseline/website-compatibility-data.json`
+- `landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.json`
   — accepted machine-readable draft projection for downstream website work.
-- `landing_page/research/020-current-product-and-compatibility-baseline/claim-evidence.jsonl`
+- `landing_page/research/current-product-and-compatibility-baseline/claim-evidence.jsonl`
   — accepted stable claim records with source, verification, limitation, and
   confidence fields.
-- `landing_page/research/020-current-product-and-compatibility-baseline/input-manifest.json`
+- `landing_page/research/current-product-and-compatibility-baseline/input-manifest.json`
   and `completion-manifest.json` — source revision, transformation, review,
   output, verification, and completion lineage.
 
