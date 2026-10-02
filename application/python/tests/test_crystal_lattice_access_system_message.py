@@ -165,7 +165,7 @@ def test_runtime_access_values_render_a_shell_command(
     values = _access_env(config_path, session_root)
 
     argv = json.loads(values["CRYSTAL_LATTICE_CLI_ARGV_JSON"])
-    assert argv[0] == str(Path(sys.executable).resolve())
+    assert argv[0] == str(Path(sys.executable).absolute())
     assert argv[-4:] == [
         "--config",
         str(config_path.resolve()),
@@ -366,6 +366,10 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
     finally:
         full_app.close()
 
+    # A CLI-only runtime can be launched from a shell owned by another
+    # Crystal Lattice process; isolate the simulated runtime's capabilities.
+    monkeypatch.delenv("CRYSTAL_LATTICE_PYTHON", raising=False)
+    monkeypatch.delenv("CRYSTAL_LATTICE_PYTHON_API_MODULE", raising=False)
     cli_sessions = tmp_path / "cli-sessions"
     cli_config, cli_env = _write_echo_config(
         tmp_path / "cli-config.json",

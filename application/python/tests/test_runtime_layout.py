@@ -33,7 +33,7 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
     )
     cli_argv = json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])
     assert cli_argv == [
-        str(Path(sys.executable).resolve()),
+        str(Path(sys.executable).absolute()),
         "-m",
         "agent_terminal_app",
         "--config",
@@ -41,11 +41,11 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
         "--sessions-dir",
         str((repo_root / ".crystal" / "sessions").resolve()),
     ]
-    assert access["CRYSTAL_LATTICE_PYTHON"] == str(Path(sys.executable).resolve())
+    assert access["CRYSTAL_LATTICE_PYTHON"] == str(Path(sys.executable).absolute())
     assert access["CRYSTAL_LATTICE_PYTHON_API_MODULE"] == "agent_terminal_app"
     assert access["CRYSTAL_LATTICE_CLI_COMMAND"] == " ".join(
         [
-            str(Path(sys.executable).resolve()),
+            str(Path(sys.executable).absolute()),
             "-m",
             "agent_terminal_app",
             "--config",
@@ -56,6 +56,26 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
     )
     assert access["CRYSTAL_LATTICE_DOCS"] == str(layout.application_docs)
     assert access["CRYSTAL_LATTICE_SYSTEM_MESSAGES"] == str(layout.root_system_messages)
+
+
+def test_source_runtime_layout_preserves_venv_python_symlink(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.symlink_to(Path(sys.executable).resolve())
+    monkeypatch.setattr(sys, "executable", str(venv_python))
+
+    access = load_runtime_layout().application_env_overrides(
+        config_path=tmp_path / "config.json",
+        session_root=tmp_path / "sessions",
+    )
+
+    assert access["CRYSTAL_LATTICE_PYTHON"] == str(venv_python)
+    assert json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])[0] == str(
+        venv_python
+    )
 
 
 def test_runtime_layout_resolves_user_paths_from_current_working_directory(

@@ -1449,3 +1449,349 @@ evidence, and remove the temporary Detox test before completion.
   delegation with persisted sessions and compact history. Persistent parent-
   child orchestration, detached lifetime, recovery semantics, and HTTP/TS
   compact-history expansion remain outside this follow-up.
+
+### Further gaps recorded for separate delegation (2026-09-29)
+
+These findings do not reopen the completed requirements or authorize changes
+to the delivered APIs. Define and approve the resulting behavior separately
+before implementing it.
+
+- **Current agent context:** The access guidance shows how to list and select
+  agents but does not identify the current session's effective agent ID, model,
+  or reasoning effort. Show those values from the active session/request and
+  tell the agent to use the current agent and model for a delegated run by
+  default, unless the user requests another. Preserve the effective values
+  after session overrides and plugin/model variants. In the session prompting
+  this finding, the user identified `codex-openai`, `gpt-6-sol`, and `high`;
+  these are session facts, not repository-wide defaults.
+- **Instructions for child runs:** The default `feature-system-message`
+  plugin already provides a non-mutating **Show compiled system message**
+  session action in terminal, mobile, and desktop. Make that effective
+  system/developer message available naturally to a headless CLI/Python
+  caller before delegation, and provide a clear way to append to or modify
+  child-run instructions without editing the parent or losing the provider-
+  and plugin-assembled base message. Expose the effective child result and
+  make changes explicit for each run. During the task-020 trials, an
+  `include_crystal_lattice_access: false` request override did not remove
+  access guidance from the initially logged compiled message; verify
+  configuration timing and the actual provider prompt before assuming a
+  child-only request override changes the compiled message.
+- **Child model controls:** Let a delegated run select or inherit the model
+  and reasoning effort through the owning provider/plugin configuration.
+  Make the effective child values inspectable, with no implicit parent
+  mutation. The exact option and validation contracts are left for the
+  separate work.
+- **Delegation examples:** The access section currently shows `--prompt` and
+  prints SDK `output_text` directly. Add a file/stdin example for multiline
+  instructions, and show how a caller checks CLI exit/JSON status or SDK
+  `status`/`error` before trusting a child's answer. The local two-marker
+  smoke used direct CLI and SDK calls, so it did not test an outer model
+  choosing to invoke these instructions. The earlier completed native
+  model-mediated acceptance remains separate evidence.
+- **Cross-session search ergonomics:** `crystal-lattice sessions` followed by
+  ten `crystal-lattice messages` invocations initialized the runtime eleven
+  times to search assistant text in ten recent sessions. The same local
+  search used one SDK runtime and the existing server API successfully.
+  Add a bounded, one-runtime CLI search over recent sessions and assistant
+  content with session ID, canonical message index, and concise matches;
+  keep role/field selection and full-message retrieval available. A local
+  timing sample measured 6.75 seconds to open the configured runtime, 0.22
+  seconds to list ten sessions, 0.54 seconds to query their assistant messages,
+  and 0.79 seconds for equivalent queries through the already-running local
+  HTTP server. These timings are observations, not performance targets.
+- **Projection cost:** Current canonical-message projection materializes
+  complete session messages before selecting requested fields. A caller can
+  avoid receiving long tool output but still pays that in-process loading
+  cost. Investigate bounded storage/query work for long histories separately
+  from the CLI convenience change; do not equate a smaller response with a
+  cheaper storage read.
+
+### Approved further-development outline (2026-10-02)
+
+The user approved this outline for addition to the post-completion follow-up.
+It does not reopen the completed requirements, authorize implementation, or
+move persistent parent-child subagent behavior into this task. Define and
+approve concrete implementation requirements and plans before executing any
+item below.
+
+The outline was derived from direct use of the delivered headless APIs during
+the accepted current-product and compatibility audit. That work used bounded
+CLI and Python runs, shared-runtime parallel investigation, model/effort
+calibration, phased evidence packets, cost/time guards, cross-session queries,
+and direct read-only inspection of immutable session snapshots.
+
+#### Priority 1: direct delegation ergonomics
+
+- **Effective run context:** Expose the current effective agent ID, provider
+  route, model, reasoning settings, and authentication mode where safe.
+  Delegated runs inherit the current agent/model/reasoning configuration
+  unless explicitly overridden. Preserve values after session overrides,
+  provider composition, model variants, and plugin-owned normalization.
+- **Instruction inspection:** Provide CLI and Python APIs for reading the
+  effective compiled system/developer instructions without sending a model
+  request.
+- **Child instruction composition:** Support explicit child-only instruction
+  modes such as `append`, replacement of a task-specific section, and, where
+  separately authorized, full replacement. Preserve the provider/plugin-
+  assembled base by default, avoid mutating the parent session, and report the
+  effective child instructions or a bounded identity/digest in the result.
+- **Model/plugin settings:** Let callers inspect and override model, reasoning
+  effort, and other provider/plugin settings through the same schema used by
+  session settings. Do not hardcode provider-specific option vocabularies in
+  the generic runtime or CLI. Report the effective child values.
+- **Result telemetry:** Add optional effective model/provider/reasoning,
+  start/end time, duration, tool-call counts, usage, and cost provenance to
+  Python and JSON run results. Provider-reported, locally estimated, and
+  unavailable values remain distinct.
+- **Config overlay:** Allow a temporary, non-mutating config overlay for one
+  runtime or run, including agent overrides, model/reasoning values,
+  instruction append, tool policy, cache location, and output metadata. Make
+  the overlay inspectable and never mutate the source config or parent
+  session.
+
+The audit required copied configs to reproduce one agent/model/effort
+combination. That process exposed plugin-path drift, mixin ordering and
+replacement behavior, stale worktree contents, cache/session/workspace
+ambiguity, and confusion between product defaults and investigator tooling.
+
+#### Priority 2: bounded orchestration
+
+- **Batch runner:** Add a reusable one-runtime API for a bounded collection of
+  independent assignments, with maximum concurrency, per-run timeout,
+  distinct sessions, progress, cancellation, and aggregated results.
+- **Batch budget:** Allow optional stop conditions based on elapsed time,
+  completed/failed runs, and provider-reported or estimated cost. Preserve
+  cost provenance and never imply that an estimate is billing truth.
+- **Run metadata:** Allow callers to attach a batch ID, assignment ID,
+  purpose, source revision, output directory, and bounded tags to each
+  delegated session.
+- **Early checkpoint:** Support a progress/checkpoint callback suitable for
+  requirements such as “a claim map must exist within eight minutes.”
+- **Durable status:** Distinguish running, timed out, cancelled,
+  completed-with-required-output, completed-without-required-output,
+  partial-artifact, and failed-before-request states.
+- **Cross-session search:** Add the already-recorded bounded, one-runtime CLI
+  search over recent sessions and selected roles/fields. Return session ID,
+  canonical message index, and concise matches while retaining role/field
+  selection and explicit full-message retrieval.
+
+The compatibility audit wrote custom `ThreadPoolExecutor` runners for
+calibration and the broader investigation. Reusing one runtime worked well;
+repeated CLI startup did not. Several runs timed out after substantial work,
+and partial evidence files were useful even when no successful final response
+was produced.
+
+This batch runner remains distinct from persistent model-facing subagents.
+Persistent parent-child relationships, mid-run input, restart recovery,
+detached lifetime, and child-session ownership remain with the dedicated
+subagent work.
+
+#### Priority 3: evidence and safety controls
+
+- **Tool/mutation policy:** Let a run apply an explicit tool allowlist,
+  denylist, or named policy such as read-only investigation. Prompt-only
+  mutation guidance is useful but is not enforcement.
+- **Verification policy:** Let an assignment state whether focused local
+  tests, dependency installation, network calls, hosted providers, Docker,
+  native devices, external search, and writes outside an assigned output
+  directory are allowed.
+- **Snapshot reads:** Add read-only snapshot enumeration and projected
+  history/message retrieval by `snapshot_id` to the local Python and CLI APIs,
+  without selecting or restoring the snapshot. Reading a snapshot must not
+  affect active-session write eligibility or selected-snapshot state.
+- **Storage-level projections:** Continue the already-recorded investigation
+  into avoiding complete message/tool-result materialization before
+  projection. A smaller response is not necessarily a cheaper storage read.
+- **Environment diagnosis:** Add a concise redacted runtime/config diagnostic
+  showing interpreter, config, config directory, session root, workspace,
+  cache root, plugin-path failures, documentation path, and access-guidance
+  mode.
+
+The verification process encountered a base-Python path instead of the venv,
+missing plugins after branch drift, inherited `CONFIG_DIR`, separate cache and
+session roots, template replacement through later mixins, and a bridge TLS
+certificate-bundle requirement. Diagnostics must not expose credentials,
+provider auth state, private session content, or cache contents.
+
+#### Advanced delegated-investigation documentation
+
+Add one advanced **Delegated investigations** recipe to the headless-run guide
+rather than expanding the basic first-run example.
+
+The recipe should cover:
+
+1. **Keep one runtime open**
+   - Open one `open_runtime()` context.
+   - Use distinct sessions for independent work.
+   - Limit concurrency.
+   - Never write to one session concurrently from multiple processes.
+2. **Record the effective context**
+   - Agent ID.
+   - Provider route.
+   - Model.
+   - Reasoning settings.
+   - Compiled instruction identity or digest.
+   - Source config and session root.
+   - Working directory and source revision.
+3. **Write a bounded assignment**
+   - Purpose and intended reader.
+   - Exact scope and decision questions.
+   - Named sources or packages.
+   - Non-goals.
+   - Mutation, network, credential, and test permissions.
+   - Timeout and stop conditions.
+   - Required deliverables.
+   - Unknowns that must remain unknown rather than inferred.
+4. **Use incremental evidence**
+   - Write an early claim map or work plan.
+   - Record verification commands as they finish.
+   - Start machine-readable claims before final synthesis when required.
+   - Do not make all useful output depend on the final assistant response.
+5. **Handle results safely**
+   - Check `status` and `error` before consuming `output_text`.
+   - Record partial artifacts after timeout or cancellation.
+   - Treat delegated findings as proposals.
+   - Independently verify decision-bearing claims.
+6. **Describe verification honestly**
+   - Test presence is not a test run.
+   - A skipped gate is not a pass.
+   - A timeout is not a pass.
+   - Mocked component coverage is not HTTP or native-client integration.
+   - Provider entitlement and hosted behavior remain unknown without a dated
+     real-provider check.
+7. **Use projected history**
+   - Read assistant/user fields without long tool results.
+   - Retrieve a full message only when needed.
+   - Use a single runtime for broad searches.
+   - Explain that response projection is not necessarily storage-read
+     optimization.
+8. **Troubleshoot configuration portability**
+   - Existing configs are not automatically rewritten.
+   - Config-directory-relative prompt files and mixins must remain
+     resolvable.
+   - Later mixins or variants may replace an entire nested template.
+   - A config copied into an older worktree may reference plugins that do not
+     exist there.
+   - Confirm that the advertised interpreter imports the same installed
+     runtime.
+
+The basic documentation already covers multiline prompt files/stdin, JSON
+`status` and `error`, compact history, parallel futures, timeout behavior, and
+process-local concurrency. Connect those delivered primitives to the advanced
+recipe rather than redefining them.
+
+#### Provider-agnostic developer-message outline
+
+The existing access section continues to describe commands and runtime
+locations. A separate optional delegation section governs behavior.
+
+Proposed provider/model-agnostic structure:
+
+```text
+# Delegated Crystal Lattice work
+
+Current effective context:
+- Agent: {{CURRENT_AGENT_ID}}
+- Provider: {{CURRENT_PROVIDER_ID}}
+- Model: {{CURRENT_MODEL}}
+- Reasoning settings: {{CURRENT_REASONING_SETTINGS}}
+
+Use the current effective agent, model, and reasoning settings by default.
+Change them only when the user or assignment explicitly requests a different
+tradeoff. Report the effective child settings in the result.
+
+When delegating:
+- Create a distinct persisted session for each independent assignment.
+- Reuse one runtime for several runs when possible.
+- Do not issue concurrent requests to the same session.
+- Do not treat ordinary delegated sessions as persistent parent-linked
+  subagents.
+- Check run status and bounded error information before trusting output text.
+- Treat a delegated answer as proposed evidence, not automatically as fact.
+- Independently verify consequential conclusions.
+
+For a nontrivial investigation, give the child:
+- the objective and intended reader;
+- exact scope, questions, and source revision;
+- mutation, network, credential, and test permissions;
+- required evidence and output format;
+- timeout, checkpoint, and stop conditions;
+- explicit unknowns and non-goals.
+
+Prefer incremental output for long work. Require an early claim map or plan,
+record verification as it occurs, and leave a concise final result identifying
+completed, partial, blocked, and unverified work.
+```
+
+Do not require audit-specific files such as `claims.jsonl` for every delegated
+task. Add those only through a task-role block when the work is an audit or
+another workflow with a defined evidence packet.
+
+#### Task-specific instruction template
+
+For investigations like the completed compatibility audit, append a separate
+role block containing:
+
+- audit purpose and downstream use;
+- pinned source revision;
+- assigned rows, packages, or decision questions;
+- the distinction between product defaults and investigator config;
+- exact evidence standard;
+- allowed tests and prohibited operations;
+- assigned output directory;
+- early checkpoint deadline;
+- required packet files;
+- final readiness status such as `review_ready`, `partial`, or `blocked`.
+
+The successful calibration showed that this system-level role block mattered
+substantially more than making the user prompt longer by itself. The access
+section should teach mechanics; the task-role section should own evidence,
+mutation, verification, and deliverable policy.
+
+#### Optional provider-specific guidance
+
+Do not place model names such as Luna, Terra, or Sol in the generic developer
+message. Model behavior, availability, and pricing can change.
+
+A provider-specific optional operational section may instead say:
+
+- use the configured/default variant for ordinary delegation;
+- use a faster or lower-cost variant for deterministic broad sweeps;
+- increase reasoning only for narrow contradiction resolution or difficult
+  synthesis;
+- calibrate with one representative assignment before launching a large
+  batch;
+- enforce time and cost limits;
+- do not assume that more tool calls or longer reasoning produces a better
+  result.
+
+The observed GPT-5.6 compatibility-audit calibration—Terra/high as the best
+default, Luna/high as broad and inexpensive but slower, and xhigh as a
+targeted challenge mode—is workload-specific calibration evidence, not a
+permanent provider contract.
+
+#### Recommended follow-up decomposition
+
+When this outline is converted into executable follow-up work, group it as:
+
+1. **Direct context and run controls**
+   - effective context;
+   - instruction inspection and composition;
+   - plugin-driven model/reasoning overrides;
+   - result telemetry;
+   - config overlays and diagnostics.
+2. **Batch investigation workflow**
+   - one-runtime orchestration;
+   - budgets, timeouts, and checkpoints;
+   - output/run metadata;
+   - cross-session search;
+   - safe snapshot projection.
+3. **Guidance and documentation**
+   - provider-agnostic delegation section;
+   - advanced investigation recipe;
+   - verification and evidence standards;
+   - optional provider-specific calibration guidance.
+
+Persistent child relationships and restart recovery remain owned by the
+separate persistent-subagent work. Storage-level projection optimization may
+remain a separate performance workstream.

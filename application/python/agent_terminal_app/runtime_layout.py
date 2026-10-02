@@ -125,7 +125,9 @@ class RuntimeLayout:
             python_executable = None
             cli_argv = [str(Path(sys.executable).resolve())]
         else:
-            python_executable = self.python_executable or Path(sys.executable).resolve()
+            # Resolving sys.executable follows a venv's python symlink into the
+            # base installation, where this application's SDK may not exist.
+            python_executable = self.python_executable or Path(sys.executable).absolute()
             cli_argv = [
                 str(python_executable),
                 "-m",
