@@ -20,6 +20,9 @@ from agent_app.events import InMemoryEventStore
 from agent_core import AgentCore, Session
 
 
+ROOT = Path(__file__).resolve().parents[3]
+
+
 def _make_config(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
@@ -38,7 +41,7 @@ def _make_config(tmp_path: Path) -> Path:
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "plugins.file_reader_tool.FileReaderTool",
-            "timestamp_extension.duration_extension.DurationExtension",
+            f"path:{ROOT / 'plugins' / 'timestamp-extension'}",
         ],
     }
     config_path = tmp_path / "config.json"

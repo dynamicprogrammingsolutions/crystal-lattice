@@ -164,7 +164,11 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
     assert "# Context management" in compiled
     assert "Primary working directory:" in compiled
     assert "When a file-oriented tool requires an absolute path" in compiled
-    assert "Task files are a handoff mechanism" in compiled
+    assert (
+        "Task files are standalone handoffs for agents without the current "
+        "conversation."
+        in compiled
+    )
     assert "# Contextual Instructions (AGENTS.md)" in compiled
     assert "Workspace agent instructions." in compiled
 
