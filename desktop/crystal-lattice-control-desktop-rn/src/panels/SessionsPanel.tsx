@@ -769,11 +769,14 @@ function SessionsPanelInner({
 
     setOpeningAgentPicker(true);
     try {
-      const agents = await agentsController.ensureLoaded();
+      const agentDescriptors =
+        await agentsController.ensureDescriptorsLoaded();
+      const agents = agentDescriptors.map(descriptor => descriptor.id);
       DesktopWindowManager?.openAgentPicker({
         connectionId,
         connectionName: focusedConnectionName ?? connectionId,
         agents,
+        agentDescriptors,
       });
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to load agents');

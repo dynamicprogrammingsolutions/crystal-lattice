@@ -90,7 +90,7 @@ mobile-download step.
 ## Subtasks
 
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
-- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
+- [x] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
 

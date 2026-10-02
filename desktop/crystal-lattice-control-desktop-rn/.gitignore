@@ -73,6 +73,7 @@ fastlane/*.p8
 
 # testing
 /coverage
+/artifacts/
 
 # Yarn
 .yarn/*

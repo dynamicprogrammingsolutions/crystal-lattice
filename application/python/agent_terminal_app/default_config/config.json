@@ -840,6 +840,11 @@
   },
   "agents": {
     "cloud-script-author": {
+      "display": {
+        "title": "Cloud Script Author",
+        "description": "Codex-oriented agent for authoring and validating cloud scripts.",
+        "order": 5
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
@@ -850,6 +855,11 @@
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
+      "display": {
+        "title": "Codex · OpenRouter",
+        "description": "Codex-style tools and instructions through OpenRouter.",
+        "order": 20
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
@@ -859,6 +869,11 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
+      "display": {
+        "title": "Codex · OpenAI",
+        "description": "Codex-style tools with automatic OpenAI authentication.",
+        "order": 10
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
@@ -868,6 +883,11 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
+      "display": {
+        "title": "Codex · OpenAI API",
+        "description": "Codex-style tools using explicit OpenAI API authentication.",
+        "order": 30
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4",
@@ -880,6 +900,11 @@
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
+      "display": {
+        "title": "GPT-5 · OpenRouter",
+        "description": "GPT-5 coding profile through OpenRouter.",
+        "order": 120
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5",
@@ -891,6 +916,11 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
+      "display": {
+        "title": "GPT-5 · OpenAI",
+        "description": "GPT-5 coding profile through OpenAI.",
+        "order": 110
+      },
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5",
@@ -902,6 +932,11 @@
       "disabled_plugins": ["apply_patch"]
     },
     "qwen": {
+      "display": {
+        "title": "Qwen",
+        "description": "Qwen-oriented instructions and tool conventions.",
+        "order": 70
+      },
       "mixin_refs": ["qwen_system_message"],
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
@@ -911,6 +946,11 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gemini": {
+      "display": {
+        "title": "Gemini",
+        "description": "Gemini-oriented tools with search and file workflows.",
+        "order": 60
+      },
       "mixin_refs": ["gemini_system_message"],
       "provider": "openrouter",
       "model": "google/gemini-2.5-flash-lite",
@@ -924,6 +964,11 @@
       "web_search_provider": "gemini_api"
     },
     "grok": {
+      "display": {
+        "title": "Grok",
+        "description": "Grok-oriented instructions with web and file tools.",
+        "order": 90
+      },
       "mixin_refs": ["grok_system_message"],
       "provider": "openrouter",
       "model": "x-ai/grok-4.1-fast",
@@ -938,6 +983,11 @@
       ]
     },
     "kimi": {
+      "display": {
+        "title": "Kimi",
+        "description": "Kimi-oriented tools, research guidance, and compaction.",
+        "order": 80
+      },
       "mixin_refs": ["kimi_system_message"],
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
@@ -955,6 +1005,11 @@
       }
     },
     "claude-openrouter": {
+      "display": {
+        "title": "Claude · OpenRouter",
+        "description": "Claude-oriented tools and workflows through OpenRouter.",
+        "order": 50
+      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
@@ -974,6 +1029,11 @@
       "web_search_provider": "gemini_api"
     },
     "claude-anthropic": {
+      "display": {
+        "title": "Claude · Anthropic",
+        "description": "Claude-oriented tools with native Anthropic controls.",
+        "order": 40
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -991,6 +1051,11 @@
       "web_search_provider": "gemini_api"
     },
     "glm": {
+      "display": {
+        "title": "GLM · OpenRouter",
+        "description": "GLM profile using Gemini-oriented tools through OpenRouter.",
+        "order": 100
+      },
       "mixin_refs": ["gemini_system_message"],
       "provider": "openrouter",
       "model": "z-ai/glm-5.2",
@@ -1011,10 +1076,20 @@
       }
     },
     "ollama": {
+      "display": {
+        "title": "Ollama · Local",
+        "description": "Lightweight local Ollama agent.",
+        "order": 200
+      },
       "provider": "ollama",
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
+      "display": {
+        "title": "GLM · Ollama",
+        "description": "GLM cloud profile through Ollama with Claude-oriented tools.",
+        "order": 210
+      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
@@ -1033,6 +1108,11 @@
       }
     },
     "deepseek-ollama": {
+      "display": {
+        "title": "DeepSeek · Ollama",
+        "description": "DeepSeek cloud profile through Ollama with Claude-oriented tools.",
+        "order": 220
+      },
       "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",
@@ -1051,6 +1131,11 @@
       }
     },
     "kimi-ollama": {
+      "display": {
+        "title": "Kimi · Ollama",
+        "description": "Kimi cloud profile through Ollama.",
+        "order": 230
+      },
       "mixin_refs": ["kimi_system_message"],
       "provider": "ollama",
       "model": "kimi-k2.6:cloud",
@@ -1073,6 +1158,11 @@
       }
     },
     "fireworks": {
+      "display": {
+        "title": "Fireworks",
+        "description": "OpenAI-compatible reasoning profile through Fireworks.",
+        "order": 300
+      },
       "provider": "fireworks",
       "model": "fireworks/gpt-oss-20b",
       "request_options": {
@@ -1083,6 +1173,11 @@
       }
     },
     "zai": {
+      "display": {
+        "title": "Z.ai",
+        "description": "GLM coding profile through the Z.ai provider.",
+        "order": 310
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive_visible",
@@ -1112,6 +1207,11 @@
       }
     },
     "openrouter-image": {
+      "display": {
+        "title": "Image Generation · OpenRouter",
+        "description": "Generate image assets through OpenRouter.",
+        "order": 320
+      },
       "provider": "openrouter_image_generation"
     }
   }

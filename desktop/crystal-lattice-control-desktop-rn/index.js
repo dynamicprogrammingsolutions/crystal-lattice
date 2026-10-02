@@ -83,6 +83,9 @@ const {
 const {
   DesktopRichSessionUiHarness,
 } = require('./src/testing/DesktopRichSessionUiHarness');
+const {
+  DesktopWebsiteVisualHarness,
+} = require('./src/testing/DesktopWebsiteVisualHarness');
 const { ConnectionEditorWindow } = require('./src/windows/ConnectionEditorWindow');
 const { AgentPickerWindow } = require('./src/windows/AgentPickerWindow');
 const { ActionsPopoverView } = require('./src/windows/ActionsPopoverView');
@@ -112,6 +115,7 @@ AppRegistry.registerComponent('DesktopConnectionsPanelHarness', () => DesktopCon
 AppRegistry.registerComponent('DesktopActionDisplayHarness', () => DesktopActionDisplayHarness);
 AppRegistry.registerComponent('DesktopWorkspaceHarness', () => DesktopWorkspaceHarness);
 AppRegistry.registerComponent('DesktopRichSessionUiHarness', () => DesktopRichSessionUiHarness);
+AppRegistry.registerComponent('DesktopWebsiteVisualHarness', () => DesktopWebsiteVisualHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);

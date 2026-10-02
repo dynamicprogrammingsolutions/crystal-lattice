@@ -298,6 +298,14 @@ beforeEach(() => {
     controller: agentsController as any,
     state: {
       agents: ['default'],
+      descriptors: [
+        {
+          id: 'default',
+          title: 'default',
+          description: '',
+          order: 0,
+        },
+      ],
       loading: false,
       error: null,
     },

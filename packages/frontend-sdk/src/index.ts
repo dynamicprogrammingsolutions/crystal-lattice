@@ -1,4 +1,5 @@
 export type { MessageRole, ApiMessage, IndexedMessage } from "./types/messages";
+export type { AgentDescriptor } from "./types/agents";
 
 export type {
   SessionSummary,
@@ -133,6 +134,7 @@ export type { AgentsControllerState } from "./agents/agentsController";
 export {
   AgentsController,
   invalidateAgentsCache,
+  normalizeAgentDescriptors,
   pickDefaultAgentId,
 } from "./agents/agentsController";
 

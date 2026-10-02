@@ -3831,6 +3831,20 @@ def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:
     agents = agents_resp["agents"]
     assert "default" in agents
     assert "alt" in agents
+    assert agents_resp["agent_descriptors"] == [
+        {
+            "id": "default",
+            "title": "default",
+            "description": "",
+            "order": 0.0,
+        },
+        {
+            "id": "alt",
+            "title": "alt",
+            "description": "",
+            "order": 1.0,
+        },
+    ]
 
     # Create a session using the default agent.
     create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
@@ -3854,6 +3868,50 @@ def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:
     _core, _base_config, session = ctx
     md = session.metadata or {}
     assert md.get("agent_id") == "alt"
+
+
+def test_agent_endpoint_adds_ordered_display_descriptors(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    source_config = json.loads(
+        (base_dir / "config_echo_app.json").read_text(encoding="utf-8")
+    )
+    source_config["agents"]["default"]["display"] = {
+        "title": "Default Agent",
+        "description": "General purpose echo profile.",
+        "order": 20,
+    }
+    source_config["agents"]["alt"]["display"] = {
+        "title": "Alternative Agent",
+        "description": "Secondary echo profile.",
+        "order": 10,
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(source_config), encoding="utf-8")
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+    response = server_mod.list_agents(app_instance=app)
+
+    assert response["agents"] == ["alt", "default"]
+    assert response["agent_descriptors"] == [
+        {
+            "id": "alt",
+            "title": "Alternative Agent",
+            "description": "Secondary echo profile.",
+            "order": 10.0,
+        },
+        {
+            "id": "default",
+            "title": "Default Agent",
+            "description": "General purpose echo profile.",
+            "order": 20.0,
+        },
+    ]
 
 
 def test_get_session_agent_returns_value_even_if_agent_is_unknown(

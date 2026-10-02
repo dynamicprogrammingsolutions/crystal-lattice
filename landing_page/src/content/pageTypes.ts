@@ -65,6 +65,11 @@ export type MediaPlaceholder = {
   src?: string;
   srcDark?: string;
   alt?: string;
+  secondarySrc?: string;
+  secondarySrcDark?: string;
+  secondaryAlt?: string;
+  secondaryWidth?: number;
+  secondaryHeight?: number;
   width?: number;
   height?: number;
   desktop?: string;

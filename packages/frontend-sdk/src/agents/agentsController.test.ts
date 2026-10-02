@@ -28,4 +28,43 @@ describe("AgentsController cache invalidation", () => {
     expect(await refreshed.load()).toEqual(["local", "openai-codex"]);
     expect(secondBackend.listAgents).toHaveBeenCalledOnce();
   });
+
+  it("prefers ordered descriptors while preserving string ids", async () => {
+    const cacheKey = `descriptors-${Date.now()}`;
+    const backend = {
+      listAgents: vi.fn().mockResolvedValue(["legacy"]),
+      listAgentDescriptors: vi.fn().mockResolvedValue([
+        {
+          id: "claude",
+          title: "Claude",
+          description: "Claude-oriented tools.",
+          order: 20,
+        },
+        {
+          id: "codex",
+          title: "Codex",
+          description: "Codex-oriented tools.",
+          order: 10,
+        },
+      ]),
+    } as unknown as AgentBackend;
+
+    const controller = new AgentsController({ backend, cacheKey });
+    await expect(controller.load()).resolves.toEqual(["codex", "claude"]);
+    await expect(controller.ensureDescriptorsLoaded()).resolves.toEqual([
+      {
+        id: "codex",
+        title: "Codex",
+        description: "Codex-oriented tools.",
+        order: 10,
+      },
+      {
+        id: "claude",
+        title: "Claude",
+        description: "Claude-oriented tools.",
+        order: 20,
+      },
+    ]);
+    expect(backend.listAgents).not.toHaveBeenCalled();
+  });
 });

@@ -17,6 +17,7 @@ import {
   validateImageCandidates,
 } from "../scripts/visual-assets/lifecycle/image.mjs";
 import { detoxCapture } from "../scripts/visual-assets/producers/detox.mjs";
+import { commandCapture } from "../scripts/visual-assets/producers/command.mjs";
 import {
   runSessionFixtureCatalogCommand,
   sessionFixtureAssetCommands,
@@ -68,6 +69,46 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-light.png",
     heroDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-dark.png",
+    providerSettingsLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/provider-settings-light.png",
+    providerSettingsDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/provider-settings-dark.png",
+    pluginsLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/plugins-light.png",
+    pluginsDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/plugins-dark.png",
+    compiledLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/compiled-light.png",
+    compiledDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/compiled-dark.png",
+    vibeLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/vibe-light.png",
+    vibeDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/vibe-dark.png",
+    workspacesLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/workspaces-light.png",
+    workspacesDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/workspaces-dark.png",
+  },
+});
+
+const desktopWebsiteCapture = commandCapture({
+  id: "desktop-website-visual",
+  projectDirectory: "desktop/crystal-lattice-control-desktop-rn",
+  command: ["npm", "run", "capture:website-visual:macos"],
+  outputs: {
+    agentCodexLight:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/agent-codex-light.png",
+    agentCodexDark:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/agent-codex-dark.png",
+    agentClaudeLight:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/agent-claude-light.png",
+    agentClaudeDark:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/agent-claude-dark.png",
+    crossDeviceLight:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/cross-device-light.png",
+    crossDeviceDark:
+      "desktop/crystal-lattice-control-desktop-rn/artifacts/website-visual/cross-device-dark.png",
   },
 });
 

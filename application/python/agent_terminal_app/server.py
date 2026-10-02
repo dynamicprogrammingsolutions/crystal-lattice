@@ -2501,7 +2501,11 @@ def list_agents(
     for agent in agents:
         if agent not in unique:
             unique[agent] = None
-    return {"agents": sorted(unique.keys())}
+    descriptors = app_instance.list_agent_descriptors()
+    return {
+        "agents": sorted(unique.keys()),
+        "agent_descriptors": descriptors,
+    }
 
 
 @app.get("/sessions/{session_id}/agent")

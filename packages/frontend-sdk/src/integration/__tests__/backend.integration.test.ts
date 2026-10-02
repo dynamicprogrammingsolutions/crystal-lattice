@@ -34,6 +34,19 @@ describe('backend integration (real FastAPI server + plugins + SDK)', () => {
     agents: {
       default: {
         provider: 'test_provider',
+        display: {
+          title: 'Default agent',
+          description: 'Primary deterministic profile.',
+          order: 20,
+        },
+      },
+      alternate: {
+        provider: 'test_provider',
+        display: {
+          title: 'Alternative agent',
+          description: 'Secondary deterministic profile.',
+          order: 10,
+        },
       },
     },
   };
@@ -125,6 +138,36 @@ describe('backend integration (real FastAPI server + plugins + SDK)', () => {
   function getContents(messages: IndexedMessage[]): string[] {
     return messages.map((m) => `${m.index}:${m.message.role}:${m.message.content}`);
   }
+
+  it(
+    'preserves agent ids and exposes ordered descriptors through real HTTP',
+    async () => {
+      await ensureServer();
+      const backend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl }),
+      });
+
+      await expect(backend.listAgents()).resolves.toEqual([
+        'alternate',
+        'default',
+      ]);
+      await expect(backend.listAgentDescriptors()).resolves.toEqual([
+        {
+          id: 'alternate',
+          title: 'Alternative agent',
+          description: 'Secondary deterministic profile.',
+          order: 10,
+        },
+        {
+          id: 'default',
+          title: 'Default agent',
+          description: 'Primary deterministic profile.',
+          order: 20,
+        },
+      ]);
+    },
+    30000,
+  );
 
   function countMessagesByRole(messages: IndexedMessage[], role: string): number {
     return messages.filter((m) => m.message.role === role).length;

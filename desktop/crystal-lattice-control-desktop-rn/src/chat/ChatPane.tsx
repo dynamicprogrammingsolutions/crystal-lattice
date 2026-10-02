@@ -1608,7 +1608,11 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, [isVisible, requestPersistTranscriptScroll]);
 
-  const { statusBarParts, ensureAgentsLoaded, agentsLoading } =
+  const {
+    statusBarParts,
+    ensureAgentDescriptorsLoaded,
+    agentsLoading,
+  } =
     useSessionStatusBarParts({
       backend,
       connectionId,
@@ -3384,7 +3388,8 @@ export const ChatPane = React.memo(function ChatPane({
 
     setOpeningAgentPicker(true);
     try {
-      const agents = await ensureAgentsLoaded();
+      const agentDescriptors = await ensureAgentDescriptorsLoaded();
+      const agents = agentDescriptors.map(descriptor => descriptor.id);
 
       let initialAgentId: string | undefined;
       try {
@@ -3406,6 +3411,7 @@ export const ChatPane = React.memo(function ChatPane({
         connectionName,
         initialAgentId,
         agents,
+        agentDescriptors,
       });
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to load agents');
@@ -3416,7 +3422,7 @@ export const ChatPane = React.memo(function ChatPane({
     backend,
     connectionId,
     connectionName,
-    ensureAgentsLoaded,
+    ensureAgentDescriptorsLoaded,
     openingAgentPicker,
     sessionId,
   ]);

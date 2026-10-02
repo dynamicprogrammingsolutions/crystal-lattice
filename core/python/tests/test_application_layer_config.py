@@ -50,6 +50,28 @@ def test_build_agent_config_merges_provider_and_agent():
     assert cfg["model"] == "override"
 
 
+def test_build_agent_config_excludes_agent_display_metadata():
+    resolved = {
+        "providers": {
+            "dummy": {"provider": "dummy_provider", "model": "base"}
+        },
+        "agents": {
+            "default": {
+                "provider": "dummy",
+                "display": {
+                    "title": "Default Agent",
+                    "description": "Visible only to application clients.",
+                    "order": 10,
+                },
+            }
+        },
+    }
+
+    cfg = build_agent_config(resolved, "default")
+
+    assert "display" not in cfg
+
+
 def test_resolve_config_mixins_applies_ordered_mixins_and_local_override():
     resolved, errors = resolve_config_mixins(
         {

@@ -1079,6 +1079,7 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
         raise KeyError(f"Unknown agent_id {agent_id!r}")
 
     agent_cfg = dict(agents[agent_id])
+    agent_cfg.pop("display", None)
     provider_name = agent_cfg.get("provider")
     if not isinstance(provider_name, str) or not provider_name:
         raise ValueError(

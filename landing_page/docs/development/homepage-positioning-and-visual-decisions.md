@@ -376,6 +376,24 @@ Classify each need before implementation:
 The agent picker metadata change is a real product improvement because the
 current backend/SDK/Desktop path exposes and renders bare agent IDs.
 
+Selected implementation:
+
+- agent config accepts optional `display.title`, `display.description`, and
+  finite `display.order`;
+- stable config keys remain agent IDs;
+- the existing `/agents` string list and SDK `listAgents()` remain compatible;
+- `/agents` adds ordered `agent_descriptors`;
+- the SDK adds optional `listAgentDescriptors()` and controller descriptor
+  caching;
+- Desktop renders descriptor title/description/order and submits the stable ID;
+- display metadata is stripped before provider request configuration is built.
+
+Capture-specific ordering/hiding does not add production controls solely for
+screenshots. Deterministic fixtures select the relevant rows. Session-workspace
+proof reuses the existing `session-status-app`, `session-pinned-app`, and
+`session-title-app` contracts, including `todo`, `in_progress`, and `done`
+values.
+
 The detailed implementation and verification plan lives in
 `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`.
 

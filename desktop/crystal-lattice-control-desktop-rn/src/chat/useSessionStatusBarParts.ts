@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
   AgentBackend,
+  AgentDescriptor,
   IndexedMessage,
   SessionSummary,
   StreamingRow,
@@ -30,6 +31,7 @@ export interface UseSessionStatusBarPartsOptions {
 export interface UseSessionStatusBarPartsResult {
   statusBarParts: string[];
   ensureAgentsLoaded: () => Promise<string[]>;
+  ensureAgentDescriptorsLoaded: () => Promise<AgentDescriptor[]>;
   agentsLoading: boolean;
 }
 
@@ -117,6 +119,15 @@ export function useSessionStatusBarParts(
     return agentsController.ensureLoaded();
   }, [agentsController]);
 
+  const ensureAgentDescriptorsLoaded = useCallback(async (): Promise<
+    AgentDescriptor[]
+  > => {
+    if (!agentsController) {
+      throw new Error('Agent controller is not available.');
+    }
+    return agentsController.ensureDescriptorsLoaded();
+  }, [agentsController]);
+
   const statusBarElements = useMemo((): UiSchemaElement[] => {
     return filterStatusBarElements(uiSchemaElements || []);
   }, [uiSchemaElements]);
@@ -144,6 +155,7 @@ export function useSessionStatusBarParts(
   return {
     statusBarParts,
     ensureAgentsLoaded,
+    ensureAgentDescriptorsLoaded,
     agentsLoading: agentsState?.loading ?? false,
   };
 }

@@ -81,6 +81,32 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
     assert app_config["provider_env_keys"]["anthropic"] == "ANTHROPIC_API_KEY"
 
 
+def test_default_config_declares_ordered_agent_display_metadata() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    expected = {
+        "codex-openai": ("Codex · OpenAI", 10),
+        "claude-anthropic": ("Claude · Anthropic", 40),
+        "gemini": ("Gemini", 60),
+        "qwen": ("Qwen", 70),
+        "kimi": ("Kimi", 80),
+        "grok": ("Grok", 90),
+    }
+    for agent_id, (title, order) in expected.items():
+        display = config["agents"][agent_id]["display"]
+        assert display["title"] == title
+        assert isinstance(display["description"], str) and display["description"]
+        assert display["order"] == order
+
+
 def test_default_config_pins_openai_compatible_reasoning_effort() -> None:
     config_path = (
         ROOT

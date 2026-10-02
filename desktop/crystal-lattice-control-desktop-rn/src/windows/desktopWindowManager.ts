@@ -1,6 +1,9 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
-import type { ConnectionRecord } from '@crystal-lattice/frontend-sdk';
+import type {
+  AgentDescriptor,
+  ConnectionRecord,
+} from '@crystal-lattice/frontend-sdk';
 
 import type { MacOSSystemThemePayload } from '../theme/types';
 
@@ -13,6 +16,7 @@ export interface OpenAgentPickerParams {
   connectionId: string;
   connectionName?: string;
   agents: string[];
+  agentDescriptors?: AgentDescriptor[];
   mode?: 'createSession' | 'switchSessionAgent';
   sessionId?: string;
   title?: string;

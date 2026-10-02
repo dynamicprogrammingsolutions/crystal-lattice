@@ -704,7 +704,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
           [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"AgentPickerWindow" initialProperties:initialProps];
     }
 
-    NSRect frame = NSMakeRect(0, 0, 460, 380);
+    NSRect frame = NSMakeRect(0, 0, 520, 500);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                      backing:NSBackingStoreBuffered

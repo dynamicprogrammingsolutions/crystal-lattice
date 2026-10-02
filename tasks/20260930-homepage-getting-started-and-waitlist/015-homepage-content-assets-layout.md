@@ -672,8 +672,8 @@ fixtures, row hiding/reordering, or final proof assets in this subtask.
 - [x] **AGENT:** Create the durable homepage positioning/visual decision
       record and reconcile it with the final implementation before closure.
 - [x] **AGENT:** Build and provide a LAN-accessible preview.
-- [ ] **HUMAN JUDGMENT:** Approve the local copy/download candidate.
-- [ ] **AGENT:** Hand approved copy/download decisions to subtask `018`.
+- [x] **HUMAN JUDGMENT:** Approve the local copy/download candidate.
+- [x] **AGENT:** Hand approved copy/download decisions to subtask `018`.
 
 ### Requirement verification
 
@@ -752,3 +752,20 @@ fixtures, row hiding/reordering, or final proof assets in this subtask.
 - 2026-10-01: Refreshed LAN preview and desktop/phone light/dark captures all
   return HTTP 200. No push, AWS mutation, waitlist implementation, or
   production deployment occurred.
+
+## Completion Notes
+
+- Outcome: the selected six-title copy set, detailed planned-visual
+  descriptions, current-platform-first Desktop download layout, grayed
+  platform-logo coming-soon states, and durable design record are implemented.
+- Durable rationale:
+  `landing_page/docs/development/homepage-positioning-and-visual-decisions.md`
+  preserves the baseline, all viable alternatives, selected rationale, and
+  revision procedure.
+- Verification: seven content tests, four analytics tests, production Astro
+  build, ten focused browser tests, and the complete 22-test Playwright suite
+  passed.
+- Commit evidence: `527bf4a6` (`Apply homepage copy`).
+- Deferred scope: real agent metadata/product changes and final proof assets
+  belong to subtask `018`; the email waitlist belongs to subtask `020`.
+- No push, AWS mutation, or production publication occurred.

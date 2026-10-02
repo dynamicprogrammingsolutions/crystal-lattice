@@ -50,6 +50,11 @@ binary behavior, persistence, lifecycle, and rollback.
 The optional backend and saved-connection status query contracts are described
 in [Session request status](docs/session-request-status.md).
 
+## Agent descriptors
+
+Stable agent IDs and optional ordered title/description metadata are described
+in [Agent descriptors](docs/agent-descriptors.md).
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

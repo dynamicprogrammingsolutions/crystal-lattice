@@ -14,7 +14,17 @@ async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   }
 }
 
-type VisualKind = "actions" | "snapshots" | "settings" | "usage" | "hero";
+type VisualKind =
+  | "actions"
+  | "snapshots"
+  | "settings"
+  | "usage"
+  | "hero"
+  | "provider-settings"
+  | "plugins"
+  | "compiled"
+  | "vibe"
+  | "workspaces";
 
 async function captureTheme(
   kind: VisualKind,
@@ -31,10 +41,16 @@ async function captureTheme(
   });
   await dismissAndroidImmersiveModeConfirmation();
   await device.disableSynchronization();
-  await waitFor(element(by.id(`website-visual-open-${kind}`)))
-    .toExist()
-    .withTimeout(30000);
-  await element(by.id(`website-visual-open-${kind}`)).tap();
+  if (kind === "workspaces") {
+    await waitFor(element(by.id("website-workspaces-ready")))
+      .toExist()
+      .withTimeout(30000);
+  } else {
+    await waitFor(element(by.id(`website-visual-open-${kind}`)))
+      .toExist()
+      .withTimeout(30000);
+    await element(by.id(`website-visual-open-${kind}`)).tap();
+  }
   if (kind === "actions") {
     await waitFor(element(by.id("session-actions-menu")))
       .toBeVisible()
@@ -48,6 +64,10 @@ async function captureTheme(
         ? "Snapshots"
         : kind === "settings"
           ? "Reasoning Effort"
+          : kind === "provider-settings"
+            ? "Authentication mode"
+            : kind === "plugins"
+              ? "Reasoning controls"
           : null;
   if (readinessText) {
     await waitFor(element(by.text(readinessText)))
@@ -55,6 +75,22 @@ async function captureTheme(
       .withTimeout(30000);
   } else if (kind === "usage") {
     await waitFor(element(by.id("message-footer-4")))
+      .toExist()
+      .withTimeout(30000);
+  } else if (kind === "compiled") {
+    await waitFor(element(by.id("system-compiled-toggle")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("system-compiled-toggle")).tap();
+    await waitFor(element(by.id("system-compiled-content")))
+      .toBeVisible()
+      .withTimeout(30000);
+  } else if (kind === "vibe") {
+    await waitFor(element(by.id("message-bubble-2")))
+      .toBeVisible()
+      .withTimeout(30000);
+  } else if (kind === "workspaces") {
+    await waitFor(element(by.text("Launch strategy research")))
       .toBeVisible()
       .withTimeout(30000);
   } else {
@@ -80,7 +116,26 @@ async function captureTheme(
 
 describe("website visual source capture", () => {
   it("captures deterministic light and dark production workbench states", async () => {
-    for (const kind of ["actions", "snapshots", "settings", "usage", "hero"] as const) {
+    const allKinds = [
+      "actions",
+      "snapshots",
+      "settings",
+      "usage",
+      "hero",
+      "provider-settings",
+      "plugins",
+      "compiled",
+      "vibe",
+      "workspaces",
+    ] as const;
+    const requested = (process.env.CLC_WEBSITE_VISUAL_KINDS ?? "")
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean);
+    const selected = requested.length > 0
+      ? allKinds.filter(kind => requested.includes(kind))
+      : allKinds;
+    for (const kind of selected) {
       await captureTheme(kind, "light");
       await captureTheme(kind, "dark");
     }

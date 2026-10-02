@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import inspect
+import math
 from pathlib import Path
 from typing import (
     Any,
@@ -2731,6 +2732,62 @@ class AgentApplication:
         """
 
         return sorted(self._agent_base_configs.keys())
+
+    def list_agent_descriptors(self) -> List[Dict[str, Any]]:
+        """Return ordered display metadata for configured agents.
+
+        Stable agent identifiers remain authoritative. Optional display
+        metadata is read from ``agents.<id>.display`` and falls back to the
+        identifier, an empty description, and configuration declaration order.
+        """
+
+        raw_agents = self._config.get("agents")
+        if not isinstance(raw_agents, dict):
+            return []
+
+        descriptors: List[tuple[float, int, Dict[str, Any]]] = []
+        for index, (agent_id, raw_config) in enumerate(raw_agents.items()):
+            if not isinstance(agent_id, str) or not agent_id:
+                continue
+            agent_config = raw_config if isinstance(raw_config, dict) else {}
+            raw_display = agent_config.get("display")
+            display = raw_display if isinstance(raw_display, dict) else {}
+
+            raw_title = display.get("title")
+            title = (
+                raw_title.strip()
+                if isinstance(raw_title, str) and raw_title.strip()
+                else agent_id
+            )
+            raw_description = display.get("description")
+            description = (
+                raw_description.strip()
+                if isinstance(raw_description, str) and raw_description.strip()
+                else ""
+            )
+            raw_order = display.get("order")
+            order = (
+                float(raw_order)
+                if isinstance(raw_order, (int, float))
+                and not isinstance(raw_order, bool)
+                and math.isfinite(float(raw_order))
+                else float(index)
+            )
+            descriptors.append(
+                (
+                    order,
+                    index,
+                    {
+                        "id": agent_id,
+                        "title": title,
+                        "description": description,
+                        "order": order,
+                    },
+                )
+            )
+
+        descriptors.sort(key=lambda item: (item[0], item[1], item[2]["id"]))
+        return [descriptor for _order, _index, descriptor in descriptors]
 
     def get_agent_plugins(self, agent_id: str) -> Optional[List[str]]:
         """Return the default enabled plugin id list for an agent.

@@ -50,12 +50,64 @@ overrides apply last.
   },
   "agents": {
     "default": {
+      "display": {
+        "title": "Default agent",
+        "description": "General-purpose model profile.",
+        "order": 10
+      },
       "provider": "openrouter",
       "model": "openai/gpt-5-mini"
     }
   }
 }
 ```
+
+## Agent display metadata
+
+An agent's stable object key remains its ID for requests, sessions, switching,
+and persisted metadata. An optional `display` object supplies client-facing
+presentation without entering the provider request configuration:
+
+```json
+{
+  "agents": {
+    "codex-openai": {
+      "display": {
+        "title": "Codex · OpenAI",
+        "description": "Codex-style tools with automatic OpenAI authentication.",
+        "order": 10
+      },
+      "provider": "openai",
+      "model": "gpt-5.4-mini"
+    }
+  }
+}
+```
+
+- `title` defaults to the stable agent ID.
+- `description` defaults to an empty string.
+- `order` is a finite number. Missing order falls back to configuration
+  declaration order.
+
+`GET /agents` retains its `agents: string[]` compatibility list and also
+returns `agent_descriptors`, ordered by display order:
+
+```json
+{
+  "agents": ["codex-openai"],
+  "agent_descriptors": [
+    {
+      "id": "codex-openai",
+      "title": "Codex · OpenAI",
+      "description": "Codex-style tools with automatic OpenAI authentication.",
+      "order": 10
+    }
+  ]
+}
+```
+
+Clients must submit `id`, not the display title, when creating or switching a
+session.
 
 The command searches for configuration in:
 

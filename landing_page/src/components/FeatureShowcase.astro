@@ -65,21 +65,47 @@ const gridClass =
 
         {item.media && (
           item.media.src && item.media.status !== "placeholder-needed" ? (
-            <ThemedImage
-              src={item.media.src}
-              srcDark={item.media.srcDark}
-              alt={item.media.alt ?? item.title}
-              width={item.media.width}
-              height={item.media.height}
-              loading="lazy"
-              decoding="async"
+            <div
               class:list={[
-                "block w-full rounded-xl object-cover",
-                isEditorial
-                  ? "aspect-video bg-raised"
-                  : "aspect-[3/4] border border-line bg-white",
+                item.media.secondarySrc
+                  ? "grid grid-cols-2 gap-3 max-[520px]:grid-cols-1"
+                  : "block",
               ]}
-            />
+              data-proof-media
+            >
+              <ThemedImage
+                src={item.media.src}
+                srcDark={item.media.srcDark}
+                alt={item.media.alt ?? item.title}
+                width={item.media.width}
+                height={item.media.height}
+                loading="lazy"
+                decoding="async"
+                class:list={[
+                  "block w-full rounded-xl object-cover",
+                  isEditorial
+                    ? "aspect-video bg-raised"
+                    : "aspect-[3/4] border border-line bg-white",
+                ]}
+              />
+              {item.media.secondarySrc && (
+                <ThemedImage
+                  src={item.media.secondarySrc}
+                  srcDark={item.media.secondarySrcDark}
+                  alt={item.media.secondaryAlt ?? item.title}
+                  width={item.media.secondaryWidth ?? item.media.width}
+                  height={item.media.secondaryHeight ?? item.media.height}
+                  loading="lazy"
+                  decoding="async"
+                  class:list={[
+                    "block w-full rounded-xl object-cover",
+                    isEditorial
+                      ? "aspect-video bg-raised"
+                      : "aspect-[3/4] border border-line bg-white",
+                  ]}
+                />
+              )}
+            </div>
           ) : (
             <div
               class:list={[

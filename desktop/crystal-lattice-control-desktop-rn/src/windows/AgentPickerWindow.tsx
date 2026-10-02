@@ -2,6 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  normalizeAgentDescriptors,
+  type AgentDescriptor,
+} from '@crystal-lattice/frontend-sdk';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { DesktopWindowManager } from './desktopWindowManager';
@@ -10,6 +14,7 @@ export interface AgentPickerWindowProps {
   connectionId: string;
   connectionName?: string;
   agents?: string[];
+  agentDescriptors?: AgentDescriptor[];
   mode?: 'createSession' | 'switchSessionAgent';
   sessionId?: string;
   title?: string;
@@ -30,6 +35,7 @@ function AgentPickerWindowInner({
   connectionId,
   connectionName,
   agents,
+  agentDescriptors,
   mode = 'createSession',
   sessionId,
   title,
@@ -39,7 +45,19 @@ function AgentPickerWindowInner({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const agentList = Array.isArray(agents) ? agents : [];
+  const descriptorList = useMemo(() => {
+    const normalized = normalizeAgentDescriptors(agentDescriptors);
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    return (Array.isArray(agents) ? agents : []).map((id, index) => ({
+      id,
+      title: id,
+      description: '',
+      order: index,
+    }));
+  }, [agentDescriptors, agents]);
+  const agentList = descriptorList.map(descriptor => descriptor.id);
   const initialSelected = useMemo(() => {
     if (typeof initialAgentId === 'string' && initialAgentId && agentList.includes(initialAgentId)) {
       return initialAgentId;
@@ -88,7 +106,8 @@ function AgentPickerWindowInner({
         </View>
       ) : (
         <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-          {agentList.map((agentId) => {
+          {descriptorList.map(descriptor => {
+            const agentId = descriptor.id;
             const selected = selectedAgentId === agentId;
             return (
               <Pressable
@@ -102,10 +121,23 @@ function AgentPickerWindowInner({
                   ];
                 }}
                 onPress={() => setSelectedAgentId(agentId)}
+                accessibilityLabel={`${descriptor.title}. ${descriptor.description || agentId}`}
               >
-                <Text style={styles.rowText} numberOfLines={1}>
-                  {agentId}
-                </Text>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowText} numberOfLines={1}>
+                    {descriptor.title}
+                  </Text>
+                  {descriptor.description ? (
+                    <Text style={styles.rowDescription} numberOfLines={2}>
+                      {descriptor.description}
+                    </Text>
+                  ) : null}
+                  {descriptor.title !== agentId ? (
+                    <Text style={styles.rowId} numberOfLines={1}>
+                      {agentId}
+                    </Text>
+                  ) : null}
+                </View>
                 {selected ? <Text style={styles.check}>✓</Text> : null}
               </Pressable>
             );
@@ -193,10 +225,23 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       backgroundColor: theme.primaryMuted,
     },
     rowText: {
-      flex: 1,
-      fontSize: 13,
+      fontSize: 14,
       color: theme.text,
-      fontWeight: '600',
+      fontWeight: '700',
+    },
+    rowCopy: {
+      flex: 1,
+      gap: 3,
+    },
+    rowDescription: {
+      fontSize: 12,
+      lineHeight: 16,
+      color: theme.textSecondary,
+    },
+    rowId: {
+      fontSize: 10,
+      color: theme.textMuted,
+      fontFamily: 'Menlo',
     },
     check: {
       fontSize: 14,

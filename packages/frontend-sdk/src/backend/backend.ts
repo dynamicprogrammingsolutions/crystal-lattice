@@ -14,6 +14,7 @@ import type {
   SessionNotification,
 } from '../types/notifications';
 import type { SessionRequestStatusSnapshot } from '../types/sessionRequestStatus';
+import type { AgentDescriptor } from '../types/agents';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -62,6 +63,7 @@ export interface AgentBackend {
 
   // --- Agents ---
   listAgents(): Promise<string[]>;
+  listAgentDescriptors?(): Promise<AgentDescriptor[]>;
   getSessionAgent(sessionId: string): Promise<string>;
   switchSessionAgent(
     sessionId: string,

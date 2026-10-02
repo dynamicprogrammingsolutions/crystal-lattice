@@ -108,6 +108,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableRichSessionUiHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
       LaunchArgumentPresent(@"--rich-session-ui-harness");
+  BOOL enableWebsiteVisualHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_WEBSITE_VISUAL_HARNESS") ||
+      LaunchArgumentPresent(@"--website-visual-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
@@ -118,11 +121,14 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       enableConnectionsPanelHarness ||
       enableActionDisplayHarness ||
       enableDesktopWorkspaceHarness ||
-      enableRichSessionUiHarness;
+      enableRichSessionUiHarness ||
+      enableWebsiteVisualHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  if (enableActionDisplayHarness) {
+  if (enableWebsiteVisualHarness) {
+    self.moduleName = @"DesktopWebsiteVisualHarness";
+  } else if (enableActionDisplayHarness) {
     self.moduleName = @"DesktopActionDisplayHarness";
   } else if (enableRichSessionUiHarness) {
     self.moduleName = @"DesktopRichSessionUiHarness";
@@ -172,6 +178,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"transcriptScrollListImplementation" : [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_SCROLL_LIST_IMPLEMENTATION"] ?: @"scrollView",
     @"progressiveScrollBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"initialRestoreReady" : @(!EnvironmentFlagEnabled(@"CLC_TRANSCRIPT_SCROLL_RESTORE_READY_FALSE")),
+    @"websiteVisualKind" : [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_KIND"] ?: @"agent-codex",
   } mutableCopy];
   if (LaunchArgumentPresent(@"--human-time-native-test")) {
     NSString *fixtureJson =
@@ -190,6 +197,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 
   [super applicationDidFinishLaunching:notification];
 
+  if (enableWebsiteVisualHarness && self.window == nil) {
+    self.window = [self createMainWindow];
+  }
+
   // Track the initial main window created by RCTAppDelegate so we can:
   // - release it when closed (so closing the window truly closes it)
   // - reopen / create windows when the Dock icon is clicked
@@ -198,11 +209,41 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [self trackMainWindowIfNeeded:(NSWindow *)self.window];
   if (enableAnyTestHarness) {
     NSWindow *window = (NSWindow *)self.window;
+    if (enableWebsiteVisualHarness) {
+      [window setContentSize:NSMakeSize(1280, 720)];
+      [window center];
+    }
     window.title = self.moduleName;
     window.accessibilityLabel = self.moduleName;
     window.accessibilityIdentifier = [NSString stringWithFormat:@"%@Window", self.moduleName];
     [(NSWindow *)self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+    if (enableWebsiteVisualHarness) {
+      NSString *outputPath =
+          [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_OUTPUT_PATH"];
+      if ([outputPath isKindOfClass:[NSString class]] && outputPath.length > 0) {
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), ^{
+              NSView *contentView = window.contentView;
+              if (contentView == nil) {
+                return;
+              }
+              NSRect bounds = contentView.bounds;
+              NSBitmapImageRep *representation =
+                  [contentView bitmapImageRepForCachingDisplayInRect:bounds];
+              if (representation == nil) {
+                return;
+              }
+              [contentView cacheDisplayInRect:bounds
+                             toBitmapImageRep:representation];
+              NSData *png = [representation
+                  representationUsingType:NSBitmapImageFileTypePNG
+                                properties:@{}];
+              [png writeToFile:outputPath atomically:YES];
+            });
+      }
+    }
   }
 
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];

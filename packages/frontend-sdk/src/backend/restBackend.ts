@@ -7,6 +7,7 @@ import type {
 } from '../types/plugins';
 import type { IndexedMessage } from '../types/messages';
 import type { SessionSummary } from '../types/sessions';
+import type { AgentDescriptor } from '../types/agents';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
 import type { SessionPluginEntry } from '../types/sessionPlugins';
 import type { ApplicationNotification } from '../types/applicationNotifications';
@@ -123,6 +124,38 @@ export class RestAgentBackend implements AgentBackend {
     });
     const agents = Array.isArray(resp.data?.agents) ? resp.data.agents : [];
     return agents.filter((a) => typeof a === 'string');
+  }
+
+  async listAgentDescriptors(): Promise<AgentDescriptor[]> {
+    const resp = await this.transport.request<{
+      agents?: unknown;
+      agent_descriptors?: unknown;
+    }>({
+      method: 'GET',
+      path: '/agents',
+    });
+    const raw = Array.isArray(resp.data?.agent_descriptors)
+      ? resp.data.agent_descriptors
+      : [];
+    return raw.flatMap((value) => {
+      if (!value || typeof value !== 'object') return [];
+      const candidate = value as Record<string, unknown>;
+      const id = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+      if (!id) return [];
+      const title =
+        typeof candidate.title === 'string' && candidate.title.trim()
+          ? candidate.title.trim()
+          : id;
+      const description =
+        typeof candidate.description === 'string'
+          ? candidate.description.trim()
+          : '';
+      const order =
+        typeof candidate.order === 'number' && Number.isFinite(candidate.order)
+          ? candidate.order
+          : 0;
+      return [{ id, title, description, order }];
+    });
   }
 
   async createSession(params: {
