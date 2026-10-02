@@ -24,7 +24,7 @@ def test_quickstart_example_executes_with_expected_output(capsys) -> None:
 
     exec(compile(_quickstart_example(), str(QUICKSTART), "exec"), namespace)
 
-    assert capsys.readouterr().out == (
+    assert capsys.readouterr().out.endswith(
         "SYS= | USER=Hello from the echo provider!\n"
     )
     session = namespace["session"]

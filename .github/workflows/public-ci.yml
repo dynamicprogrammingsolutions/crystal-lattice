@@ -36,9 +36,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_HEAD_SHA: ${{ github.sha }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             git diff --check "$BASE_SHA" "$HEAD_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            git show --check --format= "$PUSH_HEAD_SHA"
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
             git diff --check HEAD^ HEAD
           else
