@@ -22,7 +22,9 @@ from .application_owner import (
 from .request_execution import (
     SessionOperationBusyError,
     SessionRequestAlreadyRunningError,
+    SessionRequestError,
     SessionRequestResult,
+    SessionRequestResultStatus,
     SessionRequestStart,
 )
 from .session_request_status import (
@@ -30,6 +32,14 @@ from .session_request_status import (
     SessionRequestStatusService,
     SessionRequestStatusSnapshot,
 )
+from .history_projection import (
+    CompactHistory,
+    CompactMessage,
+    get_canonical_message,
+    project_session_history,
+)
+from .json_projection import JsonProjectionError, project_json_document
+from .session_data_query import normalize_message_range, serialize_session_messages
 from .operations import (
     ApplicationOperationBusyError,
     ApplicationOperationClosedError,
@@ -60,13 +70,18 @@ __all__ = [
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
     "InMemoryApplicationNotificationStore",
+    "JsonProjectionError",
+    "CompactHistory",
+    "CompactMessage",
     "ManagedProcess",
     "ManagedProcessAlreadyExistsError",
     "ManagedProcessRegistry",
     "ManagedProcessRegistryClosedError",
     "SessionRequestAlreadyRunningError",
     "SessionOperationBusyError",
+    "SessionRequestError",
     "SessionRequestResult",
+    "SessionRequestResultStatus",
     "SessionRequestStart",
     "SessionRequestStatus",
     "SessionRequestStatusService",
@@ -74,5 +89,10 @@ __all__ = [
     "SQLiteApplicationNotificationStore",
     "get_managed_process_registry",
     "get_application_operation_service",
+    "get_canonical_message",
+    "normalize_message_range",
+    "project_json_document",
+    "project_session_history",
+    "serialize_session_messages",
     "session_operation_exclusivity_key",
 ]

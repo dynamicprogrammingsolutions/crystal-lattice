@@ -1,0 +1,209 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at_policy": "Generation timestamps belong in manifests, not individual rows.",
+  "stable_id_policy": "Rows use semantic IDs: agent:<agent-id>, provider:<provider-id>, and feature:<normalized-plugin-id>.",
+  "delimited_list_separator": "|",
+  "status_vocabulary": {
+    "capability_state": [
+      "current",
+      "optional",
+      "partial",
+      "experimental",
+      "planned",
+      "unsupported",
+      "not_applicable",
+      "unknown"
+    ],
+    "presence_state": [
+      "present",
+      "absent",
+      "unknown"
+    ],
+    "packaging_state": [
+      "selected_source_config",
+      "selected_dependency",
+      "not_selected",
+      "unknown"
+    ],
+    "enablement_state": [
+      "default_enabled",
+      "configured_profile",
+      "configured_route",
+      "optional",
+      "default_disabled",
+      "conditional",
+      "not_applicable",
+      "unknown"
+    ],
+    "support_state": [
+      "supported",
+      "partial",
+      "unsupported",
+      "not_applicable",
+      "unknown"
+    ],
+    "verification_state": [
+      "passed",
+      "failed",
+      "incomplete",
+      "test_present_not_run",
+      "not_applicable",
+      "unknown"
+    ],
+    "review_state": [
+      "generated",
+      "proposed",
+      "needs_review",
+      "accepted",
+      "rejected"
+    ],
+    "confidence": [
+      "robust",
+      "moderate",
+      "exploratory",
+      "contradictory",
+      "unresolved"
+    ]
+  },
+  "catalogs": {
+    "configured-agent-compatibility.csv": {
+      "generated_fields": [
+        "row_id",
+        "agent_id",
+        "provider_route",
+        "provider_plugin",
+        "model",
+        "auth_mode",
+        "mixin_refs",
+        "agent_plugin_specs",
+        "disabled_plugins",
+        "enabled_plugins",
+        "shell_tool_mode",
+        "reasoning_enabled",
+        "reasoning_effort",
+        "system_message_enabled",
+        "mcp_enabled",
+        "skills_enabled",
+        "source_presence",
+        "packaging_state",
+        "loading_scope",
+        "default_enablement",
+        "source_commit",
+        "source_path"
+      ],
+      "review_fields": [
+        "role",
+        "compatibility_family",
+        "prompt_family",
+        "tool_surface",
+        "runtime_prerequisites",
+        "capability_state",
+        "http_support",
+        "terminal_support",
+        "mobile_support",
+        "desktop_support",
+        "automated_coverage",
+        "verification_state",
+        "real_provider_verification",
+        "limitations",
+        "evidence_ids",
+        "confidence",
+        "review_state",
+        "reviewer_note"
+      ]
+    },
+    "provider-account-compatibility.csv": {
+      "generated_fields": [
+        "row_id",
+        "provider_id",
+        "provider_plugin",
+        "base_url",
+        "auth_mode",
+        "api_key_reference",
+        "configured_model",
+        "provider_plugin_specs",
+        "reasoning_enabled",
+        "reasoning_effort",
+        "source_presence",
+        "packaging_state",
+        "loading_scope",
+        "default_enablement",
+        "source_commit",
+        "source_path"
+      ],
+      "review_fields": [
+        "route_family",
+        "account_modes",
+        "model_discovery",
+        "runtime_prerequisites",
+        "capability_state",
+        "http_support",
+        "terminal_support",
+        "mobile_support",
+        "desktop_support",
+        "automated_coverage",
+        "verification_state",
+        "real_provider_verification",
+        "cost_semantics",
+        "limitations",
+        "evidence_ids",
+        "confidence",
+        "review_state",
+        "reviewer_note"
+      ]
+    },
+    "application-feature-compatibility.csv": {
+      "generated_fields": [
+        "row_id",
+        "plugin_spec",
+        "plugin_id",
+        "source_kind",
+        "project_name",
+        "descriptor_entries",
+        "descriptor_kinds",
+        "local_dependencies",
+        "source_presence",
+        "packaging_state",
+        "loading_scope",
+        "default_enablement",
+        "source_commit",
+        "source_path"
+      ],
+      "review_fields": [
+        "feature_family",
+        "user_visible_behavior",
+        "runtime_prerequisites",
+        "capability_state",
+        "http_support",
+        "terminal_support",
+        "mobile_support",
+        "desktop_support",
+        "automated_coverage",
+        "verification_state",
+        "real_provider_verification",
+        "limitations",
+        "evidence_ids",
+        "confidence",
+        "review_state",
+        "reviewer_note"
+      ]
+    }
+  },
+  "evidence_record": {
+    "required_fields": [
+      "claim_id",
+      "row_ids",
+      "claim",
+      "source_type",
+      "source_ids",
+      "source_paths",
+      "source_commit",
+      "observation_date",
+      "verification_method",
+      "verification_result",
+      "limitations",
+      "confidence",
+      "review_state"
+    ]
+  }
+}

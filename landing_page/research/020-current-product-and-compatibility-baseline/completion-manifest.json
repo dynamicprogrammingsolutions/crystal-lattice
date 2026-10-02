@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0.0",
+  "status": "complete",
+  "completed_at_utc": "2026-10-02T06:50:09Z",
+  "source_revision": "add5f5e71de3bb1676851bb840dfd77620f63ddb",
+  "transformation_version": "compatibility-baseline-v2",
+  "human_review": {
+    "decision_count": 9,
+    "decision_review_state": "accepted",
+    "decision_approved_date": "2026-10-01",
+    "website_projection_review_state": "accepted",
+    "website_projection_maturity": "draft",
+    "website_projection_approved_date": "2026-10-02",
+    "downstream_revision_allowed": true
+  },
+  "counts": {
+    "configured_agents": 20,
+    "provider_account_routes": 7,
+    "application_features": 33,
+    "claim_records": 24,
+    "plugin_projects": 66,
+    "provider_matrix_rows": 10,
+    "provider_matrix_features": 19,
+    "provider_matrix_cells": 190,
+    "model_family_groups": 12,
+    "model_family_features": 21,
+    "model_family_cells": 252,
+    "website_feature_rows": 9,
+    "website_provider_rows": 9,
+    "website_provider_columns": 6,
+    "website_model_families": 6,
+    "website_tool_rows": 71
+  },
+  "authoritative_outputs": [
+    {
+      "path": "catalog-schema.json",
+      "sha256": "598bc5e27896b0834eec6089eaf73e33d01bc61f0c67fb4650761ed8bf607a15"
+    },
+    {
+      "path": "extract_baseline.py",
+      "sha256": "bef5c4e81157b73d3c490795b76c70a4d61bc2ee6da96adba7b3a63f8ce5809e"
+    },
+    {
+      "path": "compatibility-matrix-source.json",
+      "sha256": "3730318c24835e32b99241b78494f36d1d46664b73b7a15a746ce0434a23d001"
+    },
+    {
+      "path": "generate_compatibility_matrices.py",
+      "sha256": "fd9c3eadb48811a994b802f861878c08727f119da152bad22c9adb9285073bc8"
+    },
+    {
+      "path": "feature-catalog.json",
+      "sha256": "593c1fe264506ef9f0c14e2a3114715202c0ca49ddd4f8f0dfcd7dbc39354edc"
+    },
+    {
+      "path": "provider-support-matrix.json",
+      "sha256": "3e9bedbd3cad6ddea92dd57309a733e1f0ed9297a8652f70933b5afd179a90ec"
+    },
+    {
+      "path": "model-family-feature-matrix.json",
+      "sha256": "d0dc095604df0f33183e6607cb3369eadb2bff92910157cd7a52b86b120f6df0"
+    },
+    {
+      "path": "compatibility-matrices.md",
+      "sha256": "a008bcd141bc916a8c8547e48d37e1b83f2f651a5ccebf5cbb6a1c4ed4630885"
+    },
+    {
+      "path": "website-compatibility-selection.json",
+      "sha256": "5a58fc4faa9563d196a70fea449d6cc37699a9f7ad9199983842b09ed44f0108"
+    },
+    {
+      "path": "generate_website_compatibility_data.py",
+      "sha256": "79b8d42405832e340797bf9ad6c2ffa1537f9de07feb798b030b4a3ab40759fb"
+    },
+    {
+      "path": "website-compatibility-data.json",
+      "sha256": "062bc21e9a918ba59693ae4c0737d2449a43887ce0b6a13134e035ed2dcae75e"
+    },
+    {
+      "path": "website-compatibility-data.md",
+      "sha256": "11ad2942bc1d758c5008d29e62f444215bb46e97497ad7127d3011a40a0401df"
+    },
+    {
+      "path": "claim-evidence.jsonl",
+      "sha256": "74a2d29ffda202344b64edba421bb1ee13318202f67f7bd2d01e555a7ba2f3fe"
+    },
+    {
+      "path": "verification-summary.md",
+      "sha256": "3ee60838107c7c34cc69e2ef53ac3118dc203f27fffbec6b2775976b6acf85a8"
+    },
+    {
+      "path": "../../docs/development/research/findings/current-product-and-compatibility-baseline.md",
+      "sha256": "b629d313380e82d6caa1ffd3b28d3ebfcbde5df9cd14adeae6e45e362394e825"
+    }
+  ],
+  "supporting_outputs": [
+    {
+      "path": "configured-agent-compatibility.csv",
+      "sha256": "917070a03bff98205971795c7f7ec262871e527b2ea6c6024910a84f12ed3e15"
+    },
+    {
+      "path": "provider-account-compatibility.csv",
+      "sha256": "49d4a8d63840f01ef39902be58bb1356c66bdf57eab3c1dd3753fd1c5afa4745"
+    },
+    {
+      "path": "application-feature-compatibility.csv",
+      "sha256": "551438675e517e66fdf5576fefa9d48184587330dfdbe012e552b202088f4351"
+    },
+    {
+      "path": "catalog-review-overrides.json",
+      "sha256": "c299760c2cf05541c2389ae923b5361151a15f83ca41eda8b6ff77eb0ec39329"
+    }
+  ],
+  "verification": [
+    {
+      "command": ".venv/bin/python landing_page/research/020-current-product-and-compatibility-baseline/extract_baseline.py --check",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/python landing_page/research/020-current-product-and-compatibility-baseline/generate_compatibility_matrices.py --check",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/python landing_page/research/020-current-product-and-compatibility-baseline/generate_website_compatibility_data.py --check",
+      "result": "passed"
+    },
+    {
+      "command": ".venv/bin/pytest plugins/codex-tools/tests/test_shell_tool_selection.py -q",
+      "result": "46 passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "documentation_updates": [
+    "landing_page/docs/development/research/findings/current-product-and-compatibility-baseline.md",
+    "landing_page/docs/development/research/index.md",
+    "landing_page/docs/development/research/positioning-and-product-baseline.md",
+    "landing_page/docs/development/research/evidence-index.md",
+    "landing_page/docs/development/specifications/product-website-content/requirements.md"
+  ],
+  "public_website_changed": false,
+  "remaining_unverified_boundaries": [
+    "Current hosted provider/account/model entitlement across every configured route",
+    "Native mobile and macOS UI suites not run in this audit",
+    "Produced bundled, optimized, cloud, and embedded distribution artifacts",
+    "Complete clean-default runtime loading in a fresh cache and environment",
+    "Message-export browser, PDF toolchain, SMTP/Keychain, and native-share paths",
+    "Official upstream session interoperability",
+    "Uniform provider metadata and exact billing truth"
+  ]
+}

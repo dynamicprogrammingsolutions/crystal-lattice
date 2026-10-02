@@ -6,6 +6,9 @@ run:
 - a FastAPI HTTP API for sessions, messages, requests, plugins, config, and
   application actions
 - a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
+- local Python and one-shot CLI APIs for configured agent tasks, follow-ups,
+  bounded progress, compact history, plugin-filtered session enumeration, and
+  projected canonical message ranges
 - both together, sharing the same session store and in-memory event stream
 - optional Bonjour/mDNS advertisement for LAN discovery
 - optional bridge registration for paired mobile access across networks
@@ -16,8 +19,11 @@ The internal Python module is still `agent_terminal_app`, so
 Documentation:
 
 - [Package documentation](docs/index.md)
+- [Installation](docs/installation.md)
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
+- [Local headless agent runs](docs/headless-agent-runs.md)
+- [Session and message queries](docs/session-data-query.md)
 - [Application configuration](docs/configuration.md)
 - [Configuration mixins](docs/configuration-mixins.md)
 - [Configuration variants](docs/configuration-variants.md)
@@ -26,57 +32,17 @@ Documentation:
 
 ## Installation
 
-### Binary Install
+The bundled CLI includes Python and the application runtime. Choose the
+supported method for your system:
 
-The bundled installer includes Python and the app runtime. It is the easiest
-path for end users on macOS, Linux, or Git Bash on Windows:
+- [Installation overview](docs/installation.md)
+- [macOS and Linux](docs/installation-macos-linux.md)
+- [Windows PowerShell](docs/installation-windows.md)
+- [Manual archive installation](docs/installation-manual.md)
 
-```bash
-curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
-```
-
-The default runtime installation is:
-
-```text
-~/.local/opt/crystal-lattice-cli/<asset-stem>/
-```
-
-The installer writes `crystal-lattice` into an existing suitable writable
-directory already present on `PATH`. It prefers the directory containing a
-previous bundled-Python installation, then `~/.local/bin`, then `~/bin`, and
-finally another safe writable PATH directory. If none is available, the
-installer stops before replacing installation state and asks for an explicit
-`BIN_DIR`.
-
-Pinned install:
-
-```bash
-curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.4 bash
-```
-
-Review-first install:
-
-```bash
-curl -fsSLO https://download.crystallattice.dev/crystal-lattice-cli/install.sh
-less install.sh
-bash install.sh
-```
-
-Supported shell-installer assets:
-
-```text
-darwin-amd64
-darwin-arm64
-linux-amd64
-windows-amd64
-```
-
-On Windows, run the shell installer from Git Bash, MSYS2, or Cygwin. Native
-PowerShell installation is not implemented yet; use the release `.zip` asset
-directly if you do not use a Bash-compatible shell. Installation from a
-Bash-compatible shell creates both the shell command and
-`crystal-lattice.cmd` in the selected PATH directory, so the installed command
-can also be found by native Windows command lookup.
+The default configuration starts without provider credentials. Add real API
+keys through the applicable `.env` file when you are ready to send provider
+requests.
 
 ### Python Package Availability
 
@@ -86,7 +52,7 @@ or use the source install below for development.
 
 ### Source Install
 
-From the repository root:
+For development from the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"
@@ -134,25 +100,38 @@ For contributors and local validation:
   pytest application/python/tests -m docker -q
   ```
 
-The shipped CLI distribution has three independently executable local smoke
-scenarios:
+The shipped CLI distribution has four independently executable
+credential-free installation smoke scenarios:
 
 ```bash
 npm run test:cli:source-install
 npm run test:cli:archive
 npm run test:cli:default-install
+npm run test:cli:powershell-install
 ```
 
 The source-installation smoke exercises dynamic default-plugin installation in
 a fresh lean venv. The extracted-archive smoke unpacks and runs the archive
 launcher directly. The default-installer smoke runs the public download
 installer with default paths and executes `crystal-lattice` by name through
-PATH.
+PATH. The PowerShell-installer smoke runs the native Windows installer and
+verifies the command from both PowerShell and `cmd.exe`.
 
-The two archive-based smokes each use separate temporary homes, configurations,
-plugin caches, and pip caches. Each independently installs a packaged plugin
-that is deliberately absent from the preinstalled manifest. These tests
-require package-index network access and can take several minutes. See
+Each scenario also executes one deterministic agent request through the CLI
+and one through the packaged Python SDK. The separately gated real
+model-mediated check is:
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E=1 \
+OPENROUTER_API_KEY=... \
+npm run test:cli:agent-access
+```
+
+The direct archive and applicable installer smokes use separate temporary
+homes, configurations, plugin caches, and pip caches. Each independently
+installs a packaged plugin that is deliberately absent from the preinstalled
+manifest. These tests require package-index network access and can take
+several minutes. See
 [CLI distribution implementation and verification](docs/development/cli-distribution.md)
 for isolation, prebuilt-archive overrides, platform behavior, and the separate
 optimized PyInstaller suite.
@@ -167,6 +146,21 @@ real-provider tests and does not overwrite already-exported environment
 variables.
 
 ## Running Crystal Lattice
+
+### One-shot agent tasks
+
+Run a configured agent without starting the server or interactive terminal:
+
+```bash
+crystal-lattice agents
+crystal-lattice run --agent codex-openai --prompt-file task.md
+```
+
+Use `--format json` for machine-safe results and reuse the returned
+`session_id` with `crystal-lattice run --session ...` for a follow-up. Python
+callers can use `open_runtime()` from `agent_terminal_app`. See
+[Local headless agent runs](docs/headless-agent-runs.md) for progress,
+parallelism, compact history, cancellation, and output contracts.
 
 ### Quick Start
 
@@ -344,6 +338,10 @@ Important layout behavior:
   rather than the active config file location.
 - `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
   sources in binary installs.
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`, `CRYSTAL_LATTICE_CLI_COMMAND`,
+  `CRYSTAL_LATTICE_CONFIG`, and `CRYSTAL_LATTICE_SESSIONS` identify the same
+  runtime for optional delegated local runs; interpreter, API, local-docs, and
+  public-docs values determine whether full or CLI-only guidance is available.
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
 
@@ -471,7 +469,19 @@ Or, to avoid passing `--bridge-url` every time, add it to `.crystal/profile.json
 or to `config.json` under the `application` section:
 
 ```json
-{"application": {"bridge_url": "ws://localhost:4000/ws/websocket"}}
+{
+  "application": {
+    "bridge_url": "ws://localhost:4000/ws/websocket",
+    "bridge": {
+      "ws_max_size_bytes": 16777216,
+      "http_timeout_seconds": 120.0,
+      "http_chunk_size_bytes": 921600,
+      "http_chunk_threshold_bytes": 262144,
+      "http_max_body_bytes": 10485760,
+      "debug": false
+    }
+  }
+}
 ```
 
 Then simply:
@@ -505,12 +515,20 @@ Common bridge options:
 - `--bridge-takeover-local` - with the local guard, try to terminate and replace
   the existing local process.
 
-The equivalent environment override for the public HTTP origin is
-`BRIDGE_HTTP_BASE_URL`. The server WebSocket remains the registration and
-control channel. For HTTP/hybrid frontends, request bodies are downloaded from
-the bridge and local response bodies are uploaded to it as raw HTTP byte
-streams; only status, headers, paths, and short-lived transfer credentials use
-the WebSocket.
+Bridge and Bonjour are activated and configured only through these explicit
+CLI/profile/application sources. Ambient `BRIDGE_*`, `BONJOUR_*`,
+`ENABLE_BONJOUR`, `SERVER_HOST`, `SERVER_PORT`, and `PORT` values do not
+configure the internally hosted integrations. Direct uvicorn embedders must
+call `configure_integrations(...)` before startup when they need either
+integration.
+
+The settings under `application.bridge` are advanced process-start transport
+controls. Their complete types, defaults, validation, and restart behavior are
+documented in [Application configuration](docs/configuration.md#bridge-runtime-settings).
+The server WebSocket remains the registration and control channel. For
+HTTP/hybrid frontends, request bodies are downloaded from the bridge and local
+response bodies are uploaded to it as raw HTTP byte streams; only status,
+headers, paths, and short-lived transfer credentials use the WebSocket.
 
 Maintainers can find lifecycle, legacy/v2 forwarding, header, cancellation,
 and test ownership details in
@@ -931,10 +949,12 @@ dist/crystal-lattice-python-runtime/
 Bundled-Python archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.4-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.5-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-linux-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.5-windows-arm64.zip
 ```
 
 From that full package, users can create optimized config-specific PyInstaller
@@ -968,10 +988,12 @@ dist/crystal-lattice/
 Bundled-Python runtime archive names look like:
 
 ```text
-crystal-lattice-python-runtime-v0.1.4-linux-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-darwin-amd64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-darwin-arm64.tar.gz
-crystal-lattice-python-runtime-v0.1.4-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.5-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-linux-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.5-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.5-windows-arm64.zip
 ```
 
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
@@ -1084,10 +1106,10 @@ These npm entry points use application-owned scripts under
 `application/python/scripts/`. The root packaging builders remain low-level
 shared inputs for runtime archives and cloud-orchestrator source bundles.
 
-### Curl Installer / Download Domain
+### Public Installers / Download Domain
 
-The public shell installer downloads through the CloudFront-backed download
-domain:
+The public Bash and PowerShell installers download through the
+CloudFront-backed download domain:
 
 ```text
 https://download.crystallattice.dev/crystal-lattice-cli
@@ -1104,10 +1126,11 @@ CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE="/path/to/local/archive.tar.gz"
 ```
 
 `CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for testing another
-CloudFront distribution, bucket, or local mirror. The same URL base is expected
-to contain `install.sh`, `latest.txt`, and the release archives. The shell
-installer downloads `.tar.gz` archives on macOS/Linux and the `.zip` archive
-when it detects Git Bash/MSYS/Cygwin on Windows.
+CloudFront distribution, bucket, or local mirror. The same URL base is
+expected to contain `install.sh`, `install.ps1`, `latest.txt`, and all six
+release archives. The Bash installer downloads `.tar.gz` archives on
+macOS/Linux and the `.zip` archive when it detects Git Bash/MSYS/Cygwin on
+Windows. The PowerShell installer supports native Windows AMD64 and ARM64.
 
 `BIN_DIR` explicitly selects another command directory and may create it; the
 caller then owns making that directory discoverable. Without `BIN_DIR`, the
@@ -1136,7 +1159,7 @@ Manual republish:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile prod \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.4
+  --version 0.1.5
 ```
 
 To change or retire the public download endpoint, use the deployment scripts in
@@ -1147,8 +1170,8 @@ publishing configuration together.
 ### GitHub Release Workflow
 
 GitHub Releases are the canonical CI build output for binary archives. Public
-shell installers consume copies published to the CloudFront-backed download
-domain.
+Bash and PowerShell installers consume copies published to the
+CloudFront-backed download domain.
 
 The release workflow lives at:
 
@@ -1165,8 +1188,9 @@ gh workflow run release-crystal-lattice-cli.yml
 Manual runs execute tests, build every platform archive, and smoke-test the
 archives. They do not store Actions artifacts or publish a GitHub Release. On a
 release tag, each read-only matrix job stores its archive as a one-day Actions
-artifact. One protected publish job downloads and verifies all four archives,
-uploads them to the GitHub Release, and makes the release public.
+artifact. One protected publish job downloads and verifies all six archives,
+uploads them to the GitHub Release, publishes both installers, and makes the
+release public.
 
 Local workflow validation:
 
@@ -1196,8 +1220,8 @@ Official releases are created by pushing a tag that matches the CLI package
 version:
 
 ```bash
-git tag crystal-lattice-cli-v0.1.4
-git push origin crystal-lattice-cli-v0.1.4
+git tag crystal-lattice-cli-v0.1.5
+git push origin crystal-lattice-cli-v0.1.5
 ```
 
 The tag must match `application/python/pyproject.toml`'s `project.version`.
@@ -1209,8 +1233,9 @@ Maintainer checklist:
 3. Run local tests or a manual GitHub Actions dry run.
 4. Commit and push the release commit.
 5. Create and push `crystal-lattice-cli-v<version>`.
-6. Verify the GitHub Release contains all four archives.
-7. Verify the download-domain installer and `latest.txt` point at the expected release.
+6. Verify the GitHub Release contains all six archives.
+7. Verify both download-domain installers and `latest.txt` point at the
+   expected release.
 
 ### Docker Linux Bundle Test
 

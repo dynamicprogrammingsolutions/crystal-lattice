@@ -33,6 +33,7 @@ Decision record:
 Related specifications:
 
 - [Application configuration composition](../application-configuration-composition/index.md)
+- [Session and message data query](../../../../../../application/python/docs/development/specifications/session-data-query/index.md)
 - [Application runtime reload](../../../../../../docs/development/specifications/application-runtime-reload/index.md)
 - [Sessions actions](../../../../../../docs/development/specifications/sessions-actions/index.md)
 

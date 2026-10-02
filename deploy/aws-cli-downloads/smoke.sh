@@ -67,6 +67,13 @@ printf '%s\n' "$installer" | grep -q "DEFAULT_DOWNLOAD_BASE_URL=\"$BASE_URL\"" |
   echo "install.sh does not default to $BASE_URL" >&2
   exit 1
 }
+curl -fsSI "$BASE_URL/install.ps1" >/dev/null
+powershell_installer="$(curl -fsSL "$BASE_URL/install.ps1")"
+printf '%s\n' "$powershell_installer" | \
+  grep -Fq "\$DefaultDownloadBaseUrl = \"$BASE_URL\"" || {
+  echo "install.ps1 does not default to $BASE_URL" >&2
+  exit 1
+}
 
 latest="$(curl -fsSL "$BASE_URL/latest.txt" | tr -d '[:space:]')"
 [ -n "$latest" ] || {
@@ -101,7 +108,7 @@ fi
 os="$(uname -s 2>/dev/null || true)"
 arch="$(uname -m 2>/dev/null || true)"
 case "$os:$arch" in
-  Darwin:x86_64|Darwin:arm64|Linux:x86_64|Linux:amd64|MINGW*:x86_64|MINGW*:amd64|MSYS*:x86_64|MSYS*:amd64|CYGWIN*:x86_64|CYGWIN*:amd64)
+  Darwin:x86_64|Darwin:arm64|Linux:x86_64|Linux:amd64|Linux:arm64|Linux:aarch64|MINGW*:x86_64|MINGW*:amd64|MINGW*:arm64|MINGW*:aarch64|MSYS*:x86_64|MSYS*:amd64|MSYS*:arm64|MSYS*:aarch64|CYGWIN*:x86_64|CYGWIN*:amd64|CYGWIN*:arm64|CYGWIN*:aarch64)
     need_command bash
     test_root="$(mktemp -d)"
     trap 'rm -rf "$test_root"' EXIT

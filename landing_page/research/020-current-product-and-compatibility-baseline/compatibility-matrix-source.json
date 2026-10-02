@@ -1,0 +1,762 @@
+{
+  "schema_version": "1.0.0",
+  "review_state": "accepted",
+  "status_vocabulary": {
+    "supported": "Implemented for this row without an additional feature gate beyond ordinary configuration.",
+    "conditional": "Implemented, but availability depends on model capability, provider response, account mode, explicit enablement, or another prerequisite.",
+    "planned": "Not implemented in the current row, but explicitly owned by a maintained future requirement or task.",
+    "unsupported": "Not implemented for this row and not represented as current support.",
+    "not_applicable": "The feature does not meaningfully apply to this row.",
+    "unknown": "Evidence is insufficient to classify the cell."
+  },
+  "feature_catalog_overrides": {
+    "bash-read-line-range": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "bash-send-kindle-icloud": {
+      "lifecycle": "optional",
+      "audience": "advanced users"
+    },
+    "dummy-action-display-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-action-display-form-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-application-notification-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-mcp-auth-server": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-mcp-output-server": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-rich-config-ui": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-session-notification-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "dummy-settings-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "embedded-claude-tools": {
+      "lifecycle": "distribution_specific",
+      "audience": "embedded-runtime users"
+    },
+    "embedded-codex-tools": {
+      "lifecycle": "distribution_specific",
+      "audience": "embedded-runtime users"
+    },
+    "embedded-tools-shared": {
+      "lifecycle": "support_library",
+      "audience": "maintainers"
+    },
+    "generic-callback-app": {
+      "lifecycle": "development_fixture",
+      "audience": "maintainers"
+    },
+    "js-class-tool": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "js-echo-tool": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "js-fs-tools": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "js-multi-tools": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "js-single-file-tool": {
+      "lifecycle": "example",
+      "audience": "plugin authors"
+    },
+    "mcp-shared": {
+      "lifecycle": "support_library",
+      "audience": "maintainers"
+    },
+    "message-export-actions": {
+      "description": "Optional application actions for exporting messages or sessions as Markdown, PDF, EPUB/Kindle-compatible files, and generated session assets."
+    },
+    "openrouter": {
+      "description": "OpenRouter Chat Completions and image-generation providers with capability-gated tools, reasoning, verbosity, web search, caching, attachments, usage, and image output extensions."
+    },
+    "openrouter_responses": {
+      "lifecycle": "optional",
+      "audience": "advanced users"
+    },
+    "skill-shared": {
+      "lifecycle": "support_library",
+      "audience": "maintainers"
+    },
+    "template-bash-tool": {
+      "lifecycle": "template",
+      "audience": "plugin authors"
+    },
+    "template-js-multi-tools": {
+      "lifecycle": "template",
+      "audience": "plugin authors"
+    },
+    "template-python-provider": {
+      "lifecycle": "template",
+      "audience": "plugin authors"
+    },
+    "template-python-tools": {
+      "lifecycle": "template",
+      "audience": "plugin authors"
+    },
+    "tool-compat-shared": {
+      "lifecycle": "support_library",
+      "audience": "maintainers"
+    },
+    "web-fetch-shared": {
+      "lifecycle": "support_library",
+      "audience": "maintainers"
+    }
+  },
+  "provider_matrix": {
+    "features": [
+      {"feature_id": "api_key_auth", "label": "API-key authentication"},
+      {"feature_id": "subscription_account_auth", "label": "Subscription-account authentication"},
+      {"feature_id": "model_discovery", "label": "Model discovery"},
+      {"feature_id": "streaming", "label": "Streaming responses"},
+      {"feature_id": "tool_calling", "label": "Native tool calling"},
+      {"feature_id": "reasoning", "label": "Native reasoning controls and metadata"},
+      {"feature_id": "verbosity", "label": "Native verbosity control"},
+      {"feature_id": "usage_tokens", "label": "Usage and token metadata"},
+      {"feature_id": "cost_reporting", "label": "Cost reporting or estimation"},
+      {"feature_id": "prompt_caching", "label": "Native prompt caching"},
+      {"feature_id": "native_web_search", "label": "Native provider web search"},
+      {"feature_id": "native_compaction", "label": "Native provider compaction"},
+      {"feature_id": "flex_processing", "label": "Flex processing"},
+      {"feature_id": "fast_mode", "label": "Fast or priority processing tier"},
+      {"feature_id": "image_input", "label": "Image input"},
+      {"feature_id": "pdf_input", "label": "PDF or file input"},
+      {"feature_id": "image_generation", "label": "Image generation"},
+      {"feature_id": "provider_routing", "label": "Provider routing controls"},
+      {"feature_id": "retry_rate_limit", "label": "Retry and rate-limit policy"}
+    ],
+    "providers": [
+      {
+        "provider_id": "openai-api",
+        "label": "OpenAI Responses — API key",
+        "implementation": "openai_responses",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "not_applicable",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "supported",
+          "reasoning": "supported",
+          "verbosity": {"status": "conditional", "note": "Shown for supported model families, currently GPT-5-class models."},
+          "usage_tokens": "supported",
+          "cost_reporting": {"status": "supported", "note": "Locally estimated from response usage and maintained pricing data."},
+          "prompt_caching": "supported",
+          "native_web_search": "supported",
+          "native_compaction": "supported",
+          "flex_processing": "supported",
+          "fast_mode": "supported",
+          "image_input": "supported",
+          "pdf_input": {"status": "conditional", "note": "Requires upload-before-send through the Files API."},
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "openai-chatgpt",
+        "label": "OpenAI Responses — saved ChatGPT account",
+        "implementation": "openai_responses",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "not_applicable",
+          "subscription_account_auth": "supported",
+          "model_discovery": {"status": "conditional", "note": "Uses saved-account model discovery with maintained fallbacks."},
+          "streaming": {"status": "supported", "note": "Current ChatGPT route is streaming-only."},
+          "tool_calling": "supported",
+          "reasoning": "supported",
+          "verbosity": {"status": "conditional", "note": "Model-gated."},
+          "usage_tokens": "supported",
+          "cost_reporting": {"status": "conditional", "note": "API-equivalent local estimate, not subscription billing."},
+          "prompt_caching": {"status": "conditional", "note": "Session cache keys are supported; 24-hour retention is suppressed."},
+          "native_web_search": "supported",
+          "native_compaction": "supported",
+          "flex_processing": {"status": "unsupported", "note": "The ChatGPT-hosted endpoint does not support flex processing."},
+          "fast_mode": {"status": "supported", "note": "Uses the ChatGPT backend's priority-tier wire name."},
+          "image_input": "supported",
+          "pdf_input": {"status": "conditional", "note": "Requires provider upload/file support."},
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "openrouter-chat",
+        "label": "OpenRouter Chat Completions",
+        "implementation": "openrouter",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "unsupported",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": {"status": "conditional", "note": "Selected-model capability discovery must report tools support."},
+          "reasoning": {"status": "conditional", "note": "Selected-model capability discovery must report reasoning support."},
+          "verbosity": {"status": "conditional", "note": "Selected-model capability discovery must report verbosity support."},
+          "usage_tokens": {"status": "conditional", "note": "Requires usage data in the provider response."},
+          "cost_reporting": {"status": "conditional", "note": "Uses provider-returned cost metadata when present."},
+          "prompt_caching": {"status": "conditional", "note": "Claude-style cache controls apply to compatible Anthropic model routes."},
+          "native_web_search": "supported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": {"status": "conditional", "note": "Image attachments depend on model/provider acceptance."},
+          "pdf_input": "unsupported",
+          "image_generation": {"status": "conditional", "note": "Implemented through the separate OpenRouter image-generation route."},
+          "provider_routing": "supported",
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "openrouter-responses",
+        "label": "OpenRouter Responses",
+        "implementation": "openrouter_responses",
+        "availability": "optional",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "unsupported",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "conditional",
+          "reasoning": "conditional",
+          "verbosity": "conditional",
+          "usage_tokens": "conditional",
+          "cost_reporting": "conditional",
+          "prompt_caching": {"status": "conditional", "note": "Claude-style cache behavior for compatible routes."},
+          "native_web_search": "supported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": "conditional",
+          "pdf_input": "unknown",
+          "image_generation": "unsupported",
+          "provider_routing": "unknown",
+          "retry_rate_limit": "conditional"
+        }
+      },
+      {
+        "provider_id": "anthropic",
+        "label": "Anthropic Messages",
+        "implementation": "anthropic-compatible",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": {"status": "planned", "note": "OAuth is owned by a separate maintained provider task."},
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "supported",
+          "reasoning": "supported",
+          "verbosity": "unsupported",
+          "usage_tokens": "supported",
+          "cost_reporting": {"status": "planned", "note": "Maintained pricing-based cost estimation requirement is not started."},
+          "prompt_caching": "supported",
+          "native_web_search": {"status": "planned", "note": "Server web tools are deferred to a maintained provider subtask."},
+          "native_compaction": {"status": "planned", "note": "Native compaction/context editing is deferred to a maintained provider subtask."},
+          "flex_processing": "not_applicable",
+          "fast_mode": {"status": "planned", "note": "Fast mode and service tiers are deferred provider work."},
+          "image_input": {"status": "planned", "note": "Image attachments are deferred provider work."},
+          "pdf_input": {"status": "planned", "note": "Files/PDF/document support is deferred provider work."},
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "ollama",
+        "label": "Ollama-compatible local route",
+        "implementation": "reference-openai-compatible-provider",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": {"status": "not_applicable", "note": "The checked-in route has no API-key field."},
+          "subscription_account_auth": {"status": "unknown", "note": "Cloud-named model identifiers may impose external account requirements."},
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "conditional",
+          "reasoning": "conditional",
+          "verbosity": "unknown",
+          "usage_tokens": "conditional",
+          "cost_reporting": "conditional",
+          "prompt_caching": "unsupported",
+          "native_web_search": "unsupported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": "conditional",
+          "pdf_input": "unsupported",
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "conditional"
+        }
+      },
+      {
+        "provider_id": "fireworks",
+        "label": "Fireworks OpenAI-compatible route",
+        "implementation": "reference-openai-compatible-provider",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "unsupported",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "conditional",
+          "reasoning": "conditional",
+          "verbosity": "unknown",
+          "usage_tokens": "conditional",
+          "cost_reporting": "conditional",
+          "prompt_caching": "unsupported",
+          "native_web_search": "unsupported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": "conditional",
+          "pdf_input": "unsupported",
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "zai",
+        "label": "Z.ai OpenAI-compatible route",
+        "implementation": "reference-openai-compatible-provider",
+        "availability": "default_configured",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "unsupported",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "conditional",
+          "reasoning": "conditional",
+          "verbosity": "unknown",
+          "usage_tokens": "conditional",
+          "cost_reporting": "conditional",
+          "prompt_caching": "unsupported",
+          "native_web_search": "unsupported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": "conditional",
+          "pdf_input": "unsupported",
+          "image_generation": "unsupported",
+          "provider_routing": {"status": "supported", "note": "Checked-in General and Coding endpoint choices."},
+          "retry_rate_limit": "supported"
+        }
+      },
+      {
+        "provider_id": "custom-openai-compatible",
+        "label": "Custom OpenAI-compatible endpoint",
+        "implementation": "reference-openai-compatible-provider",
+        "availability": "optional",
+        "default_status": "unsupported",
+        "features": {
+          "api_key_auth": "conditional",
+          "subscription_account_auth": "unknown",
+          "model_discovery": "supported",
+          "streaming": "supported",
+          "tool_calling": "conditional",
+          "reasoning": "conditional",
+          "verbosity": "unknown",
+          "usage_tokens": "conditional",
+          "cost_reporting": "conditional",
+          "prompt_caching": "unsupported",
+          "native_web_search": "unsupported",
+          "native_compaction": "unsupported",
+          "flex_processing": "unsupported",
+          "fast_mode": "unsupported",
+          "image_input": "conditional",
+          "pdf_input": "unsupported",
+          "image_generation": "unsupported",
+          "provider_routing": "not_applicable",
+          "retry_rate_limit": "conditional"
+        }
+      },
+      {
+        "provider_id": "openrouter-image",
+        "label": "OpenRouter image generation",
+        "implementation": "openrouter",
+        "availability": "default_configured",
+        "default_status": "not_applicable",
+        "features": {
+          "api_key_auth": "supported",
+          "subscription_account_auth": "unsupported",
+          "model_discovery": "conditional",
+          "streaming": "unsupported",
+          "usage_tokens": "unknown",
+          "cost_reporting": "unknown",
+          "image_input": "supported",
+          "pdf_input": "unsupported",
+          "image_generation": "supported",
+          "retry_rate_limit": "unknown"
+        }
+      }
+    ]
+  },
+  "model_family_matrix": {
+    "features": [
+      {"feature_id": "shell", "label": "Shell execution"},
+      {"feature_id": "file_read", "label": "Read files"},
+      {"feature_id": "file_write", "label": "Write files"},
+      {"feature_id": "file_edit", "label": "Edit files"},
+      {"feature_id": "file_glob", "label": "Glob or list files"},
+      {"feature_id": "text_search", "label": "Search file contents"},
+      {"feature_id": "apply_patch", "label": "Apply patch"},
+      {"feature_id": "media_read", "label": "Read images or media"},
+      {"feature_id": "web_fetch_non_native", "label": "Non-native web fetch"},
+      {"feature_id": "web_search_non_native", "label": "Non-native web search"},
+      {"feature_id": "web_search_native", "label": "Provider-native web search"},
+      {"feature_id": "mcp_tools", "label": "MCP tools"},
+      {"feature_id": "skills", "label": "Skills"},
+      {"feature_id": "background_shell", "label": "Background shell tasks"},
+      {"feature_id": "compaction_profile", "label": "Profile-level compaction"},
+      {"feature_id": "compaction_native", "label": "Provider-native compaction"},
+      {"feature_id": "reasoning_controls", "label": "Reasoning controls"},
+      {"feature_id": "provider_attachments", "label": "Provider attachments"},
+      {"feature_id": "provider_image_generation", "label": "Provider image generation"},
+      {"feature_id": "todo_or_plan_tool", "label": "Todo or plan tool"},
+      {"feature_id": "subagents", "label": "Persistent subagents"}
+    ],
+    "families": [
+      {
+        "family_id": "codex-shell-command-mini",
+        "label": "Codex-oriented GPT-5.4-mini shell-command profiles",
+        "profile_ids": ["cloud-script-author","codex-openai","codex-openrouter"],
+        "provider_routes": ["openai","openrouter"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": {"status": "supported", "note": "Uses shell_command for the checked-in GPT-5.4 and GPT-5.4-mini models."},
+          "file_read": {"status": "conditional", "note": "Available through shell commands rather than a dedicated file-read tool."},
+          "file_write": {"status": "conditional", "note": "Available through shell commands rather than a dedicated file-write tool."},
+          "file_edit": {"status": "conditional", "note": "Available through shell commands and patching."},
+          "file_glob": {"status": "conditional", "note": "Available through shell commands."},
+          "text_search": {"status": "conditional", "note": "Available through shell commands."},
+          "apply_patch": "supported",
+          "media_read": "supported",
+          "web_fetch_non_native": {"status": "conditional", "note": "No dedicated fetch tool; shell network tools may be used within policy."},
+          "web_search_non_native": "unsupported",
+          "web_search_native": {"status": "conditional", "note": "Depends on the selected OpenAI or OpenRouter provider route and session setting."},
+          "mcp_tools": {"status": "conditional", "note": "Implemented but disabled by the common default mixin."},
+          "skills": "supported",
+          "background_shell": "unknown",
+          "compaction_profile": "unsupported",
+          "compaction_native": {"status": "conditional", "note": "Available only on the OpenAI Responses route."},
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": {"status": "unsupported", "note": "The selected generic GPT-5 prompt promises update_plan, but no selected tool implements it."},
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "codex-shell-command-api",
+        "label": "Codex-oriented GPT-5.4 API profile",
+        "profile_ids": ["codex-openai-api"],
+        "provider_routes": ["openai"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": {"status": "supported", "note": "Uses shell_command for the checked-in GPT-5.4 model."},
+          "file_read": {"status": "conditional", "note": "Available through shell commands rather than a dedicated file-read tool."},
+          "file_write": {"status": "conditional", "note": "Available through shell commands rather than a dedicated file-write tool."},
+          "file_edit": {"status": "conditional", "note": "Available through shell commands and patching."},
+          "file_glob": {"status": "conditional", "note": "Available through shell commands."},
+          "text_search": {"status": "conditional", "note": "Available through shell commands."},
+          "apply_patch": "supported",
+          "media_read": "supported",
+          "web_fetch_non_native": {"status": "conditional", "note": "No dedicated fetch tool; shell network tools may be used within policy."},
+          "web_search_non_native": "unsupported",
+          "web_search_native": "supported",
+          "mcp_tools": {"status": "conditional", "note": "Implemented but disabled by the common default mixin."},
+          "skills": "supported",
+          "background_shell": "unknown",
+          "compaction_profile": "unsupported",
+          "compaction_native": "supported",
+          "reasoning_controls": "supported",
+          "provider_attachments": "supported",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": {"status": "unsupported", "note": "No selected todo/plan tool is registered; the distinct GPT-5.4 prompt was not part of the generic GPT-5 update_plan mismatch."},
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "codex-shell-array",
+        "label": "GPT-5 Codex-oriented shell-array profiles",
+        "profile_ids": ["gpt-5-openai","gpt-5-openrouter"],
+        "provider_routes": ["openai","openrouter"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": {"status": "supported", "note": "Uses the array-form shell tool."},
+          "file_read": "conditional",
+          "file_write": "conditional",
+          "file_edit": "conditional",
+          "file_glob": "conditional",
+          "text_search": "conditional",
+          "apply_patch": {"status": "supported", "note": "Dedicated plugin is disabled, but shell interception routes apply_patch invocations."},
+          "media_read": "supported",
+          "web_fetch_non_native": "conditional",
+          "web_search_native": "conditional",
+          "mcp_tools": {"status": "conditional", "note": "Implemented but disabled by default."},
+          "skills": "supported",
+          "compaction_native": {"status": "conditional", "note": "OpenAI Responses route only."},
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "todo_or_plan_tool": {"status": "unsupported", "note": "The selected prompt promises update_plan, but no selected tool implements it."},
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "claude-compatible",
+        "label": "Claude-compatible tool profiles",
+        "profile_ids": ["claude-anthropic","claude-openrouter","glm-ollama","deepseek-ollama","zai"],
+        "provider_routes": ["anthropic","openrouter","ollama","zai"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": "supported",
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "unsupported",
+          "media_read": {"status": "supported", "note": "Read handles images and PDF rendering subject to local dependencies and provider interop."},
+          "web_fetch_non_native": "supported",
+          "web_search_non_native": {"status": "conditional", "note": "Enabled for the direct Anthropic and OpenRouter Claude profiles; requires Gemini or Tavily credentials."},
+          "web_search_native": {"status": "conditional", "note": "Provider-specific and not equivalent to the Claude WebSearch tool."},
+          "mcp_tools": {"status": "conditional", "note": "Implemented but disabled by the common default mixin."},
+          "skills": "unsupported",
+          "background_shell": "supported",
+          "compaction_profile": "supported",
+          "compaction_native": "unsupported",
+          "reasoning_controls": "conditional",
+          "provider_attachments": {"status": "conditional", "note": "OpenRouter route supports images; direct Anthropic package does not currently implement attachments."},
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "qwen-style",
+        "label": "Qwen-style profile",
+        "profile_ids": ["qwen"],
+        "provider_routes": ["openrouter"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": "supported",
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "unsupported",
+          "media_read": "conditional",
+          "web_fetch_non_native": "supported",
+          "web_search_non_native": "unsupported",
+          "web_search_native": "conditional",
+          "mcp_tools": "unsupported",
+          "skills": "unsupported",
+          "background_shell": "unsupported",
+          "compaction_profile": "unsupported",
+          "compaction_native": "unsupported",
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "gemini-style",
+        "label": "Gemini-style and GLM-with-Gemini-tools profiles",
+        "profile_ids": ["gemini","glm"],
+        "provider_routes": ["openrouter"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": "supported",
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "unsupported",
+          "media_read": "conditional",
+          "web_fetch_non_native": "supported",
+          "web_search_non_native": {"status": "supported", "note": "Enabled in the checked-in profiles; requires Gemini or Tavily credentials."},
+          "web_search_native": "conditional",
+          "mcp_tools": "unsupported",
+          "skills": "unsupported",
+          "background_shell": "unsupported",
+          "compaction_profile": {"status": "conditional", "note": "Gemini compaction plugins exist but are optional and not selected by the default profiles."},
+          "compaction_native": "unsupported",
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "grok-style",
+        "label": "Grok-style profile with Qwen composition",
+        "profile_ids": ["grok"],
+        "provider_routes": ["openrouter"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": {"status": "supported", "note": "Current source declares bash; two stale tests omit it."},
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": {"status": "supported", "note": "Provided by the residual Qwen package surface."},
+          "text_search": {"status": "supported", "note": "Provided by the residual Qwen package surface."},
+          "apply_patch": "unsupported",
+          "media_read": "unsupported",
+          "web_fetch_non_native": {"status": "supported", "note": "Provided by the residual Qwen package surface."},
+          "web_search_non_native": "unsupported",
+          "web_search_native": "conditional",
+          "mcp_tools": "unsupported",
+          "skills": "unsupported",
+          "background_shell": "unsupported",
+          "compaction_profile": "unsupported",
+          "compaction_native": "unsupported",
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "kimi-style",
+        "label": "Kimi-style profiles",
+        "profile_ids": ["kimi","kimi-ollama"],
+        "provider_routes": ["openrouter","ollama"],
+        "default_status": "unsupported",
+        "features": {
+          "shell": "supported",
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "unsupported",
+          "media_read": {"status": "conditional", "note": "ReadMediaFile is capability-gated; image input is the default package capability."},
+          "web_fetch_non_native": "supported",
+          "web_search_non_native": {"status": "conditional", "note": "Enabled for the OpenRouter Kimi profile; requires a configured search provider."},
+          "web_search_native": "conditional",
+          "mcp_tools": "unsupported",
+          "skills": "unsupported",
+          "background_shell": "unsupported",
+          "compaction_profile": "supported",
+          "compaction_native": "unsupported",
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "provider_image_generation": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "provider-only",
+        "label": "Provider-only generic profiles",
+        "profile_ids": ["ollama","fireworks"],
+        "provider_routes": ["ollama","fireworks"],
+        "default_status": "unsupported",
+        "features": {
+          "reasoning_controls": "conditional",
+          "provider_attachments": "conditional",
+          "web_search_native": "unsupported",
+          "compaction_native": "unsupported",
+          "todo_or_plan_tool": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "image-generation",
+        "label": "OpenRouter image-generation profile",
+        "profile_ids": ["openrouter-image"],
+        "provider_routes": ["openrouter_image_generation"],
+        "default_status": "not_applicable",
+        "features": {
+          "provider_attachments": "supported",
+          "provider_image_generation": "supported",
+          "reasoning_controls": "not_applicable",
+          "todo_or_plan_tool": "not_applicable",
+          "subagents": "not_applicable"
+        }
+      },
+      {
+        "family_id": "embedded-codex",
+        "label": "Embedded Codex-like tools",
+        "profile_ids": [],
+        "provider_routes": ["embedded runtime"],
+        "availability": "distribution_specific",
+        "default_status": "unsupported",
+        "features": {
+          "shell": {"status": "conditional", "note": "Pure-Python sed, rg, find, and bounded curl emulation; no arbitrary shell."},
+          "file_read": "supported",
+          "file_write": "conditional",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "supported",
+          "media_read": "unsupported",
+          "web_fetch_non_native": "supported",
+          "skills": "unsupported",
+          "subagents": "unsupported"
+        }
+      },
+      {
+        "family_id": "embedded-claude",
+        "label": "Embedded Claude-like tools",
+        "profile_ids": [],
+        "provider_routes": ["embedded runtime"],
+        "availability": "distribution_specific",
+        "default_status": "unsupported",
+        "features": {
+          "shell": "unsupported",
+          "file_read": "supported",
+          "file_write": "supported",
+          "file_edit": "supported",
+          "file_glob": "supported",
+          "text_search": "supported",
+          "apply_patch": "unsupported",
+          "media_read": "unsupported",
+          "web_fetch_non_native": "supported",
+          "skills": "unsupported",
+          "subagents": "unsupported"
+        }
+      }
+    ]
+  }
+}

@@ -90,3 +90,37 @@ selected by mixins and variants.
 
 - [Bundled default configuration](../agent_terminal_app/default_config/config.json)
 - [feature-system-message](../../../plugins/feature-system-message/README.md)
+
+## Optional Crystal Lattice access guidance
+
+The bundled default config defines one shared `crystal_lattice_access` mixin.
+Maintained vendor templates end with:
+
+```text
+{{CRYSTAL_LATTICE_ACCESS}}
+
+{{CRYSTAL_LATTICE_CLI_ACCESS}}
+```
+
+The mixin contains both complete Markdown values under `text`, followed by
+small named variables that read only the corresponding runtime access values.
+The full section uses `include_crystal_lattice_access()`; the CLI-only section
+uses `include_crystal_lattice_cli_access()`. The conditions are mutually
+exclusive.
+
+The helper contributes the `include_crystal_lattice_access` checkbox,
+defaulting to false, and validates availability. It contains no command, SDK,
+history, documentation, or delegation instruction prose.
+
+When full values are available, the UI and compiled message identify CLI and
+Python SDK access. When only CLI values are available, the UI explicitly says
+**CLI only** and only that section compiles. When CLI values are unavailable,
+the element remains visible with `disabled: true` and a description naming
+the problem.
+
+The CLI invocation includes the active `--config` and `--sessions-dir`, which
+is important when the agent is working in another project's directory.
+
+See [Local headless agent runs](headless-agent-runs.md#let-a-configured-agent-delegate-from-another-project)
+for the rendered behavior, runtime-layout differences, and existing-config
+adoption.

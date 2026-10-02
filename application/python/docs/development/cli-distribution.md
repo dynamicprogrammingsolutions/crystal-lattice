@@ -23,6 +23,7 @@ archives use a different layout, builder, and test suite.
 
 - a Python runtime;
 - Core and application source-shaped trees;
+- application documentation used by local runtime guidance;
 - built-in plugin sources;
 - runtime and preinstalled-plugin manifests;
 - Unix and Windows launchers;
@@ -33,15 +34,18 @@ application, and the default config's local plugin closure into the packaged
 Python. `preinstalled-plugins.json` lets runtime plugin resolution import that
 closure without copying it into user state.
 
-`application/python/scripts/install.sh` is the user-facing installation
-authority. It downloads or accepts a matching local archive, extracts it into
-a temporary staging directory, replaces the versioned target under the install
-root, creates the installed command in a suitable existing PATH directory, and
-verifies `--runtime-layout-json` and `--help`.
+`application/python/scripts/install.sh` and
+`application/python/scripts/install.ps1` are the user-facing installation
+authorities. Each downloads or accepts a matching local archive, extracts it
+into a temporary staging directory, replaces the versioned target under the
+install root, creates the installed command using platform-native PATH
+behavior, and verifies `--runtime-layout-json` and `--help`.
 
 The installed command is a small forwarding script that invokes the archive
-launcher from its final versioned directory. On Windows the installer creates
-both the Git Bash shell command and a `.cmd` command for native command lookup.
+launcher from its final versioned directory. The Bash installer creates a
+POSIX forwarding command and, on Windows, a `.cmd` command. The PowerShell
+installer creates a `.cmd` command and manages the fallback per-user PATH
+entry without requiring administrator rights or profile edits.
 
 The principal local maintainer entry points are:
 
@@ -127,6 +131,8 @@ Run each scenario independently from the repository root:
 npm run test:cli:source-install
 npm run test:cli:archive
 npm run test:cli:default-install
+npm run test:cli:powershell-install
+npm run test:cli:agent-access
 ```
 
 The source-installation smoke creates a fresh venv, installs only editable Core
@@ -154,28 +160,54 @@ overrides, replaces stale installation state, resolves `crystal-lattice` by
 name through PATH, and boots it. It independently installs the same
 non-preinstalled plugin into a different fresh cache.
 
+The PowerShell-installer smoke independently serves `install.ps1`,
+`latest.txt`, and the Windows archive. It runs the public
+`irm .../install.ps1 | iex` shape, verifies command discovery in the installer
+PowerShell process and a fresh `cmd.exe`, boots the default configuration, and
+installs the designated non-preinstalled plugin into another fresh cache.
+
+Each source/archive/installer smoke also runs a credential-free deterministic
+headless probe. It sends one task through the actual `crystal-lattice run`
+entry point and another through that runtime's packaged interpreter and
+`open_runtime`, then verifies the full compiled access section and isolated
+persisted sessions. Installer scenarios first prove command-name discovery,
+then invoke the exact installed Bash or `.cmd` launcher for the headless probe
+so a same-named command later on PATH cannot supply false evidence.
+
+`test:cli:agent-access` is the separately gated real-provider scenario. It
+runs once per native target against the extracted archive, uses production
+shell/write tools to invoke both the CLI and SDK routes, and requires the
+corresponding deterministic worker sessions. The OpenRouter key is removed
+from the model-controlled process environment before any tool call.
+
 Set
 `CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE` to reuse a matching prebuilt archive
-for either archive-based scenario.
+for the direct archive or either installer scenario.
 
-The archive-based scenarios may share that immutable archive, but they use
-different extraction, home, workspace, config, plugin-cache, pip-cache,
-installation, and command directories. Neither scenario invokes the other.
+The direct archive, Bash installer, and PowerShell installer scenarios may
+share that immutable archive, but they use different extraction, home,
+workspace, config, plugin-cache, pip-cache, installation, and command
+directories. No scenario invokes another.
 
-All boot probes isolate the workspace, `HOME`, `USERPROFILE`, config files,
-plugin cache, and pip cache. Environment names are derived from placeholders in
-the exact default-derived config under test; the probes supply no dummy values
-and make no model or tool API request.
+All ordinary probes isolate the workspace, `HOME`, `USERPROFILE`, config
+files, plugin cache, and pip cache. Environment names are derived from
+placeholders in the exact default-derived config under test. They supply no
+dummy credentials and contact no external model or tool service.
 
 On POSIX, cleanup owns the command's process group. On Windows, `.cmd`
 launchers run in a dedicated process group with a `CTRL_BREAK_EVENT` attempt
 and `taskkill /T /F` fallback. Every path verifies that the server port closes.
 
-The release workflow runs both root npm archive-based smokes for Linux AMD64,
-macOS AMD64, macOS ARM64, and Windows AMD64 on native runners. Both use the one
-archive built by their matrix job while retaining separate mutable state. The
-default-installer step is still attempted after an archive-smoke failure when
-archive location succeeded.
+The release workflow builds Linux AMD64/ARM64, macOS AMD64/ARM64, and Windows
+AMD64/ARM64 archives on native runners. Every target runs the direct archive
+smoke. macOS and Linux run the Bash installer; Windows AMD64 runs both Bash
+and PowerShell; Windows ARM64 runs PowerShell. Applicable installer steps are
+still attempted after an archive-smoke failure when archive location
+succeeded.
+
+Release tags additionally require the real agent-access scenario on every
+target. Workflow dispatch runs it only when `run_agent_access` is selected.
+Public pull-request jobs do not receive or run the provider credential.
 
 Existing deeper optimized-bundle tests target the separate PyInstaller layout
 and remain manually gated.
@@ -201,9 +233,9 @@ unread pipe during dynamic plugin installation. Before waiting, each smoke
 prints that log path and periodically reports how long readiness is still
 pending. Timeout and early-exit failures include a bounded log tail.
 
-The public `install.sh` is published as a standalone file, so it carries the
-equivalent small shell step/detail functions instead of sourcing a
-repository-only helper.
+The public `install.sh` and `install.ps1` files are published as standalone
+files, so each carries its own small progress helpers instead of importing or
+sourcing repository-only code.
 
 ## Script ownership
 
@@ -238,14 +270,21 @@ placement.
   `application/python/scripts/smoke_runtime_archive.py`
 - Public default-installer smoke:
   `application/python/scripts/smoke_default_install.py`
+- Public PowerShell-installer smoke:
+  `application/python/scripts/smoke_powershell_install.py`
 - Source-installation smoke:
   `application/python/scripts/smoke_source_install.py`
+- Deterministic CLI/SDK helper:
+  `application/python/scripts/headless_access_smoke.py`
+- Real model-mediated CLI/SDK smoke:
+  `application/python/scripts/smoke_agent_access.py`
 - Distribution smoke runner:
   `application/python/scripts/run_distribution_smoke.py`
 - Shared config and boot probe:
   `application/python/scripts/boot_smoke.py`
 - Shared progress helper: `application/python/scripts/progress.py`
-- Public installer: `application/python/scripts/install.sh`
+- Public Bash installer: `application/python/scripts/install.sh`
+- Public PowerShell installer: `application/python/scripts/install.ps1`
 - Local current-archive installer entry point:
   `application/python/scripts/install_current_archive.py`
 - Local editable-development installer:

@@ -115,6 +115,38 @@ Audience paths should make the next action clear for visitors who want to:
 - connect from mobile;
 - contribute.
 
+## Installation Choices
+
+The primary installation presentation must let a visitor choose a method
+without first understanding shell compatibility or release-archive naming.
+When the corresponding release paths are available and verified, it presents:
+
+- macOS and Linux installation through the public Bash installer;
+- native Windows installation through the public PowerShell installer;
+- manual download for visitors who want to inspect, extract, or place the
+  release archive themselves.
+
+Platform labels identify the released architectures. A generic “Windows”
+label must not hide a Git Bash, WSL, PowerShell, or architecture requirement.
+A Bash command must not be presented as if it were a native PowerShell
+command. Git Bash may remain documented as an additional supported Windows
+method without displacing the native Windows path.
+
+The chooser keeps one method visibly selected, exposes the full command or
+manual action, supports copying when a command is present, and links to
+package-owned installation documentation. It works at desktop and mobile
+widths and uses semantic, keyboard-operable controls with visible focus and
+selected state.
+
+The website does not advertise package-manager installation channels merely
+because comparable products provide them. Homebrew, Winget, Chocolatey,
+Scoop, npm, pipx, and similar choices appear only after their owning release
+processes and current verification exist.
+
+Installation claims use current release evidence. The website does not publish
+a new platform, architecture, or installer before that path passes its native
+acceptance checks and is available from the public release endpoint.
+
 ## Compatibility and Product Identity
 
 Compatibility content must distinguish:
@@ -299,6 +331,8 @@ An unfamiliar visitor should be able to answer:
   supported?
 - What can plugins change?
 - What can I try now?
+- Which installation method applies to my operating system and shell?
+- Where can I find detailed and manual installation instructions?
 - Where can I contribute?
 
 The exact wording and page structure may change while these comprehension

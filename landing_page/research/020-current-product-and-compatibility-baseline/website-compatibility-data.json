@@ -1,0 +1,861 @@
+{
+  "schema_version": "1.0.0",
+  "review_state": "accepted",
+  "maturity": "draft",
+  "revision_policy": "Downstream website work may refine selection, wording, grouping, and presentation while preserving accepted compatibility boundaries and source traceability.",
+  "status_labels": {
+    "available": "Available",
+    "conditional": "Conditional",
+    "optional": "Optional",
+    "planned": "Planned",
+    "unavailable": "Not available",
+    "not_applicable": "\u2014",
+    "not_verified": "Not verified"
+  },
+  "identity_note": "Compatibility profiles and tool bundles are Crystal Lattice implementations, not official upstream applications or sessions.",
+  "features": {
+    "title": "Product features",
+    "description": "Current application and session capabilities that are not repeated in the provider or model-family tool tables.",
+    "rows": [
+      {
+        "feature_id": "session-organization",
+        "name": "Session organization",
+        "description": "Search and filter sessions, edit titles, pin important work, archive sessions, assign workflow status, and keep useful ordering.",
+        "status": "available"
+      },
+      {
+        "feature_id": "session-actions",
+        "name": "Session actions",
+        "description": "Copy, fork, and delete sessions through application-owned actions.",
+        "status": "available"
+      },
+      {
+        "feature_id": "generated-titles",
+        "name": "Generated titles",
+        "description": "Generate a session title and description with a configured model.",
+        "status": "conditional"
+      },
+      {
+        "feature_id": "history-summaries",
+        "name": "Range summaries",
+        "description": "Summarize a selected range of conversation history without replacing provider-native compaction.",
+        "status": "conditional"
+      },
+      {
+        "feature_id": "snapshots-recovery",
+        "name": "Snapshots and recovery",
+        "description": "Create and restore recovery points around destructive history changes and compaction workflows.",
+        "status": "available"
+      },
+      {
+        "feature_id": "file-url-context",
+        "name": "File and URL context",
+        "description": "Insert local file content or fetched web-page context through composer markers.",
+        "status": "conditional"
+      },
+      {
+        "feature_id": "configuration-control",
+        "name": "Configuration and prompt control",
+        "description": "Inspect and adjust provider options, system messages, session settings, and plugin-contributed controls.",
+        "status": "available"
+      },
+      {
+        "feature_id": "usage-cost-timing",
+        "name": "Usage, cost, and timing",
+        "description": "Show provider usage, locally estimated or provider-reported cost, timestamps, and optional duration information when available.",
+        "status": "conditional"
+      },
+      {
+        "feature_id": "message-export",
+        "name": "Message and session export",
+        "description": "Export selected content as Markdown, PDF, or EPUB/Kindle-compatible files.",
+        "status": "optional"
+      }
+    ]
+  },
+  "providers": {
+    "title": "Provider support",
+    "description": "Selected provider-native capabilities that materially change the user experience. General streaming and ordinary tool calling are omitted.",
+    "columns": [
+      {
+        "column_id": "reasoning",
+        "label": "Reasoning"
+      },
+      {
+        "column_id": "prompt_cache",
+        "label": "Prompt cache"
+      },
+      {
+        "column_id": "native_web",
+        "label": "Native web"
+      },
+      {
+        "column_id": "native_compaction",
+        "label": "Native compact"
+      },
+      {
+        "column_id": "processing_tiers",
+        "label": "Processing tiers"
+      },
+      {
+        "column_id": "files_media",
+        "label": "Files and media"
+      }
+    ],
+    "rows": [
+      {
+        "provider_id": "openai-api",
+        "label": "OpenAI API",
+        "access": "API key",
+        "cells": {
+          "reasoning": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "prompt_cache": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "native_web": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "native_compaction": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "processing_tiers": {
+            "status": "available",
+            "label": "Fast + Flex"
+          },
+          "files_media": {
+            "status": "available",
+            "label": "Images + PDF"
+          }
+        }
+      },
+      {
+        "provider_id": "openai-chatgpt",
+        "label": "ChatGPT account",
+        "access": "Saved account login",
+        "cells": {
+          "reasoning": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "prompt_cache": {
+            "status": "conditional",
+            "label": "Session key"
+          },
+          "native_web": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "native_compaction": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "processing_tiers": {
+            "status": "conditional",
+            "label": "Fast only"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images; PDF varies"
+          }
+        }
+      },
+      {
+        "provider_id": "openrouter-chat",
+        "label": "OpenRouter",
+        "access": "API key",
+        "cells": {
+          "reasoning": {
+            "status": "conditional",
+            "label": "By model"
+          },
+          "prompt_cache": {
+            "status": "conditional",
+            "label": "Anthropic routes"
+          },
+          "native_web": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "native_compaction": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "processing_tiers": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images by model"
+          }
+        }
+      },
+      {
+        "provider_id": "anthropic",
+        "label": "Anthropic",
+        "access": "API key",
+        "cells": {
+          "reasoning": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "prompt_cache": {
+            "status": "available",
+            "label": "Yes"
+          },
+          "native_web": {
+            "status": "planned",
+            "label": "Planned"
+          },
+          "native_compaction": {
+            "status": "planned",
+            "label": "Planned"
+          },
+          "processing_tiers": {
+            "status": "planned",
+            "label": "Fast planned"
+          },
+          "files_media": {
+            "status": "planned",
+            "label": "Images/PDF planned"
+          }
+        }
+      },
+      {
+        "provider_id": "ollama",
+        "label": "Ollama",
+        "access": "Local endpoint; model access varies",
+        "cells": {
+          "reasoning": {
+            "status": "conditional",
+            "label": "By model/server"
+          },
+          "prompt_cache": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_web": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_compaction": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "processing_tiers": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images by model"
+          }
+        }
+      },
+      {
+        "provider_id": "fireworks",
+        "label": "Fireworks",
+        "access": "API key",
+        "cells": {
+          "reasoning": {
+            "status": "conditional",
+            "label": "By model"
+          },
+          "prompt_cache": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_web": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_compaction": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "processing_tiers": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images by model"
+          }
+        }
+      },
+      {
+        "provider_id": "zai",
+        "label": "Z.ai",
+        "access": "API key; Coding or General endpoint",
+        "cells": {
+          "reasoning": {
+            "status": "conditional",
+            "label": "By model"
+          },
+          "prompt_cache": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_web": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_compaction": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "processing_tiers": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images by model"
+          }
+        }
+      },
+      {
+        "provider_id": "custom-openai-compatible",
+        "label": "Other OpenAI-compatible",
+        "access": "Endpoint-specific",
+        "cells": {
+          "reasoning": {
+            "status": "conditional",
+            "label": "By endpoint"
+          },
+          "prompt_cache": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_web": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "native_compaction": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "processing_tiers": {
+            "status": "unavailable",
+            "label": "No"
+          },
+          "files_media": {
+            "status": "conditional",
+            "label": "Images by endpoint"
+          }
+        }
+      },
+      {
+        "provider_id": "openrouter-image",
+        "label": "OpenRouter image generation",
+        "access": "API key",
+        "cells": {
+          "reasoning": {
+            "status": "not_applicable",
+            "label": "\u2014"
+          },
+          "prompt_cache": {
+            "status": "not_applicable",
+            "label": "\u2014"
+          },
+          "native_web": {
+            "status": "not_applicable",
+            "label": "\u2014"
+          },
+          "native_compaction": {
+            "status": "not_applicable",
+            "label": "\u2014"
+          },
+          "processing_tiers": {
+            "status": "not_applicable",
+            "label": "\u2014"
+          },
+          "files_media": {
+            "status": "available",
+            "label": "Image input + output"
+          }
+        }
+      }
+    ]
+  },
+  "model_family_tools": {
+    "title": "Model-family tool bundles",
+    "description": "Crystal Lattice compatibility tool bundles. These are independent implementations, not the official upstream applications.",
+    "families": [
+      {
+        "family_id": "codex",
+        "label": "Codex-oriented",
+        "package_id": "codex-tools",
+        "tools": [
+          {
+            "tool_id": "shell",
+            "name": "Shell",
+            "description": "Run commands using the model-appropriate array or shell-command schema.",
+            "status": "available"
+          },
+          {
+            "tool_id": "apply_patch",
+            "name": "Apply patch",
+            "description": "Apply structured multi-file patches with Codex-compatible patch syntax.",
+            "status": "available"
+          },
+          {
+            "tool_id": "view_image",
+            "name": "View image",
+            "description": "Load a local image into model-visible input.",
+            "status": "available"
+          },
+          {
+            "tool_id": "mcp",
+            "name": "MCP tools",
+            "description": "Discover and call configured MCP-server tools.",
+            "status": "optional"
+          },
+          {
+            "tool_id": "skills",
+            "name": "Skills",
+            "description": "Discover configured skills and expose their instructions to the agent.",
+            "status": "available"
+          },
+          {
+            "tool_id": "update_plan",
+            "name": "Update plan",
+            "description": "Maintain a structured pending, active, and completed task plan.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "exec_command",
+            "name": "Exec command",
+            "description": "Start an interactive or long-running command with a persistent process handle.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "write_stdin",
+            "name": "Write stdin",
+            "description": "Send input to a command started through Exec command.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "request_user_input",
+            "name": "Request user input",
+            "description": "Ask a non-blocking question and continue from the user's follow-up answer.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "spawn_subagent",
+            "name": "Spawn subagent",
+            "description": "Start a configured agent in a persistent child session.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "wait_for_subagent",
+            "name": "Wait for subagent",
+            "description": "Wait for one or more child-agent runs to make progress or finish.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "send_subagent_input",
+            "name": "Send subagent input",
+            "description": "Continue an existing child session with persistent follow-up input.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "list_subagents",
+            "name": "List subagents",
+            "description": "List persistent child sessions and their current status.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "close_subagent",
+            "name": "Close subagent",
+            "description": "Close or cancel a persistent child-agent run.",
+            "status": "planned"
+          }
+        ]
+      },
+      {
+        "family_id": "claude",
+        "label": "Claude-compatible",
+        "package_id": "claude-tools",
+        "tools": [
+          {
+            "tool_id": "bash",
+            "name": "Bash",
+            "description": "Run foreground or background shell commands with persistent working-directory behavior.",
+            "status": "available"
+          },
+          {
+            "tool_id": "read",
+            "name": "Read",
+            "description": "Read text, images, PDFs, and supported notebook content.",
+            "status": "available"
+          },
+          {
+            "tool_id": "write",
+            "name": "Write",
+            "description": "Create or replace files with read-before-write protection.",
+            "status": "available"
+          },
+          {
+            "tool_id": "edit",
+            "name": "Edit",
+            "description": "Perform exact text replacements with read-before-edit protection.",
+            "status": "available"
+          },
+          {
+            "tool_id": "glob",
+            "name": "Glob",
+            "description": "Find files by path pattern.",
+            "status": "available"
+          },
+          {
+            "tool_id": "grep",
+            "name": "Grep",
+            "description": "Search file contents with multiple result modes.",
+            "status": "available"
+          },
+          {
+            "tool_id": "web_fetch",
+            "name": "Web fetch",
+            "description": "Fetch and analyze a specific URL.",
+            "status": "available"
+          },
+          {
+            "tool_id": "web_search",
+            "name": "Web search",
+            "description": "Search through configured Gemini or Tavily backends.",
+            "status": "conditional"
+          },
+          {
+            "tool_id": "task_stop",
+            "name": "Task stop",
+            "description": "Stop a background Bash task.",
+            "status": "available"
+          },
+          {
+            "tool_id": "mcp",
+            "name": "MCP tools",
+            "description": "Discover and call configured MCP-server tools with Claude-style names and results.",
+            "status": "optional"
+          },
+          {
+            "tool_id": "compaction",
+            "name": "Compact conversation",
+            "description": "Summarize and rewrite selected history using the Claude-compatible compaction flow.",
+            "status": "available"
+          }
+        ]
+      },
+      {
+        "family_id": "gemini",
+        "label": "Gemini-style",
+        "package_id": "gemini-tools",
+        "tools": [
+          {
+            "tool_id": "read_file",
+            "name": "Read file",
+            "description": "Read text or supported media content from a file.",
+            "status": "available"
+          },
+          {
+            "tool_id": "list_directory",
+            "name": "List directory",
+            "description": "List directory entries.",
+            "status": "available"
+          },
+          {
+            "tool_id": "grep_search",
+            "name": "Grep search",
+            "description": "Search file contents.",
+            "status": "available"
+          },
+          {
+            "tool_id": "glob",
+            "name": "Glob",
+            "description": "Find files by path pattern.",
+            "status": "available"
+          },
+          {
+            "tool_id": "write_file",
+            "name": "Write file",
+            "description": "Create or replace file content.",
+            "status": "available"
+          },
+          {
+            "tool_id": "replace",
+            "name": "Replace",
+            "description": "Replace exact text in a file.",
+            "status": "available"
+          },
+          {
+            "tool_id": "run_shell_command",
+            "name": "Run shell command",
+            "description": "Run a shell command with bounded output.",
+            "status": "available"
+          },
+          {
+            "tool_id": "web_fetch",
+            "name": "Web fetch",
+            "description": "Fetch content from a specific URL.",
+            "status": "available"
+          },
+          {
+            "tool_id": "google_web_search",
+            "name": "Google web search",
+            "description": "Search through a configured Gemini or Tavily backend.",
+            "status": "conditional"
+          },
+          {
+            "tool_id": "write_todos",
+            "name": "Write todos",
+            "description": "Replace the Gemini-style task list and track task status.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "mcp",
+            "name": "MCP tools",
+            "description": "Expose configured MCP-server tools with Gemini-compatible naming and results.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "activate_skill",
+            "name": "Activate skill",
+            "description": "Load one selected skill and return its instructions and supporting files.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "specialist_agents",
+            "name": "Specialist-agent tools",
+            "description": "Expose configured specialist agents as separate blocking tools backed by persistent child sessions.",
+            "status": "planned"
+          }
+        ]
+      },
+      {
+        "family_id": "qwen",
+        "label": "Qwen-style",
+        "package_id": "qwen-tools",
+        "tools": [
+          {
+            "tool_id": "read_file",
+            "name": "Read file",
+            "description": "Read file content with bounded output.",
+            "status": "available"
+          },
+          {
+            "tool_id": "list_directory",
+            "name": "List directory",
+            "description": "List directory entries.",
+            "status": "available"
+          },
+          {
+            "tool_id": "grep_search",
+            "name": "Grep search",
+            "description": "Search file contents.",
+            "status": "available"
+          },
+          {
+            "tool_id": "glob",
+            "name": "Glob",
+            "description": "Find files by path pattern.",
+            "status": "available"
+          },
+          {
+            "tool_id": "write_file",
+            "name": "Write file",
+            "description": "Create or replace file content.",
+            "status": "available"
+          },
+          {
+            "tool_id": "edit",
+            "name": "Edit",
+            "description": "Apply exact file edits.",
+            "status": "available"
+          },
+          {
+            "tool_id": "bash",
+            "name": "Bash",
+            "description": "Run shell commands with bounded output.",
+            "status": "available"
+          },
+          {
+            "tool_id": "web_fetch",
+            "name": "Web fetch",
+            "description": "Fetch content from a specific URL.",
+            "status": "available"
+          },
+          {
+            "tool_id": "web_search",
+            "name": "Web search",
+            "description": "Search through Dashscope, Tavily, or Google backends.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "todo_write",
+            "name": "Todo write",
+            "description": "Replace a Qwen-style todo list with stable item IDs.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "skills",
+            "name": "Skills",
+            "description": "Discover and load a selected skill through a Qwen-compatible tool.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "compaction",
+            "name": "Compaction",
+            "description": "Compact conversation history and preserve Qwen-style checkpoint replay.",
+            "status": "planned"
+          }
+        ]
+      },
+      {
+        "family_id": "grok",
+        "label": "Grok-style",
+        "package_id": "grok-tools",
+        "tools": [
+          {
+            "tool_id": "view_file",
+            "name": "View file",
+            "description": "Read file content.",
+            "status": "available"
+          },
+          {
+            "tool_id": "create_file",
+            "name": "Create file",
+            "description": "Create a new file.",
+            "status": "available"
+          },
+          {
+            "tool_id": "str_replace_editor",
+            "name": "String-replace editor",
+            "description": "Edit file content through exact string replacement.",
+            "status": "available"
+          },
+          {
+            "tool_id": "bash",
+            "name": "Bash",
+            "description": "Run shell commands.",
+            "status": "available"
+          },
+          {
+            "tool_id": "create_todo_list",
+            "name": "Create todo list",
+            "description": "Replace a prioritized Grok-style todo list.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "update_todo_list",
+            "name": "Update todo list",
+            "description": "Patch individual todo items by ID.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "search",
+            "name": "Unified search",
+            "description": "Search file names and content through one Grok-style interface.",
+            "status": "planned"
+          }
+        ]
+      },
+      {
+        "family_id": "kimi",
+        "label": "Kimi-style",
+        "package_id": "kimi-tools",
+        "tools": [
+          {
+            "tool_id": "read_file",
+            "name": "Read file",
+            "description": "Read text content with line-numbered output.",
+            "status": "available"
+          },
+          {
+            "tool_id": "read_media_file",
+            "name": "Read media file",
+            "description": "Read image or supported media content for a capable model.",
+            "status": "conditional"
+          },
+          {
+            "tool_id": "write_file",
+            "name": "Write file",
+            "description": "Create, replace, or append file content.",
+            "status": "available"
+          },
+          {
+            "tool_id": "str_replace_file",
+            "name": "String-replace file",
+            "description": "Apply one or more exact text replacements.",
+            "status": "available"
+          },
+          {
+            "tool_id": "glob",
+            "name": "Glob",
+            "description": "Find files by path pattern.",
+            "status": "available"
+          },
+          {
+            "tool_id": "grep",
+            "name": "Grep",
+            "description": "Search file contents.",
+            "status": "available"
+          },
+          {
+            "tool_id": "shell",
+            "name": "Shell",
+            "description": "Run shell commands with a clean-environment option.",
+            "status": "available"
+          },
+          {
+            "tool_id": "fetch_url",
+            "name": "Fetch URL",
+            "description": "Fetch content from a specific URL.",
+            "status": "available"
+          },
+          {
+            "tool_id": "search_web",
+            "name": "Search web",
+            "description": "Search through a configured web-search backend.",
+            "status": "conditional"
+          },
+          {
+            "tool_id": "compaction",
+            "name": "Compact conversation",
+            "description": "Compact earlier history while preserving a recent message tail.",
+            "status": "available"
+          },
+          {
+            "tool_id": "set_todo_list",
+            "name": "Set todo list",
+            "description": "Replace a Kimi-style task list with pending, active, and done states.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "mcp",
+            "name": "MCP tools",
+            "description": "Expose configured MCP-server tools with Kimi-compatible names and results.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "skills",
+            "name": "Skills",
+            "description": "Discover configured skills and make their instructions readable to Kimi tools.",
+            "status": "planned"
+          },
+          {
+            "tool_id": "task",
+            "name": "Task",
+            "description": "Run a blocking task in a persisted child-agent session and return its final answer.",
+            "status": "planned"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -452,6 +452,19 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
               ),
             );
           });
+        } else if (filter.type === 'text' || filter.type === 'datetime') {
+          controls.push(
+            React.createElement(TextInput, {
+              key: filter.type,
+              testID: `session-filter-${filter.id}-${filter.type}`,
+              value: typeof value === 'string' ? value : '',
+              onChangeText: next =>
+                onChange(
+                  filter.id,
+                  filter.type === 'datetime' && !next.trim() ? null : next,
+                ),
+            }),
+          );
         }
         return React.createElement(
           View,

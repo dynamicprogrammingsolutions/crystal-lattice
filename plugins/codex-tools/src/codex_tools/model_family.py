@@ -8,7 +8,8 @@ import re
 SHELL_ARRAY_MODEL_RE = re.compile(r"^(?:openai/)?gpt-(?:5(?:\.0)?)(?:-mini)?$")
 
 FUTURE_SHELL_COMMAND_MODEL_RE = re.compile(
-    r"^(?:openai/)?gpt-(?:5\.(?:[1-9]\d*)|[6-9](?:\.\d+)?|\d{2,}(?:\.\d+)?)(?:-mini)?$"
+    r"^(?:openai/)?gpt-(?:5\.(?:[1-9]\d*)|[6-9](?:\.\d+)?|\d{2,}(?:\.\d+)?)"
+    r"(?:-(?:mini|sol|terra|luna|astra))?$"
 )
 
 CODEX_SUFFIX_MODEL_RE = re.compile(r".*-codex(?:-(?:mini|max))?$")

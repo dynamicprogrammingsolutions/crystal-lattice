@@ -6,7 +6,7 @@ private S3 bucket, CloudFront Origin Access Control, ACM, and Route 53.
 It is intentionally separate from the binary build itself. Official release
 archives are built by the GitHub Actions matrix in
 `.github/workflows/release-crystal-lattice-cli.yml`. The scripts here provision
-the download endpoint, upload a domain-specific installer, configure GitHub
+the download endpoint, upload domain-specific installers, configure GitHub
 publishing credentials, promote existing GitHub Release assets, and smoke-test
 the public download URL.
 
@@ -36,7 +36,7 @@ testing domain to production does not require rewriting release scripts.
 - DNS validation records for the ACM certificate.
 - One CloudFront distribution for the download domain.
 - Route 53 `A` and `AAAA` alias records for the download domain.
-- Short cache policy for `install.sh` and `latest.txt`.
+- Short cache policy for `install.sh`, `install.ps1`, and `latest.txt`.
 - Long cache policy for immutable versioned `.tar.gz` and `.zip` archives.
 - Conservative security response headers.
 
@@ -44,11 +44,14 @@ The public URL layout is:
 
 ```text
 <base-url>/install.sh
+<base-url>/install.ps1
 <base-url>/latest.txt
 <base-url>/crystal-lattice-python-runtime-v<version>-linux-amd64.tar.gz
+<base-url>/crystal-lattice-python-runtime-v<version>-linux-arm64.tar.gz
 <base-url>/crystal-lattice-python-runtime-v<version>-darwin-amd64.tar.gz
 <base-url>/crystal-lattice-python-runtime-v<version>-darwin-arm64.tar.gz
 <base-url>/crystal-lattice-python-runtime-v<version>-windows-amd64.zip
+<base-url>/crystal-lattice-python-runtime-v<version>-windows-arm64.zip
 ```
 
 ## Prerequisites
@@ -81,8 +84,8 @@ aws route53 list-hosted-zones-by-name \
 
 ## Test Infrastructure
 
-Create or update the testing download infrastructure and upload a
-testing-domain installer:
+Create or update the testing download infrastructure and upload the
+testing-domain installers:
 
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/up.sh \
@@ -95,8 +98,9 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/up.sh \
   --prefix crystal-lattice-cli
 ```
 
-`up.sh` provisions infrastructure and uploads `install.sh`. It does not build
-release archives. The GitHub Actions matrix builds official platform archives.
+`up.sh` provisions infrastructure and uploads `install.sh` and `install.ps1`.
+It does not build release archives. The GitHub Actions matrix builds official
+platform archives.
 
 Print stack outputs:
 
@@ -104,7 +108,7 @@ Print stack outputs:
 deploy/aws-cli-downloads/outputs.sh --profile test
 ```
 
-Upload or refresh only the installer:
+Upload or refresh only the installers:
 
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/upload-installer.sh --profile test
@@ -115,16 +119,21 @@ Optionally bootstrap `latest.txt` while testing:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/upload-installer.sh \
   --profile test \
-  --latest-version 0.1.4
+  --latest-version 0.1.5
 ```
 
-Inspect the generated installer without uploading:
+Inspect the generated installers without uploading:
 
 ```bash
 deploy/aws-cli-downloads/upload-installer.sh \
   --profile test \
   --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   --print
+
+deploy/aws-cli-downloads/upload-installer.sh \
+  --profile test \
+  --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
+  --print-powershell
 ```
 
 ## Production Infrastructure
@@ -216,11 +225,11 @@ Publish already-built local release assets to the testing domain:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile test \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.1.4
+  --version 0.1.5
 ```
 
-This validates all four expected archives, uploads a generated installer,
-writes `latest.txt`, uploads archives, and invalidates CloudFront.
+This validates all six expected archives, uploads both generated installers,
+writes `latest.txt`, uploads the archives, and invalidates CloudFront.
 
 ## Release Orchestration
 
@@ -229,7 +238,7 @@ Dry-run a release:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.1.4 \
+  --version 0.1.5 \
   --dry-run
 ```
 
@@ -238,7 +247,7 @@ Create and push the release tag, then watch GitHub Actions:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.1.4 \
+  --version 0.1.5 \
   --push-tag \
   --watch
 ```
@@ -257,10 +266,11 @@ run-discovery heartbeats go to stderr.
 
 On a release tag, each read-only matrix job uploads its smoke-tested archive as
 a one-day GitHub Actions artifact. One protected `cli-release` publish job
-downloads and verifies all four archives, creates or updates the GitHub Release,
-uploads the archives, and makes the release public. This keeps GitHub Release
-write authority out of the matrix jobs. `workflow_dispatch` runs build and
-smoke-test jobs without storing archives or publishing a release.
+downloads and verifies all six archives, creates or updates the GitHub Release,
+uploads the archives, publishes both installers to the download domain, and
+makes the release public. This keeps GitHub Release write authority out of the
+matrix jobs. `workflow_dispatch` runs build and smoke-test jobs without storing
+archives or publishing a release.
 
 The selected `--profile` must match the repository variables configured with
 `configure-github-actions-vars.sh`. The release script refuses to create a tag
@@ -283,7 +293,7 @@ Promote an existing GitHub Release to the testing domain:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile test \
-  --version 0.1.4 \
+  --version 0.1.5 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -292,7 +302,7 @@ Promote the same GitHub Release to production:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile prod \
-  --version 0.1.4 \
+  --version 0.1.5 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -316,13 +326,13 @@ Preview promotion without downloading assets or mutating AWS:
 ```bash
 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile test \
-  --version 0.1.4 \
+  --version 0.1.5 \
   --repo dynamicprogrammingsolutions/crystal-lattice \
   --dry-run
 ```
 
 The dry run prints the GitHub download and publish commands. Real promotion
-downloads and validates all four current runtime archives before changing
+downloads and validates all six current runtime archives before changing
 `latest.txt`.
 
 ## Smoke Testing
@@ -338,7 +348,7 @@ Smoke-test a specific URL/version:
 ```bash
 deploy/aws-cli-downloads/smoke.sh \
   --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
-  --version 0.1.4
+  --version 0.1.5
 ```
 
 On macOS and Linux, the smoke script also runs the installer into temporary
@@ -349,10 +359,20 @@ crystal-lattice --help
 crystal-lattice --runtime-layout-json
 ```
 
-On Windows, run the shell installer from Git Bash/MSYS/Cygwin. The installer
-detects `MINGW*`, `MSYS*`, and `CYGWIN*` from `uname -s`, downloads the
-`windows-amd64` `.zip` archive, and writes both a Bash command and a `.cmd`
-command that call the bundled `Scripts/crystal-lattice.cmd` launcher.
+On Windows x64 or ARM64, use the native PowerShell installer:
+
+```powershell
+irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex
+```
+
+The native release workflow verifies that command shape, per-user PATH
+behavior, and command discovery from PowerShell and a fresh `cmd.exe`.
+
+Windows x64 can additionally run the shell installer from Git
+Bash/MSYS/Cygwin. It detects `MINGW*`, `MSYS*`, and `CYGWIN*` from `uname -s`,
+downloads the `windows-amd64` `.zip` archive, and writes both a Bash command
+and a `.cmd` command that call the bundled
+`Scripts/crystal-lattice.cmd` launcher.
 
 For a normal installation, `install.sh` selects an existing suitable writable
 directory already on PATH. It prefers an existing bundled-Python installation,
@@ -380,8 +400,9 @@ Recommended cutover:
    workflow artifacts with `publish-assets.sh` if the GitHub Release assets do
    not use the current `crystal-lattice-python-runtime-v<version>-...` names.
 8. Run `deploy/aws-cli-downloads/smoke.sh --profile prod`.
-9. Update `application/python/scripts/install.sh`
-   `DEFAULT_DOWNLOAD_BASE_URL` if production is now the canonical default.
+9. Update the default download base in
+   `application/python/scripts/install.sh` and
+   `application/python/scripts/install.ps1` if production is now canonical.
 10. Update `README.md` and `application/python/README.md` install commands.
 11. Create a follow-up release so the published source installer default is
    canonical.
@@ -390,7 +411,7 @@ Pinned install examples should set `VERSION` for the `bash` process:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
-  VERSION=0.1.4 \
+  VERSION=0.1.5 \
   bash
 ```
 
@@ -400,6 +421,20 @@ Override the base URL without changing the installer default:
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
   CRYSTAL_LATTICE_DOWNLOAD_BASE_URL=https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   bash
+```
+
+PowerShell accepts the same release and download-base overrides through the
+process environment:
+
+```powershell
+$env:VERSION = "0.1.5"
+$env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL = "https://download.crystallattice.dev/crystal-lattice-cli"
+try {
+  irm "$env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL/install.ps1" | iex
+} finally {
+  Remove-Item Env:VERSION -ErrorAction SilentlyContinue
+  Remove-Item Env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL -ErrorAction SilentlyContinue
+}
 ```
 
 ## Teardown

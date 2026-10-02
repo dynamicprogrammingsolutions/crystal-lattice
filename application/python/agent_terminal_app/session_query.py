@@ -5,7 +5,11 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 import shlex
-from typing import Dict, List
+from typing import Any, Dict, List, Sequence
+
+
+MAX_SESSION_FILTER_ASSIGNMENTS = 64
+MAX_SESSION_FILTER_ASSIGNMENT_LENGTH = 4096
 
 
 @dataclass(frozen=True)
@@ -60,8 +64,60 @@ def parse_multi_select_csv(raw_value: str) -> List[str]:
     return values
 
 
+def coerce_session_filter_assignments(
+    application: Any,
+    assignments: Sequence[str],
+) -> Dict[str, object]:
+    """Validate ``id=value`` assignments through the active plugin schema."""
+
+    if len(assignments) > MAX_SESSION_FILTER_ASSIGNMENTS:
+        raise ValueError(
+            "session queries accept at most "
+            f"{MAX_SESSION_FILTER_ASSIGNMENTS} filter assignments"
+        )
+    schema = application.get_session_list_filter_schema()
+    declarations = {
+        declaration["id"]: declaration
+        for declaration in schema.get("filters", [])
+        if isinstance(declaration, dict) and isinstance(declaration.get("id"), str)
+    }
+    values: Dict[str, object] = {}
+    for assignment in assignments:
+        if (
+            not isinstance(assignment, str)
+            or len(assignment) > MAX_SESSION_FILTER_ASSIGNMENT_LENGTH
+        ):
+            raise ValueError(
+                "session filter assignments must be strings no longer than "
+                f"{MAX_SESSION_FILTER_ASSIGNMENT_LENGTH} characters"
+            )
+        filter_id, separator, raw_value = assignment.partition("=")
+        if not separator or not filter_id:
+            raise ValueError("filter requires <filter-id>=<value>")
+        if filter_id in values:
+            raise ValueError(f"filter {filter_id!r} was supplied more than once")
+        declaration = declarations.get(filter_id)
+        if declaration is None:
+            raise ValueError(f"unknown session filter: {filter_id!r}")
+        if declaration.get("type") == "select" and declaration.get("multiple") is True:
+            input_value: str | List[str] = parse_multi_select_csv(raw_value)
+        else:
+            input_value = raw_value
+        try:
+            values[filter_id] = application.coerce_session_list_filter_input(
+                filter_id,
+                input_value,
+            )
+        except KeyError as exc:
+            raise ValueError(str(exc)) from exc
+    return values
+
+
 __all__ = [
+    "MAX_SESSION_FILTER_ASSIGNMENTS",
+    "MAX_SESSION_FILTER_ASSIGNMENT_LENGTH",
     "ParsedSessionQuery",
+    "coerce_session_filter_assignments",
     "parse_multi_select_csv",
     "parse_session_query",
 ]

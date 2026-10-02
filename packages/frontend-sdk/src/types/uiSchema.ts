@@ -6,6 +6,8 @@ export interface UiSchemaElement {
   label?: string;
   icon?: string;
   description?: string;
+  /** Keep the element visible but prevent configuration changes. */
+  disabled?: boolean;
   options?: any;
   // Footer / status bar fields
   data?: string;

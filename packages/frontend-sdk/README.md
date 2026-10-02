@@ -50,6 +50,12 @@ binary behavior, persistence, lifecycle, and rollback.
 The optional backend and saved-connection status query contracts are described
 in [Session request status](docs/session-request-status.md).
 
+## Session and message projection
+
+The REST backend can retrieve plugin-filtered session summaries and projected
+canonical message ranges without changing the complete list methods. See
+[Session and message data queries](docs/session-data-query.md).
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

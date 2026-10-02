@@ -7,6 +7,7 @@ provider configuration so they do not require network access.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import os
@@ -317,6 +318,37 @@ def test_set_completion() -> None:
     val_texts = _collect_completion_texts(completer, "/set reasoning_effort h")
     assert "high" in val_texts
     assert "low" not in val_texts
+
+
+def test_set_rejects_disabled_setting_with_description() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    class _DummyTerminalApp:
+        def session_ui_elements(self) -> list[dict]:
+            return [
+                {
+                    "key": "include_crystal_lattice_access",
+                    "type": "checkbox",
+                    "disabled": True,
+                    "description": "CLI runtime values are unavailable.",
+                }
+            ]
+
+        def update_override(self, _key: str, _value: object) -> None:
+            raise AssertionError("disabled setting must not be updated")
+
+    with pytest.raises(
+        term_mod.TerminalUserError,
+        match="CLI runtime values are unavailable",
+    ):
+        asyncio.run(
+            term_mod._cmd_set(
+                _DummyTerminalApp(),
+                "include_crystal_lattice_access true",
+                lambda _message: None,
+                {},
+            )
+        )
 
 
 def test_terminal_ui_schema_elements_share_cache_and_key_changes(

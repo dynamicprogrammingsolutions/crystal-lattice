@@ -29,22 +29,27 @@ support SLA or a fixed compatibility window at this stage.
 
 ### 1. Install The Terminal/Server App
 
-On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
+On macOS or Linux:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-The installer places `crystal-lattice` in an existing suitable writable
-directory already on your `PATH`, preferring an existing installation,
-`~/.local/bin`, or `~/bin`. If no suitable directory is available, it stops
-with instructions for setting `BIN_DIR` instead of installing an undiscoverable
-command.
+On Windows x64 or ARM64, run from PowerShell:
+
+```powershell
+irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex
+```
+
+Both installers include Python and verify that `crystal-lattice` is available
+by name. No provider credentials are required for startup.
 
 The Python packages are not currently published to PyPI. For development from
 a source checkout, use the editable-install instructions later in this README.
 
-More installation details are in [application/python/README.md](application/python/README.md).
+For PATH behavior, review-first installation, manual archives, updates, and
+removal, see the
+[installation guide](application/python/docs/installation.md).
 
 ### 2. Start The Server And Terminal
 
@@ -578,7 +583,7 @@ python scripts/generate_examples_md.py
 ## Status And Version
 
 - Core package: `agent-core` 0.3.0
-- Terminal CLI package: `crystal-lattice-cli` 0.1.4 (`crystal-lattice` command)
+- Terminal CLI package: `crystal-lattice-cli` 0.1.5 (`crystal-lattice` command)
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.

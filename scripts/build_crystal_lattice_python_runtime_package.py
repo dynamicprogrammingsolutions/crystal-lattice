@@ -357,6 +357,7 @@ def write_runtime_layout(package_dir: Path) -> None:
         "schema_version": 1,
         "layout": "python-runtime",
         "bundle_paths": {
+            "application_docs": "../docs",
             "builtin_plugins": "../../../plugins",
             "bundle_script": "../../../scripts/build_crystal_lattice_binary.py",
             "cloud_runtime_build_context": "../../../cloud_runtime",
@@ -530,6 +531,7 @@ def verify_package_tree(package_dir: Path) -> None:
         / "python"
         / "agent_terminal_app"
         / "runtime_layout.json",
+        package_dir / "application" / "python" / "docs" / "headless-agent-runs.md",
         package_dir / "core" / "python" / "agent_app",
         package_dir / "core" / "python" / "agent_core",
         package_dir / "plugins" / "message-export-actions" / "agent_plugin.json",

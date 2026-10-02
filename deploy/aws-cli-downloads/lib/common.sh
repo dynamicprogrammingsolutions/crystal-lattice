@@ -188,7 +188,9 @@ archive_names_for_version() {
 crystal-lattice-python-runtime-v${version}-darwin-amd64.tar.gz
 crystal-lattice-python-runtime-v${version}-darwin-arm64.tar.gz
 crystal-lattice-python-runtime-v${version}-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v${version}-linux-arm64.tar.gz
 crystal-lattice-python-runtime-v${version}-windows-amd64.zip
+crystal-lattice-python-runtime-v${version}-windows-arm64.zip
 EOF
 }
 
@@ -197,6 +199,7 @@ content_type_for_path() {
     *.zip) printf '%s\n' "application/zip" ;;
     *.tar.gz) printf '%s\n' "application/gzip" ;;
     *.sh) printf '%s\n' "text/x-shellscript; charset=utf-8" ;;
+    *.ps1) printf '%s\n' "text/plain; charset=utf-8" ;;
     *.txt) printf '%s\n' "text/plain; charset=utf-8" ;;
     *) printf '%s\n' "application/octet-stream" ;;
   esac
@@ -205,7 +208,7 @@ content_type_for_path() {
 cache_control_for_path() {
   case "$1" in
     *.zip|*.tar.gz) printf '%s\n' "public, max-age=31536000, immutable" ;;
-    install.sh|latest.txt) printf '%s\n' "public, max-age=60" ;;
+    install.sh|install.ps1|latest.txt) printf '%s\n' "public, max-age=60" ;;
     *) printf '%s\n' "public, max-age=300" ;;
   esac
 }

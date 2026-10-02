@@ -1,8 +1,9 @@
 # CLI distribution verification
 
-This application-owned specification defines the target verification contract
-for the `crystal-lattice` command from source installation through the shipped
-bundled-Python archive and the public default installer.
+This application-owned specification defines the target distribution and
+verification contract for the `crystal-lattice` command from source
+installation through the shipped bundled-Python archives and public Bash and
+PowerShell installers.
 
 It covers:
 
@@ -17,6 +18,11 @@ It covers:
 - structured progress for long local build, install, and smoke operations;
 - native release verification through the same npm entry points;
 - immediate terminal command discovery after default installation;
+- native archives for macOS, Linux, and Windows on AMD64 and ARM64;
+- native PowerShell installation without Git Bash, WSL, Python, or
+  administrator privileges;
+- manual archive download and direct-launch behavior;
+- public publication of both installers and every native archive;
 - separation from config-specific optimized PyInstaller bundles.
 
 The application package owns this contract because it owns the command,
@@ -28,16 +34,23 @@ maintainer entry points but do not own the behavior.
 - Detect plugin-installation and application-boot failures before bundling.
 - Exercise the extracted archive directly so installer behavior cannot hide an
   archive-launch or archive-plugin-install defect.
-- Exercise the public default installer independently so archive-smoke helper
+- Exercise each public default installer independently so archive-smoke helper
   behavior cannot hide a download, staging, command-installation, or PATH
   defect.
 - Verify that both archive-based workflows can dynamically install a packaged
   plugin into separate fresh caches.
 - Let a newly installed CLI start normally without credentials or exported
   shell variables.
-- Let a default installation place `crystal-lattice` in an existing suitable
-  directory already present on PATH, so the current supported terminal can
-  invoke it immediately by name.
+- Let a default Bash installation place `crystal-lattice` in an existing
+  suitable directory already present on PATH, so the current supported
+  terminal can invoke it immediately by name.
+- On native Windows, provide a no-admin PowerShell installation path that
+  prefers an existing suitable command directory and otherwise establishes a
+  conventional per-user command directory and PATH entry.
+- Ship and natively verify macOS, Linux, and Windows archives for both AMD64
+  and ARM64.
+- Let users select and run a downloaded archive manually without depending on
+  either installer.
 - Verify that `.env` values reach config resolution without shell exports.
 - Keep provider/tool request authentication with the package that owns that
   API contract.
@@ -63,6 +76,12 @@ maintainer entry points but do not own the behavior.
 - Modifying shell profile files merely to make the command discoverable.
 - Treating an explicit `BIN_DIR` override as a guarantee that the selected
   directory is already on PATH.
+- Providing a separate native batch-file installer for `cmd.exe`; the
+  PowerShell installer creates a command that subsequent PowerShell and
+  `cmd.exe` terminals can resolve.
+- Publishing Homebrew, Winget, Chocolatey, Scoop, npm, pipx, or other
+  package-manager channels without a separately owned and verified release
+  process.
 - Moving the cloud-orchestrator/runtime packaging primitive cluster merely to
   eliminate every CLI-related filename from the root `scripts/` directory.
 
@@ -78,7 +97,8 @@ This specification and current documentation use these descriptive names:
 |---|---|---|
 | Source-installation smoke | Level 1 | Install Core and the CLI into a fresh Python environment, then start the generated command. |
 | Extracted-archive smoke | Level 2 | Unpack the shipped bundled-Python archive and run its launcher directly. |
-| Default-installer smoke | Level 3 | Run the public installer with defaults, then invoke `crystal-lattice` by name from a terminal. |
+| Default Bash-installer smoke | Level 3 | Run the public Bash installer with defaults, then invoke `crystal-lattice` by name from a Bash-compatible terminal. |
+| Default PowerShell-installer smoke | Level 3 native-Windows path | Run the public PowerShell installer with defaults, then invoke `crystal-lattice` by name from PowerShell and a fresh `cmd.exe`. |
 
 Code identifiers may retain an old number temporarily during migration, but
 new commands, tests, messages, and documentation use the descriptive names.
@@ -100,3 +120,11 @@ new commands, tests, messages, and documentation use the descriptive names.
 - [CLI distribution implementation and verification](../../cli-distribution.md)
 - [Application configuration](../../../configuration.md)
 - [Configuration placeholders and `.env` loading](../../../configuration-placeholders.md)
+
+## Related query contract
+
+The
+[session and message data query specification](../session-data-query/index.md)
+adds one-shot session enumeration and per-session message projection. This
+distribution specification owns only proof that those commands execute through
+every supported source, archive, and installer entry point.

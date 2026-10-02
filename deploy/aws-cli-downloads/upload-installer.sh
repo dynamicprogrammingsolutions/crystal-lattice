@@ -12,11 +12,12 @@ PREFIX_OVERRIDE=""
 DISTRIBUTION_OVERRIDE=""
 LATEST_VERSION=""
 DRY_RUN=0
-PRINT_ONLY=0
+PRINT_KIND=""
 
 usage() {
   cat <<'USAGE'
-Generate and upload a domain-specific install.sh for a CLI download stack.
+Generate and upload domain-specific Bash and PowerShell installers for a CLI
+download stack.
 
 Usage:
   ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/upload-installer.sh [common options] [options]
@@ -27,7 +28,8 @@ Options:
   --prefix PREFIX              Upload prefix, bypassing stack output lookup.
   --distribution-id ID         CloudFront distribution ID, bypassing stack output lookup.
   --latest-version VERSION     Also upload latest.txt for this version.
-  --print                      Print generated installer to stdout.
+  --print                      Print generated install.sh to stdout.
+  --print-powershell           Print generated install.ps1 to stdout.
   --dry-run                    Print AWS commands without mutating resources.
   --help, -h                   Show this help.
 USAGE
@@ -42,7 +44,8 @@ while [ "$#" -gt 0 ]; do
     --prefix) PREFIX_OVERRIDE="$2"; shift 2 ;;
     --distribution-id) DISTRIBUTION_OVERRIDE="$2"; shift 2 ;;
     --latest-version) LATEST_VERSION="$2"; shift 2 ;;
-    --print) PRINT_ONLY=1; shift ;;
+    --print) PRINT_KIND="bash"; shift ;;
+    --print-powershell) PRINT_KIND="powershell"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) args+=("$1"); shift ;;
@@ -54,7 +57,7 @@ if [ "${#args[@]}" -gt 0 ]; then
 else
   parse_common_args
 fi
-if [ "$DRY_RUN" -eq 0 ] && [ "$PRINT_ONLY" -eq 0 ]; then
+if [ "$DRY_RUN" -eq 0 ] && [ -z "$PRINT_KIND" ]; then
   require_aws_deploy_enabled
 fi
 
@@ -71,29 +74,45 @@ if [ -z "$BASE_URL" ]; then
 fi
 
 generate_installer() {
-  python - "$BASE_URL" "$REPO_ROOT/application/python/scripts/install.sh" <<'PY'
+  local kind="$1"
+  local source
+  case "$kind" in
+    bash) source="$REPO_ROOT/application/python/scripts/install.sh" ;;
+    powershell) source="$REPO_ROOT/application/python/scripts/install.ps1" ;;
+    *) echo "unsupported installer kind: $kind" >&2; return 1 ;;
+  esac
+  python - "$BASE_URL" "$source" "$kind" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 base_url = sys.argv[1]
 source = Path(sys.argv[2])
+kind = sys.argv[3]
 text = source.read_text(encoding="utf-8")
-text = re.sub(
-    r'^DEFAULT_DOWNLOAD_BASE_URL="[^"]*"$',
-    f'DEFAULT_DOWNLOAD_BASE_URL="{base_url}"',
+if kind == "bash":
+    pattern = r'^DEFAULT_DOWNLOAD_BASE_URL="[^"]*"$'
+    replacement = f'DEFAULT_DOWNLOAD_BASE_URL="{base_url}"'
+else:
+    pattern = r'^(\s*)\$DefaultDownloadBaseUrl = "[^"]*"$'
+    replacement = rf'\1$DefaultDownloadBaseUrl = "{base_url}"'
+text, replacements = re.subn(
+    pattern,
+    replacement,
     text,
     count=1,
     flags=re.MULTILINE,
 )
+if replacements != 1:
+    raise SystemExit(f"could not replace default URL in {source}")
 if base_url not in text:
     raise SystemExit("generated installer does not contain requested base URL")
 print(text, end="")
 PY
 }
 
-if [ "$PRINT_ONLY" -eq 1 ]; then
-  generate_installer
+if [ -n "$PRINT_KIND" ]; then
+  generate_installer "$PRINT_KIND"
   exit 0
 fi
 
@@ -112,9 +131,11 @@ fi
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
-installer="$tmp_dir/install.sh"
-generate_installer > "$installer"
-bash -n "$installer"
+bash_installer="$tmp_dir/install.sh"
+powershell_installer="$tmp_dir/install.ps1"
+generate_installer bash > "$bash_installer"
+generate_installer powershell > "$powershell_installer"
+bash -n "$bash_installer"
 
 run_or_print() {
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -126,11 +147,14 @@ run_or_print() {
   fi
 }
 
-run_or_print aws --region "$REGION" s3 cp "$installer" "s3://${bucket}/${prefix}/install.sh" \
+run_or_print aws --region "$REGION" s3 cp "$bash_installer" "s3://${bucket}/${prefix}/install.sh" \
   --content-type "$(content_type_for_path install.sh)" \
   --cache-control "$(cache_control_for_path install.sh)"
+run_or_print aws --region "$REGION" s3 cp "$powershell_installer" "s3://${bucket}/${prefix}/install.ps1" \
+  --content-type "$(content_type_for_path install.ps1)" \
+  --cache-control "$(cache_control_for_path install.ps1)"
 
-paths=("/${prefix}/install.sh")
+paths=("/${prefix}/install.sh" "/${prefix}/install.ps1")
 
 if [ -n "$LATEST_VERSION" ]; then
   tag="$(normalize_version_tag "$LATEST_VERSION")"
@@ -151,4 +175,4 @@ else
   invalidate_download_paths "$distribution" "${paths[@]}"
 fi
 
-echo "Uploaded installer for $BASE_URL"
+echo "Uploaded Bash and PowerShell installers for $BASE_URL"

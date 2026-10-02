@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from contextlib import contextmanager
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
-import threading
-from typing import Iterator
 
 from boot_smoke import (
     assert_config_boot,
     assert_plugin_not_preinstalled,
     prepare_smoke_config,
 )
+from download_server import serve_directory
 from distribution_support import (
     archive_package_stem,
     assert_archive_matches_current_platform,
@@ -24,17 +20,14 @@ from distribution_support import (
     resolve_bash,
 )
 from progress import StepLogger
+from headless_access_smoke import assert_headless_access
+from smoke_runtime_archive import python_path
 
 
 ROOT = Path(__file__).resolve().parents[3]
 INSTALL_SCRIPT = Path(__file__).resolve().parent / "install.sh"
 DYNAMIC_PLUGIN_PROBE = "generic-callback-app"
 COMMAND_NAME = "crystal-lattice"
-
-
-class QuietFileHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format: str, *args: object) -> None:
-        _ = format, args
 
 
 def main() -> None:
@@ -50,7 +43,7 @@ def smoke_test_default_install(archive: Path) -> None:
         raise RuntimeError(f"Archive does not exist: {archive}")
     assert_archive_matches_current_platform(archive)
 
-    progress = StepLogger(total_steps=4)
+    progress = StepLogger(total_steps=5)
     with tempfile.TemporaryDirectory(prefix="crystal-default-install-smoke-") as tmp:
         temp_dir = Path(tmp)
         progress.step("Preparing isolated default-installer state")
@@ -121,9 +114,12 @@ def smoke_test_default_install(archive: Path) -> None:
             destination_dir=temp_dir / "config",
             additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
         )
+        installed_command = [str(bin_dir / COMMAND_NAME)]
+        if os.name == "nt":
+            installed_command.insert(0, bash)
         progress.step("Booting the installed command and installing the probe plugin")
         assert_config_boot(
-            [COMMAND_NAME],
+            installed_command,
             config_path=config_path,
             workspace=temp_dir / "workspace",
             home_dir=home_dir,
@@ -132,6 +128,15 @@ def smoke_test_default_install(archive: Path) -> None:
             base_env=installer_env,
             timeout_seconds=300,
             progress=progress.detail,
+        )
+        progress.step("Verifying installed CLI and Python SDK headless access")
+        assert_headless_access(
+            installed_command,
+            python=python_path(installed_bundle),
+            config_path=config_path,
+            workspace=temp_dir / "headless access workspace",
+            home_dir=home_dir,
+            base_env=installer_env,
         )
 
 
@@ -202,25 +207,6 @@ def verify_command_name_resolution(
             env=env,
             timeout=60,
         )
-
-
-@contextmanager
-def serve_directory(directory: Path) -> Iterator[str]:
-    handler = partial(QuietFileHandler, directory=str(directory))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        address = server.server_address
-        host = str(address[0])
-        port = int(address[1])
-        yield f"http://{host}:{port}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=10)
-        if thread.is_alive():
-            raise RuntimeError("Download server did not stop")
 
 
 if __name__ == "__main__":

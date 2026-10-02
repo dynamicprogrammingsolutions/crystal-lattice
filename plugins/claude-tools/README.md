@@ -43,6 +43,8 @@ Tavily credentials are configured.
 `Grep` currently supports default `files_with_matches`, `content`, and `count` output modes, along with the observed no-match string and missing-path error wrapper.
 
 `Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, the Claude background-run message format, and working-directory persistence between commands: each foreground command starts in the working directory where the previous foreground command ended, with the ending directory stored in the tool-result message metadata as a path relative to the configured working directory (portable across sandbox moves).
+Foreground execution uses the detected native shell, including PowerShell on
+Windows, while retaining exit-status and working-directory capture.
 
 Bash working-directory configuration keys:
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Application-level plugin that exposes session created/updated timestamps.
 
 This plugin contributes ``session_list_field`` entries that reference
@@ -13,7 +11,12 @@ message timestamps are unavailable.
 
 Frontends can use ``metadata.format == "datetime"`` together with these
 numeric epoch-second fields to render human-readable date/time strings.
+
+The plugin also declares a timezone-aware ``modified_after`` session-list
+filter over the always-available ``modified`` summary field.
 """
+
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -77,10 +80,28 @@ class SessionTimestampMetaAppPlugin:
                 "order": 1,
                 "metadata": {"format": "datetime"},
             },
+            {
+                "ui_type": "session_list_filter",
+                "id": "modified_after",
+                "label": "Modified after",
+                "icon": "calendar",
+                "order": 30,
+                "data": "modified",
+                "type": "datetime",
+                "match": "on_or_after",
+                "default": None,
+            },
         ]
 
-    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover - trivial
-        application_cfg = app_config.get("application") if isinstance(app_config, dict) else {}
+    def init(
+        self, app_config: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover - trivial
+        raw_application_cfg = (
+            app_config.get("application") if isinstance(app_config, dict) else None
+        )
+        application_cfg = (
+            raw_application_cfg if isinstance(raw_application_cfg, dict) else {}
+        )
         use_modified = application_cfg.get("session_time_use_modified_when_missing")
         if not isinstance(use_modified, bool):
             use_modified = True

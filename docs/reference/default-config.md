@@ -2,18 +2,79 @@
 
 Generated from `application/python/agent_terminal_app/default_config/config.json`.
 
-```
+````
 {
   "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
   "mixins": {
     "provider_defaults": {
       "timeout": 300,
-      "allowed_paths": [".", ".."],
+      "allowed_paths": [
+        ".",
+        ".."
+      ],
       "max_file_size": 5242880,
       "max_output_chars": 10000,
       "working_directory": ".",
       "enable_reasoning": true,
       "reasoning_effort": "medium"
+    },
+    "crystal_lattice_access": {
+      "$merge": {
+        "default": "shallow",
+        "deep": [
+          "system_message"
+        ]
+      },
+      "system_message": {
+        "variables": {
+          "CRYSTAL_LATTICE_ACCESS": {
+            "text": "# Crystal Lattice Access (CLI and Python SDK)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nFor the Python SDK, create a short script and execute it with `{{CRYSTAL_LATTICE_PYTHON_VALUE}}`:\n\n```python\nfrom {{CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE}} import open_runtime\n\nwith open_runtime(\n    config_path=r\"{{CRYSTAL_LATTICE_CONFIG_VALUE}}\",\n    session_root=r\"{{CRYSTAL_LATTICE_SESSIONS_VALUE}}\",\n) as runtime:\n    result = runtime.run(\"<task>\", agent_id=\"<agent-id>\")\n    sessions = runtime.list_sessions(include=[\"$.sessions[*].session_id\"])\n    messages = runtime.list_messages(result.session_id)\n    print(result.output_text)\n    print(result.session_id)\n```\n\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
+            "condition": {
+              "inline_code": "include_crystal_lattice_access()"
+            }
+          },
+          "CRYSTAL_LATTICE_CLI_ACCESS": {
+            "text": "# Crystal Lattice Access (CLI only)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session through the CLI. This runtime does not expose a supported general Python SDK. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nActive config: `{{CRYSTAL_LATTICE_CONFIG_VALUE}}`\nShared session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
+            "condition": {
+              "inline_code": "include_crystal_lattice_cli_access()"
+            }
+          },
+          "CRYSTAL_LATTICE_CLI_COMMAND_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CLI_COMMAND')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CLI_ARGV_JSON')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_CONFIG_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_CONFIG')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_SESSIONS_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_SESSIONS')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_PYTHON_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_PYTHON')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_PYTHON_API_MODULE')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_DOCS_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_DOCS')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          },
+          "CRYSTAL_LATTICE_DOCS_URL_VALUE": {
+            "inline_code": "access_value('CRYSTAL_LATTICE_DOCS_URL')",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py"
+          }
+        }
+      }
     },
     "codex_mcp_defaults": {
       "mcp_enabled": false,
@@ -182,9 +243,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
-            "CODEX_SKILLS_SECTION": {
-              "text": ""
-            },
+          "CODEX_SKILLS_SECTION": {
+            "text": ""
+          },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
@@ -202,7 +263,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "cloud_script_author_codex_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
+        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
@@ -235,7 +296,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "qwen_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION_AND_CORE_MANDATES": {
@@ -277,7 +338,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "gemini_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}",
+        "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "PREAMBLE": {
@@ -324,7 +385,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "grok_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}",
+        "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -366,7 +427,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "kimi_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}",
+        "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -413,7 +474,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
           "INTRODUCTION": {
@@ -475,49 +536,57 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "claude_bash_upstream_parity": {
       "$merge": {
         "default": "shallow",
-        "deep": ["system_message"]
+        "deep": [
+          "system_message"
+        ]
       },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": false,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive": {
       "$merge": {
         "default": "shallow",
-        "deep": ["system_message"]
+        "deep": [
+          "system_message"
+        ]
       },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive_visible": {
       "$merge": {
         "default": "shallow",
-        "deep": ["system_message"]
+        "deep": [
+          "system_message"
+        ]
       },
       "bash_cwd_persistence": true,
       "bash_include_cwd_in_result": true,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_bash_permissive_no_persistence": {
       "$merge": {
         "default": "shallow",
-        "deep": ["system_message"]
+        "deep": [
+          "system_message"
+        ]
       },
       "bash_cwd_persistence": false,
       "bash_include_cwd_in_result": false,
       "bash_permissive_cd_guidance": true,
       "system_message": {
-        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
     "claude_anthropic_model_variants": {
@@ -537,7 +606,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
               "$matches": "^claude-(?:sonnet|opus)-4-5(?:$|-\\d{8}$)"
             }
           },
-          "beta_headers": ["interleaved-thinking-2025-05-14"]
+          "beta_headers": [
+            "interleaved-thinking-2025-05-14"
+          ]
         },
         {
           "$when": {
@@ -553,7 +624,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
               "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
             }
           },
-          "betas": ["context-management-2025-06-27"],
+          "betas": [
+            "context-management-2025-06-27"
+          ],
           "anthropic_reasoning_mode": "adaptive",
           "anthropic_reasoning_effort": "high",
           "anthropic_reasoning_display": "summarized",
@@ -573,13 +646,17 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
   },
   "providers": {
     "openrouter": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openrouter",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
     },
     "anthropic": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "anthropic",
       "auth_mode": "api",
       "api_key": "${env:ANTHROPIC_API_KEY}",
@@ -590,7 +667,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "openrouter_image_generation": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openrouter_image_generation",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1",
@@ -599,12 +678,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "aspect_ratio": "1:1"
     },
     "openai": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openai_responses",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "auth_mode": "auto",
-      "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
+      "allowed_paths": [
+        ".",
+        "..",
+        "${env:CONFIG_DIR}"
+      ],
       "enable_flex_processing": true,
       "enable_fast_mode": false,
       "reasoning_summary": "detailed",
@@ -615,24 +700,34 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "show_openai_auth_mode": true
     },
     "ollama": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
       "reasoning_field": "reasoning"
     },
     "fireworks": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.fireworks.ai/inference/v1",
       "api_key": "${env:FIREWORKS_API_KEY}",
       "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
-      "rate_limit_retry_delays_seconds": [1, 2, 4],
+      "rate_limit_retry_delays_seconds": [
+        1,
+        2,
+        4
+      ],
       "reasoning_field": "reasoning_content"
     },
     "zai": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.z.ai/api/paas/v4",
       "endpoint_options": {
@@ -641,9 +736,17 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       },
       "api_key": "${env:ZAI_API_KEY}",
       "model": "glm-4.5-air",
-      "retry_on_timeout": [0, 5, 30],
+      "retry_on_timeout": [
+        0,
+        5,
+        30
+      ],
       "retry_on_status": {
-        "500": [0, 5, 30]
+        "500": [
+          0,
+          5,
+          30
+        ]
       }
     }
   },
@@ -677,6 +780,14 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
+    "bridge": {
+      "ws_max_size_bytes": 16777216,
+      "http_timeout_seconds": 120.0,
+      "http_chunk_size_bytes": 921600,
+      "http_chunk_threshold_bytes": 262144,
+      "http_max_body_bytes": 10485760,
+      "debug": false
+    },
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
@@ -769,7 +880,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["working-tree-patch"]
+          "compatible_sync_down_profiles": [
+            "working-tree-patch"
+          ]
         },
         "working-tree-current-state-branch": {
           "label": "Working tree current state with branch export",
@@ -778,7 +891,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["branch-import"]
+          "compatible_sync_down_profiles": [
+            "branch-import"
+          ]
         },
         "clean-head": {
           "label": "Clean committed HEAD",
@@ -787,7 +902,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["branch-import"]
+          "compatible_sync_down_profiles": [
+            "branch-import"
+          ]
         }
       },
       "sync_down_profiles": {
@@ -796,14 +913,19 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
-          "compatible_transfer_up_profiles": ["working-tree-current-state"]
+          "compatible_transfer_up_profiles": [
+            "working-tree-current-state"
+          ]
         },
         "branch-import": {
           "label": "Import committed cloud branch with optional safety snapshots",
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
-          "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
+          "compatible_transfer_up_profiles": [
+            "working-tree-current-state-branch",
+            "clean-head"
+          ]
         }
       },
       "managed_ssh": {
@@ -847,17 +969,31 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
   },
   "agents": {
     "cloud-script-author": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "cloud_script_author_codex_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
+      "allowed_paths": [
+        ".",
+        "..",
+        "${env:BUILTIN_PLUGINS}/cloud-agent-app",
+        "${env:CONFIG_DIR}/cloud-agent/profiles"
+      ],
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -866,7 +1002,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -875,7 +1015,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -887,7 +1031,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -895,10 +1043,16 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "gpt-5-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [
@@ -906,32 +1060,47 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "qwen": {
-      "mixin_refs": ["qwen_system_message"],
+      "mixin_refs": [
+        "qwen_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "gemini": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": [
+        "gemini_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "google/gemini-2.5-flash-lite",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api"
     },
     "grok": {
-      "mixin_refs": ["grok_system_message"],
+      "mixin_refs": [
+        "grok_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "x-ai/grok-4.1-fast",
       "plugins": [
@@ -945,13 +1114,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "kimi": {
-      "mixin_refs": ["kimi_system_message"],
+      "mixin_refs": [
+        "kimi_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/kimi-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
@@ -962,7 +1136,12 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "claude-openrouter": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive",
+        "claude_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
@@ -971,7 +1150,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "reasoning_max_tokens": 16000,
       "request_options": {
         "provider": {
-          "order": ["anthropic"],
+          "order": [
+            "anthropic"
+          ],
           "allow_fallbacks": false
         }
       },
@@ -985,7 +1166,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "claude_system_message",
         "claude_bash_permissive",
         "claude_mcp_defaults",
-        "claude_anthropic_model_variants"
+        "claude_anthropic_model_variants",
+        "crystal_lattice_access"
       ],
       "provider": "anthropic",
       "model": "claude-sonnet-5",
@@ -998,21 +1180,28 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "web_search_provider": "gemini_api"
     },
     "glm": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": [
+        "gemini_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "openrouter",
       "model": "z-ai/glm-5.2",
       "reasoning_effort": "max",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api",
       "request_options": {
         "provider": {
-          "order": ["z-ai"],
+          "order": [
+            "z-ai"
+          ],
           "allow_fallbacks": false
         }
       }
@@ -1022,7 +1211,12 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive",
+        "claude_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "ollama",
       "model": "glm-5.2:cloud",
       "plugins": [
@@ -1032,11 +1226,23 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": [
+            "high",
+            "max"
+          ],
+          "rich_ui": true
+        }
       }
     },
     "deepseek-ollama": {
-      "mixin_refs": ["claude_system_message", "claude_bash_permissive", "claude_mcp_defaults"],
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive",
+        "claude_mcp_defaults",
+        "crystal_lattice_access"
+      ],
       "provider": "ollama",
       "model": "deepseek-v4-pro:cloud",
       "plugins": [
@@ -1046,11 +1252,21 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": [
+            "high",
+            "max"
+          ],
+          "rich_ui": true
+        }
       }
     },
     "kimi-ollama": {
-      "mixin_refs": ["kimi_system_message"],
+      "mixin_refs": [
+        "kimi_system_message",
+        "crystal_lattice_access"
+      ],
       "provider": "ollama",
       "model": "kimi-k2.6:cloud",
       "plugins": [
@@ -1060,7 +1276,14 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_effort": "max"
       },
       "request_options_ui": {
-        "reasoning_effort": ["high", "max"]
+        "reasoning_effort": {
+          "type": "select",
+          "options": [
+            "high",
+            "max"
+          ],
+          "rich_ui": true
+        }
       },
       "compaction": {
         "enabled": true,
@@ -1074,7 +1297,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "reasoning_history": "preserved"
       },
       "request_options_ui": {
-        "reasoning_history": ["disabled", "interleaved", "preserved"]
+        "reasoning_history": [
+          "disabled",
+          "interleaved",
+          "preserved"
+        ]
       }
     },
     "zai": {
@@ -1096,4 +1323,5 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "provider": "openrouter_image_generation"
     }
   }
-}```
+}
+````

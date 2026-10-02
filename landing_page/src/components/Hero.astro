@@ -1,5 +1,5 @@
 ---
-import ShellCommand from "./ShellCommand.astro";
+import InstallationChooser from "./InstallationChooser.astro";
 import type { HeroSection } from "../content/pageTypes";
 
 interface Props {
@@ -8,9 +8,6 @@ interface Props {
 
 const { section } = Astro.props;
 const actions = Array.isArray(section.actions) ? section.actions : [];
-const altHtml = String(section.install?.altHtml ?? "");
-const altCommand = altHtml.match(/<code>(.*?)<\/code>/)?.[1];
-const altLabel = altCommand ? altHtml.replace(/<code>.*<\/code>/, "").trim() : "";
 const btnBase = "inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[0.9375rem] font-medium transition-colors";
 const btnClass: Record<string, string> = {
   primary: `${btnBase} bg-accent text-white hover:bg-accent-hover hover:text-white`,
@@ -22,8 +19,8 @@ const icons: Record<string, string> = {
 };
 ---
 
-<section class="pt-24 pb-[4.75rem] text-center max-sm:pt-16 max-sm:pb-14">
-  <div class="mx-auto flex max-w-[760px] flex-col items-center gap-6 px-6">
+<section id={section.id} class="pt-24 pb-[4.75rem] text-center max-sm:pt-16 max-sm:pb-14">
+  <div class="mx-auto flex max-w-[820px] flex-col items-center gap-6 px-6">
     {section.badge && <div class="inline-block rounded-full border border-line bg-surface px-3.5 py-1 text-xs font-medium tracking-[0.02em] text-fg-3">{section.badge}</div>}
 
     <h1 class="text-[clamp(2.25rem,6vw,3.75rem)] font-bold leading-[1.1] tracking-[-0.03em] text-fg" set:html={section.titleHtml} />
@@ -40,54 +37,6 @@ const icons: Record<string, string> = {
       ))}
     </div>
 
-    <div class="flex max-w-full items-center gap-2.5 rounded-lg border border-line bg-code px-3.5 py-2.5 font-mono text-[0.8125rem]">
-      <span class="shrink-0 select-none font-medium text-accent">{section.install.prompt}</span>
-      <code class="bg-transparent p-0 text-left text-fg [font-size:inherit] break-all" id="installCmd">{section.install.command}</code>
-      <button class="ml-1 flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-0.5 text-fg-5 transition-colors hover:text-fg-3" id="copyInstall" aria-label="Copy install command">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-      </button>
-    </div>
-    {altCommand ? (
-      <div class="-mt-2 inline-flex items-center gap-1.5 text-[0.8125rem] text-fg-5 [&_code]:text-[0.8125rem]">
-        <span>{altLabel}</span>
-        <code id="installAltCmd">{altCommand}</code>
-        <button class="flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-0.5 text-fg-5 transition-colors hover:text-fg-3" id="copyInstallAlt" aria-label="Copy alternate install command">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-        </button>
-      </div>
-    ) : altHtml ? (
-      <p class="-mt-2 inline-flex items-center gap-1.5 text-[0.8125rem] text-fg-5 [&_code]:text-[0.8125rem]" set:html={section.install.altHtml}></p>
-    ) : null}
+    <InstallationChooser install={section.install} />
   </div>
 </section>
-
-<script>
-  const copyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-  const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-
-  function bindCopy(buttonId, sourceId) {
-    const btn = document.getElementById(buttonId);
-    const source = document.getElementById(sourceId);
-    if (!btn || !source) return;
-
-    btn.addEventListener('click', async () => {
-      const cmd = source.textContent?.trim();
-      if (!cmd) return;
-
-      await navigator.clipboard.writeText(cmd);
-      btn.innerHTML = checkIcon;
-      setTimeout(() => {
-        btn.innerHTML = copyIcon;
-      }, 1500);
-    });
-  }
-
-  bindCopy('copyInstall', 'installCmd');
-  bindCopy('copyInstallAlt', 'installAltCmd');
-</script>
