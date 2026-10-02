@@ -7,15 +7,20 @@ reasoning state, attachments, and opaque continuation data. Native compaction
 reduces the active history while preserving enough provider state for a later
 request to continue coherently.
 
+OpenAI Responses supports automatic compaction inside an ordinary request as
+well as explicit client-managed compaction. These paths share canonical native
+continuation data but have different lifecycles.
+
 OpenAI API-key requests and ChatGPT-authenticated Codex requests expose
-different compaction protocols. The plugin presents one session action and
-selects the correct upstream protocol from the effective compaction
-authentication mode.
+different manual compaction protocols. The plugin presents one manual session
+action and selects the correct upstream protocol from the effective
+compaction authentication mode.
 
 ## Users
 
 Package users need to:
 
+- enable automatic compaction and choose its token threshold;
 - compact all visible history or a visible prefix;
 - continue the conversation after compaction;
 - use an OpenAI API key or a saved ChatGPT login;
@@ -29,9 +34,40 @@ which upstream compaction protocol was selected.
 
 ## Target behavior
 
+### Automatic request-time compaction
+
+Automatic compaction is opt-in. The shipped provider configuration keeps it
+disabled while allowing users to enable it and edit the trigger threshold
+through session settings.
+
+When `enable_openai_automatic_compaction` is true, each ordinary request
+includes:
+
+```json
+{
+  "context_management": [
+    {
+      "type": "compaction",
+      "compact_threshold": 200000
+    }
+  ]
+}
+```
+
+The threshold comes from `openai_compaction_trigger_tokens`. Returned
+`compaction` items are canonical native continuation state, survive
+persistence, and are replayed on later requests.
+
+Automatic compaction uses the ordinary request lifecycle and authentication
+mode. It does not start a background application operation and does not
+replace the existing manual full/prefix action.
+
+Raw `request_options.context_management` remains the final request-body
+override.
+
 ### Protocol selection
 
-The effective compaction authentication mode selects the protocol:
+The effective manual-compaction authentication mode selects the protocol:
 
 | Effective mode | Protocol | Upstream request |
 |---|---|---|
@@ -126,6 +162,8 @@ ChatGPT compaction therefore uses V2 over the normal Responses endpoint.
 ## Non-goals
 
 - Replacing general local, prompt-based summarization in other providers.
+- Emulating Anthropic's independent tool-use clearing or presenting
+  `truncation: "auto"` as that feature.
 - Making the V1 compact endpoint the ChatGPT fallback.
 - Persisting `compaction_trigger` as conversation history.
 - Exposing transport-version selection as a separate user setting.

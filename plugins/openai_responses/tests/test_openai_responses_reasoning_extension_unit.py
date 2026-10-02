@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+import pytest
+
 from agent_core import AgentCore
 from openai_responses_plugins.openai_responses_fast_mode_extension import (
     OpenAIResponsesFastModeExtension,
@@ -1427,11 +1429,11 @@ def test_get_ui_elements_shows_reasoning_context_for_gpt_5_6_sol() -> None:
     context_element = _reasoning_context_elements(elements)
     assert context_element is not None
     assert context_element["type"] == "select"
-    assert context_element["label"] == "Reasoning Context"
+    assert context_element["label"] == "Reasoning retention"
     assert context_element["options"] == [
-        {"value": "auto", "label": "auto"},
-        {"value": "current_turn", "label": "current_turn"},
-        {"value": "all_turns", "label": "all_turns"},
+        {"value": "auto", "label": "Auto"},
+        {"value": "current_turn", "label": "Current turn only"},
+        {"value": "all_turns", "label": "All turns"},
     ]
 
 
@@ -1447,9 +1449,9 @@ def test_get_ui_elements_shows_reasoning_context_for_gpt_5_6_luna() -> None:
     context_element = _reasoning_context_elements(elements)
     assert context_element is not None
     assert context_element["options"] == [
-        {"value": "auto", "label": "auto"},
-        {"value": "current_turn", "label": "current_turn"},
-        {"value": "all_turns", "label": "all_turns"},
+        {"value": "auto", "label": "Auto"},
+        {"value": "current_turn", "label": "Current turn only"},
+        {"value": "all_turns", "label": "All turns"},
     ]
 
 
@@ -1466,6 +1468,31 @@ def test_get_ui_elements_shows_reasoning_context_for_bare_gpt_5_6_alias() -> Non
     assert context_element is not None
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        "gpt-5.10-preview",
+        "gpt-6-astra",
+        "gpt-6.1-custom",
+        "gpt-10-next",
+    ],
+)
+def test_get_ui_elements_shows_reasoning_context_for_future_numeric_gpt_models(
+    model: str,
+) -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": model},
+        tags=["supports_reasoning"],
+        models=[{"id": model}],
+    )
+
+    context_element = _reasoning_context_elements(elements)
+    assert context_element is not None
+    assert context_element["label"] == "Reasoning retention"
+
+
 def test_get_ui_elements_hides_reasoning_context_for_older_models() -> None:
     ext = OpenAIResponsesReasoningExtension()
 
@@ -1474,6 +1501,7 @@ def test_get_ui_elements_hides_reasoning_context_for_older_models() -> None:
         "gpt-5.1-mini",
         "gpt-5.2",
         "gpt-5.4",
+        "gpt-5.5",
         "gpt-5-pro",
         "o3-mini",
     ):
@@ -1597,6 +1625,22 @@ def test_init_drops_reasoning_context_for_unknown_model() -> None:
     state = ext.init(config, {"config": config})
 
     assert "_openai_responses_reasoning" not in state
+
+
+@pytest.mark.parametrize("model", ["gpt-5.10-preview", "gpt-6-astra", "gpt-10-next"])
+def test_init_preserves_reasoning_context_for_future_numeric_gpt_models(
+    model: str,
+) -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": model,
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    assert state["_openai_responses_reasoning"]["context"] == "all_turns"
 
 
 def test_init_normalizes_auto_to_omission() -> None:

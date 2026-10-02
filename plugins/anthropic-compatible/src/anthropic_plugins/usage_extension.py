@@ -15,7 +15,28 @@ def _format_tokens(value: int) -> str:
     return f"{value:,}"
 
 
-def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
+def _zero_usage() -> dict[str, int]:
+    return {
+        "input": 0,
+        "output": 0,
+        "total": 0,
+        "cached": 0,
+        "cache_write": 0,
+        "cache_write_5m": 0,
+        "cache_write_1h": 0,
+        "reasoning": 0,
+        "compaction_iterations": 0,
+        "compaction_input": 0,
+        "compaction_output": 0,
+        "compaction_total": 0,
+        "compaction_cached": 0,
+        "compaction_cache_write": 0,
+        "compaction_cache_write_5m": 0,
+        "compaction_cache_write_1h": 0,
+    }
+
+
+def _base_usage(raw: dict[str, Any]) -> dict[str, int]:
     details = raw.get("output_tokens_details")
     details = details if isinstance(details, dict) else {}
     cache_creation = raw.get("cache_creation")
@@ -32,6 +53,45 @@ def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
         "cache_write_1h": _integer(cache_creation.get("ephemeral_1h_input_tokens")),
         "reasoning": _integer(details.get("thinking_tokens")),
     }
+
+
+def _normalized_usage(raw: dict[str, Any]) -> dict[str, int]:
+    raw_iterations = raw.get("iterations")
+    iterations = (
+        [item for item in raw_iterations if isinstance(item, dict)]
+        if isinstance(raw_iterations, list)
+        else []
+    )
+    if not iterations:
+        return {**_zero_usage(), **_base_usage(raw)}
+
+    total = _zero_usage()
+    for iteration in iterations:
+        usage = _base_usage(iteration)
+        for key in (
+            "input",
+            "output",
+            "cached",
+            "cache_write",
+            "cache_write_5m",
+            "cache_write_1h",
+        ):
+            total[key] += usage[key]
+        if iteration.get("type") == "compaction":
+            total["compaction_iterations"] += 1
+            total["compaction_input"] += usage["input"]
+            total["compaction_output"] += usage["output"]
+            total["compaction_cached"] += usage["cached"]
+            total["compaction_cache_write"] += usage["cache_write"]
+            total["compaction_cache_write_5m"] += usage["cache_write_5m"]
+            total["compaction_cache_write_1h"] += usage["cache_write_1h"]
+
+    total["total"] = total["input"] + total["output"]
+    total["compaction_total"] = total["compaction_input"] + total["compaction_output"]
+    details = raw.get("output_tokens_details")
+    details = details if isinstance(details, dict) else {}
+    total["reasoning"] = _integer(details.get("thinking_tokens"))
+    return total
 
 
 def _message_usage(native: dict[str, Any]) -> dict[str, int]:
@@ -68,6 +128,23 @@ def _usage_metadata(
         ),
         "usage_reasoning_tokens": usage["reasoning"],
         "usage_reasoning_tokens_formatted": _format_tokens(usage["reasoning"]),
+        "usage_compaction_iterations": usage["compaction_iterations"],
+        "usage_compaction_input_tokens": usage["compaction_input"],
+        "usage_compaction_input_tokens_formatted": _format_tokens(
+            usage["compaction_input"]
+        ),
+        "usage_compaction_output_tokens": usage["compaction_output"],
+        "usage_compaction_output_tokens_formatted": _format_tokens(
+            usage["compaction_output"]
+        ),
+        "usage_compaction_total_tokens": usage["compaction_total"],
+        "usage_compaction_total_tokens_formatted": _format_tokens(
+            usage["compaction_total"]
+        ),
+        "usage_compaction_cached_tokens": usage["compaction_cached"],
+        "usage_compaction_cache_write_tokens": usage["compaction_cache_write"],
+        "usage_compaction_cache_write_5m_tokens": usage["compaction_cache_write_5m"],
+        "usage_compaction_cache_write_1h_tokens": usage["compaction_cache_write_1h"],
         "usage_turn_input_tokens_cumulative": turn["input"],
         "usage_turn_input_tokens_cumulative_formatted": _format_tokens(turn["input"]),
         "usage_turn_output_tokens_cumulative": turn["output"],
@@ -84,6 +161,14 @@ def _usage_metadata(
         "usage_turn_reasoning_tokens_cumulative_formatted": _format_tokens(
             turn["reasoning"]
         ),
+        "usage_turn_compaction_iterations_cumulative": turn["compaction_iterations"],
+        "usage_turn_compaction_input_tokens_cumulative": turn["compaction_input"],
+        "usage_turn_compaction_output_tokens_cumulative": turn["compaction_output"],
+        "usage_turn_compaction_total_tokens_cumulative": turn["compaction_total"],
+        "usage_turn_compaction_cached_tokens_cumulative": turn["compaction_cached"],
+        "usage_turn_compaction_cache_write_tokens_cumulative": turn[
+            "compaction_cache_write"
+        ],
         "usage_input_tokens_cumulative": session["input"],
         "usage_output_tokens_cumulative": session["output"],
         "usage_total_tokens_cumulative": session["total"],
@@ -92,20 +177,19 @@ def _usage_metadata(
         "usage_cache_write_5m_tokens_cumulative": session["cache_write_5m"],
         "usage_cache_write_1h_tokens_cumulative": session["cache_write_1h"],
         "usage_reasoning_tokens_cumulative": session["reasoning"],
+        "usage_compaction_iterations_cumulative": session["compaction_iterations"],
+        "usage_compaction_input_tokens_cumulative": session["compaction_input"],
+        "usage_compaction_output_tokens_cumulative": session["compaction_output"],
+        "usage_compaction_total_tokens_cumulative": session["compaction_total"],
+        "usage_compaction_cached_tokens_cumulative": session["compaction_cached"],
+        "usage_compaction_cache_write_tokens_cumulative": session[
+            "compaction_cache_write"
+        ],
     }
 
 
 def _sum_usage(messages: list[dict[str, Any]]) -> dict[str, int]:
-    total = {
-        "input": 0,
-        "output": 0,
-        "total": 0,
-        "cached": 0,
-        "cache_write": 0,
-        "cache_write_5m": 0,
-        "cache_write_1h": 0,
-        "reasoning": 0,
-    }
+    total = _zero_usage()
     for message in messages:
         usage = _message_usage(message)
         total = {key: total[key] + usage[key] for key in total}

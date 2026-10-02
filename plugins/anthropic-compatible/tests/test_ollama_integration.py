@@ -14,6 +14,8 @@ from agent_core import AgentCore, Session
 from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
+    AnthropicCompactionExtension,
+    AnthropicContextEditingExtension,
     AnthropicProvider,
     AnthropicReasoningExtension,
     AnthropicToolsExtension,
@@ -62,6 +64,27 @@ def test_ollama_model_discovery_includes_configured_model() -> None:
     }
 
 
+@pytest.mark.integration
+@pytest.mark.ollama
+def test_ollama_omits_native_context_management_extensions() -> None:
+    config = _config()
+    _require_ollama(config)
+    provider = AnthropicProvider()
+    models = provider.get_models(config)
+    tags = provider.get_tags(config, models)
+    core = _core()
+    ui_keys = {
+        element["key"]
+        for element in core.get_ui_schema(config=config)
+        if isinstance(element.get("key"), str)
+    }
+
+    assert "supports_anthropic_compaction" not in tags
+    assert "supports_anthropic_context_editing" not in tags
+    assert "enable_anthropic_compaction" not in ui_keys
+    assert "anthropic_thinking_retention" not in ui_keys
+
+
 def _core(*, tool: type | None = None) -> AgentCore:
     core = AgentCore()
     core.register_feature(RequestOptionsFeature)
@@ -70,6 +93,8 @@ def _core(*, tool: type | None = None) -> AgentCore:
         extensions=[
             AnthropicToolsExtension,
             AnthropicReasoningExtension,
+            AnthropicContextEditingExtension,
+            AnthropicCompactionExtension,
             AnthropicUsageExtension,
         ],
     )

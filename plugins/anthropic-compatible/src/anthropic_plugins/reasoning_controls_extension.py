@@ -54,16 +54,6 @@ def _normalize_details(value: Any) -> dict[str, Any]:
         for item in _EFFORT_ORDER
         if item in _string_list(value.get("effort_levels"))
     ]
-    context_raw = value.get("context_management")
-    context = (
-        {
-            str(key): bool(enabled)
-            for key, enabled in context_raw.items()
-            if isinstance(key, str) and isinstance(enabled, bool)
-        }
-        if isinstance(context_raw, dict)
-        else {}
-    )
     result: dict[str, Any] = {}
     if thinking_types:
         result["thinking_types"] = thinking_types
@@ -74,8 +64,6 @@ def _normalize_details(value: Any) -> dict[str, Any]:
     manual_beta = value.get("manual_interleaving_beta")
     if isinstance(manual_beta, str) and manual_beta:
         result["manual_interleaving_beta"] = manual_beta
-    if context:
-        result["context_management"] = context
     return result
 
 
@@ -98,18 +86,6 @@ def _details_from_official_capabilities(value: Any) -> dict[str, Any]:
     effort = effort if isinstance(effort, dict) else {}
     effort_levels = [item for item in _EFFORT_ORDER if _supported(effort.get(item))]
 
-    context_raw = value.get("context_management")
-    context_raw = context_raw if isinstance(context_raw, dict) else {}
-    context = {
-        key: True
-        for key in (
-            "clear_thinking_20251015",
-            "clear_tool_uses_20250919",
-            "compact_20260112",
-        )
-        if _supported(context_raw.get(key))
-    }
-
     result: dict[str, Any] = {}
     if thinking_types:
         result["thinking_types"] = thinking_types
@@ -117,8 +93,6 @@ def _details_from_official_capabilities(value: Any) -> dict[str, Any]:
         result["effort_levels"] = effort_levels
     if "adaptive" in thinking_types:
         result["adaptive_interleaving"] = True
-    if context:
-        result["context_management"] = context
     return result
 
 

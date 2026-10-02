@@ -575,6 +575,18 @@
         "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
+    "openai_responses_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^gpt-(?:5\\.(?:[6-9]|[1-9][0-9]+)|(?:[6-9]|[1-9][0-9]+))(?:\\.[0-9]+)*(?:$|-)"
+            }
+          },
+          "reasoning_context": "all_turns"
+        }
+      ]
+    },
     "claude_anthropic_model_variants": {
       "$variants": [
         {
@@ -608,20 +620,18 @@
               "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
             }
           },
-          "betas": ["context-management-2025-06-27"],
           "anthropic_reasoning_mode": "adaptive",
           "anthropic_reasoning_effort": "high",
-          "anthropic_reasoning_display": "summarized",
-          "request_options": {
-            "context_management": {
-              "edits": [
-                {
-                  "type": "clear_thinking_20251015",
-                  "keep": "all"
-                }
-              ]
+          "anthropic_reasoning_display": "summarized"
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet-5|sonnet-4-6|opus-4-6)$"
             }
-          }
+          },
+          "anthropic_compaction_trigger_tokens": 800000,
+          "anthropic_tool_use_clear_trigger_tokens": 200000
         }
       ]
     }
@@ -639,6 +649,12 @@
       "auth_mode": "api",
       "api_key": "${env:ANTHROPIC_API_KEY}",
       "base_url": "https://api.anthropic.com",
+      "enable_anthropic_compaction": true,
+      "anthropic_compaction_trigger_tokens": 150000,
+      "anthropic_thinking_retention": "all",
+      "enable_anthropic_tool_use_clearing": true,
+      "anthropic_tool_use_clear_trigger_tokens": 100000,
+      "anthropic_tool_uses_to_keep": 5,
       "capabilities": {
         "anthropic_reasoning_controls": true,
         "prompt_caching": true
@@ -654,7 +670,7 @@
       "aspect_ratio": "1:1"
     },
     "openai": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": ["provider_defaults", "openai_responses_model_variants"],
       "provider": "openai_responses",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
@@ -663,6 +679,8 @@
       "enable_flex_processing": true,
       "enable_fast_mode": false,
       "reasoning_summary": "detailed",
+      "enable_openai_automatic_compaction": false,
+      "openai_compaction_trigger_tokens": 200000,
       "enable_prompt_cache_retention_24h": true,
       "system_message_as_instructions": true,
       "strip_leading_system_or_developer_message": true,

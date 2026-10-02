@@ -14,7 +14,7 @@ for the reasoning config keys to take effect.
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`.
 - `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, GPT-5.6 family only.
+  "all_turns"]`, GPT-5.6-and-later numeric GPT families.
 
 ## Per-model effort sets
 
@@ -60,8 +60,9 @@ defaults to `medium` in both modes (per the official reasoning guide).
 
 ## `reasoning_context`
 
-`reasoning_context` controls which available reasoning items the model can use
-on supported GPT-5.6 models:
+`reasoning_context`, presented to users as **Reasoning retention**, controls
+which available reasoning items the model can use on supported
+GPT-5.6-and-later numeric GPT models:
 
 - `auto`: uses the selected model's default. Omitting `reasoning_context` has
   the same effect as `auto`. The extension normalizes `auto` to omission (no
@@ -91,9 +92,13 @@ The same escape hatch applies to `request_options.reasoning.effort` and
 
 ## Silent drops
 
-No default `reasoning_effort`, `reasoning_mode`, or `reasoning_context` is
-inferred. If a key is unset, no `effort`, `mode`, or `context` is injected and
-the OpenAI API applies its own built-in default for the selected model.
+The extension itself does not infer a default `reasoning_effort`,
+`reasoning_mode`, or `reasoning_context`. If a key is unset, no `effort`,
+`mode`, or `context` is injected and the OpenAI API applies its own built-in
+default for the selected model. The shipped application configuration
+explicitly selects `reasoning_context: "all_turns"` for
+GPT-5.6-and-later numeric model families so its behavior remains visible in
+resolved configuration.
 
 Unsupported values are silently dropped for the selected model rather than
 raising an error:
@@ -101,7 +106,7 @@ raising an error:
 - unsupported `reasoning_effort` values are not injected;
 - `reasoning_mode: "pro"` is silently dropped for non-GPT-5.6 models;
 - `reasoning_context: "current_turn"` or `"all_turns"` is silently dropped for
-  non-GPT-5.6 models.
+  models earlier than GPT-5.6 and non-numeric GPT families.
 
 This matches the existing silent-drop behavior for unsupported
 `reasoning_effort` values.

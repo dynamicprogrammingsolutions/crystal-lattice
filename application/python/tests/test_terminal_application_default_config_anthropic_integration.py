@@ -110,6 +110,26 @@ def test_terminal_application_default_config_anthropic_reads_file(
     last_failure: tuple[str, list[str]] | None = None
     for _attempt in range(2):
         session = term_app.start_new_session(agent_id="claude-anthropic")
+        sonnet_ui_by_key = {
+            element["key"]: element
+            for element in term_app.session_ui_elements()
+            if isinstance(element, dict) and isinstance(element.get("key"), str)
+        }
+        assert sonnet_ui_by_key["enable_anthropic_compaction"]["type"] == "checkbox"
+        assert sonnet_ui_by_key["enable_anthropic_compaction"]["default"] is True
+        assert (
+            sonnet_ui_by_key["anthropic_compaction_trigger_tokens"]["default"] == 800000
+        )
+        assert sonnet_ui_by_key["anthropic_thinking_retention"]["type"] == "select"
+        assert sonnet_ui_by_key["enable_anthropic_tool_use_clearing"]["default"] is True
+        assert (
+            sonnet_ui_by_key["anthropic_tool_use_clear_trigger_tokens"]["default"]
+            == 200000
+        )
+        assert sonnet_ui_by_key["anthropic_tool_uses_to_keep"]["default"] == 5
+        assert "anthropic_compaction_instructions" not in sonnet_ui_by_key
+        assert "anthropic_thinking_turns_to_keep" not in sonnet_ui_by_key
+        assert "anthropic_clear_tool_inputs" not in sonnet_ui_by_key
         session = term_app.update_override(
             "model",
             "claude-haiku-4-5-20251001",
@@ -130,6 +150,11 @@ def test_terminal_application_default_config_anthropic_reads_file(
         assert ui_by_key["anthropic_reasoning_budget_tokens"]["type"] == "number"
         assert ui_by_key["enable_prompt_caching"]["type"] == "checkbox"
         assert ui_by_key["prompt_cache_ttl"]["type"] == "select"
+        assert ui_by_key["anthropic_thinking_retention"]["type"] == "select"
+        assert ui_by_key["enable_anthropic_tool_use_clearing"]["default"] is True
+        assert ui_by_key["anthropic_tool_use_clear_trigger_tokens"]["default"] == 100000
+        assert ui_by_key["anthropic_tool_uses_to_keep"]["default"] == 5
+        assert "enable_anthropic_compaction" not in ui_by_key
         term_app.append_user_message(
             f"Use the Read tool to read {target.resolve()} and reply with "
             "exactly the first line."

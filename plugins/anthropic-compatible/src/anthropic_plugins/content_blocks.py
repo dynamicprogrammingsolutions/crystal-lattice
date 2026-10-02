@@ -76,6 +76,11 @@ def _update_block(
         current["_partial_json"] = str(current.get("_partial_json") or "") + str(
             delta.get("partial_json") or ""
         )
+    elif delta_type == "compaction_delta":
+        current["type"] = "compaction"
+        for key in ("content", "encrypted_content"):
+            if key in delta:
+                current[key] = delta[key]
     else:
         unknown_deltas = current.get("_unknown_deltas")
         prior_unknown = unknown_deltas if isinstance(unknown_deltas, list) else []
@@ -164,6 +169,9 @@ def reduce_event(
             for key in ("stop_reason", "stop_sequence"):
                 if delta.get(key) is not None:
                     anthropic_metadata[key] = delta[key]
+        context_management = event.get("context_management")
+        if isinstance(context_management, dict):
+            anthropic_metadata["context_management"] = dict(context_management)
         message["_metadata"] = {
             **metadata,
             "anthropic": anthropic_metadata,

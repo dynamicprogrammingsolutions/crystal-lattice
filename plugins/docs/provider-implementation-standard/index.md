@@ -20,6 +20,9 @@ substantial provider implementation.
 - [Usage, cost, and performance](usage-cost-and-performance.md): normalized
   usage, pricing catalogs, cost-estimation provenance, cached-token estimation,
   and duration/TPS interoperability.
+- [Provider-native context maintenance](native-context-maintenance.md):
+  optional native compaction/context editing ownership, continuation history,
+  usage, compatibility, and tests.
 - [Package and documentation](package-and-documentation.md): package layout,
   descriptors, README/docs, tests, and delivery checklist.
 

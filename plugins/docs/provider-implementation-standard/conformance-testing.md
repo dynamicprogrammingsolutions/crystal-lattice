@@ -146,6 +146,11 @@ Reload the session through a new core/application instance and verify:
 - attachment references remain usable;
 - the next request completes.
 
+Provider-native compaction additionally verifies that the exact returned
+continuation block is sent on the follow-up request and that provider-reported
+compaction usage is included exactly once. See
+[Provider-native context maintenance](native-context-maintenance.md).
+
 ## Acceptance of a provider configuration
 
 A configuration is accepted only when:

@@ -37,7 +37,7 @@ A scalar value uses exact equality:
 ```json
 {
   "$when": {
-    "model": "claude-sonnet-5"
+    "model": "example-model-5"
   }
 }
 ```
@@ -52,7 +52,7 @@ Use `$matches` for string regular expressions:
 {
   "$when": {
     "model": {
-      "$matches": "^claude-sonnet-5(?:$|-)"
+      "$matches": "^example-model-5(?:$|-)"
     }
   }
 }
@@ -128,12 +128,12 @@ nested mappings:
       {
         "$when": {
           "model": {
-            "$matches": "^claude-haiku-4-5(?:$|-)"
+            "$matches": "^example-small(?:$|-)"
           }
         },
-        "thinking": {
-          "type": "enabled",
-          "budget_tokens": 1024
+        "reasoning": {
+          "enabled": true,
+          "effort": "low"
         }
       }
     ]
@@ -159,55 +159,109 @@ Root variants cannot change application/plugin topology after startup:
 Provider request bodies may still contain similarly named nested fields. For
 example, `request_options.provider` is not the application provider selector.
 
-## Claude model example
+## Complete composition example
 
-One direct Anthropic agent can select manual thinking for Haiku 4.5 and
-adaptive thinking for Sonnet 5:
+This fictional configuration demonstrates a complete mixin, provider, and
+agent composition without prescribing settings for a real provider:
 
 ```json
 {
   "mixins": {
-    "claude-model-variants": {
+    "example-provider-defaults": {
+      "timeout": 120,
+      "request_options": {
+        "temperature": 0.2
+      }
+    },
+    "example-model-profiles": {
       "$variants": [
         {
           "$when": {
             "model": {
-              "$matches": "^claude-haiku-4-5(?:$|-\\d{8}$)"
+              "$matches": "^example-pro(?:$|-)"
             }
           },
-          "anthropic_reasoning_mode": "manual",
-          "anthropic_reasoning_budget_tokens": 1024
+          "service_tier": "standard",
+          "request_options": {
+            "reasoning": {
+              "enabled": true
+            }
+          }
+        },
+        {
+          "$when": {
+            "model": "example-pro-preview"
+          },
+          "service_tier": "priority",
+          "request_options": {
+            "reasoning": {
+              "effort": "high"
+            }
+          }
         },
         {
           "$when": {
             "model": {
-              "$matches": "^claude-sonnet-5$"
-            }
+              "$matches": "^example-pro(?:$|-)"
+            },
+            "region": "eu"
           },
-          "betas": [
-            "context-management-2025-06-27"
-          ],
-          "anthropic_reasoning_mode": "adaptive",
-          "anthropic_reasoning_display": "summarized",
-          "anthropic_reasoning_effort": "high"
+          "headers": {
+            "x-example-region": "eu"
+          }
         }
       ]
     }
   },
+  "providers": {
+    "example": {
+      "mixin_refs": [
+        "example-provider-defaults",
+        "example-model-profiles"
+      ],
+      "provider": "example-provider"
+    }
+  },
   "agents": {
-    "claude-anthropic": {
-      "mixin_refs": ["claude-model-variants"],
-      "provider": "anthropic",
-      "model": "claude-sonnet-5"
+    "example-agent": {
+      "provider": "example",
+      "model": "example-pro-preview",
+      "region": "eu"
     }
   }
 }
 ```
 
-The Anthropic reasoning-controls extension derives available settings from
-official model capabilities and known model fallbacks. These variants select
-defaults. Unknown models receive no inferred defaults unless another variant
-matches. Raw request options remain available.
+All three variants match. The first and second variants deep-merge their
+`request_options.reasoning` mappings. Both write `service_tier`, so the later
+exact-match variant wins that scalar conflict. The third variant demonstrates
+logical AND across `model` and `region`.
+
+The resolved agent configuration is:
+
+```json
+{
+  "provider": "example-provider",
+  "model": "example-pro-preview",
+  "region": "eu",
+  "timeout": 120,
+  "service_tier": "priority",
+  "headers": {
+    "x-example-region": "eu"
+  },
+  "request_options": {
+    "temperature": 0.2,
+    "reasoning": {
+      "enabled": true,
+      "effort": "high"
+    }
+  }
+}
+```
+
+This example is intentionally provider-neutral. Real provider defaults belong
+in the maintained configuration and package documentation, not in this
+configuration-language guide.
 
 ## Diagnostics
 

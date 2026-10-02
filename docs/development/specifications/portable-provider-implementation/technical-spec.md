@@ -92,6 +92,47 @@ Generic cold-path behavior that is portable across providers may remain a
 feature plugin. Multi-session, persistence, login, or background operation
 behavior belongs in an application plugin.
 
+### Optional native context maintenance
+
+Provider-native compaction and context editing are optional protocol features,
+not universal provider requirements and not replacements for generic prompt
+summarization.
+
+Treat context-maintenance capabilities independently:
+
+| Capability | Meaning |
+|---|---|
+| Automatic compaction | An ordinary request can replace or add provider-native continuation state at a threshold |
+| Reasoning retention | The request controls whether earlier provider reasoning remains available |
+| Selective tool-use clearing | The provider can remove older tool calls/results independently of general compaction |
+| Manual compaction | A distinct endpoint or action compacts an explicit history or prefix |
+
+A provider package implements only the rows exposed by its upstream protocol.
+Similar user outcomes do not justify relabeling truncation, generic
+summarization, or local message deletion as a missing provider-native
+capability.
+
+When implemented:
+
+- feature-specific extensions own capability gating, configuration, UI,
+  request shaping, response interpretation, metadata, tests, and docs;
+- provider transport may compose required beta/version headers and reduce
+  shared raw events;
+- opaque compaction or continuation blocks remain in canonical native history
+  and survive reload;
+- visible transcript projection is not used as continuation state;
+- server-side context editing does not imply local transcript deletion unless
+  the provider returns and specifies a replacement history;
+- all provider-reported compaction iterations contribute to normalized usage
+  exactly once;
+- compatible endpoints without support omit the optional feature tag and
+  automatic request fields;
+- a real continuation test is required when hosted verification is practical.
+
+Manual/background operations are package-specific and should be added only
+when the upstream protocol exposes a distinct operation that justifies that
+lifecycle.
+
 ## Configuration and credentials
 
 Provider configuration is a resolved immutable-by-convention mapping shared
@@ -408,6 +449,8 @@ Every provider package covers:
 - turn/session cumulative usage and duration/TPS compatibility;
 - cost-estimation provenance and pricing-catalog behavior when cost estimation
   is supported.
+- native context-maintenance request, continuation, usage, and unsupported
+  endpoint behavior when implemented.
 
 ### Application integration
 

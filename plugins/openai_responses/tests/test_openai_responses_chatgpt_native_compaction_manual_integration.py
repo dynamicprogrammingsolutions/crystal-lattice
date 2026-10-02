@@ -175,3 +175,58 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
         and item.get("type") in {"compaction", "compaction_summary"}
         for item in native_history
     )
+
+
+@pytest.mark.manual_integration
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_chatgpt_automatic_compaction() -> None:
+    credentials_path = _credentials_path()
+    _load_saved_credentials()
+
+    core = _build_core()
+    config = {
+        **_chatgpt_config(credentials_path),
+        "enable_openai_automatic_compaction": True,
+        "openai_compaction_trigger_tokens": 1000,
+    }
+    filler = ("compactible context line. " * 600).strip()
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        f"{filler}\nReply with exactly CHATGPT_AUTOMATIC_COMPACTION_ONE.",
+        config=config,
+    )
+
+    first_session = None
+    first_messages = None
+    for chunk in core.send_request_stream(session, config):
+        if chunk.get("type") == "final":
+            first_session = chunk.get("session")
+            first_messages = chunk.get("messages")
+
+    assert first_session is not None
+    assert isinstance(first_messages, list)
+    assert first_messages
+    assert "CHATGPT_AUTOMATIC_COMPACTION_ONE" in str(first_messages[-1].get("content"))
+    _assert_has_compaction_native_items(first_session)
+
+    first_session = core.add_message(
+        first_session,
+        "user",
+        "Reply with exactly CHATGPT_AUTOMATIC_COMPACTION_TWO.",
+        config=config,
+    )
+    final_session = None
+    final_messages = None
+    for chunk in core.send_request_stream(first_session, config):
+        if chunk.get("type") == "final":
+            final_session = chunk.get("session")
+            final_messages = chunk.get("messages")
+
+    assert final_session is not None
+    assert isinstance(final_messages, list)
+    assert final_messages
+    assert "CHATGPT_AUTOMATIC_COMPACTION_TWO" in str(final_messages[-1].get("content"))
+    _assert_has_compaction_native_items(final_session)

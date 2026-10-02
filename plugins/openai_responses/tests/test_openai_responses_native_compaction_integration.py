@@ -9,6 +9,7 @@ import pytest
 from dotenv import load_dotenv
 
 from agent_core import AgentCore
+from plugins.request_options_feature import RequestOptionsFeature
 from openai_responses_plugins.openai_responses_native_compaction_extension import (
     OpenAIResponsesNativeCompactionExtension,
 )
@@ -39,6 +40,7 @@ def _build_core() -> AgentCore:
     core.register_provider(
         OpenAIResponsesProvider, [OpenAIResponsesNativeCompactionExtension]
     )
+    core.register_feature(RequestOptionsFeature)
     return core
 
 
@@ -186,6 +188,48 @@ def _messages_debug(messages: Any) -> list[dict[str, Any]]:
             }
         )
     return debug
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_automatic_compaction_persists_and_allows_followup(
+    ensure_openai_api_key: str,
+) -> None:
+    core = _build_core()
+    model = os.getenv("OPENAI_RESPONSES_AUTOMATIC_COMPACTION_MODEL") or "gpt-5.4-mini"
+    config = {
+        **_config(ensure_openai_api_key, model=model),
+        "enable_openai_automatic_compaction": True,
+        "openai_compaction_trigger_tokens": 1000,
+        "request_options": {
+            "max_output_tokens": 256,
+            "store": False,
+        },
+    }
+    filler = ("compactible context line. " * 600).strip()
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        f"{filler}\nReply with exactly OPENAI_AUTOMATIC_COMPACTION_ONE.",
+        config=config,
+    )
+    session, first_finals = core.send_request(session, config)
+
+    assert "OPENAI_AUTOMATIC_COMPACTION_ONE" in first_finals[-1]["content"]
+    _assert_has_compaction_native_items(session)
+
+    session = core.add_message(
+        session,
+        "user",
+        "Reply with exactly OPENAI_AUTOMATIC_COMPACTION_TWO.",
+        config=config,
+    )
+    final_session, second_finals = core.send_request(session, config)
+
+    assert "OPENAI_AUTOMATIC_COMPACTION_TWO" in second_finals[-1]["content"]
+    _assert_has_compaction_native_items(final_session)
 
 
 @pytest.mark.integration

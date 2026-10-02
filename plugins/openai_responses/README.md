@@ -346,6 +346,7 @@ Reasoning controls are available through:
 
 - `reasoning_effort`
 - `reasoning_summary`
+- `reasoning_context`, presented in session settings as reasoning retention
 
 To use those options, also load
 `plugins.request_options_feature.RequestOptionsFeature`.
@@ -416,9 +417,14 @@ contains `gpt-5`.
 
 ### Native compaction
 
-The bundle includes a session action that compacts provider-native history for
-future Responses turns. This is intended for context maintenance, not for
-producing a human-readable summary message.
+The bundle supports two native compaction paths:
+
+- automatic request-time compaction on ordinary Responses requests;
+- a manual session action that compacts all history or a visible prefix.
+
+Both preserve provider-native continuation data for future Responses turns.
+They are intended for context maintenance, not for producing a human-readable
+summary message.
 
 ## Configuration reference
 
@@ -437,8 +443,10 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
+- `enable_openai_automatic_compaction`: optional, defaults to `false`; enables request-time context compaction
+- `openai_compaction_trigger_tokens`: optional automatic compaction threshold, defaults to `200000`
 - `compaction_model`: optional model id for native compaction; leave empty or omit it to use `model`
-- `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force native compaction onto the API endpoint
+- `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force manual native compaction onto the API endpoint
 - `use_compaction_placeholder_transcript`: optional, defaults to `false`; set to `true` to show compacted native ranges as a single visible placeholder message instead of rebuilding the compacted native output directly
 - `timeout`: optional request timeout in seconds, defaults to `60`
 
@@ -526,7 +534,7 @@ loaded.
   GPT-6 family (Astra, Sol, Luna) and the GPT-5.6 family (Sol, Terra, Luna, and the
   bare `gpt-5.6` alias). API-only: hidden when `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, the GPT-6.1, GPT-6, and GPT-5.6 families only.
+  "all_turns"]`, GPT-5.6-and-later numeric GPT families.
 - `show_reasoning_context_footer`: set to `false` to keep reasoning-context
   behavior and metadata while hiding its assistant-message footer.
 
@@ -581,6 +589,56 @@ Tool schemas come from loaded tool plugins such as `plugins.math_tools.MathTools
 No extra config key is required beyond loading tools in the application.
 
 ### Native compaction
+
+Enable automatic compaction with:
+
+```json
+{
+  "enable_openai_automatic_compaction": true,
+  "openai_compaction_trigger_tokens": 200000
+}
+```
+
+Ordinary Responses requests then include:
+
+```json
+{
+  "context_management": [
+    {
+      "type": "compaction",
+      "compact_threshold": 200000
+    }
+  ]
+}
+```
+
+OpenAI may return one or more opaque `compaction` output items alongside the
+normal answer. These items remain in canonical provider-native history and are
+replayed on later turns.
+
+`request_options.context_management` runs later and replaces the generated
+value, preserving the standard raw request escape hatch.
+
+Automatic compaction is disabled in the shipped default configuration. Session
+settings expose both its enable toggle and token threshold (default `200000`).
+Users may opt in for a selected model regardless of authentication mode; the
+provider reports an error if the upstream endpoint rejects the request.
+
+OpenAI reasoning retention is configured separately with:
+
+```json
+{
+  "reasoning_context": "all_turns"
+}
+```
+
+The shipped default configuration makes `all_turns` explicit for
+GPT-5.6-and-later numeric model families. OpenAI Responses currently has no
+independent native strategy equivalent to Anthropic tool-use clearing.
+`truncation: "auto"` is not exposed as such because it is a different
+context-overflow behavior.
+
+Manual compaction remains available:
 
 The bundle exposes an application-owned session action with id
 `compact_native_history`. It starts native compaction in the background and
@@ -714,6 +772,8 @@ do not also place it in the ordinary session-action bar.
   summary. See the
   [native compaction specification](docs/development/specifications/native-compaction/index.md)
   for the protocol, compatibility, and lifecycle contract.
+- OpenAI Responses currently exposes automatic compaction and reasoning
+  retention, but not an independent provider-native tool-use-clearing policy.
 
 ## Bundle layout
 

@@ -57,13 +57,18 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
         in config["agents"]["claude-anthropic"]["mixin_refs"]
     )
     variants = config["mixins"]["claude_anthropic_model_variants"]["$variants"]
-    assert len(variants) == 4
+    assert len(variants) == 5
     assert variants[0]["anthropic_reasoning_mode"] == "manual"
     assert variants[0]["anthropic_reasoning_budget_tokens"] == 1024
     assert variants[2]["anthropic_reasoning_effort"] == "high"
     assert variants[3]["anthropic_reasoning_mode"] == "adaptive"
     assert variants[3]["anthropic_reasoning_display"] == "summarized"
     assert variants[3]["anthropic_reasoning_effort"] == "high"
+    assert "anthropic_thinking_retention" not in variants[3]
+    assert "betas" not in variants[3]
+    assert "request_options" not in variants[3]
+    assert variants[4]["anthropic_compaction_trigger_tokens"] == 800000
+    assert variants[4]["anthropic_tool_use_clear_trigger_tokens"] == 200000
     assert "path:${env:BUILTIN_PLUGINS}/anthropic-compatible" in config["plugins"]
     assert config["providers"]["anthropic"] == {
         "mixin_refs": ["provider_defaults"],
@@ -71,6 +76,12 @@ def test_default_config_declares_provider_qualified_claude_agents() -> None:
         "auth_mode": "api",
         "api_key": "${env:ANTHROPIC_API_KEY}",
         "base_url": "https://api.anthropic.com",
+        "enable_anthropic_compaction": True,
+        "anthropic_compaction_trigger_tokens": 150000,
+        "anthropic_thinking_retention": "all",
+        "enable_anthropic_tool_use_clearing": True,
+        "anthropic_tool_use_clear_trigger_tokens": 100000,
+        "anthropic_tool_uses_to_keep": 5,
         "capabilities": {
             "anthropic_reasoning_controls": True,
             "prompt_caching": True,
@@ -102,6 +113,84 @@ def test_default_config_pins_openai_compatible_reasoning_effort() -> None:
             config["agents"][agent_id]["request_options_ui"]["reasoning_effort"]
             == expected
         )
+
+
+def test_default_config_declares_openai_context_maintenance_variants() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert config["providers"]["openai"]["mixin_refs"] == [
+        "provider_defaults",
+        "openai_responses_model_variants",
+    ]
+    assert config["providers"]["openai"]["enable_openai_automatic_compaction"] is False
+    assert config["providers"]["openai"]["openai_compaction_trigger_tokens"] == 200000
+    variants = config["mixins"]["openai_responses_model_variants"]["$variants"]
+    assert variants == [
+        {
+            "$when": {
+                "model": {
+                    "$matches": (
+                        "^gpt-(?:5\\.(?:[6-9]|[1-9][0-9]+)|"
+                        "(?:[6-9]|[1-9][0-9]+))(?:\\.[0-9]+)*(?:$|-)"
+                    ),
+                },
+            },
+            "reasoning_context": "all_turns",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("model", "expects_all_turns"),
+    [
+        ("gpt-5.1", False),
+        ("gpt-5.2", False),
+        ("gpt-5.5-pro", False),
+        ("gpt-5.6-sol", True),
+        ("gpt-5.10-preview", True),
+        ("gpt-6-astra", True),
+        ("gpt-6.1-custom", True),
+        ("gpt-10-next", True),
+        ("o3", False),
+    ],
+)
+def test_default_openai_model_variants_only_set_reasoning_for_future_numeric_families(
+    model: str,
+    expects_all_turns: bool,
+) -> None:
+    from agent_app.config_variants import resolve_config_variants
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    base = {
+        "model": model,
+        **config["mixins"]["openai_responses_model_variants"],
+    }
+
+    resolved, errors = resolve_config_variants(base, selector=base)
+
+    assert errors == []
+    assert "enable_openai_automatic_compaction" not in resolved
+    assert "openai_compaction_trigger_tokens" not in resolved
+    if expects_all_turns:
+        assert resolved["reasoning_context"] == "all_turns"
+    else:
+        assert "reasoning_context" not in resolved
 
 
 @pytest.mark.integration
@@ -139,7 +228,6 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     monkeypatch.setenv(
         "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
     )
-
     app = AgentApplication(
         str(config_path),
         str(tmp_path / "sessions"),
@@ -150,15 +238,17 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     core, base_config, session = app.create_session("claude-anthropic")
     sonnet_config = app.resolve_effective_config(base_config, session)
     assert sonnet_config["model"] == "claude-sonnet-5"
-    assert sonnet_config["betas"] == ["context-management-2025-06-27"]
     assert sonnet_config["anthropic_reasoning_mode"] == "adaptive"
     assert sonnet_config["anthropic_reasoning_display"] == "summarized"
     assert sonnet_config["anthropic_reasoning_effort"] == "high"
-    assert sonnet_config["request_options"] == {
-        "context_management": {
-            "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
-        }
-    }
+    assert sonnet_config["anthropic_thinking_retention"] == "all"
+    assert sonnet_config["enable_anthropic_compaction"] is True
+    assert sonnet_config["anthropic_compaction_trigger_tokens"] == 800000
+    assert sonnet_config["enable_anthropic_tool_use_clearing"] is True
+    assert sonnet_config["anthropic_tool_use_clear_trigger_tokens"] == 200000
+    assert sonnet_config["anthropic_tool_uses_to_keep"] == 5
+    assert "request_options" not in sonnet_config
+    assert "betas" not in sonnet_config
 
     haiku_session = session.__class__(
         session_id=session.session_id,
@@ -171,17 +261,48 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     haiku_config = app.resolve_effective_config(base_config, haiku_session)
     assert haiku_config["anthropic_reasoning_mode"] == "manual"
     assert haiku_config["anthropic_reasoning_budget_tokens"] == 1024
+    assert haiku_config["anthropic_thinking_retention"] == "all"
+    assert haiku_config["enable_anthropic_compaction"] is True
+    assert haiku_config["anthropic_compaction_trigger_tokens"] == 150000
+    assert haiku_config["enable_anthropic_tool_use_clearing"] is True
+    assert haiku_config["anthropic_tool_use_clear_trigger_tokens"] == 100000
+    assert haiku_config["anthropic_tool_uses_to_keep"] == 5
     assert "request_options" not in haiku_config
     assert "betas" not in haiku_config
-    haiku_ui = core.get_ui_schema(config=haiku_config)
+    haiku_ui = core.get_ui_schema(
+        config={
+            **haiku_config,
+            "capabilities": {
+                **dict(haiku_config.get("capabilities") or {}),
+                "anthropic_context_editing": True,
+                "anthropic_compaction": False,
+            },
+        }
+    )
     haiku_ui_keys = {
         element["key"] for element in haiku_ui if isinstance(element.get("key"), str)
     }
     assert "anthropic_reasoning_mode" in haiku_ui_keys
     assert "anthropic_reasoning_budget_tokens" in haiku_ui_keys
     assert "anthropic_reasoning_effort" not in haiku_ui_keys
+    assert "anthropic_thinking_retention" in haiku_ui_keys
+    assert "anthropic_thinking_turns_to_keep" not in haiku_ui_keys
+    assert "enable_anthropic_tool_use_clearing" in haiku_ui_keys
+    assert "anthropic_tool_use_clear_trigger_tokens" in haiku_ui_keys
+    assert "anthropic_tool_uses_to_keep" in haiku_ui_keys
+    assert "anthropic_clear_tool_inputs" not in haiku_ui_keys
+    assert "enable_anthropic_compaction" not in haiku_ui_keys
 
-    sonnet_ui = core.get_ui_schema(config=sonnet_config)
+    sonnet_ui = core.get_ui_schema(
+        config={
+            **sonnet_config,
+            "capabilities": {
+                **dict(sonnet_config.get("capabilities") or {}),
+                "anthropic_context_editing": True,
+                "anthropic_compaction": True,
+            },
+        }
+    )
     sonnet_ui_by_key = {
         element["key"]: element
         for element in sonnet_ui
@@ -213,6 +334,18 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
         "placements": ["composer"],
         "default_pinned": True,
     }
+    assert sonnet_ui_by_key["anthropic_thinking_retention"]["type"] == "select"
+    assert sonnet_ui_by_key["enable_anthropic_compaction"]["type"] == "checkbox"
+    assert sonnet_ui_by_key["enable_anthropic_compaction"]["default"] is True
+    assert sonnet_ui_by_key["anthropic_compaction_trigger_tokens"]["default"] == 800000
+    assert sonnet_ui_by_key["enable_anthropic_tool_use_clearing"]["default"] is True
+    assert (
+        sonnet_ui_by_key["anthropic_tool_use_clear_trigger_tokens"]["default"] == 200000
+    )
+    assert sonnet_ui_by_key["anthropic_tool_uses_to_keep"]["default"] == 5
+    assert "anthropic_compaction_instructions" not in sonnet_ui_by_key
+    assert "anthropic_thinking_turns_to_keep" not in sonnet_ui_by_key
+    assert "anthropic_clear_tool_inputs" not in sonnet_ui_by_key
 
     opus_session = session.__class__(
         session_id=session.session_id,
@@ -228,6 +361,136 @@ def test_default_config_claude_anthropic_variants_follow_model_override(
     assert opus_config["anthropic_reasoning_budget_tokens"] == 1024
     assert opus_config["anthropic_reasoning_effort"] == "high"
     assert "request_options" not in opus_config
+
+
+@pytest.mark.integration
+def test_default_config_openai_context_maintenance_variants_and_ui(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+
+    for key in (
+        "OPENROUTER_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "TAVILY_API_KEY",
+        "OPENAI_API_KEY",
+        "FIREWORKS_API_KEY",
+        "ZAI_API_KEY",
+        "CLOUD_ORCHESTRATOR_TOKEN",
+    ):
+        monkeypatch.setenv(key, f"test-{key.lower()}")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
+
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+    assert app.get_config_errors() == []
+
+    api_core, api_base, api_session = app.create_session("codex-openai-api")
+    api_config = app.resolve_effective_config(api_base, api_session)
+    assert api_config["model"] == "gpt-5.4"
+    assert api_config["auth_mode"] == "api"
+    assert api_config["enable_openai_automatic_compaction"] is False
+    assert api_config["openai_compaction_trigger_tokens"] == 200000
+    api_ui = {
+        element["key"]: element
+        for element in api_core.get_ui_schema(config=api_config)
+        if isinstance(element.get("key"), str)
+    }
+    assert api_ui["enable_openai_automatic_compaction"]["default"] is False
+    assert api_ui["openai_compaction_trigger_tokens"]["default"] == 200000
+
+    auto_core, auto_base, auto_session = app.create_session("codex-openai")
+    auto_config = app.resolve_effective_config(auto_base, auto_session)
+    assert auto_config["auth_mode"] == "auto"
+    assert auto_config["enable_openai_automatic_compaction"] is False
+    assert auto_config["openai_compaction_trigger_tokens"] == 200000
+    assert "reasoning_context" not in auto_config
+
+    gpt56_session = auto_session.__class__(
+        session_id=auto_session.session_id,
+        messages=auto_session.messages,
+        metadata={
+            **auto_session.metadata,
+            "overrides": {"model": "gpt-5.6-luna"},
+        },
+    )
+    gpt56_config = app.resolve_effective_config(auto_base, gpt56_session)
+    assert gpt56_config["reasoning_context"] == "all_turns"
+    assert gpt56_config["enable_openai_automatic_compaction"] is False
+    assert gpt56_config["openai_compaction_trigger_tokens"] == 200000
+    gpt56_ui = {
+        element["key"]: element
+        for element in auto_core.get_ui_schema(config=gpt56_config)
+        if isinstance(element.get("key"), str)
+    }
+    assert gpt56_ui["reasoning_context"]["label"] == "Reasoning retention"
+    assert gpt56_ui["reasoning_context"]["options"] == [
+        {"value": "auto", "label": "Auto"},
+        {"value": "current_turn", "label": "Current turn only"},
+        {"value": "all_turns", "label": "All turns"},
+    ]
+    assert gpt56_ui["enable_openai_automatic_compaction"]["default"] is False
+
+    astra_session = auto_session.__class__(
+        session_id=auto_session.session_id,
+        messages=auto_session.messages,
+        metadata={
+            **auto_session.metadata,
+            "overrides": {"model": "gpt-6-astra"},
+        },
+    )
+    astra_config = app.resolve_effective_config(auto_base, astra_session)
+    assert astra_config["reasoning_context"] == "all_turns"
+    assert astra_config["enable_openai_automatic_compaction"] is False
+    assert astra_config["openai_compaction_trigger_tokens"] == 200000
+    astra_ui = {
+        element["key"]: element
+        for element in auto_core.get_ui_schema(config=astra_config)
+        if isinstance(element.get("key"), str)
+    }
+    assert astra_ui["reasoning_context"]["label"] == "Reasoning retention"
+    assert astra_ui["enable_openai_automatic_compaction"]["default"] is False
+    opted_in_config = app.resolve_effective_config(
+        auto_base,
+        astra_session,
+        {
+            "enable_openai_automatic_compaction": True,
+            "openai_compaction_trigger_tokens": 250000,
+        },
+    )
+    assert opted_in_config["enable_openai_automatic_compaction"] is True
+    assert opted_in_config["openai_compaction_trigger_tokens"] == 250000
+    opted_in_ui = {
+        element["key"]: element
+        for element in auto_core.get_ui_schema(config=opted_in_config)
+        if isinstance(element.get("key"), str)
+    }
+    assert opted_in_ui["enable_openai_automatic_compaction"]["default"] is True
+    assert opted_in_ui["openai_compaction_trigger_tokens"]["default"] == 250000
 
 
 @pytest.mark.integration
@@ -385,6 +648,8 @@ def test_default_config_effective_agent_configs_stay_intact(
             "provider": "openai_responses",
             "model": "gpt-5.4-mini",
             "auth_mode": "auto",
+            "enable_openai_automatic_compaction": False,
+            "openai_compaction_trigger_tokens": 200000,
             "allowed_paths": [
                 ".",
                 "..",
@@ -405,7 +670,10 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "codex-openai-api": {
             "provider": "openai_responses",
+            "model": "gpt-5.4",
             "auth_mode": "api",
+            "enable_openai_automatic_compaction": False,
+            "openai_compaction_trigger_tokens": 200000,
             "shell_tool_mode": "auto",
             "skills_enabled": True,
             "skills_roots": [".agents/skills"],
@@ -434,22 +702,15 @@ def test_default_config_effective_agent_configs_stay_intact(
         "claude-anthropic": {
             "provider": "anthropic",
             "model": "claude-sonnet-5",
-            "betas": ["context-management-2025-06-27"],
-            "request_options": {
-                "thinking": {
-                    "type": "adaptive",
-                    "display": "summarized",
-                },
-                "output_config": {"effort": "high"},
-                "context_management": {
-                    "edits": [
-                        {
-                            "type": "clear_thinking_20251015",
-                            "keep": "all",
-                        }
-                    ]
-                },
-            },
+            "anthropic_reasoning_mode": "adaptive",
+            "anthropic_reasoning_effort": "high",
+            "anthropic_reasoning_display": "summarized",
+            "anthropic_thinking_retention": "all",
+            "enable_anthropic_compaction": True,
+            "anthropic_compaction_trigger_tokens": 800000,
+            "enable_anthropic_tool_use_clearing": True,
+            "anthropic_tool_use_clear_trigger_tokens": 200000,
+            "anthropic_tool_uses_to_keep": 5,
             "web_search_enabled": True,
             "web_search_provider": "gemini_api",
             "mcp_enabled": False,

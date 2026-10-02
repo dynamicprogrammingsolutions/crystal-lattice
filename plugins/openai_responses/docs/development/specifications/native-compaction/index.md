@@ -5,6 +5,8 @@ This specification defines native conversation compaction owned by the
 
 It covers:
 
+- automatic request-time compaction and threshold configuration;
+- persistence and replay of automatically returned compaction items;
 - selection of the API or ChatGPT compaction protocol;
 - the legacy API compact endpoint, retained as the API-key protocol;
 - ChatGPT remote compaction v2 over the normal Responses endpoint;
