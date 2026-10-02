@@ -62,6 +62,28 @@ def _compiled_system_text(events: list[dict[str, Any]]) -> str:
     return system_text
 
 
+def _compiled_action_text(
+    app: AgentApplication,
+    agent_id: str,
+    *,
+    overrides: dict[str, Any] | None = None,
+) -> str:
+    _core, _base_config, session = app.create_session(agent_id)
+    if overrides:
+        session = Session(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata={**session.metadata, "overrides": overrides},
+        )
+        app.save_session(session)
+    result = app.execute_session_action(
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={"session_id": session.session_id},
+    )
+    return str(result["display"]["body"])
+
+
 def test_system_message_feature_persists_single_template_system_message(
     tmp_path: Path,
 ) -> None:
@@ -345,6 +367,7 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
+        "mixins": dict(portable_config["mixins"]),
         "agents": dict(portable_config["agents"]),
     }
 
@@ -407,26 +430,14 @@ def test_portable_default_config_compiles_vendor_and_codex_system_messages(
             "If you anticipate making multiple non-interfering tool calls, you are highly encouraged to make them in parallel to improve efficiency.",
             "Repository policy from AGENTS.",
         ],
-        "claude": [
+        "claude-openrouter": [
             "You are Claude Code, Anthropic's official CLI for Claude.",
             "Repository policy from AGENTS.",
         ],
     }
 
     for agent_id, substrings in expected_substrings.items():
-        core, base_config, session = app.create_session(agent_id)
-        session = core.add_message(
-            session,
-            "user",
-            f"Inspect the compiled system message for {agent_id}.",
-            metadata=None,
-            config=base_config,
-        )
-
-        events = list(
-            app.send_request(core, session, base_config, overrides=None, stream=False)
-        )
-        system_text = _compiled_system_text(events)
+        system_text = _compiled_action_text(app, agent_id)
 
         assert "{{" not in system_text
         for substring in substrings:
@@ -657,6 +668,7 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "feature_system_message.system_message_feature.SystemMessageFeature",
         ],
+        "mixins": dict(portable_config["mixins"]),
         "agents": dict(portable_config["agents"]),
     }
 
@@ -677,26 +689,26 @@ def test_portable_default_tasks_toggle_includes_tasks_section_when_enabled(
         "gemini",
         "grok",
         "kimi",
-        "claude",
+        "claude-openrouter",
     ):
-        core, base_config, session = app.create_session(agent_id)
-        session = core.add_message(
-            session,
-            "user",
-            f"Inspect the compiled system message for {agent_id} with tasks enabled.",
-            metadata=None,
-            config=base_config,
+        system_text = _compiled_action_text(
+            app,
+            agent_id,
+            overrides={"include_tasks": True},
         )
-
-        events = list(
-            app.send_request(
-                core,
-                session,
-                base_config,
-                overrides={"include_tasks": True},
-                stream=False,
-            )
-        )
-        system_text = _compiled_system_text(events)
 
         assert "Task Files and Subtasks (`tasks/`)" in system_text
+        assert "minimum approved outcomes and constraints" in system_text
+        assert (
+            "Public APIs, persisted data, compatibility, security, privacy"
+            in system_text
+        )
+        assert (
+            "do not install dependencies or create scratch implementations"
+            in system_text
+        )
+        assert "remove incidental changes before handoff" in system_text
+        assert (
+            "A mock that supplies or bypasses the claimed behavior is not "
+            "decisive evidence"
+        ) in system_text

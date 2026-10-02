@@ -59,6 +59,15 @@ def test_get_ui_elements_exposes_all_flex_controls() -> None:
     ]
 
 
+def test_get_ui_elements_hides_flex_for_chatgpt_or_explicitly_disabled_ui() -> None:
+    ext = OpenAIResponsesFlexProcessingExtension()
+
+    assert ext.get_ui_elements(config={"auth_mode": "chatgpt"}) == []
+    assert ext.get_ui_elements(
+        config={"auth_mode": "api", "show_flex_processing_ui": False}
+    ) == []
+
+
 def test_init_and_initialize_request_are_noops_when_flex_disabled() -> None:
     ext = OpenAIResponsesFlexProcessingExtension()
     state = {"config": _config(), "request": {"payload": {"model": "gpt-5-mini"}}}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg03-flask-vue-refresh-handoff",
+  "category": "handoff",
+  "title": "Flask/Vue selected-filter refresh handoff",
+  "task_summary": "Keep one cross-layer regression cohesive and preserve its production transport boundary.",
+  "project": {
+    "name": "Flask-Vue CRUD",
+    "kind": "user-facing full-stack application",
+    "fixture_id": "tg03-flask-vue-refresh",
+    "upstream": "https://github.com/testdrivenio/flask-vue-crud",
+    "revision": "be91da59a10d07384537c2f76f4505eb344d1682"
+  },
+  "approved_outcomes": [
+    {"id": "REFRESH-1", "outcome": "All/Read/Unread selection remains active after add, update, and delete refreshes."},
+    {"id": "REFRESH-2", "outcome": "Mutation refreshes use the selected filter through the production client transport and Flask route."},
+    {"id": "REFRESH-3", "outcome": "The visible active choice, table results, and empty state match the refreshed response."},
+    {"id": "REFRESH-4", "outcome": "Existing CRUD success, response shape, and unfiltered behavior remain compatible."}
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "REFRESH-DELIVERY",
+      "title": "Fix selected-filter refresh behavior",
+      "outcomes": ["REFRESH-1", "REFRESH-2", "REFRESH-3", "REFRESH-4"],
+      "independent_value": "Frontend state, transport, server request, rendering, and regression evidence must all land before the bug is fixed.",
+      "dependencies": []
+    }
+  ],
+  "acceptable_partition_sizes": [1],
+  "acceptable_alternatives": [
+    "Add, update, and delete may be grouped as variants of one refresh outcome."
+  ],
+  "fragmentation_examples": [
+    "Frontend, backend, component-test, API-test, integration-test, and documentation subtasks would split one inseparable bug fix."
+  ],
+  "overpacking_examples": [],
+  "important_crossings": [
+    "Vue selection and mutation refresh use the production transport and Flask HTTP route before rendering results."
+  ],
+  "open_questions": [],
+  "handoff": {
+    "retain_plan": "Preserve the selected-state owner, refresh call paths, compatibility constraints, and real crossing.",
+    "omit_plan": "Preserve the observed regression, source pointers, state owner, and public response constraints without the proposed shared fetch-path solution.",
+    "fresh_agent_plan": "A fresh agent reconstructs one cohesive cross-layer fix and groups CRUD refresh variants."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "Where the selected All/Read/Unread filter lives and how it survives add, update, and delete refreshes.", "derived_from": ["REFRESH-1"]},
+    {"id": "PLAN-2", "content": "The path a mutation refresh takes through the production client transport and the Flask route.", "derived_from": ["REFRESH-2"]},
+    {"id": "PLAN-3", "content": "How the visible active choice, the table results, and the empty state stay consistent with the refreshed response.", "derived_from": ["REFRESH-3"]},
+    {"id": "PLAN-4", "content": "What stays untouched: CRUD success behavior, response shape, and unfiltered behavior.", "derived_from": ["REFRESH-4"]}
+    ]
+  }
+}

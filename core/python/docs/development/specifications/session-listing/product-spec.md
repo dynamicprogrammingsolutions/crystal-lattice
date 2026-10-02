@@ -158,3 +158,22 @@ established results.
 - Changing session snapshot behavior.
 - Requiring every future session-list implementation to use local files,
   SQLite, background threads, or a foreground timeout.
+
+## Session-query refinement
+
+The separately owned
+[session and message data query specification](../../../../../../application/python/docs/development/specifications/session-data-query/index.md)
+extends the filter contract without redefining summary construction or
+background resolution.
+
+Its target adds plugin-declared timezone-aware date comparisons and exposes
+the same normalized filter values to local Python, one-shot CLI, HTTP, and
+frontend consumers. The session-list service remains authoritative for
+summary enrichment, ordering, conservative metadata-only filtering, limits,
+and diagnostics. JSONPath projection occurs only after the ordinary summary
+collection has been serialized.
+
+The earlier non-goal concerning client changes remains a boundary of the
+metadata-only resolution correction. It does not prohibit the separately
+specified query capability from updating clients through their existing
+session-list contract.

@@ -34,13 +34,30 @@ include = ["agent_eval*"]
 [tool.pytest.ini_options]
 testpaths = ["tests", "suites"]
 python_files = ["test_*.py"]
-pythonpath = ["src", ".", "../../core/python", "../../application/python"]
+pythonpath = ["src", ".", "../..", "../../core/python", "../../application/python"]
 addopts = "-m 'not agent_eval'"
 markers = [
   "agent_eval: explicitly enabled tests that invoke real agents or models",
+  "ollama: live tests against the local Ollama OpenAI-compatible endpoint",
   "routine: frequent high-signal behavioral guidance checks",
   "extended: lower-frequency workflow and reverse-ownership checks",
   "obsolete: legacy consumer retained only for direct pre/post guidance comparison",
+  "requirement_baseline: diverse-project requirement-quality producer baseline",
+  "requirement_task_current: current-guidance task-file producer baseline",
+  "root_requirement_testing: root Requirements and Testing guidance producers",
+  "requirement_semantic: structured semantic requirement and testing-plan evaluator",
+  "root_guidance_quality: pairwise overall-quality comparison for root guidance",
+  "task_creation: live task-creation producer stage",
+  "handoff_plan: live fresh-agent planning stage",
+  "continuation: live same-agent continuation stage",
+  "generated_plan: live fresh-agent generated-file planning stage",
+  "negative_control: live incomplete-handoff negative control",
+  "task_creation_assessment: live task-creation assessment stage",
+  "handoff_assessment: live handoff assessment stage",
+  "task_quality_assessment: live task-file quality assessment stage",
+  "plan_content_assessment: live presented-plan content assessment stage",
+  "file_fidelity_assessment: live task-file fidelity assessment stage",
+  "file_readability_assessment: live task-file readability assessment stage",
   "requirements(*ids): requirement identifiers covered by an acceptance test",
 ]
 

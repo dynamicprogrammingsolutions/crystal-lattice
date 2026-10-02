@@ -128,6 +128,11 @@ import {
   shouldClearPendingRequestRecovery,
   type PendingRequestRecovery,
 } from "./chatRecovery";
+import {
+  pinnedComposerKeysForBar,
+  resolveActiveRequestId,
+  resolveComposerPrimaryLayout,
+} from "./composerPrimaryAction";
 import SessionSettingsModal from "./components/SessionSettingsModal";
 import SessionPluginsModal from "./components/SessionPluginsModal";
 import SessionSnapshotsModal from "./components/SessionSnapshotsModal";
@@ -231,7 +236,20 @@ const MOBILE_REQUEST_SESSION_ACTIONS: SessionActionDefinition[] = [
     defaultPinned: false,
     order: 31,
   },
+  {
+    key: "softCancel",
+    label: "Soft cancel request",
+    iconName: "pause-circle",
+    defaultPinned: false,
+    order: 32,
+  },
 ];
+
+const PRIMARY_COMPOSER_ACTION_PREFERENCE = [
+  "cancel",
+  "softCancel",
+  "resend",
+] as const;
 
 type PluginActionContext =
   | { kind: "session"; sessionSummary: SessionSummary | null }
@@ -593,7 +611,6 @@ type ChatComposerProps = {
   onOpenAttachmentsManage: (side: AttachmentDraftSide) => void;
   composerActions: ActionDefinition[];
   pinnedComposerActions: string[];
-  pinnedComposerActionsForBar: string[];
   onChangePinnedComposerActions: (
     pinned: string[] | ((prev: string[]) => string[])
   ) => void;
@@ -623,7 +640,6 @@ const ChatComposer = React.memo(
       onOpenAttachmentsManage,
       composerActions,
       pinnedComposerActions,
-      pinnedComposerActionsForBar,
       onChangePinnedComposerActions,
       onComposerAction,
       isComposerActionDisabled,
@@ -681,8 +697,25 @@ const ChatComposer = React.memo(
       !activeRequestId &&
       !attachmentActionInProgress &&
       hasDraftMessage;
-    const canCancel =
-      !!backend && !selectedSnapshotId && !sendInProgress && !!activeRequestId;
+    const primaryComposerLayout = resolveComposerPrimaryLayout({
+      pinnedKeys: pinnedComposerActions,
+      preferenceKeys: PRIMARY_COMPOSER_ACTION_PREFERENCE,
+      requestActive: !!activeRequestId,
+    });
+    const pinnedComposerActionsForBar = pinnedComposerKeysForBar(
+      pinnedComposerActions,
+      primaryComposerLayout
+    );
+    const primaryComposerActionKey = primaryComposerLayout.primaryKey;
+    const primaryComposerAction =
+      primaryComposerActionKey == null
+        ? null
+        : composerActions.find(
+            (action) => action.key === primaryComposerActionKey
+          ) ?? null;
+    const primaryComposerActionDisabled =
+      primaryComposerAction == null ||
+      isComposerActionDisabled(primaryComposerAction.key, hasDraftMessage);
 
     return (
       <View style={styles.composer}>
@@ -754,24 +787,40 @@ const ChatComposer = React.memo(
               testID="composer-side-buttons"
               style={styles.composerSideButtons}
             >
-              <TouchableOpacity
-                testID="composer-cancel-request"
-                accessibilityRole="button"
-                accessibilityLabel="Cancel active request"
-                style={[
-                  styles.composerSideButton,
-                  styles.secondaryButton,
-                  !canCancel && styles.composerSideButtonDisabled,
-                ]}
-                disabled={!canCancel}
-                onPress={() => onComposerAction("cancel")}
-              >
-                <Icon
-                  name="x-circle"
-                  size={18}
-                  color={canCancel ? theme.primary : theme.textMuted}
-                />
-              </TouchableOpacity>
+              {primaryComposerAction && (
+                <TouchableOpacity
+                  testID={
+                    primaryComposerAction.key === "cancel"
+                      ? "composer-cancel-request"
+                      : `composer-primary-action-${primaryComposerAction.key}`
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={primaryComposerAction.label}
+                  accessibilityState={{
+                    disabled: primaryComposerActionDisabled,
+                  }}
+                  style={[
+                    styles.composerSideButton,
+                    styles.secondaryButton,
+                    primaryComposerActionDisabled &&
+                      styles.composerSideButtonDisabled,
+                  ]}
+                  disabled={primaryComposerActionDisabled}
+                  onPress={() =>
+                    onComposerAction(String(primaryComposerAction.key))
+                  }
+                >
+                  <Icon
+                    name={primaryComposerAction.iconName || "circle"}
+                    size={18}
+                    color={
+                      primaryComposerActionDisabled
+                        ? theme.textMuted
+                        : theme.primary
+                    }
+                  />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 testID="composer-send"
                 accessibilityRole="button"
@@ -964,7 +1013,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     hasStoredPreference: hasStoredComposerActionPreference,
   } = usePersistentPinnedActions<string>(
     scopedComposerActionsStorageKey,
-    ["append", "resend"],
+    ["append", "cancel", "resend"],
     { migrateFromKeys: [STORAGE_KEY_COMPOSER_ACTIONS] }
   );
   const { controller: agentsController, state: agentsState } =
@@ -1240,8 +1289,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const messages: IndexedMessage[] =
     chatState?.messages ?? cachedMessages ?? [];
   const streamingRow = chatState?.streamingRow ?? null;
-  const activeRequestId =
-    chatState?.activeRequestId ?? cachedActiveRequestId ?? null;
+  const activeRequestId = resolveActiveRequestId(
+    chatState,
+    cachedActiveRequestId
+  );
   const activeError = chatState?.requestError ?? null;
   const loadingMessages = chatState?.loading ?? false;
   const sessionDirty = chatState?.dirty ?? false;
@@ -1714,6 +1765,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         order: 120,
         testID: "composer-action-resend",
       },
+      {
+        key: "softCancel",
+        label: "Soft cancel request",
+        iconName: "pause-circle",
+        order: 125,
+        testID: "composer-action-soft-cancel",
+      },
+      {
+        key: "cancel",
+        label: "Cancel request",
+        iconName: "x-circle",
+        order: 130,
+        testID: "composer-action-cancel",
+      },
     ];
 
     const attachmentActions: ActionDefinition[] =
@@ -1864,11 +1929,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     hasStoredSessionActionPreference,
     setPinnedSessionActions,
   ]);
-
-  const pinnedComposerActionsForBar = useMemo(
-    () => pinnedComposerActions.filter((key) => key !== "cancel"),
-    [pinnedComposerActions]
-  );
 
   const handleRichConfigValue = useCallback(
     async (key: string, value: unknown) => {
@@ -3605,6 +3665,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleResend = async () => {
+    if (sendInProgress) {
+      return;
+    }
+    if (activeRequestId) {
+      Alert.alert(
+        "Request in progress",
+        "Wait for the active request to finish before resending."
+      );
+      return;
+    }
     if (pendingRequestRecovery) {
       Alert.alert(
         "Send status unclear",
@@ -3672,6 +3742,30 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const handleSoftCancel = async () => {
+    if (!chatController) {
+      Alert.alert("No connection", "Connect to a server to cancel.");
+      return;
+    }
+    if (!activeRequestId) {
+      Alert.alert("No active request", "There is no active request to cancel.");
+      return;
+    }
+    try {
+      await chatController.softCancelActiveRequest();
+      appendDebugNote("Soft cancel requested", activeRequestId, {
+        sessionId,
+      });
+    } catch (err: any) {
+      console.log("Failed to soft cancel request", err);
+      const message = err?.message || "Failed to soft cancel request";
+      appendDebugNote("Soft cancel failed", message, {
+        activeRequestId,
+      });
+      Alert.alert("Error", message);
+    }
+  };
+
   const handleCheckPendingRequestStatus = async () => {
     if (!pendingRequestRecovery) {
       return;
@@ -3684,8 +3778,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
     );
     const snapshot = await recoverChatAfterResume("pending_status_check");
-    if (snapshot?.activeRequestId) {
+    if (snapshot) {
       setPendingRequestRecovery(null);
+      appendDebugNote(
+        "Pending request status reconciled",
+        snapshot.activeRequestId ?? "no_active_request",
+        {
+          idempotencyKey: pendingRequestRecovery.idempotencyKey,
+        }
+      );
       return;
     }
     appendDebugNote(
@@ -3768,6 +3869,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         handleCancel().catch(() => {});
         return;
       }
+      if (key === "softCancel") {
+        handleSoftCancel().catch(() => {});
+        return;
+      }
 
       const richConfig = composerRichConfigControlByActionKey[key];
       if (richConfig) {
@@ -3820,6 +3925,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       executePluginAction,
       handleAppend,
       handleCancel,
+      handleSoftCancel,
       handleRichConfigValue,
       handlePickAttachment,
       handleResend,
@@ -3839,12 +3945,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return (
           sendInProgress ||
           !!activeRequestId ||
-          !!pendingRequestRecovery ||
-          hasDraftMessage ||
-          composerHasDraftMessage
+          !!pendingRequestRecovery
         );
       }
-      if (key === "cancel") {
+      if (key === "cancel" || key === "softCancel") {
         return sendInProgress || !activeRequestId;
       }
       if (key === "append" || key === "appendAs") {
@@ -3876,6 +3980,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return false;
     },
     [
+      activeRequestId,
       appendInProgress,
       attachmentActionInProgress,
       attachmentPickInProgress,
@@ -3883,7 +3988,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       composerAttachmentElementByActionKey,
       composerRichConfigControlByActionKey,
       composerSessionActionByActionKey,
-      hasDraftMessage,
+      pendingRequestRecovery,
+      sendInProgress,
     ]
   );
   const handleSwitchAgent = async (agentId: string) => {
@@ -4042,6 +4148,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
     if (action === "cancel") {
       await handleCancel();
+      return;
+    }
+    if (action === "softCancel") {
+      await handleSoftCancel();
       return;
     }
     if (action === "reload") {
@@ -4920,6 +5030,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                       ? isComposerActionDisabled("resend")
                       : action === "cancel"
                       ? isComposerActionDisabled("cancel")
+                      : action === "softCancel"
+                      ? isComposerActionDisabled("softCancel")
                       : resumeRecoveryInProgress && action === "reload")
                   );
                 }}
@@ -5164,7 +5276,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           }}
           composerActions={composerActions}
           pinnedComposerActions={pinnedComposerActions}
-          pinnedComposerActionsForBar={pinnedComposerActionsForBar}
           onChangePinnedComposerActions={setPinnedComposerActions}
           onComposerAction={handleComposerAction}
           isComposerActionDisabled={isComposerActionDisabled}

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+import ssl
 import tempfile
 import threading
 import uuid
-import base64
-import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode
 from urllib.request import Request, urlopen
+
+import certifi
+import requests
 
 from . import usage_journal
 
@@ -28,6 +31,14 @@ _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH = "auth/chatgpt-rate-limits.json"
 _NON_FATAL_TOKEN_ERRORS = {"authorization_pending", "slow_down"}
 _TERMINAL_TOKEN_ERRORS = {"access_denied", "expired_token", "invalid_grant"}
 _RATE_LIMIT_STALE_THRESHOLD_MINUTES = 15
+
+
+def _verified_ssl_context() -> ssl.SSLContext:
+    try:
+        import certifi
+    except ImportError:
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _utcnow() -> datetime:
@@ -706,14 +717,18 @@ class ChatGPTAuthAppPlugin:
         request_headers.setdefault("Accept", "application/json")
         request = Request(url, data=body, headers=request_headers, method="POST")
         try:
-            with urlopen(request, timeout=timeout) as response:
+            with urlopen(
+                request,
+                timeout=timeout,
+                context=_verified_ssl_context(),
+            ) as response:
                 status = int(getattr(response, "status", 200) or 200)
                 raw_text = response.read().decode("utf-8")
         except HTTPError as exc:
             status = exc.code
             raw_text = exc.read().decode("utf-8")
-            if self._should_retry_with_curl(status, raw_text):
-                return self._request_payload_with_curl(
+            if self._should_retry_with_requests(status, raw_text):
+                return self._request_payload_with_requests(
                     url=url,
                     body=body,
                     headers=request_headers,
@@ -722,20 +737,20 @@ class ChatGPTAuthAppPlugin:
         except URLError as exc:
             raise RuntimeError(f"HTTP request failed: {exc}") from exc
 
-        parsed: Dict[str, Any]
+        return status, self._parse_response_payload(raw_text)
+
+    def _parse_response_payload(self, raw_text: str) -> Dict[str, Any]:
         try:
             payload_obj = json.loads(raw_text)
         except Exception:
             parsed_qs = parse_qs(raw_text, keep_blank_values=True)
-            parsed = {
+            return {
                 key: values[0] if len(values) == 1 else values
                 for key, values in parsed_qs.items()
             }
-        else:
-            parsed = payload_obj if isinstance(payload_obj, dict) else {}
-        return status, parsed
+        return payload_obj if isinstance(payload_obj, dict) else {}
 
-    def _should_retry_with_curl(self, status: int, raw_text: str) -> bool:
+    def _should_retry_with_requests(self, status: int, raw_text: str) -> bool:
         if status != 530:
             return False
         try:
@@ -749,7 +764,7 @@ class ChatGPTAuthAppPlugin:
             return error.get("type") == "cf_route_error"
         return False
 
-    def _request_payload_with_curl(
+    def _request_payload_with_requests(
         self,
         *,
         url: str,
@@ -757,56 +772,17 @@ class ChatGPTAuthAppPlugin:
         headers: Dict[str, str],
         timeout: float,
     ) -> tuple[int, Dict[str, Any]]:
-        command = [
-            "curl",
-            "-sS",
-            "-X",
-            "POST",
-            url,
-            "--max-time",
-            str(int(timeout) if timeout >= 1 else 1),
-            "--write-out",
-            "\n__STATUS__:%{http_code}",
-            "--data-binary",
-            "@-",
-        ]
-        for key, value in headers.items():
-            command.extend(["-H", f"{key}: {value}"])
         try:
-            completed = subprocess.run(
-                command,
-                input=body,
-                capture_output=True,
-                check=False,
+            response = requests.post(
+                url,
+                data=body,
+                headers=headers,
+                timeout=timeout,
+                verify=certifi.where(),
             )
-        except Exception as exc:
-            raise RuntimeError(f"curl fallback failed: {exc}") from exc
-
-        output = completed.stdout.decode("utf-8", errors="replace")
-        marker = "\n__STATUS__:"
-        if marker not in output:
-            stderr = completed.stderr.decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"curl fallback returned unexpected output: {stderr or output}"
-            )
-        raw_text, _, status_text = output.rpartition(marker)
-        try:
-            status = int(status_text.strip())
-        except ValueError as exc:
-            raise RuntimeError(
-                "curl fallback did not return a valid HTTP status"
-            ) from exc
-        try:
-            parsed = json.loads(raw_text)
-        except Exception:
-            parsed_qs = parse_qs(raw_text, keep_blank_values=True)
-            parsed = {
-                key: values[0] if len(values) == 1 else values
-                for key, values in parsed_qs.items()
-            }
-        if not isinstance(parsed, dict):
-            parsed = {}
-        return status, parsed
+        except requests.RequestException as exc:
+            raise RuntimeError(f"HTTP request fallback failed: {exc}") from exc
+        return int(response.status_code), self._parse_response_payload(response.text)
 
     def _start_device_code(self, state: Dict[str, Any]) -> Dict[str, Any]:
         cfg = self._config(state)

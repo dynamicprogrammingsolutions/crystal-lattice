@@ -30,9 +30,25 @@ using namespace facebook::react;
 
 @interface CLCMacBackingTextView : NSTextView
 
+@property(nonatomic, assign) BOOL copyOnlyContextMenu;
+
 @end
 
 @implementation CLCMacBackingTextView
+
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  if (!self.copyOnlyContextMenu) {
+    return [super menuForEvent:event];
+  }
+
+  NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+  NSMenuItem *copyItem =
+      [[NSMenuItem alloc] initWithTitle:@"Copy" action:@selector(copy:) keyEquivalent:@""];
+  copyItem.target = self;
+  [menu addItem:copyItem];
+  return menu;
+}
 
 - (void)toggleAutomaticSpellingCorrection:(id)__unused sender
 {
@@ -57,6 +73,25 @@ using namespace facebook::react;
 
 @end
 
+@interface CLCMacTextScrollView : NSScrollView
+
+@property(nonatomic, assign) BOOL forwardsScrollWheel;
+
+@end
+
+@implementation CLCMacTextScrollView
+
+- (void)scrollWheel:(NSEvent *)event
+{
+  if (self.forwardsScrollWheel) {
+    [[self nextResponder] scrollWheel:event];
+    return;
+  }
+  [super scrollWheel:event];
+}
+
+@end
+
 @interface CLCMacTextViewContentView : NSView <NSTextViewDelegate>
 
 @property(nonatomic, copy) void (^onChangeText)(NSString *text);
@@ -71,6 +106,10 @@ using namespace facebook::react;
 @property(nonatomic, strong) NSColor *textColor;
 @property(nonatomic, strong) NSColor *placeholderTextColor;
 @property(nonatomic, assign) CGFloat fontSize;
+@property(nonatomic, copy) NSString *fontFamily;
+@property(nonatomic, assign) CGFloat lineHeight;
+@property(nonatomic, assign, getter=isItalic) BOOL italic;
+@property(nonatomic, assign) CGFloat textContainerInset;
 
 - (void)setTextProgrammatically:(NSString *)text;
 - (void)focusInput;
@@ -81,8 +120,8 @@ using namespace facebook::react;
 @end
 
 @implementation CLCMacTextViewContentView {
-  NSScrollView *_scrollView;
-  NSTextView *_textView;
+  CLCMacTextScrollView *_scrollView;
+  CLCMacBackingTextView *_textView;
   NSTextField *_placeholderLabel;
   NSTextStorage *_measurementTextStorage;
   NSLayoutManager *_measurementLayoutManager;
@@ -101,7 +140,7 @@ using namespace facebook::react;
   if ((self = [super initWithFrame:frame])) {
     self.wantsLayer = YES;
 
-    _scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    _scrollView = [[CLCMacTextScrollView alloc] initWithFrame:NSZeroRect];
     _scrollView.translatesAutoresizingMaskIntoConstraints = NO;
     _scrollView.drawsBackground = NO;
     _scrollView.borderType = NSNoBorder;
@@ -182,6 +221,10 @@ using namespace facebook::react;
   self.textColor = [NSColor labelColor];
   self.placeholderTextColor = [NSColor placeholderTextColor];
   self.fontSize = 13;
+  self.fontFamily = @"";
+  self.lineHeight = 0;
+  self.italic = NO;
+  self.textContainerInset = 8;
   [self setTextProgrammatically:@""];
 }
 
@@ -333,6 +376,21 @@ using namespace facebook::react;
   _textView.editable = editable;
   _textView.selectable = YES;
   _textView.accessibilityEnabled = editable;
+  _textView.copyOnlyContextMenu = !editable;
+  _textView.automaticSpellingCorrectionEnabled = editable;
+  _textView.continuousSpellCheckingEnabled = editable;
+  _textView.grammarCheckingEnabled = editable;
+  _textView.automaticDataDetectionEnabled = editable;
+  _textView.automaticDashSubstitutionEnabled = editable;
+  _textView.automaticLinkDetectionEnabled = editable;
+  _textView.automaticQuoteSubstitutionEnabled = editable;
+  _textView.automaticTextReplacementEnabled = editable;
+  _textView.allowsUndo = editable;
+  _scrollView.forwardsScrollWheel = !editable;
+  if (!editable) {
+    [_scrollView.contentView scrollToPoint:NSZeroPoint];
+    [_scrollView reflectScrolledClipView:_scrollView.contentView];
+  }
   _textView.textColor = self.textColor;
   _textView.insertionPointColor = self.textColor;
 }
@@ -353,8 +411,82 @@ using namespace facebook::react;
 - (void)setFontSize:(CGFloat)fontSize
 {
   _fontSize = fontSize > 0 ? fontSize : 13;
-  _textView.font = [NSFont systemFontOfSize:_fontSize];
+  [self applyTextAttributes];
   _placeholderLabel.font = [NSFont systemFontOfSize:_fontSize];
+}
+
+- (void)setFontFamily:(NSString *)fontFamily
+{
+  _fontFamily = [fontFamily ?: @"" copy];
+  [self applyTextAttributes];
+}
+
+- (void)setLineHeight:(CGFloat)lineHeight
+{
+  _lineHeight = MAX(0, lineHeight);
+  [self applyTextAttributes];
+}
+
+- (void)setItalic:(BOOL)italic
+{
+  _italic = italic;
+  [self applyTextAttributes];
+}
+
+- (void)setTextContainerInset:(CGFloat)textContainerInset
+{
+  _textContainerInset = MAX(0, textContainerInset);
+  _textView.textContainerInset = NSMakeSize(_textContainerInset, _textContainerInset);
+  _measurementTextContainer.lineFragmentPadding = _textView.textContainer.lineFragmentPadding;
+  _forceComplexMeasurement = YES;
+  [self updateContentSizeIfNeeded];
+}
+
+- (NSFont *)resolvedFont
+{
+  if (_fontFamily.length > 0) {
+    NSFont *font = [NSFont fontWithName:_fontFamily size:_fontSize];
+    if (font) {
+      return _italic
+          ? [[NSFontManager sharedFontManager] convertFont:font toHaveTrait:NSItalicFontMask]
+          : font;
+    }
+  }
+  NSFont *font = [NSFont systemFontOfSize:_fontSize];
+  return _italic
+      ? [[NSFontManager sharedFontManager] convertFont:font toHaveTrait:NSItalicFontMask]
+      : font;
+}
+
+- (NSMutableParagraphStyle *)resolvedParagraphStyle
+{
+  NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+  if (_lineHeight > 0) {
+    style.minimumLineHeight = _lineHeight;
+    style.maximumLineHeight = _lineHeight;
+  }
+  return style;
+}
+
+- (void)applyTextAttributes
+{
+  if (!_textView) {
+    return;
+  }
+  NSFont *font = [self resolvedFont];
+  NSMutableParagraphStyle *paragraphStyle = [self resolvedParagraphStyle];
+  _textView.font = font;
+  _textView.defaultParagraphStyle = paragraphStyle;
+  if (_textView.textStorage.length > 0) {
+    [_textView.textStorage addAttributes:@{
+      NSFontAttributeName : font,
+      NSParagraphStyleAttributeName : paragraphStyle,
+      NSForegroundColorAttributeName : self.textColor ?: [NSColor labelColor],
+    }
+                                  range:NSMakeRange(0, _textView.textStorage.length)];
+  }
+  _forceComplexMeasurement = YES;
+  [self updateContentSizeIfNeeded];
 }
 
 - (void)setAutoGrow:(BOOL)autoGrow
@@ -416,7 +548,10 @@ using namespace facebook::react;
 
   NSString *text = _textView.string ?: @"";
   NSFont *font = _textView.font ?: [NSFont systemFontOfSize:_fontSize > 0 ? _fontSize : 13];
-  NSDictionary<NSAttributedStringKey, id> *attrs = @{NSFontAttributeName : font};
+  NSDictionary<NSAttributedStringKey, id> *attrs = @{
+    NSFontAttributeName : font,
+    NSParagraphStyleAttributeName : [self resolvedParagraphStyle],
+  };
   NSAttributedString *attributed = [[NSAttributedString alloc] initWithString:text attributes:attrs];
   [_measurementTextStorage setAttributedString:attributed];
 
@@ -468,6 +603,10 @@ using namespace facebook::react;
       frame.size.height = docHeight;
       _textView.frame = frame;
     }
+  }
+  if (!self.isEditable && !NSEqualPoints(_scrollView.contentView.bounds.origin, NSZeroPoint)) {
+    [_scrollView.contentView scrollToPoint:NSZeroPoint];
+    [_scrollView reflectScrolledClipView:_scrollView.contentView];
   }
 
   if (fabs(height - _lastContentHeight) < 0.5) {
@@ -628,6 +767,10 @@ using namespace facebook::react;
   _macTextViewContentView.placeholderTextColor =
       RCTUIColorFromSharedColor(newProps.placeholderTextColor);
   _macTextViewContentView.fontSize = newProps.fontSize;
+  _macTextViewContentView.fontFamily = RCTNSStringFromString(newProps.fontFamily);
+  _macTextViewContentView.lineHeight = newProps.lineHeight;
+  _macTextViewContentView.italic = newProps.italic;
+  _macTextViewContentView.textContainerInset = newProps.textContainerInset;
   [_macTextViewContentView
       setInputAccessibilityIdentifier:RCTNSStringFromString(newProps.testId)];
   [_macTextViewContentView

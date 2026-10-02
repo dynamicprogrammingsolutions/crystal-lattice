@@ -10,6 +10,7 @@ import tempfile
 import venv
 
 from boot_smoke import assert_config_boot
+from headless_access_smoke import assert_headless_access
 from progress import StepLogger
 
 
@@ -22,7 +23,7 @@ def main() -> None:
 
 
 def smoke_test_source_install() -> None:
-    progress = StepLogger(total_steps=4)
+    progress = StepLogger(total_steps=5)
     with tempfile.TemporaryDirectory(prefix="crystal-source-install-smoke-") as tmp:
         temp_dir = Path(tmp)
         environment_dir = temp_dir / "python-environment"
@@ -102,6 +103,15 @@ def smoke_test_source_install() -> None:
         )
         if not result.plugin_metadata_ids:
             raise RuntimeError("Default plugins were not dynamically installed")
+        progress.step("Verifying source CLI and Python SDK headless access")
+        assert_headless_access(
+            [command],
+            python=python,
+            config_path=result.generated_config,
+            workspace=temp_dir / "headless access workspace",
+            home_dir=home_dir,
+            base_env=install_env,
+        )
 
 
 def venv_python(environment_dir: Path) -> Path:

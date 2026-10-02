@@ -1,0 +1,1541 @@
+{
+  "schema_version": "1.0.0",
+  "status": "accepted",
+  "status_vocabulary": {
+    "supported": "Implemented for this row without an additional feature gate beyond ordinary configuration.",
+    "conditional": "Implemented, but availability depends on model capability, provider response, account mode, explicit enablement, or another prerequisite.",
+    "planned": "Not implemented in the current row, but explicitly owned by a maintained future requirement or task.",
+    "unsupported": "Not implemented for this row and not represented as current support.",
+    "not_applicable": "The feature does not meaningfully apply to this row.",
+    "unknown": "Evidence is insufficient to classify the cell."
+  },
+  "features": [
+    {
+      "feature_id": "shell",
+      "label": "Shell execution"
+    },
+    {
+      "feature_id": "file_read",
+      "label": "Read files"
+    },
+    {
+      "feature_id": "file_write",
+      "label": "Write files"
+    },
+    {
+      "feature_id": "file_edit",
+      "label": "Edit files"
+    },
+    {
+      "feature_id": "file_glob",
+      "label": "Glob or list files"
+    },
+    {
+      "feature_id": "text_search",
+      "label": "Search file contents"
+    },
+    {
+      "feature_id": "apply_patch",
+      "label": "Apply patch"
+    },
+    {
+      "feature_id": "media_read",
+      "label": "Read images or media"
+    },
+    {
+      "feature_id": "web_fetch_non_native",
+      "label": "Non-native web fetch"
+    },
+    {
+      "feature_id": "web_search_non_native",
+      "label": "Non-native web search"
+    },
+    {
+      "feature_id": "web_search_native",
+      "label": "Provider-native web search"
+    },
+    {
+      "feature_id": "mcp_tools",
+      "label": "MCP tools"
+    },
+    {
+      "feature_id": "skills",
+      "label": "Skills"
+    },
+    {
+      "feature_id": "background_shell",
+      "label": "Background shell tasks"
+    },
+    {
+      "feature_id": "compaction_profile",
+      "label": "Profile-level compaction"
+    },
+    {
+      "feature_id": "compaction_native",
+      "label": "Provider-native compaction"
+    },
+    {
+      "feature_id": "reasoning_controls",
+      "label": "Reasoning controls"
+    },
+    {
+      "feature_id": "provider_attachments",
+      "label": "Provider attachments"
+    },
+    {
+      "feature_id": "provider_image_generation",
+      "label": "Provider image generation"
+    },
+    {
+      "feature_id": "todo_or_plan_tool",
+      "label": "Todo or plan tool"
+    },
+    {
+      "feature_id": "subagents",
+      "label": "Persistent subagents"
+    }
+  ],
+  "families": [
+    {
+      "family_id": "codex-shell-command-mini",
+      "label": "Codex-oriented GPT-5.4-mini shell-command profiles",
+      "profile_ids": [
+        "cloud-script-author",
+        "codex-openai",
+        "codex-openrouter"
+      ],
+      "provider_routes": [
+        "openai",
+        "openrouter"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": "Uses shell_command for the checked-in GPT-5.4 and GPT-5.4-mini models."
+        },
+        {
+          "feature_id": "file_read",
+          "status": "conditional",
+          "note": "Available through shell commands rather than a dedicated file-read tool."
+        },
+        {
+          "feature_id": "file_write",
+          "status": "conditional",
+          "note": "Available through shell commands rather than a dedicated file-write tool."
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "conditional",
+          "note": "Available through shell commands and patching."
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "conditional",
+          "note": "Available through shell commands."
+        },
+        {
+          "feature_id": "text_search",
+          "status": "conditional",
+          "note": "Available through shell commands."
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "conditional",
+          "note": "No dedicated fetch tool; shell network tools may be used within policy."
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": "Depends on the selected OpenAI or OpenRouter provider route and session setting."
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "conditional",
+          "note": "Implemented but disabled by the common default mixin."
+        },
+        {
+          "feature_id": "skills",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "conditional",
+          "note": "Available only on the OpenAI Responses route."
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": "The selected generic GPT-5 prompt promises update_plan, but no selected tool implements it."
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "codex-shell-command-api",
+      "label": "Codex-oriented GPT-5.4 API profile",
+      "profile_ids": [
+        "codex-openai-api"
+      ],
+      "provider_routes": [
+        "openai"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": "Uses shell_command for the checked-in GPT-5.4 model."
+        },
+        {
+          "feature_id": "file_read",
+          "status": "conditional",
+          "note": "Available through shell commands rather than a dedicated file-read tool."
+        },
+        {
+          "feature_id": "file_write",
+          "status": "conditional",
+          "note": "Available through shell commands rather than a dedicated file-write tool."
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "conditional",
+          "note": "Available through shell commands and patching."
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "conditional",
+          "note": "Available through shell commands."
+        },
+        {
+          "feature_id": "text_search",
+          "status": "conditional",
+          "note": "Available through shell commands."
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "conditional",
+          "note": "No dedicated fetch tool; shell network tools may be used within policy."
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "conditional",
+          "note": "Implemented but disabled by the common default mixin."
+        },
+        {
+          "feature_id": "skills",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unknown",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": "No selected todo/plan tool is registered; the distinct GPT-5.4 prompt was not part of the generic GPT-5 update_plan mismatch."
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "codex-shell-array",
+      "label": "GPT-5 Codex-oriented shell-array profiles",
+      "profile_ids": [
+        "gpt-5-openai",
+        "gpt-5-openrouter"
+      ],
+      "provider_routes": [
+        "openai",
+        "openrouter"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": "Uses the array-form shell tool."
+        },
+        {
+          "feature_id": "file_read",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "supported",
+          "note": "Dedicated plugin is disabled, but shell interception routes apply_patch invocations."
+        },
+        {
+          "feature_id": "media_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "conditional",
+          "note": "Implemented but disabled by default."
+        },
+        {
+          "feature_id": "skills",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "conditional",
+          "note": "OpenAI Responses route only."
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": "The selected prompt promises update_plan, but no selected tool implements it."
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "claude-compatible",
+      "label": "Claude-compatible tool profiles",
+      "profile_ids": [
+        "claude-anthropic",
+        "claude-openrouter",
+        "glm-ollama",
+        "deepseek-ollama",
+        "zai"
+      ],
+      "provider_routes": [
+        "anthropic",
+        "openrouter",
+        "ollama",
+        "zai"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "supported",
+          "note": "Read handles images and PDF rendering subject to local dependencies and provider interop."
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "conditional",
+          "note": "Enabled for the direct Anthropic and OpenRouter Claude profiles; requires Gemini or Tavily credentials."
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": "Provider-specific and not equivalent to the Claude WebSearch tool."
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "conditional",
+          "note": "Implemented but disabled by the common default mixin."
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": "OpenRouter route supports images; direct Anthropic package does not currently implement attachments."
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "qwen-style",
+      "label": "Qwen-style profile",
+      "profile_ids": [
+        "qwen"
+      ],
+      "provider_routes": [
+        "openrouter"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "gemini-style",
+      "label": "Gemini-style and GLM-with-Gemini-tools profiles",
+      "profile_ids": [
+        "gemini",
+        "glm"
+      ],
+      "provider_routes": [
+        "openrouter"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "supported",
+          "note": "Enabled in the checked-in profiles; requires Gemini or Tavily credentials."
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "conditional",
+          "note": "Gemini compaction plugins exist but are optional and not selected by the default profiles."
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "grok-style",
+      "label": "Grok-style profile with Qwen composition",
+      "profile_ids": [
+        "grok"
+      ],
+      "provider_routes": [
+        "openrouter"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": "Current source declares bash; two stale tests omit it."
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": "Provided by the residual Qwen package surface."
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": "Provided by the residual Qwen package surface."
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": "Provided by the residual Qwen package surface."
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "kimi-style",
+      "label": "Kimi-style profiles",
+      "profile_ids": [
+        "kimi",
+        "kimi-ollama"
+      ],
+      "provider_routes": [
+        "openrouter",
+        "ollama"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "conditional",
+          "note": "ReadMediaFile is capability-gated; image input is the default package capability."
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "conditional",
+          "note": "Enabled for the OpenRouter Kimi profile; requires a configured search provider."
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "provider-only",
+      "label": "Provider-only generic profiles",
+      "profile_ids": [
+        "ollama",
+        "fireworks"
+      ],
+      "provider_routes": [
+        "ollama",
+        "fireworks"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "image-generation",
+      "label": "OpenRouter image-generation profile",
+      "profile_ids": [
+        "openrouter-image"
+      ],
+      "provider_routes": [
+        "openrouter_image_generation"
+      ],
+      "availability": "default_configured",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "not_applicable",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "not_applicable",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "embedded-codex",
+      "label": "Embedded Codex-like tools",
+      "profile_ids": [],
+      "provider_routes": [
+        "embedded runtime"
+      ],
+      "availability": "distribution_specific",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "conditional",
+          "note": "Pure-Python sed, rg, find, and bounded curl emulation; no arbitrary shell."
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "conditional",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "family_id": "embedded-claude",
+      "label": "Embedded Claude-like tools",
+      "profile_ids": [],
+      "provider_routes": [
+        "embedded runtime"
+      ],
+      "availability": "distribution_specific",
+      "review_state": "accepted",
+      "cells": [
+        {
+          "feature_id": "shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_read",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_write",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_edit",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "file_glob",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "text_search",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "apply_patch",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "media_read",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_fetch_non_native",
+          "status": "supported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_non_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "web_search_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "mcp_tools",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "skills",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "background_shell",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_profile",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "compaction_native",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "reasoning_controls",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_attachments",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "provider_image_generation",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "todo_or_plan_tool",
+          "status": "unsupported",
+          "note": ""
+        },
+        {
+          "feature_id": "subagents",
+          "status": "unsupported",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

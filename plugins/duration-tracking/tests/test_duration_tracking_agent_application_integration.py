@@ -619,12 +619,34 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
     assert second_md.get("human_time_turn_delta") == 3 * 60 * 1000
     assert second_md.get("human_time_turn_delta_formatted") == "3m"
 
-    # And the report action includes overall and per-session human time.
+    # And the report action includes the current-project total and factual
+    # all-time per-session diagnostics.
     report = app.execute_application_action(
         "duration_tracking_app",
         "show_duration_report",
         {"session_id": session.session_id},
     )
-    assert "- Total human time: `8m`" in report["display"]["body"]
-    assert "- Current session human time: `8m`" in report["display"]["body"]
+    assert "- Human time: `8m`" in report["display"]["body"]
+    assert "- Current session stored total: `8m`" in report["display"]["body"]
     assert report["human_time"] == {"span_count": 1, "total_ms": 8 * 60 * 1000}
+
+    reset = app.execute_application_action(
+        "duration_tracking_app",
+        "reset_duration_tracking",
+        {"session_id": session.session_id},
+    )
+    assert reset["reset"]["working_directory"] == str(tmp_path)
+    assert reset["project_summary_since_reset"]["human_total_ms"] == 0
+
+    reset_report = app.execute_application_action(
+        "duration_tracking_app",
+        "show_duration_report",
+        {"session_id": session.session_id},
+    )
+    assert "- Human time: `0ms`" in reset_report["display"]["body"]
+    # Reset changes the report window only; factual collection diagnostics
+    # and message/footer totals remain all-time.
+    assert reset_report["human_time"] == {
+        "span_count": 1,
+        "total_ms": 8 * 60 * 1000,
+    }

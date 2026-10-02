@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "11"
+RUNTIME_LAYOUT_VERSION = "15"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -27,6 +27,7 @@ RUNTIME_ROOT = APP_ROOT / "ios" / "CrystalLatticePythonRuntime"
 PYTHON_APP_SOURCE = RUNTIME_ROOT / "Python"
 VENDOR_DIR = RUNTIME_ROOT / "Vendor"
 RESOURCES_DIR = RUNTIME_ROOT / "Resources"
+REVIEWER_CA_PATH = RESOURCES_DIR / "reviewer-proxy-ca.pem"
 MARKER_PATH = RUNTIME_ROOT / ".prepared-python-runtime"
 CACHE_DIR = (
     Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
@@ -56,6 +57,25 @@ APP_PLUGIN_PACKAGES = (
     ("session-timestamp-meta-app", "session_timestamp_meta_app"),
     ("session-title-app", "session_title_app"),
     ("session-asset-attachments", "session_asset_attachments"),
+    ("feature-system-message", "feature_system_message"),
+    ("feature-request-options", "feature_request_options"),
+    ("timestamp-extension", "timestamp_extension"),
+    ("summarize-range-app", "summarize_range_app"),
+    ("rebuild-native-app", "rebuild_native_app"),
+    ("cost-tracking", "cost_tracking_plugins"),
+    ("embedded-workspace-settings", "embedded_workspace_settings"),
+)
+EMBEDDED_CONFIG_ROOT = (
+    REPO_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+    / "embedded-ios"
+)
+EMBEDDED_CONFIG_PATH = EMBEDDED_CONFIG_ROOT / "config.json"
+APPLICATION_PACKAGE_INIT = (
+    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "__init__.py"
 )
 
 
@@ -158,6 +178,12 @@ def source_digest() -> str:
             digest.update(path.read_bytes())
     for requirement in PURE_DEPENDENCIES:
         digest.update(requirement.encode("utf-8"))
+    for path in (APPLICATION_PACKAGE_INIT, EMBEDDED_CONFIG_PATH):
+        digest.update(path.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    if REVIEWER_CA_PATH.is_file():
+        digest.update(REVIEWER_CA_PATH.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
+        digest.update(REVIEWER_CA_PATH.read_bytes())
     return digest.hexdigest()
 
 
@@ -301,6 +327,17 @@ def create_application_archive(destination: Path) -> None:
                 REPO_ROOT / "plugins" / project / "src" / package,
                 Path(package),
             )
+        archive.write(
+            APPLICATION_PACKAGE_INIT,
+            Path("agent_terminal_app") / "__init__.py",
+        )
+        archive.write(
+            EMBEDDED_CONFIG_PATH,
+            Path("agent_terminal_app")
+            / "default_config"
+            / "embedded-ios"
+            / "config.json",
+        )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
         for package_name in (
             "certifi",
@@ -352,16 +389,21 @@ def prepare_runtime(archive: Path) -> None:
         staged_resources = extracted / "staged-resources"
         shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
         create_application_archive(staged_resources / "crystal_lattice_app.zip")
+        shutil.copy2(
+            EMBEDDED_CONFIG_PATH,
+            staged_resources / "embedded-ios-config.json",
+        )
+        if REVIEWER_CA_PATH.is_file():
+            shutil.copy2(
+                REVIEWER_CA_PATH,
+                staged_resources / REVIEWER_CA_PATH.name,
+            )
 
         shutil.rmtree(VENDOR_DIR, ignore_errors=True)
         shutil.rmtree(RESOURCES_DIR, ignore_errors=True)
         VENDOR_DIR.parent.mkdir(parents=True, exist_ok=True)
-        RESOURCES_DIR.mkdir(parents=True, exist_ok=True)
         shutil.move(staged_vendor, VENDOR_DIR)
-        shutil.move(
-            staged_resources / "crystal_lattice_app.zip",
-            RESOURCES_DIR / "crystal_lattice_app.zip",
-        )
+        shutil.move(staged_resources, RESOURCES_DIR)
 
     MARKER_PATH.write_text(expected_marker, encoding="utf-8")
     print(f"Prepared iOS Python runtime at {RUNTIME_ROOT}")

@@ -19,6 +19,18 @@ OpenAI or ChatGPT backend
   V1 replacement output or V2 encrypted compaction item
 ```
 
+The provider extension also owns automatic ordinary-request shaping:
+
+```text
+enable_openai_automatic_compaction
+  -> context_management[0].type = compaction
+  -> context_management[0].compact_threshold = configured threshold
+```
+
+This path does not use the application process or the separate compaction
+transport. It runs in the ordinary Responses request and relies on normal
+provider streaming, persistence, and cancellation.
+
 The application process injects a cancellable async transport into the
 provider-extension action. The synchronous compatibility action builds a
 synchronous transport directly. Both transports implement the same logical
@@ -41,6 +53,32 @@ The transport reads this effective mode:
 
 There is no independent protocol-version configuration because protocol
 support follows the selected upstream authentication surface.
+
+## Automatic request lifecycle
+
+The extension runs before the generic request-options feature. When automatic
+compaction is enabled, it writes one `context_management` compaction entry to
+the ordinary request payload. The default extension threshold is `200000` and
+configured values must be positive.
+
+The package requires OpenAI Python SDK 2.46 or newer so
+`context_management` is an ordinary typed Responses request argument rather
+than an unvalidated body escape hatch.
+
+The request-options feature runs later, so an explicit
+`request_options.context_management` value replaces the generated list.
+
+Both API and ChatGPT ordinary requests can carry the field. The shipped
+provider configuration explicitly disables automatic compaction and exposes
+the enable toggle and token threshold in session settings. Model variants
+only select reasoning retention; enabling compaction is a separate user
+choice. Unsupported explicit configurations are allowed to reach the provider
+and return the normal provider error.
+
+Automatically returned compaction items pass through the same provider output
+reducer, native-history persistence, visible placeholder projection, and
+follow-up input sanitization already used for manually produced compaction
+items.
 
 ## Input boundary
 
@@ -202,6 +240,9 @@ failures. Error text is bounded before display.
 
 Acceptance coverage includes:
 
+- automatic request shaping, raw override precedence, native item
+  persistence, and follow-up replay;
+- focused public API and saved-login ChatGPT automatic compaction;
 - API/V1 calls remain on the SDK compact resource;
 - ChatGPT/V2 uses streamed Responses with the trigger and beta header;
 - compatible request options are carried to V2;

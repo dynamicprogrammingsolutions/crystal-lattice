@@ -69,8 +69,11 @@ with AgentEval(
 
 Target behavior and live status:
 
-- [Specification](../specifications/agent-evaluation-framework/index.md)
+- [Framework specification](docs/development/specifications/framework/index.md)
+- [Crystal Lattice environment specification](docs/development/specifications/crystal-lattice-environment/index.md)
+- [Evaluation result package specification](docs/development/specifications/result-packages/index.md)
 - [Implementation task](../../tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md)
+- [Result-package task](../../tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md)
 
 ## Verification
 
@@ -82,5 +85,5 @@ pytest maintainer/agent-evaluation/tests -q
 
 Real-agent suites use the `agent_eval` marker and remain excluded from the
 package's default pytest configuration. See the
-[documentation-standard suite guide](docs/development/documentation-standard-suite.md)
+[documentation-guidance suite guide](suites/documentation_standard/docs/index.md)
 for baseline-first model runs and guidance variants.

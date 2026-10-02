@@ -87,14 +87,21 @@ Use these pages according to the work you are doing:
 - [Continuation and cache](continuation-and-cache.md): understand the
   difference between snapshots, continuations, and cache hits, then reuse
   conversation and repository state safely.
+- [Run model](run-model.md): understand the reusable layer above the
+  kernel — request identity, run labels, samples, and the consolidation
+  core — and how evaluation suites consume it.
 - [Artifacts and evidence](artifacts-and-evidence.md): understand what evidence
   is, how it becomes canonical/raw artifacts or projections, and how to select
   compact AI and human review inputs.
 - [Development](development/index.md): package architecture, tests, and
   maintenance boundaries.
 
-The target specification lives separately under
-`maintainer/specifications/agent-evaluation-framework/`. These pages describe
-current implemented behavior. The specification describes the intended target;
-the `AEVAL-*` requirements ledger records which parts are implemented and
-verified.
+The generic target specification lives under
+`maintainer/agent-evaluation/docs/development/specifications/framework/`.
+The Crystal Lattice environment has a separate package-local specification.
+Optional support for durable completed-evaluation review packages is specified
+separately under
+`maintainer/agent-evaluation/docs/development/specifications/result-packages/`;
+it is not part of the generic kernel contract.
+These pages describe current implemented behavior; requirements record which
+target parts are implemented and verified.

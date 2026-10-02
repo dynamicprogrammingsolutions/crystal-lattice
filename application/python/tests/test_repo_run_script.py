@@ -21,6 +21,7 @@ WRAPPED_SCRIPTS = {
     "test:examples",
     "test:cli:source-install",
     "test:cli:archive",
+    "test:cli:agent-access",
     "test:cli:default-install",
     "test:cli:powershell-install",
     "test:core:integration",

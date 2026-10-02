@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg04-flask-vue-discovery-decomposition",
+  "category": "decomposition",
+  "title": "Flask/Vue book discovery decomposition",
+  "task_summary": "Partition a large full-stack release into a few end-to-end product capabilities rather than technical phases.",
+  "project": {
+    "name": "Flask-Vue CRUD discovery fixture",
+    "kind": "user-facing full-stack application",
+    "fixture_id": "tg04-flask-vue-discovery",
+    "upstream": "https://github.com/testdrivenio/flask-vue-crud",
+    "revision": "be91da59a10d07384537c2f76f4505eb344d1682"
+  },
+  "approved_outcomes": [
+    {"id": "DISCOVERY-1", "outcome": "Read-status filtering works end to end."},
+    {"id": "DISCOVERY-2", "outcome": "Title and author search works end to end and composes with filtering."},
+    {"id": "DISCOVERY-3", "outcome": "Bounded pagination and total count compose with filter and search."},
+    {"id": "DISCOVERY-4", "outcome": "Discovery state is shareable in the URL and restores across reload and browser navigation."},
+    {"id": "DISCOVERY-5", "outcome": "Controls, active state, results, and empty states remain clear and accessible."},
+    {"id": "DISCOVERY-6", "outcome": "CRUD refreshes retain the current discovery view."},
+    {"id": "DISCOVERY-7", "outcome": "Existing CRUD and unparameterized API behavior remain compatible."}
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "DISCOVERY-D1",
+      "title": "Deliver read-status filtering end to end",
+      "outcomes": ["DISCOVERY-1", "DISCOVERY-5", "DISCOVERY-6", "DISCOVERY-7"],
+      "independent_value": "Users gain a complete usable filter through the real client/server path.",
+      "dependencies": []
+    },
+    {
+      "id": "DISCOVERY-D2",
+      "title": "Add title and author search end to end",
+      "outcomes": ["DISCOVERY-2", "DISCOVERY-5", "DISCOVERY-6", "DISCOVERY-7"],
+      "independent_value": "Search is independently useful and composes with the established filter query conventions.",
+      "dependencies": ["DISCOVERY-D1"]
+    },
+    {
+      "id": "DISCOVERY-D3",
+      "title": "Add bounded pagination end to end",
+      "outcomes": ["DISCOVERY-3", "DISCOVERY-5", "DISCOVERY-6", "DISCOVERY-7"],
+      "independent_value": "Pagination is a complete independently reviewable scale capability.",
+      "dependencies": ["DISCOVERY-D1"]
+    },
+    {
+      "id": "DISCOVERY-D4",
+      "title": "Add shareable URL state and browser restoration",
+      "outcomes": ["DISCOVERY-4", "DISCOVERY-5", "DISCOVERY-6"],
+      "independent_value": "URL persistence is a separately useful workflow enhancement over the working controls.",
+      "dependencies": ["DISCOVERY-D1", "DISCOVERY-D2", "DISCOVERY-D3"]
+    }
+  ],
+  "acceptable_partition_sizes": [3, 4, 5],
+  "acceptable_alternatives": [
+    "Read filtering and search may be combined if both remain independently traceable and the slice stays reviewable.",
+    "URL parsing may be separate only when it is an independently maintained reusable contract."
+  ],
+  "fragmentation_examples": [
+    "Flask query parsing as a separate task.",
+    "Database filtering as a separate task.",
+    "Frontend API client as a separate task.",
+    "Vue state and controls as separate tasks.",
+    "Component tests, integration tests, documentation, and final review as horizontal tasks."
+  ],
+  "overpacking_examples": [
+    "One child containing all discovery capabilities and every crossing hides independently useful releases."
+  ],
+  "important_crossings": [
+    "Each product capability crosses Vue state/rendering, production transport, Flask HTTP routing, and data selection."
+  ],
+  "open_questions": [
+    "Exact query encoding and URL parameter names remain material contract decisions."
+  ],
+  "handoff": {
+    "retain_plan": "Preserve the reviewed vertical delivery rationale and dependency graph.",
+    "omit_plan": "Preserve approved outcomes, project facts, cross-layer constraints, and public questions without the four-slice implementation direction.",
+    "fresh_agent_plan": "A fresh agent reconstructs a small vertical partition and does not expand layers or test types into separate phases."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "The discovery state contract between client and server: what read-status filtering, title/author search, bounded pagination, and total count are exchanged.", "derived_from": ["DISCOVERY-1", "DISCOVERY-2", "DISCOVERY-3"]},
+    {"id": "PLAN-2", "content": "The composability rules and bounds: how search composes with filtering and pagination, and where the bounds are.", "derived_from": ["DISCOVERY-2", "DISCOVERY-3"]},
+    {"id": "PLAN-3", "content": "The URL shareability design: which discovery state encodes in the URL and how it restores across reload and browser navigation.", "derived_from": ["DISCOVERY-4"]},
+    {"id": "PLAN-4", "content": "How CRUD refreshes retain the current discovery view instead of resetting it.", "derived_from": ["DISCOVERY-6"]},
+    {"id": "PLAN-5", "content": "How existing CRUD and unparameterized API behavior remain compatible.", "derived_from": ["DISCOVERY-7"]},
+    {"id": "PLAN-6", "content": "The adoption sequence across the Vue state/rendering, production transport, Flask routing, and data selection crossings — with the state contract settled before the surfaces that consume it."}
+    ]
+  }
+}

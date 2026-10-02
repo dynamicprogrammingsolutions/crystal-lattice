@@ -105,7 +105,12 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = config, tags, models
+        _ = tags, models
+        effective_config = config if isinstance(config, dict) else {}
+        if effective_config.get("show_flex_processing_ui") is False:
+            return []
+        if _effective_auth_mode(effective_config) == "chatgpt":
+            return []
         return [
             {
                 "type": "checkbox",

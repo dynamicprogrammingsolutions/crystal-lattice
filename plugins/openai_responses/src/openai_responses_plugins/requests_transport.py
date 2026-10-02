@@ -135,6 +135,7 @@ class RequestsOpenAIClient:
         timeout: float,
         default_headers: Mapping[str, str] | None = None,
         max_retries: int = 0,
+        verify: bool | str = True,
         session: requests.Session | None = None,
     ) -> None:
         self.api_key = api_key
@@ -142,6 +143,7 @@ class RequestsOpenAIClient:
         self.timeout = timeout
         self.default_headers = dict(default_headers or {})
         self.max_retries = max(0, max_retries)
+        self.verify = verify
         self._session = session or requests.Session()
         self.models = _ModelsResource(self)
         self.responses = _ResponsesResource(self)
@@ -161,6 +163,7 @@ class RequestsOpenAIClient:
             max_retries=(
                 max_retries if max_retries is not None else self.max_retries
             ),
+            verify=self.verify,
             session=self._session,
         )
 
@@ -195,6 +198,7 @@ class RequestsOpenAIClient:
                     headers=self._headers(headers),
                     timeout=timeout if timeout is not None else self.timeout,
                     stream=stream,
+                    verify=self.verify,
                 )
             except requests.RequestException as error:
                 if attempt < self.max_retries:

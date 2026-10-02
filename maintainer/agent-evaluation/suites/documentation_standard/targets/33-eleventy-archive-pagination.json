@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "scenario_id": "33-eleventy-archive-pagination",
+  "title": "Eleventy archive pagination",
+  "task_summary": "Specify bounded, accessible static pagination for the public blog archive without changing other generated surfaces.",
+  "project": {
+    "name": "Eleventy Base Blog",
+    "kind": "public static website",
+    "upstream": "https://github.com/11ty/eleventy-base-blog",
+    "revision": "26b26106d7fbb30b7b40d9ef52589d10ddbcb462"
+  },
+  "required_outcomes": [
+    {
+      "id": "ARCHIVE-1",
+      "outcome": "The existing `/blog/` URL remains the first archive page and every later archive page has a documented stable URL.",
+      "why_required": "The request protects the first public address and requires stable addresses for later pages."
+    },
+    {
+      "id": "ARCHIVE-2",
+      "outcome": "Each generated archive page contains no more than 20 posts.",
+      "why_required": "The requested page-size bound addresses the unmanageable archive."
+    },
+    {
+      "id": "ARCHIVE-3",
+      "outcome": "Archive pages preserve newest-first order and collectively include every post exactly once.",
+      "why_required": "Pagination must not reorder, omit, or duplicate content."
+    },
+    {
+      "id": "ARCHIVE-4",
+      "outcome": "Archive pages provide accessible previous and next navigation only when the corresponding destination exists.",
+      "why_required": "Readers need usable navigation without dead boundary links."
+    },
+    {
+      "id": "ARCHIVE-5",
+      "outcome": "The home page continues showing its current latest-post selection.",
+      "why_required": "The request explicitly preserves home-page behavior."
+    },
+    {
+      "id": "ARCHIVE-6",
+      "outcome": "Tag pages, the feed, sitemap generation, and individual-post previous/next navigation retain their current behavior.",
+      "why_required": "The request explicitly protects these independently generated surfaces."
+    },
+    {
+      "id": "ARCHIVE-7",
+      "outcome": "All archive pages remain statically generated and require no client-side JavaScript.",
+      "why_required": "The project and request preserve zero-JavaScript static output."
+    }
+  ],
+  "compatibility_constraints": [
+    "Existing inbound links to `/blog/` remain valid.",
+    "Post order and membership do not change because pagination is added.",
+    "Non-archive generated pages keep their existing behavior."
+  ],
+  "acceptable_grouping": [
+    "ARCHIVE-1 and ARCHIVE-2 may be grouped as the pagination structure.",
+    "ARCHIVE-3 and ARCHIVE-4 may remain separate or form one archive-navigation requirement.",
+    "ARCHIVE-5 and ARCHIVE-6 may be one unaffected-surfaces requirement.",
+    "ARCHIVE-7 may be stated as a cross-cutting constraint."
+  ],
+  "supporting_details": [
+    "The specification may choose and document a reasonable URL pattern for pages after `/blog/`.",
+    "The existing tag-page pagination is implementation context, not behavior the archive must copy exactly."
+  ],
+  "optional_adjacent_work": [
+    "Page-number navigation",
+    "First and last page links",
+    "Search",
+    "SEO or canonical-link changes",
+    "Theme or layout redesign",
+    "Client-side transitions",
+    "A numeric build-time threshold"
+  ],
+  "not_prescribed": [
+    "Exact later-page URL pattern",
+    "Exact navigation labels or CSS",
+    "Exact Eleventy pagination configuration",
+    "Tests or documentation work as product requirements"
+  ],
+  "open_questions": [],
+  "task_scope": [
+    "Create specification and requirements only.",
+    "Do not change generated website behavior or current user documentation."
+  ],
+  "task_file_scope": [
+    "Create one task file with a Draft execution plan.",
+    "Do not implement the change or modify generated website behavior."
+  ],
+  "testing_expectations": {
+    "required_evidence": [
+      "A real site build verifies archive page-size boundaries, route continuity, newest-first order, and exactly-once post coverage.",
+      "Generated first, middle, and last archive pages verify accessible adjacent-page navigation and boundary-link absence.",
+      "Generated output verifies static zero-JavaScript behavior and preservation of the home page, tag pages, feed, sitemap, and individual-post navigation."
+    ],
+    "important_crossing": "At least one test builds the site through the production Eleventy configuration and inspects generated public output.",
+    "avoid": [
+      "Exact full-page HTML snapshots or exact CSS assertions outside an approved contract.",
+      "Exact ARIA attributes, labels, or Eleventy configuration calls unless the specification makes them required.",
+      "A separate test for every post count when representative boundary cases prove the same rule."
+    ]
+  }
+}

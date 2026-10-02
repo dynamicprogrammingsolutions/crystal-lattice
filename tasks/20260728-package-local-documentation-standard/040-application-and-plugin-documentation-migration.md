@@ -6,7 +6,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCREP-002`, `DOCREP-004`, `DOCMIG-002`, `DOCPUB-006`

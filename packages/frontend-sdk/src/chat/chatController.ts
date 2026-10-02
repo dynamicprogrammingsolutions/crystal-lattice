@@ -401,6 +401,14 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     await this.backend.cancelRequest(active);
   }
 
+  async softCancelActiveRequest(): Promise<void> {
+    const active = this.getSnapshot().activeRequestId;
+    if (!active) {
+      return;
+    }
+    await this.backend.softCancelRequest(active);
+  }
+
   async modifyMessage(index: number, content: string): Promise<void> {
     this.beginEpoch();
     await this.backend.modifyMessage(this.sessionId, index, content);

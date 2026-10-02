@@ -120,3 +120,11 @@ new commands, tests, messages, and documentation use the descriptive names.
 - [CLI distribution implementation and verification](../../cli-distribution.md)
 - [Application configuration](../../../configuration.md)
 - [Configuration placeholders and `.env` loading](../../../configuration-placeholders.md)
+
+## Related query contract
+
+The
+[session and message data query specification](../session-data-query/index.md)
+adds one-shot session enumeration and per-session message projection. This
+distribution specification owns only proof that those commands execute through
+every supported source, archive, and installer entry point.

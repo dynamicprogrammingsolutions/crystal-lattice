@@ -82,6 +82,15 @@ export interface SessionListListRichUi extends SessionListRichUiBase {
   options: readonly SessionListOption[];
 }
 
+export interface SessionListButtonRichUi {
+  kind: 'button';
+  placements?: readonly string[];
+  anchor_key?: string;
+  position?: 'after';
+  tone?: SemanticTone;
+  default_pinned?: boolean;
+}
+
 /**
  * Unknown rich kinds are intentionally transportable. A frontend that does
  * not explicitly support the kind uses the ordinary dialog presentation.
@@ -94,6 +103,7 @@ export interface UnknownSessionListRichUi {
 export type SessionListRichUi =
   | SessionListToggleRichUi
   | SessionListListRichUi
+  | SessionListButtonRichUi
   | UnknownSessionListRichUi;
 
 export interface SessionListActionElement extends ActionUiElement {
@@ -322,6 +332,50 @@ function normalizeRichUi(
 
   if (!isRecord(raw) || typeof raw.kind !== 'string' || !raw.kind) {
     return fail('Ignoring malformed rich_ui while preserving the ordinary action.');
+  }
+
+  if (raw.kind === 'button') {
+    const placements = normalizeRichPlacements(raw.placements, elementId);
+    if (
+      raw.anchor_key !== undefined &&
+      (typeof raw.anchor_key !== 'string' || !raw.anchor_key)
+    ) {
+      return fail('rich_ui.button.anchor_key must be a non-empty string.');
+    }
+    if (raw.position !== undefined && raw.position !== 'after') {
+      return fail("rich_ui.button.position currently supports only 'after'.");
+    }
+    if (
+      raw.tone !== undefined &&
+      (typeof raw.tone !== 'string' || !SEMANTIC_TONES.has(raw.tone as SemanticTone))
+    ) {
+      return fail('rich_ui.button.tone must be a supported semantic tone.');
+    }
+    if (
+      raw.default_pinned !== undefined &&
+      typeof raw.default_pinned !== 'boolean'
+    ) {
+      return fail('rich_ui.button.default_pinned must be a boolean.');
+    }
+    return {
+      value: {
+        kind: 'button',
+        ...(placements.placements !== undefined
+          ? { placements: placements.placements }
+          : {}),
+        ...(typeof raw.anchor_key === 'string'
+          ? { anchor_key: raw.anchor_key }
+          : {}),
+        ...(raw.position === 'after' ? { position: 'after' as const } : {}),
+        ...(typeof raw.tone === 'string'
+          ? { tone: raw.tone as SemanticTone }
+          : {}),
+        ...(typeof raw.default_pinned === 'boolean'
+          ? { default_pinned: raw.default_pinned }
+          : {}),
+      },
+      diagnostics: placements.diagnostics,
+    };
   }
 
   if (raw.kind !== 'toggle' && raw.kind !== 'list') {

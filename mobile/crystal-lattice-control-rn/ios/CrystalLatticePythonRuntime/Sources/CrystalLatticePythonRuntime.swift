@@ -18,47 +18,53 @@ final class CrystalLatticePythonRuntime: NSObject {
   private static let lifecycleDefaultsKey =
     "clcEmbeddedRuntimeLifecycleStatus"
   private static let providerSettingsDefaultsKey =
+    "clcEmbeddedProviderSettingsV3"
+  private static let legacyProviderSettingsDefaultsKey =
     "clcEmbeddedProviderSettingsV2"
   private static let providerKeychainService =
     "com.dynamicprogrammingsolutions.crystallattice.embedded-provider-key"
-  private static let providerOrder = [
-    "reviewer",
-    "openai",
-    "openrouter",
-    "anthropic",
-  ]
-  private static let providerDefinitions: [String: [String: String]] = [
-    "reviewer": [
-      "agentId": "reviewer-claude",
-      "baseUrl": "http://127.0.0.1:3000/v1",
-      "label": "OpenAI-compatible reviewer",
-      "model": "qwen3.5:0.8b",
-      "tlsCaBundle": "",
-      "toolFamily": "claude-like",
-    ],
-    "openai": [
-      "agentId": "openai-codex",
-      "baseUrl": "https://api.openai.com/v1",
-      "label": "OpenAI Responses",
-      "model": "gpt-5.6-luna",
-      "authMode": "api",
-      "toolFamily": "codex-like",
-    ],
-    "openrouter": [
-      "agentId": "openrouter-claude",
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "label": "OpenRouter",
-      "model": "anthropic/claude-haiku-4.5",
-      "toolFamily": "claude-like",
-    ],
-    "anthropic": [
-      "agentId": "anthropic-claude",
-      "baseUrl": "https://api.anthropic.com",
-      "label": "Anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "toolFamily": "claude-like",
-    ],
-  ]
+  private static var activeWorkspaceGrantURLs: [String: URL] = [:]
+  private static let embeddedSettings: [String: Any] = {
+    guard
+      let resourcesURL = Bundle.main.url(
+        forResource: "CrystalLatticePythonRuntimeResources",
+        withExtension: "bundle"
+      ),
+      let resources = Bundle(url: resourcesURL),
+      let configURL = resources.url(
+        forResource: "embedded-ios-config",
+        withExtension: "json"
+      ),
+      let data = try? Data(contentsOf: configURL),
+      let root = try? JSONSerialization.jsonObject(with: data)
+        as? [String: Any],
+      let settings = root["embedded_settings"] as? [String: Any]
+    else {
+      return [:]
+    }
+    return settings
+  }()
+  private static var providerOrder: [String] {
+    embeddedSettings["profileOrder"] as? [String] ?? []
+  }
+  private static var providerDefinitions: [String: [String: Any]] {
+    embeddedSettings["profiles"] as? [String: [String: Any]] ?? [:]
+  }
+  private static var configuredDefaultAgent: String {
+    if let value = embeddedSettings["defaultAgent"] as? String,
+      !value.isEmpty
+    {
+      return value
+    }
+    for profileId in providerOrder {
+      if let agentId = providerDefinitions[profileId]?["agentId"] as? String,
+        !agentId.isEmpty
+      {
+        return agentId
+      }
+    }
+    return ""
+  }
 
   @objc
   static func requiresMainQueueSetup() -> Bool {
@@ -298,6 +304,56 @@ final class CrystalLatticePythonRuntime: NSObject {
     }
   }
 
+  @objc(registerWorkspaceDirectoryGrant:resolver:rejecter:)
+  func registerWorkspaceDirectoryGrant(
+    _ input: NSDictionary,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        guard
+          let uri = input["uri"] as? String,
+          let selectedURL = URL(string: uri),
+          selectedURL.isFileURL,
+          let bookmark = input["bookmark"] as? String,
+          Data(base64Encoded: bookmark) != nil
+        else {
+          throw RuntimeError.invalidWorkspaceGrant
+        }
+        let records = try Self.loadWorkspaceGrantRecords()
+        let existing = records.first { _, record in
+          record["uri"] as? String == uri
+        }
+        let grantId = existing?.key ?? UUID().uuidString.lowercased()
+        var nextRecords = records
+        nextRecords[grantId] = [
+          "uri": uri,
+          "bookmark": bookmark,
+          "displayName": selectedURL.lastPathComponent.isEmpty
+            ? "Selected folder"
+            : selectedURL.lastPathComponent,
+        ]
+        try Self.saveWorkspaceGrantRecords(nextRecords)
+        let active = try Self.restoreWorkspaceGrant(
+          grantId: grantId,
+          record: nextRecords[grantId] ?? [:]
+        )
+        resolve([
+          "grantId": grantId,
+          "displayName": active["display_name"] as? String
+            ?? "Selected folder",
+        ])
+      } catch {
+        reject(
+          "workspace_grant_failed",
+          error.localizedDescription,
+          error
+        )
+      }
+    }
+  }
+
   private static func startIfNeeded() throws -> [String: Any] {
     ensureLifecycleInitialized()
     if initialized, let runtimeInformation {
@@ -366,23 +422,22 @@ final class CrystalLatticePythonRuntime: NSObject {
         continue
       }
       var profile: [String: Any] = [
-        "enabled": profileId == "reviewer",
+        "enabled": definition["enabledByDefault"] as? Bool ?? false,
         "baseUrl": definition["baseUrl"] ?? "",
         "model": definition["model"] ?? "",
       ]
       if let authMode = definition["authMode"] {
         profile["authMode"] = authMode
       }
-      if let tlsCaBundle = definition["tlsCaBundle"] {
-        profile["tlsCaBundle"] = tlsCaBundle.isEmpty
-          ? reviewerCABundlePath()
-          : tlsCaBundle
+      if definition["usesBundledReviewerCA"] as? Bool == true {
+        profile["tlsCaBundle"] = reviewerCABundlePath()
       }
       providers[profileId] = profile
     }
     return [
-      "version": 2,
-      "defaultAgent": "reviewer-claude",
+      "version": 3,
+      "defaultAgent": configuredDefaultAgent,
+      "reviewerVisible": false,
       "providers": providers,
     ]
   }
@@ -425,7 +480,7 @@ final class CrystalLatticePythonRuntime: NSObject {
         (rawProfile["authMode"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
           .lowercased()
-      let authMode = ["api", "auto", "chatgpt"].contains(
+      let authMode = ["api", "chatgpt"].contains(
         requestedAuthMode ?? ""
       )
         ? requestedAuthMode!
@@ -434,36 +489,47 @@ final class CrystalLatticePythonRuntime: NSObject {
         (rawProfile["tlsCaBundle"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
       var profile: [String: Any] = [
-        "enabled": rawProfile["enabled"] as? Bool
-          ?? defaultProfile["enabled"] as? Bool
-          ?? false,
-        "baseUrl": !(baseUrl ?? "").isEmpty
-          ? baseUrl!
-          : defaultProfile["baseUrl"] as? String ?? "",
-        "model": !(model ?? "").isEmpty
-          ? model!
-          : defaultProfile["model"] as? String ?? "",
+        "enabled": profileId == "reviewer"
+          ? true
+          : rawProfile["enabled"] as? Bool
+            ?? defaultProfile["enabled"] as? Bool
+            ?? false,
+        "baseUrl": profileId == "reviewer"
+          ? defaultProfile["baseUrl"] as? String ?? ""
+          : !(baseUrl ?? "").isEmpty
+            ? baseUrl!
+            : defaultProfile["baseUrl"] as? String ?? "",
+        "model": profileId == "reviewer"
+          ? defaultProfile["model"] as? String ?? ""
+          : !(model ?? "").isEmpty
+            ? model!
+            : defaultProfile["model"] as? String ?? "",
       ]
       if profileId == "openai" {
         profile["authMode"] = authMode
       }
       if profileId == "reviewer" {
-        profile["tlsCaBundle"] = tlsCaBundle
-          ?? defaultProfile["tlsCaBundle"] as? String
-          ?? ""
+        profile["tlsCaBundle"] = reviewerCABundlePath()
       }
       providers[profileId] = profile
     }
     let requestedDefault =
-      rawSettings["defaultAgent"] as? String ?? "reviewer-claude"
+      rawSettings["defaultAgent"] as? String ?? configuredDefaultAgent
+    let reviewerVisible =
+      rawSettings["reviewerVisible"] as? Bool
+      ?? !apiKey(profileId: "reviewer").isEmpty
     let validAgents = Set(
-      providerDefinitions.values.compactMap { $0["agentId"] }
+      providerDefinitions.values.compactMap {
+        $0["agentId"] as? String
+      }
     )
     return [
-      "version": 2,
+      "version": 3,
       "defaultAgent": validAgents.contains(requestedDefault)
         ? requestedDefault
-        : "reviewer-claude",
+        : configuredDefaultAgent,
+      "reviewerVisible": reviewerVisible,
+      "profileOrder": providerOrder,
       "providers": providers,
     ]
   }
@@ -475,32 +541,103 @@ final class CrystalLatticePythonRuntime: NSObject {
     ) {
       return normalizedProviderSettings(stored)
     }
+    if let stored = defaults.dictionary(
+      forKey: legacyProviderSettingsDefaultsKey
+    ) {
+      let migrated = migrateLegacyProviderSettings(stored)
+      saveProviderSettings(migrated)
+      return migrated
+    }
+
+    let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL") ?? ""
+    let legacyModel = defaults.string(forKey: "clcEmbeddedModel") ?? ""
+    let legacyKey = defaults.string(forKey: "clcEmbeddedProxyAPIKey") ?? ""
+    guard !legacyUrl.isEmpty || !legacyModel.isEmpty || !legacyKey.isEmpty else {
+      let settings = defaultProviderSettings()
+      saveProviderSettings(settings)
+      return settings
+    }
 
     var settings = defaultProviderSettings()
     var providers = settings["providers"] as? [String: Any] ?? [:]
-    var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
-    if let legacyUrl = defaults.string(forKey: "clcEmbeddedProxyURL"),
-      !legacyUrl.isEmpty
-    {
-      reviewer["baseUrl"] = legacyUrl
+    var compatible = providers["compatible"] as? [String: Any] ?? [:]
+    if !legacyUrl.isEmpty {
+      compatible["baseUrl"] = legacyUrl
     }
-    if let legacyModel = defaults.string(forKey: "clcEmbeddedModel"),
-      !legacyModel.isEmpty
-    {
-      reviewer["model"] = legacyModel
+    if !legacyModel.isEmpty {
+      compatible["model"] = legacyModel
     }
-    reviewer["enabled"] = true
-    providers["reviewer"] = reviewer
+    compatible["enabled"] = true
+    providers["compatible"] = compatible
     settings["providers"] = providers
+    settings["defaultAgent"] =
+      providerDefinitions["compatible"]?["agentId"] as? String
+      ?? configuredDefaultAgent
     saveProviderSettings(settings)
 
-    if let legacyKey = defaults.string(
-      forKey: "clcEmbeddedProxyAPIKey"
-    ), !legacyKey.isEmpty {
-      try? setAPIKey(legacyKey, profileId: "reviewer")
+    if !legacyKey.isEmpty {
+      try? setAPIKey(legacyKey, profileId: "compatible")
     }
     defaults.removeObject(forKey: "clcEmbeddedProxyAPIKey")
     return settings
+  }
+
+  private static func migrateLegacyProviderSettings(
+    _ legacy: [String: Any]
+  ) -> [String: Any] {
+    var migrated = defaultProviderSettings()
+    let legacyProviders = legacy["providers"] as? [String: Any] ?? [:]
+    var providers = migrated["providers"] as? [String: Any] ?? [:]
+    for profileId in ["openai", "openrouter", "anthropic"] {
+      if let profile = legacyProviders[profileId] as? [String: Any] {
+        providers[profileId] = profile
+      }
+    }
+
+    let legacyReviewer =
+      legacyProviders["reviewer"] as? [String: Any] ?? [:]
+    let legacyBaseUrl =
+      legacyReviewer["baseUrl"] as? String ?? ""
+    let reviewerBaseUrl =
+      providerDefinitions["reviewer"]?["baseUrl"] as? String ?? ""
+    let reviewerHost = URL(string: reviewerBaseUrl)?.host ?? ""
+    let wasExternalReviewer =
+      !reviewerHost.isEmpty && legacyBaseUrl.contains(reviewerHost)
+    let targetProfileId = wasExternalReviewer ? "reviewer" : "compatible"
+    var target = providers[targetProfileId] as? [String: Any] ?? [:]
+    for key in ["enabled", "baseUrl", "model"] {
+      if let value = legacyReviewer[key] {
+        target[key] = value
+      }
+    }
+    if wasExternalReviewer, let value = legacyReviewer["tlsCaBundle"] {
+      target["tlsCaBundle"] = value
+    }
+    providers[targetProfileId] = target
+    migrated["providers"] = providers
+
+    let legacyDefault = legacy["defaultAgent"] as? String
+    let reviewerAgent =
+      providerDefinitions["reviewer"]?["agentId"] as? String
+      ?? configuredDefaultAgent
+    let compatibleAgent =
+      providerDefinitions["compatible"]?["agentId"] as? String
+      ?? configuredDefaultAgent
+    migrated["defaultAgent"] =
+      legacyDefault == "reviewer-claude"
+        ? (wasExternalReviewer ? reviewerAgent : compatibleAgent)
+        : legacyDefault ?? configuredDefaultAgent
+
+    if !wasExternalReviewer {
+      let legacyKey = apiKey(profileId: "reviewer")
+      if !legacyKey.isEmpty {
+        try? setAPIKey(legacyKey, profileId: "compatible")
+        try? setAPIKey(nil, profileId: "reviewer")
+      }
+    } else {
+      migrated["reviewerVisible"] = true
+    }
+    return normalizedProviderSettings(migrated)
   }
 
   private static func saveProviderSettings(_ settings: [String: Any]) {
@@ -515,6 +652,9 @@ final class CrystalLatticePythonRuntime: NSObject {
   ) throws -> [String: Any] {
     var settings = storedProviderSettings()
     var providers = settings["providers"] as? [String: Any] ?? [:]
+    if let reviewerVisible = configuration["reviewerVisible"] as? Bool {
+      settings["reviewerVisible"] = reviewerVisible
+    }
     if let rawProviders = configuration["providers"] as? NSDictionary {
       for profileId in providerOrder {
         guard
@@ -523,10 +663,14 @@ final class CrystalLatticePythonRuntime: NSObject {
           continue
         }
         var profile = providers[profileId] as? [String: Any] ?? [:]
-        if let enabled = rawProfile["enabled"] as? Bool {
+        if profileId != "reviewer",
+          let enabled = rawProfile["enabled"] as? Bool
+        {
           profile["enabled"] = enabled
         }
-        if let baseUrl = rawProfile["baseUrl"] as? String {
+        if profileId != "reviewer",
+          let baseUrl = rawProfile["baseUrl"] as? String
+        {
           let normalized = baseUrl.trimmingCharacters(
             in: .whitespacesAndNewlines
           )
@@ -535,7 +679,9 @@ final class CrystalLatticePythonRuntime: NSObject {
           }
           profile["baseUrl"] = normalized
         }
-        if let model = rawProfile["model"] as? String {
+        if profileId != "reviewer",
+          let model = rawProfile["model"] as? String
+        {
           let normalized = model.trimmingCharacters(
             in: .whitespacesAndNewlines
           )
@@ -550,17 +696,10 @@ final class CrystalLatticePythonRuntime: NSObject {
           let normalized = authMode.trimmingCharacters(
             in: .whitespacesAndNewlines
           ).lowercased()
-          guard ["api", "auto", "chatgpt"].contains(normalized) else {
+          guard ["api", "chatgpt"].contains(normalized) else {
             throw RuntimeError.invalidConfiguration
           }
           profile["authMode"] = normalized
-        }
-        if profileId == "reviewer",
-          let tlsCaBundle = rawProfile["tlsCaBundle"] as? String
-        {
-          profile["tlsCaBundle"] = tlsCaBundle.trimmingCharacters(
-            in: .whitespacesAndNewlines
-          )
         }
         providers[profileId] = profile
       }
@@ -575,16 +714,15 @@ final class CrystalLatticePythonRuntime: NSObject {
       else {
         throw RuntimeError.invalidConfiguration
       }
-      var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
-      reviewer["enabled"] = true
-      reviewer["baseUrl"] = proxyUrl.trimmingCharacters(
+      var compatible = providers["compatible"] as? [String: Any] ?? [:]
+      compatible["enabled"] = true
+      compatible["baseUrl"] = proxyUrl.trimmingCharacters(
         in: .whitespacesAndNewlines
       )
-      reviewer["model"] = model.trimmingCharacters(
+      compatible["model"] = model.trimmingCharacters(
         in: .whitespacesAndNewlines
       )
-      providers["reviewer"] = reviewer
-      settings["defaultAgent"] = "reviewer-claude"
+      providers["compatible"] = compatible
     }
     settings["providers"] = providers
     if let defaultAgent = configuration["defaultAgent"] as? String {
@@ -615,7 +753,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     } else if let apiKey = configuration["apiKey"] as? String,
       !apiKey.isEmpty
     {
-      overrides["reviewer"] = apiKey
+      overrides["compatible"] = apiKey
     }
     return overrides
   }
@@ -679,11 +817,13 @@ final class CrystalLatticePythonRuntime: NSObject {
 
   private static func profileId(forAgent agentId: String?) -> String {
     for profileId in providerOrder {
-      if providerDefinitions[profileId]?["agentId"] == agentId {
+      if providerDefinitions[profileId]?["agentId"] as? String == agentId {
         return profileId
       }
     }
-    return "reviewer"
+    return providerDefinitions["reviewer"] == nil
+      ? providerOrder.first ?? ""
+      : "reviewer"
   }
 
   private static func runtimeConfiguration(
@@ -716,10 +856,12 @@ final class CrystalLatticePythonRuntime: NSObject {
       providers[profileId] = profile
     }
     return [
-      "version": 2,
+      "version": 3,
       "default_agent": normalized["defaultAgent"] as? String
-        ?? "reviewer-claude",
+        ?? configuredDefaultAgent,
+      "reviewer_visible": normalized["reviewerVisible"] as? Bool ?? false,
       "providers": providers,
+      "workspace_grants": (try? activeWorkspaceGrants()) ?? [:],
     ]
   }
 
@@ -745,9 +887,9 @@ final class CrystalLatticePythonRuntime: NSObject {
       let definition = providerDefinitions[profileId] ?? [:]
       var profile: [String: Any] = [
         "id": profileId,
-        "label": definition["label"] ?? profileId,
-        "agentId": definition["agentId"] ?? "",
-        "toolFamily": definition["toolFamily"] ?? "",
+        "label": definition["label"] as? String ?? profileId,
+        "agentId": definition["agentId"] as? String ?? "",
+        "toolFamily": definition["toolFamily"] as? String ?? "",
         "enabled": stored["enabled"] as? Bool ?? false,
         "baseUrl": stored["baseUrl"] as? String ?? "",
         "model": stored["model"] as? String ?? "",
@@ -761,23 +903,134 @@ final class CrystalLatticePythonRuntime: NSObject {
       }
       providers[profileId] = profile
     }
-    let reviewer = providers["reviewer"] as? [String: Any] ?? [:]
-    return [
-      "version": 2,
+    let compatible = providers["compatible"] as? [String: Any] ?? [:]
+    let requestedProfileId = profileId(
+      forAgent: settings["defaultAgent"] as? String
+    )
+    let reviewerVisible = settings["reviewerVisible"] as? Bool ?? false
+    let selectedProfileId =
+      requestedProfileId == "reviewer" && !reviewerVisible
+      ? ""
+      : requestedProfileId
+    let selectedProfile =
+      providers[selectedProfileId] as? [String: Any] ?? [:]
+    var result: [String: Any] = [
+      "version": 3,
       "defaultAgent": settings["defaultAgent"] as? String
-        ?? "reviewer-claude",
+        ?? configuredDefaultAgent,
+      "reviewerVisible": reviewerVisible,
+      "profileOrder": providerOrder,
       "providers": providers,
-      "hasApiKey": reviewer["hasApiKey"] as? Bool ?? false,
+      "hasApiKey": compatible["hasApiKey"] as? Bool ?? false,
       "inspectionOnly": UserDefaults.standard.bool(
         forKey: "clcEmbeddedInspectionOnly"
       ),
-      "model": reviewer["model"] as? String ?? "",
-      "proxyUrl": reviewer["baseUrl"] as? String ?? "",
+      "model": selectedProfile["model"] as? String ?? "",
+      "proxyUrl": selectedProfile["baseUrl"] as? String ?? "",
     ]
+    if !selectedProfileId.isEmpty {
+      result["selectedProfileId"] = selectedProfileId
+    }
+    return result
   }
 
   private static func nowMs() -> Double {
     Date().timeIntervalSince1970 * 1000
+  }
+
+  private static func workspaceGrantsURL() throws -> URL {
+    try runtimeRoot()
+      .appendingPathComponent("config", isDirectory: true)
+      .appendingPathComponent("workspace-grants.json", isDirectory: false)
+  }
+
+  private static func loadWorkspaceGrantRecords() throws
+    -> [String: [String: Any]]
+  {
+    let url = try workspaceGrantsURL()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      return [:]
+    }
+    let data = try Data(contentsOf: url)
+    return try JSONSerialization.jsonObject(with: data)
+      as? [String: [String: Any]] ?? [:]
+  }
+
+  private static func saveWorkspaceGrantRecords(
+    _ records: [String: [String: Any]]
+  ) throws {
+    let url = try workspaceGrantsURL()
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    let data = try JSONSerialization.data(
+      withJSONObject: records,
+      options: [.prettyPrinted, .sortedKeys]
+    )
+    try data.write(to: url, options: .atomic)
+    try? FileManager.default.setAttributes(
+      [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+      ofItemAtPath: url.path
+    )
+  }
+
+  private static func restoreWorkspaceGrant(
+    grantId: String,
+    record: [String: Any]
+  ) throws -> [String: Any] {
+    guard
+      let encodedBookmark = record["bookmark"] as? String,
+      let bookmarkData = Data(base64Encoded: encodedBookmark)
+    else {
+      throw RuntimeError.invalidWorkspaceGrant
+    }
+    var stale = false
+    let url = try URL(
+      resolvingBookmarkData: bookmarkData,
+      options: [.withoutUI],
+      relativeTo: nil,
+      bookmarkDataIsStale: &stale
+    )
+    if Self.activeWorkspaceGrantURLs[grantId] == nil {
+      guard url.startAccessingSecurityScopedResource() else {
+        throw RuntimeError.workspaceGrantUnavailable
+      }
+      Self.activeWorkspaceGrantURLs[grantId] = url
+    }
+    let storedDisplayName =
+      (record["displayName"] as? String)?.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+    return [
+      "path": url.path,
+      "display_name": storedDisplayName?.isEmpty == false
+        ? storedDisplayName!
+        : url.lastPathComponent,
+      "available": true,
+      "stale": stale,
+    ]
+  }
+
+  private static func activeWorkspaceGrants() throws -> [String: Any] {
+    let records = try loadWorkspaceGrantRecords()
+    var result: [String: Any] = [:]
+    for (grantId, record) in records {
+      do {
+        result[grantId] = try restoreWorkspaceGrant(
+          grantId: grantId,
+          record: record
+        )
+      } catch {
+        result[grantId] = [
+          "display_name": record["displayName"] as? String
+            ?? "Selected folder",
+          "available": false,
+          "stale": false,
+        ]
+      }
+    }
+    return result
   }
 
   private static func ensureLifecycleInitialized() {
@@ -999,6 +1252,8 @@ final class CrystalLatticePythonRuntime: NSObject {
     case invalidConfiguration
     case invalidResponse
     case keychainFailure(OSStatus)
+    case invalidWorkspaceGrant
+    case workspaceGrantUnavailable
     case validationFailed(String)
 
     var errorDescription: String? {
@@ -1019,6 +1274,10 @@ final class CrystalLatticePythonRuntime: NSObject {
         return "The embedded runtime returned an invalid response."
       case .keychainFailure(let status):
         return "The provider API key could not be saved (Keychain status \(status))."
+      case .invalidWorkspaceGrant:
+        return "The selected workspace grant is invalid."
+      case .workspaceGrantUnavailable:
+        return "The selected workspace permission is unavailable."
       case .validationFailed(let detail):
         return detail
       }

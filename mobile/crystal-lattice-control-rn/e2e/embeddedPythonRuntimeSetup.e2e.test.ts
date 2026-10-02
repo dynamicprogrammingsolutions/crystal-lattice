@@ -18,6 +18,22 @@ async function launchApp(deleteData: boolean): Promise<void> {
     .withTimeout(30000);
 }
 
+async function scrollUntilVisible(testId: string): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      await waitFor(element(by.id(testId))).toBeVisible().withTimeout(1500);
+      return;
+    } catch {
+      await element(by.id("embedded-runtime-settings-scroll")).swipe(
+        "up",
+        "fast",
+        0.35
+      );
+    }
+  }
+  throw new Error(`${testId} never became visible`);
+}
+
 describe("embedded Python runtime setup", () => {
   it("configures the built-in local connection from the Home settings window", async () => {
     const proxyUrl = process.env.CRYSTAL_EMBEDDED_PROXY_URL;
@@ -49,25 +65,27 @@ describe("embedded Python runtime setup", () => {
     await waitFor(element(by.id("embedded-runtime-settings")))
       .toBeVisible()
       .withTimeout(10000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 600));
 
-    await waitFor(element(by.id("embedded-provider-reviewer-base-url")))
-      .toBeVisible()
-      .withTimeout(10000);
+    await scrollUntilVisible("embedded-provider-compatible-base-url");
+    await detoxExpect(element(by.id("embedded-provider-reviewer"))).not.toExist();
     await detoxExpect(element(by.id("embedded-provider-openai"))).toExist();
     await detoxExpect(element(by.id("embedded-provider-openrouter"))).toExist();
     await detoxExpect(element(by.id("embedded-provider-anthropic"))).toExist();
 
-    await element(by.id("embedded-provider-reviewer-base-url")).replaceText(
+    await element(by.id("embedded-provider-compatible-base-url")).replaceText(
       proxyUrl
     );
-    await element(by.id("embedded-provider-reviewer-model")).replaceText(model);
+    await element(by.id("embedded-provider-compatible-model")).replaceText(
+      model
+    );
     const apiKeyInput = element(
-      by.id("embedded-provider-reviewer-api-key")
+      by.id("embedded-provider-compatible-api-key")
     );
     await apiKeyInput.replaceText("wrong-key");
-    await element(by.id("embedded-provider-reviewer-test")).tap();
+    await element(by.id("embedded-provider-compatible-test")).tap();
     await waitFor(
-      element(by.id("embedded-provider-reviewer-validation"))
+      element(by.id("embedded-provider-compatible-validation"))
     )
       .toHaveText(
         "The proxy credentials were rejected or the configured model is unavailable"
@@ -75,17 +93,17 @@ describe("embedded Python runtime setup", () => {
       .withTimeout(30000);
 
     await apiKeyInput.replaceText(apiKey);
-    await element(by.id("embedded-provider-reviewer-test")).tap();
+    await element(by.id("embedded-provider-compatible-test")).tap();
     await waitFor(
-      element(by.id("embedded-provider-reviewer-validation"))
+      element(by.id("embedded-provider-compatible-validation"))
     )
       .toHaveText(`Connected to ${model}`)
       .withTimeout(30000);
-    await waitFor(element(by.id("embedded-runtime-settings-save")))
-      .toBeVisible()
-      .whileElement(by.id("embedded-runtime-settings-scroll"))
-      .scroll(1000, "down");
-    await element(by.id("embedded-runtime-settings-save")).tap();
+    await scrollUntilVisible("embedded-provider-compatible-enabled");
+    await element(by.id("embedded-provider-compatible-enabled")).tap();
+    await scrollUntilVisible("embedded-provider-compatible-default");
+    await element(by.id("embedded-provider-compatible-default")).tap();
+    await new Promise<void>((resolve) => setTimeout(resolve, 900));
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
       .withTimeout(10000);
@@ -99,6 +117,9 @@ describe("embedded Python runtime setup", () => {
     await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
       .toBeVisible()
       .withTimeout(30000);
+    await waitFor(element(by.id("connection-info-embedded-ios-runtime")))
+      .toHaveText(`${model} via ${proxyUrl}`)
+      .withTimeout(30000);
     await element(by.id("connection-card-embedded-ios-runtime")).tap();
     await waitFor(element(by.id("sessions-screen-title")))
       .toHaveText("On-device Python agents")
@@ -109,11 +130,11 @@ describe("embedded Python runtime setup", () => {
       .toBeVisible()
       .withTimeout(10000);
     await element(by.id("home-embedded-settings")).tap();
-    await waitFor(
-      element(by.id("embedded-provider-reviewer-clear-key"))
-    )
+    await waitFor(element(by.id("embedded-runtime-settings")))
       .toBeVisible()
       .withTimeout(10000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 600));
+    await scrollUntilVisible("embedded-provider-compatible-clear-key");
     await detoxExpect(element(by.text(apiKey))).not.toExist();
   });
 });

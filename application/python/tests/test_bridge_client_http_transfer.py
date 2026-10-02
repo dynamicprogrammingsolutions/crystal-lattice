@@ -253,7 +253,7 @@ def test_v2_request_streams_raw_request_and_response_bytes(monkeypatch) -> None:
             {
                 "request_id": "request-1",
                 "method": "POST",
-                "path": "/binary?value=1",
+                "path": "/requests/request-1/soft-cancel",
                 "headers": {
                     "content-type": "application/octet-stream",
                     "accept-encoding": "br",
@@ -270,7 +270,10 @@ def test_v2_request_streams_raw_request_and_response_bytes(monkeypatch) -> None:
     asyncio.run(_run())
 
     assert local_http.request_bodies == [b"\x00\xffrequest"]
-    assert local_http.request_url == "http://127.0.0.1:9000/binary?value=1"
+    assert (
+        local_http.request_url
+        == "http://127.0.0.1:9000/requests/request-1/soft-cancel"
+    )
     assert local_http.request_headers is not None
     assert local_http.request_headers["Accept-Encoding"] == "identity"
     assert local_http.request_headers["authorization"] == "Bearer backend-token"

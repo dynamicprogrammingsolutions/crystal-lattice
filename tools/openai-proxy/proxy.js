@@ -48,6 +48,7 @@ const UPSTREAM_API_KEY = configuration.upstreamApiKey;
 const RESPONSE_DELAY_MS = configuration.delayMs;
 const ALLOWED_MODELS = new Set(configuration.allowedModels);
 const ALLOWED_SERVICE_TIERS = new Set(configuration.allowedServiceTiers);
+const ALLOWED_ENDPOINTS = new Set(configuration.allowedEndpoints);
 const REQUEST_OVERRIDES = configuration.requestOverrides;
 const budgetLedger = new BudgetLedger(configuration.budget);
 
@@ -173,6 +174,7 @@ app.get("/health", (req, res) => {
     authentication: REQUIRED_API_KEY ? "bearer" : "none",
     response_delay_ms: RESPONSE_DELAY_MS,
     allowed_models: [...ALLOWED_MODELS],
+    allowed_endpoints: [...ALLOWED_ENDPOINTS],
     budget: configuration.budget
       ? {
           limit_usd: configuration.budget.limitUsd,
@@ -235,6 +237,13 @@ function applyRequestOverrides(pathname, body) {
 }
 
 function validateRequestConfiguration(req, res) {
+  if (ALLOWED_ENDPOINTS.size > 0 && !ALLOWED_ENDPOINTS.has(req.path)) {
+    res.status(configuration.unsupportedEndpointStatus).json({
+      error: "Endpoint not allowed",
+      allowed_endpoints: [...ALLOWED_ENDPOINTS],
+    });
+    return false;
+  }
   if (modelRequestPath(req.path) && ALLOWED_MODELS.size > 0) {
     const model = req.body?.model;
     if (typeof model !== "string" || !ALLOWED_MODELS.has(model)) {
@@ -513,6 +522,9 @@ app.listen(PORT, HOST, () => {
   );
   console.log(
     `Allowed models:  ${ALLOWED_MODELS.size > 0 ? [...ALLOWED_MODELS].join(", ") : "unrestricted"}`,
+  );
+  console.log(
+    `Allowed paths:   ${ALLOWED_ENDPOINTS.size > 0 ? [...ALLOWED_ENDPOINTS].join(", ") : "unrestricted"}`,
   );
   console.log(
     `Budget:          ${configuration.budget ? `$${configuration.budget.limitUsd} / ${configuration.budget.cooldownSeconds}s` : "disabled"}`,

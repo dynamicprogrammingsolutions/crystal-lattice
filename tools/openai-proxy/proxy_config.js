@@ -139,6 +139,20 @@ function normalizeRequestOverrides(raw) {
   );
 }
 
+function normalizeAllowedEndpoints(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error("routing.allowed_endpoints must be an array");
+  }
+  return raw.map((item, index) => {
+    const endpoint = stringValue(
+      item,
+      `routing.allowed_endpoints[${index}]`,
+    );
+    return endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  });
+}
+
 function normalizeConfiguredProxy(raw, configPath, env) {
   const config = objectValue(raw, "configuration");
   const listen = objectValue(config.listen ?? {}, "listen");
@@ -183,6 +197,7 @@ function normalizeConfiguredProxy(raw, configPath, env) {
       maximum: 65535,
     }),
     basePath: normalizeBasePath(routing.base_path),
+    allowedEndpoints: normalizeAllowedEndpoints(routing.allowed_endpoints),
     hideHeaders: !booleanValue(logging.headers, false),
     logBodies: booleanValue(logging.bodies, false),
     longTextThreshold: numberValue(
@@ -226,6 +241,11 @@ function normalizeConfiguredProxy(raw, configPath, env) {
       "responses.invalid_model_status",
       { minimum: 400, maximum: 599 },
     ),
+    unsupportedEndpointStatus: numberValue(
+      responses.unsupported_endpoint_status ?? 404,
+      "responses.unsupported_endpoint_status",
+      { minimum: 400, maximum: 599 },
+    ),
   };
 }
 
@@ -237,6 +257,7 @@ function legacyProxyConfiguration(parsedArgs, env) {
     host: "0.0.0.0",
     port: parsedArgs.port,
     basePath: parsedArgs.basePath,
+    allowedEndpoints: [],
     hideHeaders: parsedArgs.hideHeaders,
     logBodies: true,
     longTextThreshold: 1000,
@@ -256,6 +277,7 @@ function legacyProxyConfiguration(parsedArgs, env) {
     blockedStatus: 429,
     unauthorizedStatus: 401,
     invalidModelStatus: 400,
+    unsupportedEndpointStatus: 404,
   };
 }
 

@@ -13,6 +13,8 @@ from agent_core.types import ProviderRequestCancelled
 from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
+    AnthropicCompactionExtension,
+    AnthropicContextEditingExtension,
     AnthropicPromptCachingExtension,
     AnthropicProvider,
     AnthropicReasoningControlsExtension,
@@ -131,6 +133,24 @@ def test_official_models_drive_reasoning_control_descriptors() -> None:
     assert [
         option["value"] for option in ui["anthropic_reasoning_effort"]["options"]
     ] == ["low", "medium", "high", "xhigh", "max"]
+
+    raw_by_id = {model["id"]: model for model in models}
+    provider = AnthropicProvider()
+    sonnet_tags = provider.get_tags({"model": "claude-sonnet-5"}, models)
+    haiku_tags = provider.get_tags({"model": "claude-haiku-4-5-20251001"}, models)
+    sonnet_context = raw_by_id["claude-sonnet-5"]["capabilities"]["context_management"]
+    haiku_context = raw_by_id["claude-haiku-4-5-20251001"]["capabilities"][
+        "context_management"
+    ]
+
+    assert sonnet_context["compact_20260112"]["supported"] is True
+    assert haiku_context["compact_20260112"]["supported"] is False
+    assert "supports_anthropic_compaction" in sonnet_tags
+    assert "supports_anthropic_context_editing" in sonnet_tags
+    assert "supports_anthropic_compaction" not in haiku_tags
+    assert "supports_anthropic_context_editing" in haiku_tags
+    assert AnthropicCompactionExtension().get_ui_elements({})
+    assert AnthropicContextEditingExtension().get_ui_elements({})
 
 
 @pytest.mark.timeout(300)

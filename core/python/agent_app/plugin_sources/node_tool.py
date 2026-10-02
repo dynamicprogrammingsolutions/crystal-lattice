@@ -166,8 +166,11 @@ class NodeToolSource:
             safe_id=safe_id,
             revision=revision,
             project_dir=project_dir,
+            policy=ctx.policy,
         )
         self._maybe_install_and_build(install_dir, ctx.policy)
+        if ctx.claim is not None:
+            ctx.claim(install_dir)
         return self._classes_from_install(install_dir, node_spec, ctx.policy)
 
     # ---------------------------------------------------------------------
@@ -243,8 +246,11 @@ class NodeToolSource:
                 safe_id=safe_id,
                 revision=commit,
                 project_dir=project_dir,
+                policy=ctx.policy,
             )
             self._maybe_install_and_build(install_dir, ctx.policy)
+            if ctx.claim is not None:
+                ctx.claim(install_dir)
             return self._classes_from_install(install_dir, node_spec, ctx.policy)
         finally:
             try:
@@ -285,6 +291,11 @@ class NodeToolSource:
         revision = hashlib.sha256(content).hexdigest()
         safe_id = Path(raw_file).stem or "node_tool"
         install_dir = ctx.cache_dir / "node" / f"{safe_id}@{revision}"
+        protected = ctx.policy.get("_cache_in_use")
+        if callable(protected) and install_dir.exists() and protected(install_dir):
+            expected = "dist/index.js" if path.suffix.lower() == ".ts" else path.name
+            if not (install_dir / expected).is_file() or not (install_dir / "package.json").is_file():
+                raise RuntimeError(f"Cached node tool is in use: {install_dir}")
         install_dir.mkdir(parents=True, exist_ok=True)
 
         ext = path.suffix.lower()
@@ -325,6 +336,8 @@ class NodeToolSource:
 
             spec_overrides.setdefault("entry", "dist/index.js")
             self._maybe_install_and_build(install_dir, ctx.policy)
+            if ctx.claim is not None:
+                ctx.claim(install_dir)
             return self._classes_from_install(install_dir, spec_overrides, ctx.policy)
 
         # Plain JS file: copy directly and run as an entry module.
@@ -338,6 +351,8 @@ class NodeToolSource:
 
         spec_overrides = dict(spec_overrides)
         spec_overrides.setdefault("entry", dst_file.name)
+        if ctx.claim is not None:
+            ctx.claim(install_dir)
         return self._classes_from_install(install_dir, spec_overrides, ctx.policy)
 
     # ---------------------------------------------------------------------
@@ -500,6 +515,7 @@ class NodeToolSource:
         safe_id: str,
         revision: str,
         project_dir: Path,
+        policy: Mapping[str, Any],
     ) -> Path:
         target = cache_dir / "node" / f"{safe_id}@{revision}"
         if target.is_dir() and (target / "package.json").exists():
@@ -507,6 +523,11 @@ class NodeToolSource:
 
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
+            # Caller holds PluginManager's cache-wide lock.
+            # A live process may still execute code from this directory.
+            protected = policy.get("_cache_in_use")
+            if callable(protected) and protected(target):
+                raise RuntimeError(f"Cached node tool is in use: {target}")
             shutil.rmtree(target, ignore_errors=True)
         shutil.copytree(
             project_dir,
@@ -517,6 +538,9 @@ class NodeToolSource:
         return target
 
     def _maybe_install_and_build(self, install_dir: Path, policy: Mapping[str, Any]) -> None:
+        protected = policy.get("_cache_in_use")
+        if callable(protected) and protected(install_dir):
+            return
         install_deps = bool(policy.get("node_install_deps", True))
         build = bool(policy.get("node_build", True))
         if not install_deps and not build:

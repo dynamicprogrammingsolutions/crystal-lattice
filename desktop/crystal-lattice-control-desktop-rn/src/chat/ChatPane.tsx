@@ -352,7 +352,12 @@ type ChatSessionActionKey =
   | typeof LOCAL_NOTE_SESSION_ACTION_KEY
   | typeof LOCAL_WATCHLIST_SESSION_ACTION_KEY;
 
-type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
+type ChatComposerActionKey =
+  | 'append'
+  | 'appendAs'
+  | 'resend'
+  | 'softCancel'
+  | 'cancel';
 
 type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & {
   ui_type: 'composer_attachment';
@@ -482,6 +487,13 @@ const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
     order: 130,
     testID: 'composer-action-cancel',
   },
+  {
+    key: 'softCancel',
+    label: 'Soft cancel request',
+    iconName: 'pause-circle',
+    order: 125,
+    testID: 'composer-action-soft-cancel',
+  },
 ];
 
 const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
@@ -608,6 +620,10 @@ export const ChatPane = React.memo(function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const reloadInFlightRef = useRef(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
+  const [softCancelInFlight, setSoftCancelInFlight] = useState(false);
+  const [softCancelledRequestId, setSoftCancelledRequestId] = useState<
+    string | null
+  >(null);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<
     ActionDisplayEntry[]
@@ -2358,6 +2374,37 @@ export const ChatPane = React.memo(function ChatPane({
     chatState?.activeRequestId,
   ]);
 
+  const handleSoftCancel = useCallback(async () => {
+    if (!canRunComposerActions) {
+      return;
+    }
+    const activeRequestId = chatState?.activeRequestId;
+    if (
+      softCancelInFlight ||
+      !activeRequestId ||
+      softCancelledRequestId === activeRequestId
+    ) {
+      return;
+    }
+
+    setSoftCancelInFlight(true);
+    try {
+      await chatController.softCancelActiveRequest();
+      setSoftCancelledRequestId(activeRequestId);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to soft cancel request';
+      Alert.alert('Failed to soft cancel', message);
+    } finally {
+      setSoftCancelInFlight(false);
+    }
+  }, [
+    canRunComposerActions,
+    chatController,
+    chatState?.activeRequestId,
+    softCancelInFlight,
+    softCancelledRequestId,
+  ]);
+
   const openAttachmentUrlPopover = useCallback(
     (params: { element: ComposerAttachmentUiElement; anchorTag?: number }) => {
       const attachmentType = String(
@@ -2521,8 +2568,18 @@ export const ChatPane = React.memo(function ChatPane({
         handleCancel().catch(() => {});
         return;
       }
+      if (action === 'softCancel') {
+        handleSoftCancel().catch(() => {});
+        return;
+      }
     },
-    [handleAppend, handleCancel, handleResend, openAppendAsPopover],
+    [
+      handleAppend,
+      handleCancel,
+      handleResend,
+      handleSoftCancel,
+      openAppendAsPopover,
+    ],
   );
 
   const buildAttachmentStripRows = useCallback(
@@ -4075,7 +4132,12 @@ export const ChatPane = React.memo(function ChatPane({
               {connectionName}
             </Text>
             <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText} numberOfLines={1}>
+            <Text
+              style={styles.metaText}
+              numberOfLines={1}
+              selectable
+              testID="chat-header-session-id"
+            >
               {sessionId}
             </Text>
             <Text style={styles.metaDot}>•</Text>
@@ -4471,6 +4533,13 @@ export const ChatPane = React.memo(function ChatPane({
                   }
                   if (key === 'cancel') {
                     return cancelInFlight || !chatState?.activeRequestId;
+                  }
+                  if (key === 'softCancel') {
+                    return (
+                      softCancelInFlight ||
+                      !chatState?.activeRequestId ||
+                      softCancelledRequestId === chatState.activeRequestId
+                    );
                   }
                   const richConfig =
                     composerRichConfigControlByActionKey[String(key)];

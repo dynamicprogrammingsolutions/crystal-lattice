@@ -537,8 +537,8 @@ python docs_site/scripts/prepare_mkdocs_site.py
 Key docs:
 
 - [Development documentation](docs/development/index.md)
-- [Reusable development standards](docs/development/standards/index.md)
-- [Crystal Lattice repository policy](docs/development/repository/index.md)
+- [Documentation and specification guide](docs/development/documentation.md)
+- [Crystal Lattice documentation conventions](docs/development/crystal-lattice-documentation.md)
 - [Core Python documentation](core/python/docs/index.md)
 - [Core SDK guide](core/python/docs/core-sdk.md)
 - [Application events](core/python/docs/events.md)

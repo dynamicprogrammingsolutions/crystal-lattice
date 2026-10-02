@@ -10,6 +10,33 @@ from typing import Dict, Any, List
 from dataclasses import dataclass
 
 
+_finite_tool_entered = threading.Event()
+_finite_tool_release = threading.Event()
+_finite_tool_interrupted = threading.Event()
+_finite_tool_call_count = 0
+
+
+def reset_finite_blocking_tool_state() -> None:
+    global _finite_tool_call_count
+    _finite_tool_entered.clear()
+    _finite_tool_release.clear()
+    _finite_tool_interrupted.clear()
+    _finite_tool_call_count = 0
+
+
+def get_finite_blocking_tool_state() -> Dict[str, bool]:
+    return {
+        "entered": _finite_tool_entered.is_set(),
+        "released": _finite_tool_release.is_set(),
+        "interrupted": _finite_tool_interrupted.is_set(),
+        "call_count": _finite_tool_call_count,
+    }
+
+
+def release_finite_blocking_tool() -> None:
+    _finite_tool_release.set()
+
+
 @dataclass
 class DummyCalculator:
     """
@@ -160,6 +187,83 @@ class CancellableBlockingTool:
                     cancellation.remove_callback(cancel_token)
                 except Exception:
                     pass
+
+
+@dataclass
+class FiniteBlockingTool:
+    """Finite tool used to distinguish soft completion from hard interruption."""
+
+    name: str = "finite_blocking_tool"
+    version: str = "1.0.0"
+
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "finish_when_released",
+                    "description": "Wait for the test to release the tool",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+        if result.get("cancelled"):
+            return "Cancelled"
+        return str(result.get("result") or result.get("error") or "")
+
+    def execute_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        _ = tool_name, arguments, state
+        return {"success": False, "error": "finite tool requires streaming"}
+
+    def stream_tool(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
+    ):
+        global _finite_tool_call_count
+        _ = arguments, state
+        if tool_name != "finish_when_released":
+            return
+        _finite_tool_call_count += 1
+
+        interrupted = threading.Event()
+        cancel_token: int | None = None
+
+        def _interrupt() -> None:
+            _finite_tool_interrupted.set()
+            interrupted.set()
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            cancel_token = cancellation.add_callback(_interrupt)
+
+        _finite_tool_entered.set()
+        try:
+            while not _finite_tool_release.wait(0.02):
+                if interrupted.is_set():
+                    yield {
+                        "success": False,
+                        "error": "Tool cancelled",
+                        "cancelled": True,
+                    }
+                    return
+            yield {"success": True, "result": "finished normally"}
+        finally:
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                cancellation.remove_callback(cancel_token)
 
 
 @dataclass

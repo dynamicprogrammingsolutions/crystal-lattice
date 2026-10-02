@@ -910,4 +910,41 @@ describe('runApplicationAction input building', () => {
       context_value: 'connection-1',
     });
   });
+
+  it('maps opaque client-acquired values into action inputs', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+    const backend = {
+      executeAction: async ({ inputs }: { inputs: Record<string, any> }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'workspace',
+          action_id: 'select_external_workspace',
+          result: { mutations: {}, ui_effects: {} },
+        };
+      },
+    } as AgentBackend;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'workspace',
+        id: 'select-external',
+        label: 'Choose folder',
+        action_id: 'select_external_workspace',
+        param_map: {
+          grant_id: '$client.workspace_grant_id',
+        },
+      },
+      actionsById: {},
+      context: {
+        clientValues: {
+          workspace_grant_id: 'grant-123',
+        },
+      },
+    });
+
+    expect(capturedInputs).toEqual({ grant_id: 'grant-123' });
+  });
 });

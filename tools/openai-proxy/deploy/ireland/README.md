@@ -11,8 +11,8 @@ mode `0600`.
 All deployment values can be changed through `.env` and
 `config/reviewer-proxy.json`, including the public bind address/port, hostname,
 internal port, upstream URL, environment-variable names, allowed models,
-service tiers, budget, cooldown, pricing, long-context rules, state path,
-logging, and response statuses.
+endpoint paths, service tiers, budget, cooldown, pricing, long-context rules,
+state path, logging, and response statuses.
 
 Generate the configured self-signed certificate:
 
@@ -46,7 +46,30 @@ The public certificate must be staged as the configured CA for the embedded
 reviewer profile before distributing the app. Never disable certificate
 verification and never transfer or bundle `server.key`.
 
-The reviewer JSON applies `reasoning_effort: "none"` only to
-`chat_completions`, as required by `gpt-5.6-luna` function-tool requests on
-that endpoint. This remains a configurable proxy override rather than generic
-provider behavior.
+The reviewer JSON permits only `/models` and `/responses`. Chat Completions is
+rejected before upstream forwarding. The mobile reviewer uses the OpenAI
+Responses provider and Codex-like tools; the generic OpenAI-compatible/Ollama
+profile remains separate.
+
+## Current Ireland host layout
+
+The deployed service uses a flattened checkout at:
+
+```text
+/home/irelandsrv/reviewer-openai-proxy/
+├── .env
+├── docker-compose.yml
+├── Dockerfile
+├── proxy*.js
+├── rate_limit.js
+├── config/reviewer-proxy.json
+├── nginx/default.conf.template
+├── certs/server.crt
+├── certs/server.key
+└── data/rate-limit.json
+```
+
+Run `docker compose` from that directory. Preserve `.env`,
+`certs/server.key`, and `data/` during source/config updates. The deployed
+caller key should remain stable for App Review; update the upstream OpenAI key
+independently when rotating provider credentials.

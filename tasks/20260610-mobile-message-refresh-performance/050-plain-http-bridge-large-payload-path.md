@@ -639,3 +639,269 @@ approved.
   - Documentation-site tests: 15 passed.
   - Documentation preparation and MkDocs build passed with existing
     navigation/reference warnings.
+
+## Post-completion follow-up — HTTP-only product bridge mode
+
+### Follow-up requirements checklist
+
+- [ ] HTTP is the only bridge transport presented in the normal frontend
+  connection flow and is the effective default for new and existing saved
+  bridge connections.
+- [ ] WebSocket and hybrid frontend transports remain implemented and
+  testable, but are labeled legacy development overrides rather than normal
+  product connection choices.
+- [ ] A dedicated Development Settings window is available from the Home menu
+  and lets a developer select the product HTTP behavior, legacy WebSocket, or
+  legacy hybrid for later bridge connection construction.
+- [ ] The development override is stored separately from connection records,
+  applies app-wide, survives relaunch, and can be reset to the HTTP product
+  default.
+- [ ] Existing records with a missing, WebSocket, or hybrid `transportMode`
+  reconnect through HTTP when no development override is active, while
+  retaining their server identity and pairing credential.
+- [ ] Changing the development override does not replay, fall back, or mutate
+  an in-flight request and does not silently replace an already-open runtime;
+  it takes effect when a bridge transport is next constructed.
+- [ ] Older bridges without HTTP protocol v1 fail with a clear compatibility
+  error in normal operation, and the Development Settings window remains the
+  explicit route to a legacy WebSocket diagnostic connection.
+- [ ] The shared SDK, mobile host, formal bridge specification, mobile
+  lifecycle target, and package documentation consistently describe HTTP as
+  the product default and WebSocket/hybrid as development-only overrides.
+- [ ] Automated SDK, mobile component, persistence, integration, and native
+  tests prove the HTTP default, saved-record migration, Home-menu settings
+  flow, explicit legacy diagnostics, and absence of automatic fallback.
+
+### User-approved direction
+
+- Retire WebSocket and hybrid from the normal product connection experience.
+- Keep both implementations available for development diagnosis and explicit
+  rollback through a dedicated settings window opened from the Home menu.
+- Make HTTP the normal bridge path for control, pairing, events, and every
+  proxied application request.
+
+This direction supersedes the earlier rollout rule that made WebSocket the
+compatibility default and exposed all three modes in the connection wizard. It
+does not remove the legacy transports, their wire protocols, or the registered
+Python server's control WebSocket.
+
+### Current findings and planning baseline
+
+- `createBridgeConnectionTransport()` currently defaults to WebSocket, while
+  explicit `http` and `hybrid` modes construct their separate implementations.
+- Mobile currently defaults missing saved modes to WebSocket, persists a mode
+  per bridge record, and renders all three selectors directly in the normal
+  bridge wizard.
+- `HomeScreen` already owns a Home menu with a production
+  `home-menu-global-settings` action. `ConnectedRoot` owns presentation of
+  Home-level modal windows, so a dedicated development modal fits the existing
+  ownership boundary without coupling transport logic to `HomeScreen`.
+- The existing `BridgeConnectionRecord.transportMode` must remain readable for
+  storage and downgrade compatibility, but a legacy per-record value must not
+  silently keep production traffic on a retired mode.
+- The completed bridge specification still defines WebSocket as the default
+  in `BRG-003`, `BRG-004`, `BRG-013`, and `BRG-014`. The mobile lifecycle
+  target repeats that behavior in `MCL-014`; both targets must be updated
+  before changing code.
+- Worktree readiness was verified before planning:
+  - root and mobile `npm ci` completed;
+  - the pinned Ruby 3.4.10/Bundler 4.0.15 bundle and iOS Pods installed;
+  - mobile TypeScript passed;
+  - 11 focused Home and bridge-record Jest tests passed;
+  - a fresh iOS Detox release build passed;
+  - the focused bridge-mode Detox test passed on an uncontended iPhone Air
+    simulator.
+- The broad Home Detox scenario reached the production app but exceeded its
+  existing 180-second test timeout. A later trace showed a shared iPhone 17
+  Pro simulator spent ten minutes in `simctl uninstall`; use an uncontended
+  simulator type for follow-up native runs and keep the focused development
+  settings scenario small.
+
+### Scope boundaries
+
+- Do not delete `BridgeTransport`, `HybridBridgeTransport`, legacy Elixir app
+  channel messages, Python legacy request handling, or their focused
+  regression tests.
+- Do not replace the Python server registration/control WebSocket; “HTTP-only”
+  describes the frontend bridge mode.
+- Do not add automatic transport fallback, retry, or request replay.
+- Do not reconnect or replace an active bridge runtime when the development
+  preference changes.
+- Do not fold development controls into global user settings or the normal
+  connection wizard; use a separately titled Home-menu window.
+- Do not expand this follow-up into the broader multi-runtime mobile
+  connection-lifecycle implementation.
+
+## Follow-up execution plan — HTTP-only product bridge mode
+
+Status: Draft
+
+Update the formal target first, then change the SDK default and mobile host in
+small checkpoints. Preserve explicit legacy constructors throughout so every
+checkpoint can compare HTTP product behavior with WebSocket/hybrid diagnostic
+behavior.
+
+1. Revise the bridge-connectivity and mobile connection-lifecycle
+   specifications so HTTP is the product default, omitted modes resolve to
+   HTTP, legacy modes are development-only overrides, and the separately
+   approved default-switch gate is recorded as resolved by this follow-up.
+2. Change the shared SDK factory's omitted-mode behavior to HTTP while keeping
+   all three `BridgeTransportMode` values and concrete implementations
+   available to explicit callers. Keep the no-fallback rule unchanged.
+3. Introduce a small mobile development-preference module with a versioned
+   AsyncStorage key and an effective mode of HTTP when the setting is absent,
+   malformed, or reset. Store only an app-wide optional legacy override; do
+   not derive production behavior from a connection record's historical mode.
+4. Centralize mobile bridge construction around
+   `effective mode = development override ?? http`. New pairing records store
+   the product mode, while existing record IDs, URLs, server IDs, names,
+   pairing credentials, caches, and workspace ownership remain unchanged.
+5. Remove the three transport selectors and experimental copy from the normal
+   bridge wizard. Keep the existing bridge URL compatible with current saved
+   `ws`/`wss` values because the HTTP transport already derives its HTTP
+   origin.
+6. Add a dedicated `DevelopmentSettingsModal` presented by `ConnectedRoot`.
+   Add a stable `home-menu-development-settings` entry to `HomeScreen`; the
+   modal shows HTTP as “Product default” and WebSocket/hybrid as clearly
+   labeled legacy diagnostics, includes a reset action, and explains that a
+   selection applies to the next bridge open.
+7. Route new connection, saved open, repair, and later transport
+   reconstruction through the same effective-mode resolver. Foreground work
+   on an already-created transport continues through that instance, so a
+   preference change cannot switch or replay an active request.
+8. Replace the existing native mode-selector scenario with a production Home
+   menu → Development Settings scenario and retain lower-level SDK legacy-mode
+   coverage. Run the full affected verification matrix before updating
+   current user and maintainer documentation.
+
+### Risks and mitigations
+
+- **Legacy records remain on a retired mode:** ignore historical record mode
+  for effective production selection and test missing, WebSocket, hybrid, and
+  HTTP records under an absent development override.
+- **A diagnostic override leaks into saved product state:** persist it under a
+  separate development-settings key; new connection records remain HTTP.
+- **Preference hydration races a saved connection open:** expose hydration
+  state and prevent bridge construction until the setting has resolved to a
+  valid value.
+- **Changing a setting duplicates a write:** apply it only to newly
+  constructed transports and retain the existing prohibition on fallback.
+- **Older bridge deployment cannot serve HTTP v1:** keep the capability error
+  actionable and make legacy WebSocket selectable through Development
+  Settings without silently falling back.
+- **Home-menu regression is hidden by a large native suite:** add one focused
+  production-screen Detox scenario with stable selectors, then retain the
+  broader Home test as separate regression coverage.
+- **Future connection-lifecycle work restores the old default:** update
+  `MCL-014` and its technical compatibility section in the same change.
+
+### Implementation decisions and open questions
+
+- Decision: “retired” means removed from normal product selection and default
+  behavior, not deleting the legacy implementations or protocol.
+- Decision: the development mode override is one app-wide local preference,
+  not a per-connection property.
+- Decision: the Development Settings entry is visible in the Home menu in
+  normal builds. This keeps emergency rollback and field diagnosis available;
+  it is explicitly labeled development-only rather than hidden behind
+  `__DEV__` or a gesture.
+- Decision: changing the override affects only later transport construction.
+  The modal does not reconnect, close, or replace an active runtime.
+- Decision: existing `transportMode` fields remain readable for compatibility
+  but do not select a retired mode when the development override is absent.
+  New mobile records persist HTTP, not the active diagnostic override.
+- Decision: continue accepting existing `ws`/`wss` bridge URLs in the normal
+  wizard and saved records; URL-shape migration is not required to make the
+  frontend use HTTP.
+- Decision: explicit SDK `mode: "websocket"` and `mode: "hybrid"` remain
+  supported for development tools and tests. Omitted SDK mode becomes HTTP.
+- No unresolved requirement question remains. The visibility and app-wide
+  scope of Development Settings are highlighted for approval because they
+  materially define the diagnostic escape hatch.
+
+### Documentation
+
+- Update the bridge-connectivity specification index, product behavior,
+  frontend behavior, and requirements/evidence rows `BRG-003`, `BRG-004`,
+  `BRG-005`, `BRG-013`, and `BRG-014` before implementation claims change.
+- Update mobile connection-lifecycle `MCL-014` and its technical compatibility
+  section so future lifecycle work preserves the HTTP product default and
+  app-wide development override.
+- Update the frontend SDK bridge user and implementation docs with the new
+  omitted-mode behavior and development-only status of explicit legacy modes.
+- Update mobile bridge-hosting and Home documentation with the dedicated
+  Development Settings route, persistence scope, next-open semantics, and
+  migration behavior.
+- Update concise package README statements that currently call WebSocket the
+  default or show the old normal-wizard selector. Do not expose task status or
+  requirement IDs in user documentation.
+
+### Task checklist
+
+- [ ] Update the bridge and mobile lifecycle target specifications first.
+- [ ] Change the SDK factory default to HTTP and retain explicit legacy modes.
+- [ ] Add versioned app-wide development transport preference persistence.
+- [ ] Make saved-record reconstruction default every historical record shape
+  to HTTP unless a development override is active.
+- [ ] Keep new records on HTTP without persisting the diagnostic override.
+- [ ] Remove transport choices from the normal bridge connection wizard.
+- [ ] Add the dedicated Home-menu Development Settings modal and reset action.
+- [ ] Route new, saved, and repair transport construction through one
+  effective-mode resolver.
+- [ ] Add SDK default/explicit-mode/no-fallback regression tests.
+- [ ] Add mobile preference parsing, hydration, persistence, migration, and
+  reconstruction tests.
+- [ ] Add Home menu/modal component tests and normal-wizard tests.
+- [ ] Replace the old selector Detox scenario with focused Home development
+  settings and HTTP-only normal-wizard coverage on iOS and Android.
+- [ ] Run the existing HTTP, WebSocket, hybrid, cluster, and bridge-restart
+  regression suites appropriate to the unchanged protocol boundary.
+- [ ] Update current package documentation and live requirement evidence.
+- [ ] Run documentation preparation/build and focused link checks.
+
+### Requirement verification
+
+- **HTTP-only normal product flow:** component and native tests open the normal
+  bridge wizard, find no WebSocket/hybrid selector, pair/reopen using HTTP, and
+  prove no frontend WebSocket factory is invoked.
+- **Development-only legacy modes:** Home menu/component/Detox tests open the
+  dedicated modal, select each labeled legacy mode, reconstruct a later bridge
+  transport with the same server/token, and reset to HTTP. SDK tests continue
+  to prove explicit legacy construction and exact hybrid event routing.
+- **Saved-record migration:** table-driven tests load records with absent,
+  HTTP, WebSocket, hybrid, and malformed mode values and prove HTTP is
+  effective without an override. Separate tests prove no ID, URL, server
+  identity, pairing token, cache key, or workspace ownership changes.
+- **Preference lifecycle:** persistence tests cover first install, relaunch,
+  reset, malformed storage, hydration-before-open, and app-wide use across
+  multiple bridge records.
+- **No replay or active mutation:** tests start an HTTP request or retain an
+  open transport, change the development preference, and prove the current
+  instance is untouched and the override applies only after reconstruction.
+- **Compatibility failure:** SDK/mobile tests show a clear HTTP capability
+  error for an older bridge and prove that only an explicit development
+  setting enables a later legacy diagnostic connection.
+- **Regression boundary:** rerun SDK unit suites, HTTP-only SDK E2E, explicit
+  legacy/hybrid E2E, bridge restart/cluster coverage, mobile Jest/TypeScript,
+  and focused iOS/Android Detox scenarios. Existing server-control WebSocket
+  and backend protocol tests remain unchanged.
+- **Documentation consistency:** specification and package pages agree on the
+  HTTP default, development-only legacy modes, migration, and next-open
+  behavior; stale “WebSocket default” and normal-selector claims are absent
+  from maintained sources.
+
+### Additional implementation verification
+
+- `npm --workspace @crystal-lattice/frontend-sdk test`
+- `npm --workspace @crystal-lattice/frontend-sdk run integration:bridge`
+- `cd mobile/crystal-lattice-control-rn && npm run tsc`
+- focused mobile Jest tests followed by
+  `cd mobile/crystal-lattice-control-rn && npm test -- --runInBand`
+- `cd mobile/crystal-lattice-control-rn && npm run detox:build:ios`
+- focused development-settings Detox on an uncontended iOS simulator and
+  `npm run detox:build:android` plus its Android scenario
+- `cd bridge-elixir && mix test`
+- focused Python bridge-client suites with the worktree first on `PYTHONPATH`
+- `python docs_site/scripts/prepare_mkdocs_site.py`
+- `(cd docs_site && mkdocs build)`
+- focused relative-link/stale-default checks and `git diff --check`

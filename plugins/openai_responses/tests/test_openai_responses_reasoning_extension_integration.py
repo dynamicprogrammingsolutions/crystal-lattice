@@ -388,13 +388,13 @@ def test_openai_responses_reasoning_mode_pro_footer_visible_real_api(
 
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_fast_mode_priority_footer_visible_real_api(
+def test_openai_responses_fast_mode_fast_footer_visible_real_api(
     ensure_openai_api_key: str,
 ) -> None:
     """Fast mode footer for API auth: the API accepts ``service_tier:
-    "priority"`` for API-authenticated requests and returns
-    ``service_tier: "priority"`` in the response. The usage extension
-    surfaces it as ``metadata.usage_service_tier == "priority"``.
+    "fast"`` for API-authenticated requests and returns the reported
+    service tier in the response. The usage extension surfaces it as
+    ``metadata.usage_service_tier``.
     """
     _RecordingApiProvider.recorded_requests = []
     core = AgentCore()
@@ -428,10 +428,13 @@ def test_openai_responses_fast_mode_priority_footer_visible_real_api(
 
     assert _RecordingApiProvider.recorded_requests
     payload = _RecordingApiProvider.recorded_requests[0]
-    assert payload.get("service_tier") == "priority"
+    assert payload.get("service_tier") == "fast"
 
     metadata = final_message.get("metadata") or {}
-    assert metadata.get("usage_service_tier") == "priority"
+    reported_tier = metadata.get("usage_service_tier")
+    # The current tier name is ``fast``; ``priority`` is the obsolete name
+    # some backends may still report.
+    assert reported_tier in ("fast", "priority"), reported_tier
 
 
 # ---------------------------------------------------------------------------

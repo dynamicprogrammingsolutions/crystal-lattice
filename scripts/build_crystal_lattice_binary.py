@@ -230,6 +230,7 @@ def prepare_staged_assets(
     copytree_sanitized(
         APP_PACKAGE_DIR / "system_messages", staged_app / "system_messages"
     )
+    copytree_sanitized(APP_DIR / "docs", staged_app / "docs")
 
     for source in APP_PACKAGE_DIR.glob("*.json"):
         if source.name == "runtime_layout.json":
@@ -251,6 +252,7 @@ def prepare_staged_assets(
         "schema_version": 1,
         "layout": "bundled",
         "bundle_paths": {
+            "application_docs": "docs",
             "builtin_plugins": f"../{BUNDLED_PLUGINS_DIRNAME}",
             "cloud_runtime_build_context": f"../{CLOUD_RUNTIME_DIRNAME}",
             "cloud_runtime_dockerfile": f"../{CLOUD_RUNTIME_DIRNAME}/Dockerfile",
@@ -502,6 +504,7 @@ def verify_output_tree(output_dir: Path) -> None:
     required_paths = [
         internal_dir / "agent_terminal_app" / "runtime_layout.json",
         internal_dir / "agent_terminal_app" / "default_config" / "config.json",
+        internal_dir / "agent_terminal_app" / "docs" / "headless-agent-runs.md",
         internal_dir / CLOUD_RUNTIME_DIRNAME / "Dockerfile",
         internal_dir / CLOUD_RUNTIME_DIRNAME / "runtime.py",
         internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_core",

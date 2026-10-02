@@ -27,6 +27,7 @@ export interface RunActionContext {
   messageContext?: { index: number; message: ApiMessage };
   dialogValues?: Record<string, any>;
   formValues?: Record<string, any>;
+  clientValues?: Record<string, any>;
 }
 
 export interface RunActionEffectsOptions {
@@ -125,6 +126,10 @@ function buildActionInputs(options: {
         ) {
           value = '';
         }
+      } else if (source.startsWith('$client.')) {
+        const path = source.slice('$client.'.length);
+        const resolved = resolveSessionListPath(context.clientValues || {}, path);
+        value = resolved.found ? resolved.value : undefined;
       } else if (source.startsWith('$context.')) {
         const path = source.slice('$context.'.length);
         const resolved = resolveSessionListPath(context, path);

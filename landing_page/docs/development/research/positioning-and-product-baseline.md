@@ -1,6 +1,6 @@
 # Positioning and Product Baseline
 
-Status: Initial supporting baseline, August 25, 2026.
+Status: Updated supporting baseline, October 2, 2026.
 
 This page records durable knowledge needed to continue product-website
 research without reconstructing earlier conversations. It is supporting
@@ -31,6 +31,17 @@ research, not current public copy or a normative content target.
   cache, duration, cost, attachment, and provider-specific information.
 - **Fact:** The repository and many components are open source, with
   component-specific license boundaries documented separately.
+- **Fact:** The accepted current inventory contains 20 configured agents,
+  seven checked-in provider routes, and 66 plugin projects across default,
+  optional, distribution-specific, example, fixture, template, and support
+  lifecycles.
+- **Fact:** OpenAI API, saved ChatGPT, OpenRouter, direct Anthropic, Ollama,
+  Fireworks, Z.ai, custom OpenAI-compatible, and OpenRouter image-generation
+  routes have materially different native capability and prerequisite
+  boundaries.
+- **Fact:** Current model-family tool bundles are independently implemented in
+  Crystal Lattice and expose different tool sets; planned rows are tracked
+  separately from current descriptor-backed tools.
 
 ## Current Website Observations
 
@@ -121,14 +132,17 @@ research, not current public copy or a normative content target.
 
 ## Compatibility Transparency
 
-- **Recommendation:** Maintain separate views for configured-agent
-  compatibility, provider/account support, and application-wide features.
-- **Recommendation:** Distinguish supported/default, supported/optional,
-  partial, experimental, planned, not implemented, not applicable, and unknown
-  states.
-- **Recommendation:** Distinguish code present in the repository from a plugin
-  being packaged, loaded, default-enabled, frontend-supported, automatically
-  tested, and real-provider verified.
+- **Decision:** Maintain separate product views for application/session
+  features, provider-native support, and model-family-specific tool bundles.
+- **Decision:** Distinguish available, conditional, optional, planned,
+  unsupported, not applicable, and unknown states where material.
+- **Decision:** Distinguish code present in the repository from a plugin being
+  packaged, loaded, default-enabled, frontend-supported, automatically tested,
+  and real-provider verified.
+- **Decision:** Provider-reported and locally estimated costs are transparency
+  data rather than billing or invoice truth.
+- **Decision:** A compact website projection may refine the exhaustive source,
+  but must preserve accepted compatibility identity and limitation boundaries.
 - **Hypothesis:** An explicit compatibility and limitation catalog can build
   trust and provide focused contribution paths.
 

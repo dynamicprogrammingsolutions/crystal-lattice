@@ -808,7 +808,12 @@ def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails
                 }
             ).encode("utf-8")
 
-    def _fake_urlopen(request: Any, timeout: float) -> _FakeHttpResponse:
+    def _fake_urlopen(
+        request: Any,
+        timeout: float,
+        context: Any,
+    ) -> _FakeHttpResponse:
+        assert context is not None
         captured["url"] = request.full_url
         captured["headers"] = dict(request.header_items())
         captured["timeout"] = timeout
@@ -1331,6 +1336,23 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         "label": "Image",
         "icon": "image",
     }
+
+
+def test_get_ui_elements_can_hide_auth_mode_for_embedding_owned_settings() -> None:
+    provider = OpenAIResponsesProvider()
+
+    elements = provider.get_ui_elements(
+        config={"auth_mode_options": []},
+        tags=["openai_responses"],
+        models=[],
+    )
+
+    assert not any(element.get("key") == "auth_mode" for element in elements)
+    assert any(element.get("key") == "model" for element in elements)
+    assert any(
+        element.get("key") == "openai_responses:attachment:image"
+        for element in elements
+    )
 
 
 def test_get_ui_elements_keeps_custom_dropdown_when_models_are_unavailable() -> None:

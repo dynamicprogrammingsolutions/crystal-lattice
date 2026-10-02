@@ -1,11 +1,12 @@
 Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCMETA-001`–`DOCMETA-003`, `DOCGUIDE-001`–`DOCGUIDE-006`,
-`DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`
+`DOCLOCAL-001`–`DOCLOCAL-002`, `DOCAGENT-001`, `DOCVAL-010`,
+`DOCVAL-012`
 
 Baseline requirement and behavioral evidence remains under
 `DOCGEN-001`–`DOCGEN-010` and `DOCREP-001`–`DOCREP-007` until the replacement
@@ -243,12 +244,21 @@ baseline evidence. They are not the target of the current plan.
   for the revised target. A fresh candidate repeat failed Test 18 again and
   passed Test 27, leaving persistent concerns in Tests 6, 13, and 18 and mixed
   routing evidence in Test 27. Full interpretation is recorded in
-  `agent-behavior-verification/20260912-guidance-rewrite-results.md`.
+  `maintainer/docs/evaluations/documentation-guidance/20260912-guidance-rewrite-results.md`.
 - September 13, 2026: Reconciled the documentation-review edits left
   uncommitted in the original worktree before the isolated rewrite began.
   Preserved the September 10 review history in this task and `archive/`, while
   treating grammar-only edits to retired pages, the old bundle manifest, and
   the stale active human-review route as superseded by the committed rewrite.
+- September 15, 2026: Implemented the approved requirement/testing follow-up,
+  kept the general guide at 2,000 words, synchronized canonical and bundled
+  task guidance, and ran current/candidate-v1/candidate-v2 comparisons.
+  Candidate v2 gives 21/21 complete requirements and 21/21 structurally clean
+  task-only plans, but testing completeness drops to 5/21 and appropriate
+  layer selection to 11/21. The focused interpretation and proposed shorter
+  testing ablation are recorded in
+  `maintainer/docs/evaluations/documentation-guidance/20260915-requirement-testing-candidate-results.md`.
+  Human acceptance remains pending; decomposition work has not started.
 
 ## Prior execution plan
 
@@ -649,7 +659,7 @@ Documentation-only verification:
 - `docs/development/repository/documentation.md`
 - `docs/development/repository/specifications.md`
 - `maintainer/README.md`
-- `maintainer/specifications/documentation-and-specification-standard/*`
+- `maintainer/docs/development/specifications/documentation-guidance/*`
 - root `AGENTS.md`
 - `docs/index.md`
 - root `README.md`
@@ -724,6 +734,9 @@ The target review set is:
 
 The complete human-review bundle should normally remain between 3,000 and
 3,600 words and fit within 30 Kindle pages.
+
+Steps 1–8 were approved and executed for the September 11 rewrite. The user
+approved the evidence-backed Steps 9–12 on September 15, 2026.
 
 ### 1. Preserve the baseline and route compatibility
 
@@ -1147,6 +1160,176 @@ Human review asks only whether the pages are clear, coherent, proportionate,
 scannable, and appropriately concise. Objective link, structure, terminology,
 and route checks are completed by the agent before the bundle is sent.
 
+### 9. Replace the requirements subsection
+
+Replace `### Write requirements as completion outcomes` in
+`docs/development/documentation.md` with the following candidate text. Preserve
+the existing requirements-table example unless drafting shows that one shorter
+row is clearer.
+
+```markdown
+### Write necessary, traceable requirements
+
+Requirements are the minimum approved outcomes and constraints needed for the
+target to be complete. Before adding one, ask:
+
+> If this requirement were removed, would an explicit user need, approved
+> quality target, preserved contract, or necessary consequence of the target
+> remain unsatisfied?
+
+A requirement belongs when it is traceable to the request, an explicitly
+preserved contract, a necessary consequence, an applicable approved policy, or
+an approved design or quality decision. Other useful ideas remain supporting
+details, questions, recommendations, or follow-ups.
+
+When useful, distinguish behavioral outcomes, approved assessable quality
+requirements, and approved constraints that intentionally limit the solution.
+Implementation, testing, documentation, refactoring, and verification work
+stays in plans or evidence unless its resulting outcome is independently
+required.
+
+Use one requirement per independently meaningful outcome. Keep variants,
+operations, boundaries, and examples beneath it unless independent acceptance,
+deferral, ownership, evidence, or status tracking adds value. Separate
+regressions alone do not require separate rows.
+
+Do not silently resolve unspecified public, persisted, compatibility,
+security, privacy, or user-visible behavior. Ask unless the user or task
+authorized that class of decision; easy-to-reverse code does not make the
+contract a local choice.
+
+More analysis may discover more relevant considerations; it does not enlarge
+the approved completion state.
+
+Use stable identifiers when durable tracking helps. Keep implementation,
+verification, and documentation states separate. Cite the smallest direct
+evidence for each state, and record shared delivery references once below the
+table. Longer ID-keyed evidence notes are exceptional.
+
+A task owns approval, execution steps, findings, and completion notes. Link it
+to requirements rather than copying the specification or turning the
+requirements record into a second plan.
+```
+
+This replacement removes the current broad negative list and makes necessity,
+traceability, proportional grouping, quality/constraint roles, and public
+decision authority explicit without requiring a larger specification
+structure.
+
+### 10. Replace the testing subsection
+
+Replace `## Plan testing around risks and boundaries` with the following
+candidate text. Keep the current compact test-level table between the first and
+second paragraphs.
+
+```markdown
+## Plan testing around risks and boundaries
+
+For each requirement or coherent requirement group, identify the failure that
+must be detected and the lowest-cost boundary that can detect it reliably.
+
+> Use the least expensive test that proves the requirement without mocking
+> away the important boundary.
+
+[Keep the current unit/component, integration, end-to-end/hosted/native, and
+manual test-level table here.]
+
+A cheap test is not useful evidence when its mocks bypass the behavior being
+claimed. Use a real component, storage layer, transport, process, adapter, or
+deployed environment when the requirement appears only at that crossing. When
+the important environment is unavailable, record the gap instead of
+substituting a weaker test and calling the requirement verified.
+
+Select representative cases from the behavior and risk. Cover meaningful
+boundaries and regressions, but do not multiply every operation by every state
+when fewer cases prove the same outcome. Do not add tests for unresolved or
+unapproved behavior.
+
+Assert exact values, structures, ordering, markup, internal calls, or source
+identity only when they are required behavior or part of an approved public,
+persisted, interoperability, security, or compatibility contract. Otherwise
+test the observable outcome and the minimum stable properties needed to prove
+it.
+
+Requirement verification maps the approved outcomes to decisive acceptance
+evidence. Lower-level unit tests, internal invariants, and robustness checks
+belong in additional implementation verification only when they cover a
+distinct material risk. Routine formatting, lint, compilation, and broad
+passing-test counts are supporting checks, not the main acceptance story.
+
+Record important exclusions and remaining verification. Manual verification
+is complete only when a human performs or directly confirms it; an automated
+or AI-generated checklist remains a plan.
+
+Create `testing-strategy.md` only when important crossings, expensive or
+manual checks, credible test tradeoffs, or durable exclusions need more
+explanation than the task or conversational plan can carry.
+
+After implementation, report the few tests or observations that directly
+prove the requested outcome and state what remains unverified.
+```
+
+The replacement must preserve the balance demonstrated by the evaluation:
+current guidance avoided material combinatorial expansion, but nine of 21
+plans still lacked complete decisive evidence.
+
+### 11. Keep root agent guidance concise
+
+1. Inspect the root `AGENTS.md` documentation and testing sections for
+   statements that conflict with the two replacements.
+2. Do not copy the new definitions or examples into root agent guidance.
+3. Keep repository-specific test realism, integration-boundary, and
+   documentation-routing rules only where they add project-specific behavior.
+4. Remove or merge duplicate general requirement/documentation wording and
+   route readers to `docs/development/documentation.md`.
+5. Keep the root documentation section within the existing 200–300 word
+   budget.
+
+Replace:
+
+> Prefer **unit tests** first (pure functions, protocol implementations, small
+> helpers).
+
+with:
+
+> Use unit or component tests when the behavior can be proved locally; choose
+> the lowest test boundary that still contains the failure being detected.
+
+Replace the current `**When to update docs**` subsection with:
+
+```markdown
+**Documentation changes**
+- Follow `## Documentation ownership and workflow` above and
+  `docs/development/documentation.md`.
+- For consumer-visible behavior, update the owning current user documentation
+  and affected cross-package guidance.
+- For durable implementation, architecture, testing, or maintenance changes,
+  update the owning developer documentation.
+- For target changes, update the specification first and keep requirement
+  implementation, verification, and documentation state current.
+- After example changes, update source and tests, then regenerate
+  `EXAMPLES.md`.
+```
+
+The replacement retains repository-specific update triggers without repeating
+package placement, current-versus-target definitions, or migration guidance.
+
+### 12. Hand off paired behavior verification
+
+1. Update the governing specification and `DOCGUIDE-005`–`DOCGUIDE-006` target
+   before changing public guidance.
+2. Give subtask 069 the exact candidate text and the committed Dataset B
+   baseline from subtask 067.
+3. Do not alter scenario prompts, fixtures, hidden targets, producer profiles,
+   efforts, or semantic assertions for the candidate comparison.
+4. Treat requirement count as descriptive. Acceptance is based on complete
+   target coverage, no material unsupported behavior or wrong-record
+   requirements, proportionate grouping, and decisive testing evidence.
+5. Keep documentation-only, task-only, and testing-only findings distinct in
+   the comparison.
+6. Stop for human review after the paired candidate matrix; do not lengthen the
+   guidance merely to eliminate isolated stochastic structure failures.
+
 ### Implementation decisions and open questions
 
 - **Approved file structure:** `docs/development/documentation.md` and
@@ -1167,9 +1350,24 @@ and route checks are completed by the agent before the bundle is sent.
 - **Approved specification naming:** capability names are primary;
   cross-package placement or portability does not automatically become a title
   or directory prefix.
-- **Behavioral-test ownership:** subtask 015 owns revised scenario
-  implementation and model execution; 010 owns the public wording and expected
-  behavior.
+- **Behavioral-test ownership:** subtask 015 owns the generic evaluation
+  framework and original documentation consumers; subtask 067 owns the
+  committed requirement/testing baseline and evaluator; subtask 069 owns the
+  paired candidate matrix. This task owns the general public wording and
+  expected behavior.
+- **Evidence-backed follow-up:** subtask 067 demonstrates complete requirement
+  coverage with substantially lower expansion under current task guidance, but
+  public-decision ambiguity, compatibility fragmentation, missing important
+  test evidence, and implementation-coupled verification remain.
+- **Proposed requirement wording:** the Step 9 replacement is the complete
+  candidate. Further prose is added only if paired evidence shows that this
+  version is insufficient.
+- **Proposed testing wording:** the Step 10 replacement is the complete
+  candidate. It deliberately addresses both over-testing and missing
+  boundary-correct evidence.
+- **Task-guidance ownership:** subtask 068 owns canonical/bundled `TASKS-v7`
+  synchronization; subtask 069 owns evidence-backed task-guidance wording and
+  paired real-model validation.
 - **Compatibility ownership:** subtask 060 owns final public redirects and
   navigation. 010 records mappings and avoids competing maintained guidance.
 - No unresolved requirement question remains. Local examples and exact
@@ -1182,7 +1380,7 @@ and route checks are completed by the agent before the bundle is sent.
 - `docs/development/crystal-lattice-documentation.md`
 - root `AGENTS.md`
 - root README/docs entry-point links affected by the route change
-- `maintainer/specifications/documentation-and-specification-standard/`
+- `maintainer/docs/development/specifications/documentation-guidance/`
 - task 010 and the parent task
 - subtask 015 scenario definitions after separate approval
 - subtask 060 compatibility mapping
@@ -1206,6 +1404,13 @@ and route checks are completed by the agent before the bundle is sent.
 - [x] Send a review bundle no longer than 30 normal Kindle pages.
 - [ ] Obtain final human readability review.
 - [ ] Add completion notes and update the parent task.
+- [x] Update the governing target for the evidence-backed follow-up.
+- [x] Replace the requirements subsection with the approved Step 9 text.
+- [x] Replace the testing subsection with the approved Step 10 text and its
+  evidence-backed v2 refinement.
+- [x] Reconcile only conflicting duplicate root AGENTS wording.
+- [x] Hand off and review the paired candidate behavior matrix from subtask
+  069.
 
 ### Requirement verification
 
@@ -1219,6 +1424,7 @@ and route checks are completed by the agent before the bundle is sent.
 | `DOCLOCAL-001`–`DOCLOCAL-002` | The Crystal Lattice page maps only local paths and exceptions, preserves plugin and maintainer boundaries, and names specifications by capability. |
 | `DOCAGENT-001` | The measured root section is 200–300 words and routes correctly without duplicating the full guide. |
 | `DOCVAL-010` | Approved held-out-vocabulary, reasoning-effort, testing-balance, and verification-report scenarios run with preserved results and human interpretation. |
+| `DOCVAL-012` | Current, candidate-v1, and candidate-v2 task/semantic records are frozen; the focused comparison is ready for human review before further wording or decomposition work. |
 
 ### Additional implementation verification
 

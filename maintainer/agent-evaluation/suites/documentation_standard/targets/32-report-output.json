@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "scenario_id": "32-report-output",
+  "title": "Optional report output file",
+  "task_summary": "Add an optional CLI file destination while preserving the existing JSON report and standard-output behavior.",
+  "required_outcomes": [
+    {
+      "id": "OUTPUT-1",
+      "outcome": "The CLI accepts an optional output-file argument.",
+      "why_required": "This is the requested command-line capability."
+    },
+    {
+      "id": "OUTPUT-2",
+      "outcome": "When an output file is supplied, the CLI writes the same UTF-8 JSON report text that the existing command produces.",
+      "why_required": "The file path must preserve the existing report content and encoding."
+    },
+    {
+      "id": "OUTPUT-3",
+      "outcome": "When an output file is supplied successfully, the report is not also printed to standard output.",
+      "why_required": "The request explicitly selects one report destination."
+    },
+    {
+      "id": "OUTPUT-4",
+      "outcome": "When no output file is supplied, the existing standard-output and success behavior is unchanged.",
+      "why_required": "The optional argument must preserve existing callers and workflows."
+    },
+    {
+      "id": "OUTPUT-5",
+      "outcome": "A file-write failure produces a non-zero result and a clear error without claiming success.",
+      "why_required": "The request defines the observable failure contract."
+    }
+  ],
+  "compatibility_constraints": [
+    "The report's JSON formatting remains unchanged for both destinations.",
+    "The command without the new option retains its existing output and result."
+  ],
+  "acceptable_grouping": [
+    "OUTPUT-1, OUTPUT-2, and OUTPUT-3 may be grouped as one successful file-output requirement if each behavior remains clear.",
+    "OUTPUT-4 may be combined with the formatting compatibility constraint.",
+    "OUTPUT-5 should remain distinguishable as the failure outcome."
+  ],
+  "supporting_details": [
+    "The target may name UTF-8 explicitly because the request does.",
+    "The target may state that the existing renderer remains the source of report text without requiring one implementation."
+  ],
+  "optional_adjacent_work": [
+    "Atomic replacement",
+    "Creating missing parent directories",
+    "Interactive overwrite confirmation",
+    "Additional output formats",
+    "Compression",
+    "Telemetry"
+  ],
+  "not_prescribed": [
+    "Exact parser library",
+    "Exact diagnostic wording or output stream",
+    "Overwrite policy when the destination already exists",
+    "Exact specification file split",
+    "Tests or documentation work as separate product requirements"
+  ],
+  "open_questions": []
+}

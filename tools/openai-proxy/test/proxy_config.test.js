@@ -17,7 +17,10 @@ test("loads configured values and secrets from named environment variables", () 
         base_url: "https://api.example.test/v1/",
         api_key_env: "UPSTREAM_TEST_KEY",
       },
-      routing: { base_path: "/review/v1/" },
+      routing: {
+        base_path: "/review/v1/",
+        allowed_endpoints: ["models", "/responses"],
+      },
       client_auth: { api_key_env: "CLIENT_TEST_KEY" },
       models: {
         allowed: ["model-a"],
@@ -52,6 +55,7 @@ test("loads configured values and secrets from named environment variables", () 
         blocked_status: 430,
         unauthorized_status: 431,
         invalid_model_status: 432,
+        unsupported_endpoint_status: 433,
       },
     }),
   );
@@ -68,6 +72,7 @@ test("loads configured values and secrets from named environment variables", () 
   assert.equal(config.host, "127.0.0.2");
   assert.equal(config.port, 4321);
   assert.equal(config.basePath, "/review/v1");
+  assert.deepEqual(config.allowedEndpoints, ["/models", "/responses"]);
   assert.equal(config.hideHeaders, false);
   assert.equal(config.logBodies, true);
   assert.equal(config.longTextThreshold, 321);
@@ -85,6 +90,7 @@ test("loads configured values and secrets from named environment variables", () 
   assert.equal(config.blockedStatus, 430);
   assert.equal(config.unauthorizedStatus, 431);
   assert.equal(config.invalidModelStatus, 432);
+  assert.equal(config.unsupportedEndpointStatus, 433);
 });
 
 test("configured secrets must be supplied through named environment variables", () => {

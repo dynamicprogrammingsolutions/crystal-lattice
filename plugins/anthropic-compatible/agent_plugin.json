@@ -6,6 +6,8 @@
     "anthropic_plugins.tools_extension.AnthropicToolsExtension",
     "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
     "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension",
+    "anthropic_plugins.context_editing_extension.AnthropicContextEditingExtension",
+    "anthropic_plugins.compaction_extension.AnthropicCompactionExtension",
     "anthropic_plugins.usage_extension.AnthropicUsageExtension",
     "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
   ],
@@ -14,6 +16,8 @@
     "anthropic_plugins.tools_extension.AnthropicToolsExtension": "extensions",
     "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension": "extensions",
     "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension": "extensions",
+    "anthropic_plugins.context_editing_extension.AnthropicContextEditingExtension": "extensions",
+    "anthropic_plugins.compaction_extension.AnthropicCompactionExtension": "extensions",
     "anthropic_plugins.usage_extension.AnthropicUsageExtension": "extensions",
     "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension": "extensions"
   }

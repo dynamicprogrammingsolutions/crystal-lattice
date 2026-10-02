@@ -79,10 +79,15 @@ node tools/openai-proxy/proxy.js \
 ```
 
 JSON can configure the listener, upstream and base path, incoming and outgoing
-API-key environment names, allowed models and service tiers, response status
-codes, delay, logging, budget, cooldown, pricing, long-context rules, request
-serialization, and persistent state. Existing positional commands remain
-supported.
+API-key environment names, allowed endpoint paths, allowed models and service
+tiers, response status codes, delay, logging, budget, cooldown, pricing,
+long-context rules, request serialization, and persistent state. Existing
+positional commands remain supported.
+
+`routing.allowed_endpoints` is optional. When configured, requests to other
+paths under the proxy base are rejected before upstream forwarding. The
+Ireland reviewer deployment permits only `models` and `responses`, so its
+reviewer acceptance path cannot silently fall back to Chat Completions.
 
 `models.request_overrides` applies configurable endpoint-specific top-level
 request values. Endpoint keys replace `/` with `_`; for example,

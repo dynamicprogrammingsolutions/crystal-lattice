@@ -66,7 +66,12 @@ def test_refresh_chatgpt_credentials_rotates_tokens_and_persists(
 
     captured: dict[str, object] = {}
 
-    def _fake_urlopen(request: object, timeout: float) -> _StubHTTPResponse:
+    def _fake_urlopen(
+        request: object,
+        timeout: float,
+        context: object,
+    ) -> _StubHTTPResponse:
+        assert context is not None
         captured["timeout"] = timeout
         captured["url"] = request.full_url
         captured["payload"] = json.loads(request.data.decode("utf-8"))
@@ -134,7 +139,12 @@ def test_refresh_chatgpt_credentials_maps_revoked_token_to_sign_in_again(
     credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
     _write_credentials(credentials_path)
 
-    def _fake_urlopen(request: object, timeout: float) -> _StubHTTPResponse:
+    def _fake_urlopen(
+        request: object,
+        timeout: float,
+        context: object,
+    ) -> _StubHTTPResponse:
+        assert context is not None
         _ = (request, timeout)
         raise HTTPError(
             "https://auth.openai.com/oauth/token",
@@ -156,7 +166,12 @@ def test_refresh_chatgpt_credentials_surfaces_transient_network_failures(
     credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
     _write_credentials(credentials_path)
 
-    def _fake_urlopen(request: object, timeout: float) -> _StubHTTPResponse:
+    def _fake_urlopen(
+        request: object,
+        timeout: float,
+        context: object,
+    ) -> _StubHTTPResponse:
+        assert context is not None
         _ = (request, timeout)
         raise URLError("network down")
 

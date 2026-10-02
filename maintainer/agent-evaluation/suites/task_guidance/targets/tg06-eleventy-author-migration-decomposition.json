@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg06-eleventy-author-migration-decomposition",
+  "category": "decomposition",
+  "title": "Eleventy author metadata migration decomposition",
+  "task_summary": "Partition a broad content/build migration by compatible working states rather than files and phases.",
+  "project": {
+    "name": "Eleventy author metadata migration fixture",
+    "kind": "static content site and authoring tooling",
+    "fixture_id": "tg06-eleventy-author-migration",
+    "upstream": "https://github.com/11ty/eleventy-base-blog",
+    "revision": "26b26106d7fbb30b7b40d9ef52589d10ddbcb462"
+  },
+  "approved_outcomes": [
+    {"id": "AUTHOR-1", "outcome": "Legacy single-author and structured one-or-more-author metadata normalize to one documented internal representation during migration."},
+    {"id": "AUTHOR-2", "outcome": "Pages, archives, feeds, and metadata render equivalent single-author behavior and approved multi-author behavior from the normalized model."},
+    {"id": "AUTHOR-3", "outcome": "Content and authoring tools migrate safely to the structured form."},
+    {"id": "AUTHOR-4", "outcome": "Legacy form is retired only after no maintained source or generated surface depends on it."},
+    {"id": "AUTHOR-5", "outcome": "Every intermediate revision builds and publishes valid output."}
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "AUTHOR-D1",
+      "title": "Introduce dual-format normalization and compatibility",
+      "outcomes": ["AUTHOR-1", "AUTHOR-5"],
+      "independent_value": "The site can safely accept old and new content before consumers or content migrate.",
+      "dependencies": []
+    },
+    {
+      "id": "AUTHOR-D2",
+      "title": "Move generated surfaces to the normalized model",
+      "outcomes": ["AUTHOR-2", "AUTHOR-5"],
+      "independent_value": "All public output uses one stable internal representation while both source formats remain valid.",
+      "dependencies": ["AUTHOR-D1"]
+    },
+    {
+      "id": "AUTHOR-D3",
+      "title": "Migrate content and authoring tools",
+      "outcomes": ["AUTHOR-3", "AUTHOR-5"],
+      "independent_value": "Maintained producers and content stop creating new legacy dependencies.",
+      "dependencies": ["AUTHOR-D1"]
+    },
+    {
+      "id": "AUTHOR-D4",
+      "title": "Retire the legacy author form after evidence",
+      "outcomes": ["AUTHOR-4", "AUTHOR-5"],
+      "independent_value": "The migration completes only after direct content and generated-output evidence makes removal safe.",
+      "dependencies": ["AUTHOR-D2", "AUTHOR-D3"]
+    }
+  ],
+  "acceptable_partition_sizes": [3, 4, 5],
+  "acceptable_alternatives": [
+    "Combine normalization and generated-surface adoption when a clear dual-format working state remains.",
+    "Split content migration only for independently owned content collections."
+  ],
+  "fragmentation_examples": [
+    "Parser and schema tasks separated from compatibility delivery.",
+    "Page, archive, and feed templates each becoming a task.",
+    "Content rewrite and authoring helper updates split without ownership.",
+    "Unit tests, build tests, documentation, cleanup, and final review as horizontal tasks."
+  ],
+  "overpacking_examples": [
+    "One atomic change across content, normalization, templates, feeds, tooling, and rejection removes the safe compatibility window."
+  ],
+  "important_crossings": [
+    "Real front matter flows through normalization and the production Eleventy build into pages, archives, and feeds at every migration state."
+  ],
+  "open_questions": [
+    "Stable author identifier format and legacy deprecation period require approval."
+  ],
+  "handoff": {
+    "retain_plan": "Preserve working migration states, rollback assumptions, dependencies, and direct retirement evidence.",
+    "omit_plan": "Preserve current consumers/producers, compatibility constraints, public questions, and source pointers without the four-stage migration direction.",
+    "fresh_agent_plan": "A fresh agent reconstructs compatible working states and does not create a task per surface or test type."
+  },
+  "plan_target": {
+    "required_content": [
+    {"id": "PLAN-1", "content": "The normalized internal author representation both the legacy single-author form and the structured one-or-more-author form map into.", "derived_from": ["AUTHOR-1"]},
+    {"id": "PLAN-2", "content": "The rendering equivalence rules: how single-author behavior renders equivalently and what the approved multi-author behavior is, across pages, archives, feeds, and metadata.", "derived_from": ["AUTHOR-2"]},
+    {"id": "PLAN-3", "content": "The content and authoring-tool migration approach that moves safely to the structured form.", "derived_from": ["AUTHOR-3"]},
+    {"id": "PLAN-4", "content": "The retirement condition for the legacy form: what must be true before it is retired.", "derived_from": ["AUTHOR-4"]},
+    {"id": "PLAN-5", "content": "How the constraint that every intermediate revision builds and publishes valid output shapes the phase boundaries.", "derived_from": ["AUTHOR-5"]},
+    {"id": "PLAN-6", "content": "The phase order — normalization, rendering, content and tooling, retirement — with the compatibility constraint explicit."}
+    ]
+  }
+}

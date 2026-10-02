@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import (
     Any,
     Callable,
+    Collection,
     Dict,
     Iterator,
     List,
@@ -50,6 +51,13 @@ from .config import (
     validate_resolved_config_variants,
 )
 from .events import EventStore, InMemoryEventStore
+from .history_projection import (
+    CompactHistory,
+    get_canonical_message,
+    project_session_history,
+)
+from .json_projection import project_json_document
+from .session_data_query import serialize_session_messages
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
 from .session_request_status import SessionRequestStatusService
@@ -64,7 +72,12 @@ from .sessions import (
     SessionSnapshotRecord,
     SnapshotSelectionStore,
 )
-from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
+from .tool_loop import (
+    CancellationMode,
+    RequestCancellation,
+    ToolLoopCheckpointError,
+    ToolLoopRunner,
+)
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .plugin_sources.types import PluginSource
@@ -465,6 +478,7 @@ class AgentApplication:
             policy=plugin_policy,
             sources=plugin_sources,
         )
+        self._plugin_manager = mgr
 
         providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}
@@ -484,7 +498,17 @@ class AgentApplication:
                     self._config_errors,
                 )
 
-        agents = self._config.get("agents") or {}
+        configured_agents = self._config.get("agents") or {}
+        agents = (
+            {
+                agent_id: agent_cfg
+                for agent_id, agent_cfg in configured_agents.items()
+                if isinstance(agent_cfg, dict)
+                and self._config_entry_is_enabled(agent_cfg)
+            }
+            if isinstance(configured_agents, dict)
+            else {}
+        )
         agent_plugin_specs: Dict[str, List[Any]] = {}
         agent_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(agents, dict):
@@ -649,7 +673,7 @@ class AgentApplication:
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._request_cancellations_lock = threading.RLock()
-        self._cancelled_requests: set[str] = set()
+        self._cancelled_requests: Dict[str, CancellationMode] = {}
         self._request_cancellations: Dict[str, RequestCancellation] = {}
         self._session_request_coordinator = SessionRequestCoordinator(
             app=self,
@@ -761,6 +785,7 @@ class AgentApplication:
             self._agent_plugin_runtimes[agent_id] = runtime
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
+        mgr.cleanup()
         self._raise_for_fatal_config_errors()
         if replay_server_settings_on_startup:
             self._replay_server_settings_on_startup()
@@ -768,6 +793,17 @@ class AgentApplication:
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _config_entry_is_enabled(config: Dict[str, Any]) -> bool:
+        raw = config.get("enabled", True)
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, str):
+            return raw.strip().lower() not in {"", "0", "false", "no", "off"}
+        if isinstance(raw, (int, float)):
+            return raw != 0
+        return bool(raw)
 
     @contextmanager
     def acquire_session_lock(self, session_id: str) -> Iterator[None]:
@@ -1706,6 +1742,134 @@ class AgentApplication:
         return dict(updates)
 
     @staticmethod
+    def _workspace_grants_from_config(
+        base_config: Dict[str, Any],
+    ) -> Dict[str, Dict[str, Any]]:
+        raw = base_config.get("workspace_grants")
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                raw = {}
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(grant_id): dict(record)
+            for grant_id, record in raw.items()
+            if isinstance(grant_id, str) and isinstance(record, dict)
+        }
+
+    @classmethod
+    def _resolve_workspace_selection(
+        cls,
+        base_config: Dict[str, Any],
+        session_id: str,
+        workspace_id: str,
+    ) -> Path:
+        workspace_root = Path(str(base_config["workspace_root"])).expanduser().resolve()
+        if workspace_id == "shared:root":
+            candidate = workspace_root
+        elif workspace_id.startswith("shared:"):
+            relative = Path(workspace_id.removeprefix("shared:"))
+            if relative.is_absolute() or ".sessions" in relative.parts:
+                raise ValueError("shared workspace selection is invalid")
+            candidate = (workspace_root / relative).resolve()
+            try:
+                candidate.relative_to(workspace_root)
+            except ValueError as exc:
+                raise ValueError("shared workspace selection escapes workspace_root") from exc
+        elif workspace_id.startswith("private:"):
+            parts = workspace_id.split(":", 2)
+            if len(parts) != 3 or parts[1] != session_id:
+                raise ValueError("private workspace belongs to another session")
+            relative = Path(parts[2])
+            private_root = (workspace_root / ".sessions" / session_id).resolve()
+            candidate = (private_root / relative).resolve()
+            try:
+                candidate.relative_to(private_root)
+            except ValueError as exc:
+                raise ValueError("private workspace selection is invalid") from exc
+        elif workspace_id.startswith("external:"):
+            grant_id = workspace_id.removeprefix("external:")
+            record = cls._workspace_grants_from_config(base_config).get(grant_id)
+            raw_path = record.get("path") if isinstance(record, dict) else None
+            if (
+                not isinstance(raw_path, str)
+                or not raw_path.strip()
+                or record.get("available") is not True
+            ):
+                raise ValueError("external workspace permission is unavailable")
+            candidate = Path(raw_path).expanduser().resolve()
+        else:
+            raise ValueError("workspace_id is not recognized")
+
+        if not candidate.is_dir():
+            raise ValueError("selected workspace must identify an existing directory")
+        return candidate
+
+    @classmethod
+    def _validate_workspace_session_updates(
+        cls,
+        base_config: Dict[str, Any],
+        session_id: str,
+        updates: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        raw_workspace_root = base_config.get("workspace_root")
+        if not isinstance(raw_workspace_root, str) or not raw_workspace_root.strip():
+            return updates
+
+        locked_keys = {"workspace_root", "allowed_paths", "workspace_grants"}
+        attempted_locked = sorted(locked_keys.intersection(updates))
+        if attempted_locked:
+            raise ValueError(
+                "session settings cannot override fixed workspace keys: "
+                + ", ".join(attempted_locked)
+            )
+
+        if "workspace_id" in updates:
+            raw_workspace_id = updates.get("workspace_id")
+            if not isinstance(raw_workspace_id, str) or not raw_workspace_id.strip():
+                raise ValueError("workspace_id must be a non-empty string")
+            working_directory = cls._resolve_workspace_selection(
+                base_config,
+                session_id,
+                raw_workspace_id.strip(),
+            )
+            return {
+                **updates,
+                "workspace_id": raw_workspace_id.strip(),
+                "working_directory": str(working_directory),
+            }
+
+        if "working_directory" not in updates:
+            return updates
+
+        raw_working_directory = updates.get("working_directory")
+        if (
+            not isinstance(raw_working_directory, str)
+            or not raw_working_directory.strip()
+        ):
+            raise ValueError("working_directory must be a non-empty string")
+
+        workspace_root = Path(raw_workspace_root).expanduser().resolve()
+        working_path = Path(raw_working_directory).expanduser()
+        if not working_path.is_absolute():
+            working_path = workspace_root / working_path
+        working_directory = working_path.resolve()
+
+        try:
+            working_directory.relative_to(workspace_root)
+        except ValueError as exc:
+            raise ValueError(
+                "working_directory must be contained by workspace_root"
+            ) from exc
+
+        if not working_directory.is_dir():
+            raise ValueError("working_directory must identify an existing directory")
+
+        return {**updates, "working_directory": str(working_directory)}
+
+    @staticmethod
     def _changed_setting_keys(
         old_settings: Dict[str, Any],
         new_settings: Dict[str, Any],
@@ -1837,6 +2001,11 @@ class AgentApplication:
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
+            normalized_updates = self._validate_workspace_session_updates(
+                base_config,
+                session_id,
+                normalized_updates,
+            )
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
             old_settings = dict(self._normalized_settings(metadata.get("overrides")))
             new_settings = {**old_settings, **normalized_updates}
@@ -2301,6 +2470,7 @@ class AgentApplication:
                 )
         self._runtime_store.close()
         self._async_runtime_host.close()
+        self._plugin_manager.close()
         if self._runtime_env_finalizer.alive:
             self._runtime_env_finalizer()
 
@@ -2613,22 +2783,38 @@ class AgentApplication:
         return mutation.notification
 
     def cancel_request(self, request_id: str) -> None:
-        """Request cooperative cancellation for an in-flight request.
+        """Request hard cancellation for an in-flight request.
 
-        Cancellation is best-effort and affects only send_request calls that
-        observe this ``request_id``. Providers and tool loops must periodically
-        check for cancellation; long-running non-streaming calls may not stop
-        immediately.
+        Hard cancellation interrupts cooperative providers and foreground
+        tools, then prevents later request phases from starting.
         """
 
         if not isinstance(request_id, str) or not request_id:
             raise ValueError("request_id must be a non-empty string")
 
         with self._request_cancellations_lock:
-            self._cancelled_requests.add(request_id)
+            self._cancelled_requests[request_id] = "hard"
             cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def soft_cancel_request(self, request_id: str) -> None:
+        """Stop a request after its active tool reaches a safe boundary.
+
+        Providers remain interruptible. A foreground tool already in progress
+        is allowed to finish and persist its result before the request stops.
+        """
+
+        if not isinstance(request_id, str) or not request_id:
+            raise ValueError("request_id must be a non-empty string")
+
+        with self._request_cancellations_lock:
+            existing = self._cancelled_requests.get(request_id)
+            if existing != "hard":
+                self._cancelled_requests[request_id] = "soft"
+            cancellation = self._request_cancellations.get(request_id)
+        if cancellation is not None and existing != "hard":
+            cancellation.soft_cancel()
 
     def _register_request_cancellation(
         self,
@@ -2637,15 +2823,18 @@ class AgentApplication:
         """Atomically register live cancellation after honoring early requests."""
 
         with self._request_cancellations_lock:
-            cancellation = RequestCancellation(
-                cancelled=request_id in self._cancelled_requests
-            )
+            mode = self._cancelled_requests.get(request_id)
+            cancellation = RequestCancellation()
+            if mode == "hard":
+                cancellation.cancel()
+            elif mode == "soft":
+                cancellation.soft_cancel()
             self._request_cancellations[request_id] = cancellation
             return cancellation
 
     def _clear_request_cancellation(self, request_id: str) -> None:
         with self._request_cancellations_lock:
-            self._cancelled_requests.discard(request_id)
+            self._cancelled_requests.pop(request_id, None)
             self._request_cancellations.pop(request_id, None)
 
     def start_session_request(
@@ -2695,6 +2884,8 @@ class AgentApplication:
         *,
         stream: bool = True,
         on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        timeout: float | None = None,
     ) -> SessionRequestResult:
         """Run a coordinated request synchronously."""
 
@@ -2703,6 +2894,39 @@ class AgentApplication:
             overrides,
             stream=stream,
             on_checkpoint=on_checkpoint,
+            on_event=on_event,
+            timeout=timeout,
+        )
+
+    def run_session_request_with_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        timeout: float | None = None,
+    ) -> SessionRequestResult:
+        """Atomically append one message and run a coordinated request."""
+
+        return self._session_request_coordinator.run(
+            session_id,
+            overrides,
+            stream=stream,
+            on_checkpoint=on_checkpoint,
+            on_event=on_event,
+            message={
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+                "multipart_content": multipart_content,
+            },
+            timeout=timeout,
         )
 
     def get_active_session_request_id(self, session_id: str) -> str | None:
@@ -3687,6 +3911,30 @@ class AgentApplication:
             limit=limit,
         )
 
+    def list_session_summaries_document(
+        self,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+        limit: Optional[int] = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return the shared session envelope with optional JSONPath projection."""
+
+        document = {
+            "sessions": self.list_session_summaries(
+                filter_values=filter_values,
+                apply_filter_defaults=apply_filter_defaults,
+                limit=limit,
+            )
+        }
+        return project_json_document(
+            document,
+            include=include,
+            exclude=exclude,
+        )
+
     def get_session_summary(self, session_id: str) -> Dict[str, Any]:
         """Return the shared unfiltered summary for one exact session id."""
 
@@ -3748,6 +3996,69 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
         return self._session_store.load(session_id)
+
+    def list_session_messages_document(
+        self,
+        session_id: str,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        include: Sequence[str] | None = None,
+        exclude: Sequence[str] | None = None,
+    ) -> Any:
+        """Return one canonical message-range envelope with optional projection."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        document = serialize_session_messages(
+            session,
+            start=start,
+            end=end,
+        )
+        return project_json_document(
+            document,
+            include=include,
+            exclude=exclude,
+        )
+
+    def get_compact_session_history(
+        self,
+        session_id: str,
+        *,
+        start: int | None = None,
+        end: int | None = None,
+        roles: Collection[str] | None = None,
+        max_messages: int = 100,
+        max_content_chars: int = 500,
+        max_total_content_chars: int = 20_000,
+    ) -> CompactHistory:
+        """Return a bounded deterministic projection of one stored session."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return project_session_history(
+            session,
+            start=start,
+            end=end,
+            roles=roles,
+            max_messages=max_messages,
+            max_content_chars=max_content_chars,
+            max_total_content_chars=max_total_content_chars,
+        )
+
+    def get_session_message(
+        self,
+        session_id: str,
+        index: int,
+    ) -> Dict[str, Any]:
+        """Return one explicitly selected canonical message with its index."""
+
+        session = self.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return get_canonical_message(session, index)
 
     def get_selected_session_snapshot(self, session_id: str) -> str | None:
         if not isinstance(session_id, str) or not session_id:

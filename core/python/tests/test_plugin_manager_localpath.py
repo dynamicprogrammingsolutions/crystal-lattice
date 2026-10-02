@@ -679,12 +679,12 @@ def test_preinstalled_descriptor_imports_without_source_tree(
     assert not (tmp_path / "cache").exists()
 
 
-def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(
+def test_plugin_manager_disables_default_pip_download_cache(
     tmp_path: Path,
 ) -> None:
     mgr = PluginManager(cache_dir=tmp_path / ".plugin_cache" / "plugins")
 
-    assert mgr.policy["pip_cache_dir"] == str(tmp_path / ".plugin_cache" / "pip")
+    assert mgr.policy["pip_cache_dir"] is None
 
 
 def test_pip_target_installer_uses_configured_pip_cache_dir(

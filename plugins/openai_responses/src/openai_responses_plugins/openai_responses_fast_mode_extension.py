@@ -1,8 +1,16 @@
 """OpenAI Responses Fast mode extension.
 
-Owns Fast mode configuration and request-state injection. The wire-level
-OpenAI service tier for Fast mode is ``priority``. Fast mode applies to
-both API-key and ChatGPT auth modes.
+Owns Fast mode configuration and request-state injection. The current
+service-tier name for Fast mode is ``fast``; the previous name
+``priority`` is obsolete upstream and kept there only for compatibility.
+The official API accepts ``fast``, but the ChatGPT backend
+(``chatgpt.com/backend-api/codex``) rejects it with a 400 and only
+accepts the legacy ``priority`` name, so the wire value is auth-mode
+dependent: ``fast`` for API-key auth and ``priority`` for ChatGPT auth.
+Responses may report either name (the official API still reports
+``priority``), and both resolve the same fast-tier prices through the
+pricing snapshot's tier normalization. Fast mode applies to both
+API-key and ChatGPT auth modes.
 """
 
 from __future__ import annotations
@@ -17,6 +25,11 @@ _FAST_MODE_STATE_KEY = "openai_responses_fast_mode"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_SERVICE_TIER_KEY = "openai_service_tier"
 _PUBLIC_FAST_MODE_APPLIED_KEY = "fast_mode_applied"
+
+# The ChatGPT backend only accepts the legacy ``priority`` tier name; the
+# official API accepts the current ``fast`` name.
+_CHATGPT_WIRE_SERVICE_TIER = "priority"
+_API_WIRE_SERVICE_TIER = "fast"
 
 
 class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
@@ -40,8 +53,11 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
                 "required": False,
                 "default": False,
                 "description": (
-                    'Applies ``service_tier: "priority"`` to Responses calls '
-                    "for both API-key and ChatGPT auth modes."
+                    "Applies the fast processing tier "
+                    f'(``service_tier: "{_API_WIRE_SERVICE_TIER}"``, or the '
+                    f'legacy ``"{_CHATGPT_WIRE_SERVICE_TIER}"`` name required '
+                    "by the ChatGPT backend) to Responses calls for both "
+                    "API-key and ChatGPT auth modes."
                 ),
             },
         }
@@ -53,14 +69,22 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = tags, models
+        effective_config = config if isinstance(config, dict) else {}
+        if effective_config.get("show_fast_mode_ui") is False:
+            return []
+        if self._effective_auth_mode({"config": effective_config}) == "chatgpt":
+            return []
         return [
             {
                 "type": "checkbox",
                 "key": _ENABLE_FAST_MODE_KEY,
                 "label": "Enable Fast mode",
                 "description": (
-                    'Applies ``service_tier: "priority"`` to Responses calls '
-                    "for both API-key and ChatGPT auth modes."
+                    "Applies the fast processing tier "
+                    f'(``service_tier: "{_API_WIRE_SERVICE_TIER}"``, or the '
+                    f'legacy ``"{_CHATGPT_WIRE_SERVICE_TIER}"`` name required '
+                    "by the ChatGPT backend) to Responses calls for both "
+                    "API-key and ChatGPT auth modes."
                 ),
             },
         ]
@@ -68,7 +92,7 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         if config.get(_ENABLE_FAST_MODE_KEY) is not True:
             return state
-        return {**state, _FAST_MODE_STATE_KEY: {"service_tier": "priority"}}
+        return {**state, _FAST_MODE_STATE_KEY: {"enabled": True}}
 
     def to_native_messages(
         self,
@@ -115,7 +139,10 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
                     "metadata": {
                         **metadata,
                         _PUBLIC_SERVICE_TIER_KEY: service_tier,
-                        _PUBLIC_FAST_MODE_APPLIED_KEY: service_tier == "priority",
+                        # ``priority`` is the obsolete name for the same tier;
+                        # backends may still report it during the transition.
+                        _PUBLIC_FAST_MODE_APPLIED_KEY: service_tier
+                        in (_API_WIRE_SERVICE_TIER, _CHATGPT_WIRE_SERVICE_TIER),
                     },
                 }
             )
@@ -136,8 +163,31 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
             return native_messages, state
 
         payload = dict(request.get("payload") or {})
-        payload["service_tier"] = "priority"
+        payload["service_tier"] = self._wire_service_tier_for_state(state)
         return native_messages, {**state, "request": {**request, "payload": payload}}
+
+    @staticmethod
+    def _effective_auth_mode(state: Dict[str, Any]) -> str:
+        config = state.get("config") if isinstance(state, dict) else None
+        if not isinstance(config, dict):
+            return "api"
+        raw = config.get("_openai_responses_effective_auth_mode")
+        if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+            return raw.strip().lower()
+        requested = config.get("auth_mode")
+        if not isinstance(requested, str):
+            return "api"
+        normalized = requested.strip().lower()
+        if normalized == "api_key":
+            return "api"
+        if normalized == "chatgpt":
+            return "chatgpt"
+        return "api"
+
+    def _wire_service_tier_for_state(self, state: Dict[str, Any]) -> str:
+        if self._effective_auth_mode(state) == "chatgpt":
+            return _CHATGPT_WIRE_SERVICE_TIER
+        return _API_WIRE_SERVICE_TIER
 
     def _service_tier_from_native_indices(
         self,

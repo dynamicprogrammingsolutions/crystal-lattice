@@ -56,9 +56,14 @@ cannot load the SDK's native dependency closure may set:
 }
 ```
 
-The requests transport supports API-key model discovery, ordinary and
-streaming Responses calls, and tool loops. It does not provide file uploads,
-ChatGPT authentication, or async native-compaction calls.
+The requests transport supports API-key and ChatGPT-authenticated model
+discovery, ordinary and streaming Responses calls, and tool loops. It does
+not provide file uploads or async native-compaction calls.
+
+Set `tls_ca_bundle` to a PEM bundle path when a Responses-compatible endpoint
+uses a private or self-signed CA. This option applies only to
+`provider_transport: "requests"` and keeps verification enabled. Without it,
+requests uses its ordinary public CA trust behavior.
 
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
@@ -66,6 +71,10 @@ omitted from config when the env var is present.
 When `auth_mode: "chatgpt"` is selected, or when `auth_mode: "auto"` resolves
 to ChatGPT because a valid saved login exists, the provider reads a saved
 credential file instead of requiring `OPENAI_API_KEY`.
+
+ChatGPT credential refresh and direct discovery calls use an explicit
+Certifi-backed SSL context, which is important in fixed Python runtimes that
+do not have an operating-system OpenSSL default trust path.
 
 When credentials and network access are available, API-key mode fetches the
 real OpenAI model list through the OpenAI Python SDK. For ChatGPT auth, the
@@ -337,6 +346,7 @@ Reasoning controls are available through:
 
 - `reasoning_effort`
 - `reasoning_summary`
+- `reasoning_context`, presented in session settings as reasoning retention
 
 To use those options, also load
 `plugins.request_options_feature.RequestOptionsFeature`.
@@ -369,7 +379,8 @@ When prompt cache key support is enabled:
 - older sessions missing a key are repaired on first request
 - forked sessions keep the same key by default
 - users can manually edit the key through normal session settings
-- users can regenerate the key through the `regenerate_prompt_cache_key` session action
+- users can regenerate the key from the action button placed directly below
+  the cache-key field in session settings
 
 By default, prompt cache key support is enabled when this extension is loaded.
 Set `enable_prompt_cache_key: false` if you want to turn off automatic
@@ -406,9 +417,14 @@ contains `gpt-5`.
 
 ### Native compaction
 
-The bundle includes a session action that compacts provider-native history for
-future Responses turns. This is intended for context maintenance, not for
-producing a human-readable summary message.
+The bundle supports two native compaction paths:
+
+- automatic request-time compaction on ordinary Responses requests;
+- a manual session action that compacts all history or a visible prefix.
+
+Both preserve provider-native continuation data for future Responses turns.
+They are intended for context maintenance, not for producing a human-readable
+summary message.
 
 ## Configuration reference
 
@@ -427,8 +443,10 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
+- `enable_openai_automatic_compaction`: optional, defaults to `false`; enables request-time context compaction
+- `openai_compaction_trigger_tokens`: optional automatic compaction threshold, defaults to `200000`
 - `compaction_model`: optional model id for native compaction; leave empty or omit it to use `model`
-- `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force native compaction onto the API endpoint
+- `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force manual native compaction onto the API endpoint
 - `use_compaction_placeholder_transcript`: optional, defaults to `false`; set to `true` to show compacted native ranges as a single visible placeholder message instead of rebuilding the compacted native output directly
 - `timeout`: optional request timeout in seconds, defaults to `60`
 
@@ -452,19 +470,22 @@ selects the ChatGPT endpoint.
 
 ### Fast mode
 
-Fast mode applies `service_tier: "priority"` to Responses calls for both
+Fast mode applies the fast processing tier to Responses calls for both
 API-key and ChatGPT auth modes. The control is:
 
-- `enable_fast_mode`: enable `service_tier: "priority"` for Responses calls
+- `enable_fast_mode`: enable the fast processing tier for Responses calls
+  (wire value `service_tier: "fast"` for API auth; the ChatGPT backend only
+  accepts the legacy `service_tier: "priority"` name, so that value is sent
+  for ChatGPT auth)
   (applies to both API-key and ChatGPT auth modes)
 
-The usage footer renders `tier: priority` when OpenAI reports that tier, and
-cost estimation uses priority-tier pricing when the checked-in or manual
+The usage footer renders `tier: fast` when OpenAI reports that tier, and
+cost estimation uses fast-tier pricing when the checked-in or manual
 pricing data defines it. The footer also renders `mode: pro` when the
 response reports `reasoning.mode: "pro"` (Pro reasoning mode, see below).
 
 Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
-is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
+is independent of Fast mode's service tier. Both can be enabled
 at the same time on GPT-5.6 models with API auth; they touch different parts of
 the outbound payload and neither overwrites the other. Pro mode is API-only
 (see "Pro mode billing" below for the auth-mode gating).
@@ -498,6 +519,8 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
+  - GPT-6.1 Sol, GPT-6 Astra and Sol: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
@@ -507,11 +530,11 @@ loaded.
   - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
     `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
-- `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only
-  (Sol, Terra, Luna, and the bare `gpt-5.6` alias). API-only: hidden when
-  `auth_mode` is `chatgpt`.
+- `reasoning_mode`: optional string enum `["pro"]`, GPT-6.1 Sol, the
+  GPT-6 family (Astra, Sol, Luna) and the GPT-5.6 family (Sol, Terra, Luna, and the
+  bare `gpt-5.6` alias). API-only: hidden when `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, GPT-5.6 family only.
+  "all_turns"]`, GPT-5.6-and-later numeric GPT families.
 - `show_reasoning_context_footer`: set to `false` to keep reasoning-context
   behavior and metadata while hiding its assistant-message footer.
 
@@ -566,6 +589,56 @@ Tool schemas come from loaded tool plugins such as `plugins.math_tools.MathTools
 No extra config key is required beyond loading tools in the application.
 
 ### Native compaction
+
+Enable automatic compaction with:
+
+```json
+{
+  "enable_openai_automatic_compaction": true,
+  "openai_compaction_trigger_tokens": 200000
+}
+```
+
+Ordinary Responses requests then include:
+
+```json
+{
+  "context_management": [
+    {
+      "type": "compaction",
+      "compact_threshold": 200000
+    }
+  ]
+}
+```
+
+OpenAI may return one or more opaque `compaction` output items alongside the
+normal answer. These items remain in canonical provider-native history and are
+replayed on later turns.
+
+`request_options.context_management` runs later and replaces the generated
+value, preserving the standard raw request escape hatch.
+
+Automatic compaction is disabled in the shipped default configuration. Session
+settings expose both its enable toggle and token threshold (default `200000`).
+Users may opt in for a selected model regardless of authentication mode; the
+provider reports an error if the upstream endpoint rejects the request.
+
+OpenAI reasoning retention is configured separately with:
+
+```json
+{
+  "reasoning_context": "all_turns"
+}
+```
+
+The shipped default configuration makes `all_turns` explicit for
+GPT-5.6-and-later numeric model families. OpenAI Responses currently has no
+independent native strategy equivalent to Anthropic tool-use clearing.
+`truncation: "auto"` is not exposed as such because it is a different
+context-overflow behavior.
+
+Manual compaction remains available:
 
 The bundle exposes an application-owned session action with id
 `compact_native_history`. It starts native compaction in the background and
@@ -671,7 +744,9 @@ details.
 
 It exposes a session action with id `regenerate_prompt_cache_key` that replaces
 the current session-owned prompt cache key without changing the visible
-transcript.
+transcript. Its UI element uses the `session_settings` placement and anchors
+the button after `prompt_cache_key`, so frontends supporting settings actions
+do not also place it in the ordinary session-action bar.
 
 ## Capabilities and caveats
 
@@ -697,6 +772,8 @@ transcript.
   summary. See the
   [native compaction specification](docs/development/specifications/native-compaction/index.md)
   for the protocol, compatibility, and lifecycle contract.
+- OpenAI Responses currently exposes automatic compaction and reasoning
+  retention, but not an independent provider-native tool-use-clearing policy.
 
 ## Bundle layout
 

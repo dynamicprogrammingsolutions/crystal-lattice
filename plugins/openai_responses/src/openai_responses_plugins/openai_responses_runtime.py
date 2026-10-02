@@ -119,6 +119,7 @@ def build_openai_sdk_client(
             timeout=timeout,
             default_headers=chatgpt_default_headers(config),
             max_retries=max_retries or 0,
+            verify=config.get("tls_ca_bundle") or True,
         )
     if OpenAI is None:
         raise RuntimeError(

@@ -328,7 +328,8 @@ MAX_TIMEOUT_MS = 600_000
 SENTINEL_STATUS = "__CLAUDE_BASH_STATUS__:"
 SENTINEL_CWD = "__CLAUDE_BASH_CWD__:"
 SENTINEL_RE = re.compile(
-    rf"\n{re.escape(SENTINEL_STATUS)}(?P<status>-?\d+)\n{re.escape(SENTINEL_CWD)}(?P<cwd>[^\n]*)\n?$",
+    rf"\r?\n{re.escape(SENTINEL_STATUS)}(?P<status>-?\d+)\r?\n"
+    rf"{re.escape(SENTINEL_CWD)}(?P<cwd>[^\r\n]*)\r?\n?$",
     re.S,
 )
 
@@ -365,7 +366,35 @@ def _tool_result_block(
     }
 
 
-def _wrap_foreground_command(command: str) -> str:
+def _wrap_foreground_command(command: str, *, shell: ShellInfo) -> str:
+    if shell.name == "powershell":
+        quoted = "'" + command.replace("'", "''") + "'"
+        return (
+            f"$__crystal_command = {quoted}; "
+            "$global:LASTEXITCODE = 0; "
+            "Invoke-Expression $__crystal_command; "
+            "$__crystal_success = $?; "
+            "$__crystal_status = if ($__crystal_success) { "
+            "$LASTEXITCODE "
+            "} elseif ($LASTEXITCODE -ne 0) { "
+            "$LASTEXITCODE "
+            "} else { 1 }; "
+            "if ($null -eq $__crystal_status) { $__crystal_status = 0 }; "
+            "$__crystal_cwd = (Get-Location).Path; "
+            f'[Console]::Out.Write("`n{SENTINEL_STATUS}'
+            f'$__crystal_status`n{SENTINEL_CWD}$__crystal_cwd`n"); '
+            "exit 0"
+        )
+    if shell.name == "cmd":
+        return (
+            f"{command}\r\n"
+            'set "__CRYSTAL_STATUS=%ERRORLEVEL%"\r\n'
+            'set "__CRYSTAL_CWD=%CD%"\r\n'
+            f"echo.\r\necho {SENTINEL_STATUS}%__CRYSTAL_STATUS%\r\n"
+            f"echo {SENTINEL_CWD}%__CRYSTAL_CWD%\r\n"
+            "exit /b 0"
+        )
+
     quoted = shlex.quote(command)
     return (
         'ORIG_PWD="$PWD"; '
@@ -609,23 +638,26 @@ class ClaudeBashTool(ToolPlugin):
         *,
         timeout_ms: int,
         working_directory: str,
+        cancellation: Any | None = None,
     ) -> Dict[str, Any]:
         shell = _detect_login_shell()
-        wrapped = _wrap_foreground_command(command)
+        wrapped = _wrap_foreground_command(command, shell=shell)
         result = _run_async(
             run_shell_command(
                 wrapped,
                 workdir=working_directory,
                 timeout_seconds=timeout_ms / 1000.0,
                 shell=shell,
+                cancellation=cancellation,
             )
         )
-        if result.get("timed_out"):
+        if result.get("timed_out") or result.get("cancelled"):
             return {
                 "exit_code": 143,
                 "output": str(result.get("output") or "").rstrip("\n"),
                 "success": False,
                 "cwd": working_directory,
+                "cancelled": bool(result.get("cancelled")),
             }
         parsed = _parse_wrapped_output(
             str(result.get("output") or ""),
@@ -647,6 +679,7 @@ class ClaudeBashTool(ToolPlugin):
         *,
         tool_call: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
         **_: Any,
     ) -> Dict[str, Any]:
         if tool_name != "Bash":
@@ -784,6 +817,7 @@ class ClaudeBashTool(ToolPlugin):
             command.strip(),
             timeout_ms=timeout_ms,
             working_directory=resolved,
+            cancellation=cancellation,
         )
         exit_code = int(foreground["exit_code"])
         output = str(foreground["output"] or "")
@@ -799,15 +833,17 @@ class ClaudeBashTool(ToolPlugin):
                 end_cwd=end_cwd,
                 cwd_persistence=cwd_persistence,
             )
-        extra: Optional[Dict[str, Any]] = None
+        extra: Dict[str, Any] = {}
         if cwd_persistence:
             stored = _cwd_for_storage(end_cwd, working_directory)
-            extra = {"metadata": {"bash": {"end_cwd": stored}}}
+            extra["metadata"] = {"bash": {"end_cwd": stored}}
+        if foreground.get("cancelled"):
+            extra["cancelled"] = True
         return self._result(
             tool_use_id=tool_use_id,
             message=message,
             success=bool(foreground["success"]),
-            extra=extra,
+            extra=extra or None,
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:

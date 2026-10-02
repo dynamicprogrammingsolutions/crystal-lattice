@@ -1,0 +1,337 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from collections.abc import Iterator
+
+import pytest
+
+from .requirement_quality import (
+    PRODUCER_CASES,
+    ROOT_GUIDANCE_MODES,
+    SCENARIOS,
+    RequirementQualityScenario,
+    load_target,
+)
+from .requirement_quality_evaluator import (
+    DEFAULT_ARTIFACT_ROOT,
+    load_compiled_guidance_dataset,
+    parse_evaluator_response_with_repairs,
+    semantic_validity_failure_names,
+)
+from .root_guidance_quality import (
+    compiled_semantic_record_paths,
+    QUALITY_PROMPT_VERSION,
+    build_quality_prompt,
+    mapped_quality_result,
+    quality_label_mapping,
+    validate_quality_result,
+)
+from .support import (
+    AssertionFinding,
+    DocumentationEvaluationHarness,
+    PROFILES,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    assert_findings,
+    basic_run_findings,
+    enforce_real_model_gate,
+    require_run_value,
+)
+
+
+pytestmark = [pytest.mark.agent_eval, pytest.mark.root_guidance_quality]
+RECORD_NAME = "root-guidance-pairwise-quality.json"
+DEFAULT_SEMANTIC_REPEAT_VARIANT = "compiled-matrix-r1"
+DEFAULT_BASELINE_BUNDLE = "maintainer/guidance/current"
+DEFAULT_CANDIDATE_BUNDLE = (
+    "maintainer/guidance/candidates/root-requirements-testing-v2"
+)
+
+
+def _quality_bundles() -> dict[str, str]:
+    return {
+        "baseline": os.getenv(
+            "AGENT_EVAL_QUALITY_BASELINE_BUNDLE",
+            DEFAULT_BASELINE_BUNDLE,
+        ).strip(),
+        "combined-v2": os.getenv(
+            "AGENT_EVAL_QUALITY_CANDIDATE_BUNDLE",
+            DEFAULT_CANDIDATE_BUNDLE,
+        ).strip(),
+    }
+
+
+def _semantic_repeat_variant() -> str:
+    return os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_SEMANTIC_VARIANT",
+        DEFAULT_SEMANTIC_REPEAT_VARIANT,
+    ).strip()
+
+
+def _producer_repeat_variant() -> str | None:
+    return (
+        os.getenv(
+            "AGENT_EVAL_ROOT_GUIDANCE_PRODUCER_VARIANT",
+            "",
+        ).strip()
+        or None
+    )
+
+
+@pytest.fixture(scope="session")
+def quality_evaluator_harness() -> Iterator[DocumentationEvaluationHarness]:
+    profile = PROFILES["glm"]
+    enforce_real_model_gate(profile)
+    harness = DocumentationEvaluationHarness(
+        profile,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
+    yield harness
+    harness.close()
+
+
+def _selected_modes() -> tuple[str, ...]:
+    value = os.getenv("AGENT_EVAL_ROOT_GUIDANCE_QUALITY_MODES", "").strip()
+    modes = tuple(item.strip() for item in value.split(",") if item.strip())
+    unknown = set(modes).difference(ROOT_GUIDANCE_MODES)
+    if unknown:
+        raise ValueError(f"unknown root-guidance quality modes: {unknown!r}")
+    return modes or tuple(sorted(ROOT_GUIDANCE_MODES))
+
+
+def _selected_candidate_ids() -> set[str]:
+    values = {
+        item.strip()
+        for item in os.getenv(
+            "AGENT_EVAL_ROOT_GUIDANCE_CANDIDATES",
+            "",
+        ).split(",")
+        if item.strip()
+    }
+    valid = {f"{profile}-{effort}" for profile, effort in PRODUCER_CASES}
+    unknown = values.difference(valid)
+    if unknown:
+        raise ValueError(f"unknown root-guidance quality candidates: {unknown!r}")
+    return values
+
+
+def _producer_record(
+    *,
+    bundle: str,
+    mode: str,
+    scenario: RequirementQualityScenario,
+    producer_case: tuple[str, str],
+) -> dict:
+    dataset = load_compiled_guidance_dataset(
+        bundle=bundle,
+        mode=mode,
+        scenario_ids=(scenario.scenario_id,),
+        producer_cases=(producer_case,),
+        repeat_variant=_producer_repeat_variant(),
+        require_valid_producers=True,
+    )
+    return dataset["records"][0]
+
+
+def _semantic_record(
+    *,
+    bundle: str,
+    bundle_id: str,
+    mode: str,
+    scenario: RequirementQualityScenario,
+    candidate_id: str,
+) -> tuple[dict, dict]:
+    paths = compiled_semantic_record_paths(
+        DEFAULT_ARTIFACT_ROOT,
+        bundle_id=bundle_id,
+        mode=mode,
+        scenario_id=scenario.scenario_id,
+        repeat_variant=_semantic_repeat_variant(),
+    )
+    for path in reversed(paths):
+        value = json.loads(path.read_text(encoding="utf-8"))
+        failed_findings = semantic_validity_failure_names(value)
+        if failed_findings:
+            continue
+        for assessment in value["result"]["assessments"]:
+            if assessment["candidate_id"] == candidate_id:
+                return value, {
+                    **assessment,
+                    "source_run_id": path.parents[1].name,
+                    "source_record_sha256": hashlib.sha256(
+                        path.read_bytes()
+                    ).hexdigest(),
+                }
+    raise FileNotFoundError(
+        "missing full-matrix semantic assessment for "
+        f"{bundle}/{mode}/{scenario.scenario_id}/{candidate_id}"
+    )
+
+
+@pytest.mark.parametrize("mode", sorted(ROOT_GUIDANCE_MODES))
+@pytest.mark.parametrize(
+    ("producer_profile", "reasoning_effort"),
+    PRODUCER_CASES,
+    ids=lambda value: value,
+)
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda value: value.scenario_id)
+@pytest.mark.requirements("DOCVAL-013")
+def test_root_guidance_pairwise_quality(
+    quality_evaluator_harness: DocumentationEvaluationHarness,
+    scenario: RequirementQualityScenario,
+    producer_profile: str,
+    reasoning_effort: str,
+    mode: str,
+) -> None:
+    if mode not in _selected_modes():
+        pytest.skip(f"{mode} is not in the selected quality modes")
+    candidate_id = f"{producer_profile}-{reasoning_effort}"
+    selected_ids = _selected_candidate_ids()
+    if selected_ids and candidate_id not in selected_ids:
+        pytest.skip(f"{candidate_id} is not in the selected quality candidates")
+
+    producer_case = (producer_profile, reasoning_effort)
+    bundles = _quality_bundles()
+    outputs = {
+        variant: _producer_record(
+            bundle=bundle,
+            mode=mode,
+            scenario=scenario,
+            producer_case=producer_case,
+        )
+        for variant, bundle in bundles.items()
+    }
+    semantic_records = {}
+    semantic_assessments = {}
+    for variant in ("baseline", "combined-v2"):
+        lock = outputs[variant]["guidance_compilation"]
+        semantic_record, assessment = _semantic_record(
+            bundle=bundles[variant],
+            bundle_id=lock["bundle"]["id"],
+            mode=mode,
+            scenario=scenario,
+            candidate_id=candidate_id,
+        )
+        semantic_records[variant] = semantic_record
+        semantic_assessments[variant] = assessment
+
+    label_mapping = quality_label_mapping(
+        scenario_id=scenario.scenario_id,
+        mode=mode,
+        candidate_id=candidate_id,
+    )
+    prompt = build_quality_prompt(
+        scenario=scenario,
+        target=load_target(scenario),
+        mode=mode,
+        candidate_id=candidate_id,
+        outputs=outputs,
+        semantic_assessments=semantic_assessments,
+        label_mapping=label_mapping,
+    )
+    prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    repeat_variant = os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_QUALITY_CACHE_VARIANT",
+        "",
+    ).strip()
+    run_attempt = os.getenv(
+        "AGENT_EVAL_ROOT_GUIDANCE_QUALITY_RUN_ATTEMPT",
+        "",
+    ).strip()
+    run = quality_evaluator_harness.fresh_prompt(
+        test_id=(
+            f"root-guidance-quality-{scenario.scenario_id}-"
+            f"{mode}-{candidate_id}"
+        ),
+        prompt=prompt,
+        reasoning_effort="max",
+        cache_variant=(
+            f"{QUALITY_PROMPT_VERSION}-{prompt_hash[:16]}:"
+            f"{repeat_variant or 'default'}:"
+            f"{run_attempt or 'initial'}"
+        ),
+    )
+    value = require_run_value(run)
+    try:
+        result, response_repairs = parse_evaluator_response_with_repairs(
+            value.response
+        )
+        validate_quality_result(
+            result,
+            scenario_id=scenario.scenario_id,
+            candidate_id=candidate_id,
+        )
+    except Exception as error:
+        run.record(
+            "root-guidance-pairwise-quality-error.json",
+            {
+                "scenario_id": scenario.scenario_id,
+                "mode": mode,
+                "candidate_id": candidate_id,
+                "label_mapping": label_mapping,
+                "error_type": type(error).__name__,
+                "error": str(error),
+                "response": value.response,
+                "repeat_variant": repeat_variant or "default",
+                "run_attempt": run_attempt or "initial",
+            },
+        )
+        raise
+
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "pairwise quality evaluator did not mutate its workspace",
+            not run.changed_paths,
+            repr(run.changed_paths),
+        ),
+    )
+    run.record(
+        RECORD_NAME,
+        {
+            "schema_version": 1,
+            "scenario_id": scenario.scenario_id,
+            "mode": mode,
+            "candidate_id": candidate_id,
+            "evaluator": {
+                "profile": quality_evaluator_harness.profile.name,
+                "agent_id": quality_evaluator_harness.profile.agent_id,
+                "model": quality_evaluator_harness.profile.model,
+                "reasoning_effort": "max",
+                "prompt_version": QUALITY_PROMPT_VERSION,
+            },
+            "label_mapping": label_mapping,
+            "producer_sources": {
+                variant: {
+                    "source_run_id": record["source_run_id"],
+                    "source_record_sha256": record["source_record_sha256"],
+                    "compilation_sha256": record[
+                        "guidance_compilation"
+                    ]["compilation_sha256"],
+                }
+                for variant, record in outputs.items()
+            },
+            "semantic_sources": {
+                variant: {
+                    "source_run_id": semantic_assessments[variant][
+                        "source_run_id"
+                    ],
+                    "source_record_sha256": semantic_assessments[variant][
+                        "source_record_sha256"
+                    ],
+                }
+                for variant in ("baseline", "combined-v2")
+            },
+            "result": mapped_quality_result(
+                result,
+                label_mapping=label_mapping,
+            ),
+            "raw_result": result,
+            "response_repairs": list(response_repairs),
+            "repeat_variant": repeat_variant or "default",
+            "run_attempt": run_attempt or "initial",
+            "findings": [finding.__dict__ for finding in findings],
+        },
+    )
+    run.record("assertions.json", [finding.__dict__ for finding in findings])
+    assert_findings(findings)

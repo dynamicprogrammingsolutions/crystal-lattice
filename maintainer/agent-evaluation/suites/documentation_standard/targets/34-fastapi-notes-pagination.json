@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "scenario_id": "34-fastapi-notes-pagination",
+  "title": "FastAPI notes pagination",
+  "task_summary": "Specify optional bounded pagination for a public notes collection while preserving the existing response body and unparameterized behavior.",
+  "project": {
+    "name": "FastAPI CRUD Async",
+    "kind": "public REST API with a large-response performance concern",
+    "upstream": "https://github.com/testdrivenio/fastapi-crud-async",
+    "revision": "4fa7ae952ece61e228135285de1b6a5ff65a1dc8"
+  },
+  "required_outcomes": [
+    {
+      "id": "NOTES-1",
+      "outcome": "`GET /notes/` accepts optional `limit` and `offset` query parameters.",
+      "why_required": "These are the requested public API controls."
+    },
+    {
+      "id": "NOTES-2",
+      "outcome": "Requests omitting both parameters retain the current full-list status and plain-array response behavior.",
+      "why_required": "Existing public clients must remain compatible."
+    },
+    {
+      "id": "NOTES-3",
+      "outcome": "When pagination is requested, notes are ordered by ascending note ID before applying the requested offset and limit.",
+      "why_required": "Stable ordering is necessary for meaningful offset pagination."
+    },
+    {
+      "id": "NOTES-4",
+      "outcome": "`limit` accepts values from 1 through 100 and `offset` accepts zero or greater.",
+      "why_required": "The request defines both public validation ranges."
+    },
+    {
+      "id": "NOTES-5",
+      "outcome": "Invalid pagination values use the service's normal FastAPI validation response.",
+      "why_required": "The request preserves existing validation conventions."
+    },
+    {
+      "id": "NOTES-6",
+      "outcome": "Paginated response bodies remain the existing JSON array of note objects.",
+      "why_required": "The request explicitly rejects a breaking response-envelope change."
+    },
+    {
+      "id": "NOTES-7",
+      "outcome": "A paginated response includes `X-Total-Count` with the total number of notes before offset and limit are applied.",
+      "why_required": "Clients need the requested total count without changing the body schema."
+    },
+    {
+      "id": "NOTES-8",
+      "outcome": "Create, item-read, update, and delete note endpoints retain their current behavior.",
+      "why_required": "The request limits the public API change to the collection read."
+    }
+  ],
+  "compatibility_constraints": [
+    "The unparameterized collection response remains compatible.",
+    "The note object schema remains unchanged.",
+    "Other note routes retain their established validation, status, and response behavior."
+  ],
+  "acceptable_grouping": [
+    "NOTES-1 and NOTES-4 may be one query-contract requirement.",
+    "NOTES-3, NOTES-6, and NOTES-7 may be grouped as paginated-response behavior.",
+    "NOTES-2 and NOTES-8 may be one compatibility requirement.",
+    "NOTES-5 may remain separate or accompany query validation."
+  ],
+  "supporting_details": [
+    "Pagination is requested when either query parameter is supplied.",
+    "The total count is calculated before pagination and does not require a particular query implementation."
+  ],
+  "optional_adjacent_work": [
+    "Cursor pagination",
+    "Mandatory default pagination",
+    "A response envelope",
+    "Database indexing",
+    "Caching",
+    "Rate limiting",
+    "API versioning",
+    "Deployment tuning"
+  ],
+  "not_prescribed": [
+    "Exact SQL query construction",
+    "Exact header library usage",
+    "Database migration",
+    "Tests or documentation work as product requirements"
+  ],
+  "open_questions": [],
+  "task_scope": [
+    "Create specification and requirements only.",
+    "Do not change API implementation, tests, or current user documentation."
+  ],
+  "task_file_scope": [
+    "Create one task file with a Draft execution plan.",
+    "Do not implement the API change."
+  ],
+  "testing_expectations": {
+    "required_evidence": [
+      "Public HTTP-route tests verify unparameterized compatibility, pagination, ascending ordering, response-array shape, and X-Total-Count.",
+      "Representative valid boundaries and invalid values verify limit, offset, and normal FastAPI validation.",
+      "Regression evidence verifies create, item-read, update, and delete endpoint behavior remains unchanged."
+    ],
+    "important_crossing": "Tests exercise the production FastAPI route and response rather than only calling helpers or route functions directly.",
+    "avoid": [
+      "Exact FastAPI validation payload assertions beyond the approved normal-validation contract.",
+      "Assertions about ORM calls, SQL text, or a separate count-query implementation unless separately approved.",
+      "Exhaustive combinations of equivalent parameter values when representative boundaries cover the contract."
+    ]
+  }
+}

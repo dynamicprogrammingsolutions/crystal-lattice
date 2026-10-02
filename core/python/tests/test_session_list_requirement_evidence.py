@@ -14,6 +14,7 @@ REQUIREMENTS = (
 )
 EVIDENCE_TESTS = (
     ROOT / "application/python/tests/test_session_listing_requirements_integration.py",
+    ROOT / "application/python/tests/test_session_data_query_http.py",
 )
 
 

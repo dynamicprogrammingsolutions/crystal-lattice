@@ -11,6 +11,7 @@ src/agent_eval/
 ├── workspace.py         workspace preparation and Git helper
 ├── cache.py             locked atomic local cache
 ├── artifacts.py         canonical/raw rendering
+├── runner/              run model: identity, labels, samples, consolidation
 └── crystal_lattice/
     ├── environment.py   AgentApplication lifecycle
     ├── context.py       evaluation-author context
@@ -74,9 +75,17 @@ pytest maintainer/agent-evaluation/tests -q
 
 Real-model tests use the `agent_eval` marker and are excluded by default.
 The
-[documentation-standard behavioral suite](documentation-standard-suite.md)
+[documentation-guidance behavioral suite](../../suites/documentation_standard/docs/index.md)
 explains baseline/candidate guidance variants, routine/extended selection, and
-real-model commands.
+real-model commands. Its common Crystal Lattice runner contract preserves the
+selected default Codex or Claude system-message compilation path for every
+documentation-guidance model test.
+
+The
+[task-guidance suite target](../../suites/task_guidance/docs/index.md)
+preserves the migrated human-operated CLI and specifies staged task handoff,
+plan continuation, decomposition, and quality-gated efficiency evaluation.
+The staged extensions remain in progress.
 
 ## Extension guidance
 
@@ -92,7 +101,15 @@ real-model commands.
 
 ## Specifications and task
 
-- Target:
-  `maintainer/specifications/agent-evaluation-framework/`
+- Generic kernel target:
+  `maintainer/agent-evaluation/docs/development/specifications/framework/`
+- Crystal Lattice environment target:
+  `maintainer/agent-evaluation/docs/development/specifications/crystal-lattice-environment/`
+- Optional result-package target:
+  `maintainer/agent-evaluation/docs/development/specifications/result-packages/`
 - Execution:
   `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
+- Planned task-guidance suite:
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+- Planned result-package work:
+  `tasks/20260728-package-local-documentation-standard/095-evaluation-result-review-packages.md`

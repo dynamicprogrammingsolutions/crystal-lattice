@@ -9,6 +9,8 @@ from typing import Any, Dict, Iterable, List, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .verified_ssl import verified_ssl_context
+
 
 CODEX_GITHUB_API_LATEST_COMMIT_URL = "https://api.github.com/repos/openai/codex/commits/main"
 CODEX_RAW_MODELS_URL_TEMPLATE = (
@@ -80,7 +82,11 @@ def _fetch_json(url: str, *, timeout: float) -> Any:
             "User-Agent": _USER_AGENT,
         },
     )
-    with urlopen(request, timeout=timeout) as response:
+    with urlopen(
+        request,
+        timeout=timeout,
+        context=verified_ssl_context(),
+    ) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         payload = response.read().decode(charset, errors="replace")
     return json.loads(payload)

@@ -1126,6 +1126,7 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
     # be forwarded into the runtime provider/tool config.
     merged.pop("plugins", None)
     merged.pop("disabled_plugins", None)
+    merged.pop("enabled", None)
     merged.pop(_MIXIN_REFS_KEY, None)
     merged.pop(_MIXIN_MERGE_KEY, None)
     merged.pop(MERGE_KEY, None)

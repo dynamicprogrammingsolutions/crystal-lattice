@@ -22,19 +22,30 @@ from agent_eval.workspace import GitWorkspaceFactory, git_workspace
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 PACKAGE_ROOT = REPOSITORY_ROOT / "maintainer" / "agent-evaluation"
-SPEC_ROOT = (
-    REPOSITORY_ROOT
-    / "maintainer"
-    / "specifications"
-    / "documentation-and-specification-standard"
-    / "agent-behavior-verification"
+SCENARIO_ROOT = (
+    PACKAGE_ROOT
+    / "suites"
+    / "documentation_standard"
+    / "scenarios"
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
 ORIGINAL_DEVELOP_GUIDANCE_REVISION = "f81f36326b58268297ba59c1cacbcda604257c27"
+FOLLOWUP_BASELINE_GUIDANCE_REVISION = (
+    "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
+)
 GUIDANCE_INJECTION_VERSION = "v6"
-PROFILE_CONFIG_VERSION = "v8"
+PROFILE_CONFIG_VERSION = "v10"
+RUNNER_DIRECT_INJECTION = "direct-injection"
+RUNNER_DEFAULT_SYSTEM_MESSAGE = "default-system-message"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
+DEFAULT_SYSTEM_CONFIG_DIR = (
+    REPOSITORY_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+)
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
     "js-single-file-tool": "v4",
@@ -48,6 +59,13 @@ FIXTURE_REVISIONS = {
     "sync-engine": "v3",
     "requirement-scope": "v1",
     "testing-strategy": "v1",
+    "requirement-quality-batch": "v1",
+    "requirement-quality-timeout": "v1",
+    "requirement-quality-output": "v1",
+    "requirement-quality-eleventy": "v1",
+    "requirement-quality-fastapi": "v1",
+    "requirement-quality-flask-vue": "v1",
+    "requirement-quality-judge": "v1",
 }
 SYNTHETIC_SRC_CONFTEST = """import sys
 from pathlib import Path
@@ -95,12 +113,13 @@ class ModelProfile:
         workspace: Path,
         *,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
     ) -> dict[str, object]:
         overrides: dict[str, object] = {
             "model": self.model,
             "working_directory": str(workspace),
             "allowed_paths": [str(workspace)],
-            "include_tasks": False,
+            "include_tasks": include_tasks,
             "skills_enabled": False,
             "mcp_enabled": False,
             "web_search_enabled": False,
@@ -109,8 +128,20 @@ class ModelProfile:
             overrides["request_options"] = {
                 "reasoning_effort": reasoning_effort or "high"
             }
+        elif reasoning_effort is not None:
+            overrides["reasoning_effort"] = reasoning_effort
         if self.auth_mode is not None:
             overrides["auth_mode"] = self.auth_mode
+        if self.name == "gpt":
+            state_root = Path(
+                os.getenv(
+                    "CHATGPT_TEST_STATE_DIR",
+                    str(DEFAULT_CONFIG.parent),
+                )
+            ).expanduser()
+            overrides["chatgpt_credentials_path"] = str(
+                state_root / "auth" / "chatgpt-auth.json"
+            )
         return overrides
 
 
@@ -167,8 +198,12 @@ class GuidanceSource:
     root: Path = REPOSITORY_ROOT
     revision: str | None = None
     paths: tuple[str, ...] = CURRENT_GUIDANCE_PATHS
+    content_overrides: tuple[tuple[str, bytes], ...] = ()
 
     def read_bytes(self, relative: str) -> bytes:
+        for path, content in self.content_overrides:
+            if path == relative:
+                return content
         if self.revision is None:
             return self.root.joinpath(relative).read_bytes()
         result = subprocess.run(
@@ -213,6 +248,9 @@ class GuidanceSource:
             "revision": self.revision,
             "sha256": self.sha256(),
             "files": [item.__dict__ for item in self.files()],
+            "content_override_paths": [
+                path for path, _ in self.content_overrides
+            ],
             "injection_version": GUIDANCE_INJECTION_VERSION,
         }
 
@@ -239,6 +277,206 @@ class GuidanceSource:
                 )
             )
         return "\n".join(lines)
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(REPOSITORY_ROOT))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _compiled_source(
+    *,
+    path: Path,
+    text: str,
+    compiled: str,
+    role: str,
+    expected_occurrences: int,
+) -> dict[str, object]:
+    normalized = text.strip()
+    return {
+        "path": _display_path(path),
+        "role": role,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "expected_occurrences": expected_occurrences,
+        "observed_occurrences": (
+            compiled.count(normalized) if normalized else 0
+        ),
+    }
+
+
+def compiled_system_message_evidence(
+    context: CrystalLatticeContext,
+    *,
+    profile: ModelProfile,
+    guidance: GuidanceSource | None,
+    include_tasks: bool,
+) -> dict[str, object]:
+    if guidance is None or "AGENTS.md" not in guidance.paths:
+        raise ValueError(
+            "default system-message inspection requires AGENTS.md guidance"
+        )
+    effective_config = context.effective_config()
+    active_plugins = context.core.get_plugins_for_config(
+        cast(dict[str, Any], effective_config)
+    )
+    tool_schemas = context.core.get_tool_schemas(
+        cast(dict[str, Any], effective_config)
+    )
+    tool_interfaces: list[dict[str, object]] = []
+    for schema in tool_schemas:
+        function = schema.get("function")
+        function_value = function if isinstance(function, dict) else schema
+        name = function_value.get("name")
+        parameters = function_value.get("parameters")
+        if not isinstance(parameters, dict):
+            parameters = function_value.get("input_schema")
+        parameter_value = parameters if isinstance(parameters, dict) else {}
+        properties = parameter_value.get("properties")
+        property_value = properties if isinstance(properties, dict) else {}
+        command = property_value.get("command")
+        command_value = command if isinstance(command, dict) else {}
+        tool_interfaces.append(
+            {
+                "name": name,
+                "command_type": command_value.get("type"),
+            }
+        )
+    _, result = context.core.execute_session_action(
+        context.session,
+        cast(dict[str, Any], effective_config),
+        plugin_id="system_message",
+        action_id="show_compiled_system_message",
+        params={},
+    )
+    display = result.get("display")
+    if not isinstance(display, dict):
+        raise ValueError("system-message inspection returned no display")
+    body = display.get("body")
+    if not isinstance(body, str) or not body.strip():
+        raise ValueError("system-message inspection returned no content")
+
+    config_root = Path(
+        os.getenv(
+            "AGENT_EVAL_SYSTEM_CONFIG_DIR",
+            str(DEFAULT_SYSTEM_CONFIG_DIR),
+        )
+    ).expanduser()
+    agents_path = context.workspace / "AGENTS.md"
+    agents_text = guidance.read_bytes("AGENTS.md").decode("utf-8")
+    tasks_path = config_root / "TASKS_v7.md"
+    tasks_text = tasks_path.read_text(encoding="utf-8")
+    if profile.name == "gpt":
+        family = "codex"
+        tool_family = "codex-tools"
+        transport = "responses.instructions"
+        standard_paths = (
+            config_root
+            / "codex"
+            / "gpt-5.6-luna"
+            / "instructions_default.md",
+        )
+    else:
+        family = "claude"
+        tool_family = "claude-tools"
+        transport = "leading_system_message"
+        claude_root = (
+            REPOSITORY_ROOT
+            / "plugins"
+            / "claude-tools"
+            / "system_messages"
+            / "claude"
+        )
+        standard_paths = tuple(
+            claude_root / name
+            for name in (
+                "introduction.md",
+                "workflow.md",
+                "tool-usage-permissive-cd.md",
+                "tone-and-style.md",
+                "memory.md",
+                "context-management.md",
+            )
+        )
+
+    sources = [
+        *(
+            _compiled_source(
+                path=path,
+                text=path.read_text(encoding="utf-8"),
+                compiled=body,
+                role="standard_model_family_message",
+                expected_occurrences=1,
+            )
+            for path in standard_paths
+        ),
+        _compiled_source(
+            path=agents_path,
+            text=agents_text,
+            compiled=body,
+            role="workspace_agents",
+            expected_occurrences=1,
+        ),
+        _compiled_source(
+            path=tasks_path,
+            text=tasks_text,
+            compiled=body,
+            role="canonical_tasks",
+            expected_occurrences=1 if include_tasks else 0,
+        ),
+    ]
+    return {
+        "runner": RUNNER_DEFAULT_SYSTEM_MESSAGE,
+        "family": family,
+        "model": profile.model,
+        "include_tasks": include_tasks,
+        "inspection": "system_message.show_compiled_system_message",
+        "observed_transport": transport,
+        "tool_family": tool_family,
+        "active_tools": active_plugins.get("tools", []),
+        "tool_interfaces": tool_interfaces,
+        "tool_family_matches": (
+            any(
+                item.get("name") == "shell"
+                and item.get("command_type") == "array"
+                for item in tool_interfaces
+            )
+            if profile.name == "gpt"
+            else any(
+                item.get("name") == "Bash"
+                and item.get("command_type") == "string"
+                for item in tool_interfaces
+            )
+        ),
+        "compiled_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+        "compiled_chars": len(body),
+        "compiled_message": body,
+        "sources": sources,
+        "suite_wrapper_absent": (
+            "<repository-guidance" not in body
+            and "Repository guidance for the next task follows." not in body
+        ),
+    }
+
+
+def _reload_context_with_defaults(
+    context: CrystalLatticeContext,
+) -> None:
+    loaded = context.application.load_session(
+        context.session.session_id,
+        overrides=context.config,
+    )
+    if loaded is None:
+        raise RuntimeError(
+            f"failed to reload evaluation session {context.session.session_id}"
+        )
+    core, base_config, session = loaded
+    context.replace_runtime(
+        core=core,
+        base_config=base_config,
+        session=session,
+    )
 
 
 @dataclass(frozen=True)
@@ -391,12 +629,25 @@ class DocumentationEvaluationHarness:
         profile: ModelProfile,
         *,
         guidance: GuidanceSource | None = None,
+        runner_mode: str = RUNNER_DIRECT_INJECTION,
     ) -> None:
-        config_path = Path(
+        if runner_mode not in {
+            RUNNER_DIRECT_INJECTION,
+            RUNNER_DEFAULT_SYSTEM_MESSAGE,
+        }:
+            raise ValueError(f"unknown documentation runner mode: {runner_mode}")
+        user_config_path = Path(
             os.getenv("AGENT_EVAL_CONFIG", str(DEFAULT_CONFIG))
         ).expanduser()
-        if not config_path.is_file():
-            raise FileNotFoundError(f"Crystal Lattice config missing: {config_path}")
+        if not user_config_path.is_file():
+            raise FileNotFoundError(
+                f"Crystal Lattice config missing: {user_config_path}"
+            )
+        config_path = (
+            DEFAULT_SYSTEM_CONFIG_DIR / "config.json"
+            if runner_mode == RUNNER_DEFAULT_SYSTEM_MESSAGE
+            else user_config_path
+        )
         artifact_root = Path(
             os.getenv(
                 "AGENT_EVAL_ARTIFACT_ROOT",
@@ -407,12 +658,18 @@ class DocumentationEvaluationHarness:
             config_path,
             artifact_root=artifact_root,
             profile=profile,
+            include_guidance_feature=(
+                runner_mode == RUNNER_DIRECT_INJECTION
+            ),
         )
         environment = WorkspaceAwareEnvironment.from_config(
             projected_config,
             environment={
-                "CONFIG_DIR": str(config_path.parent),
-                "CHATGPT_TEST_STATE_DIR": str(config_path.parent),
+                "CONFIG_DIR": os.getenv(
+                    "AGENT_EVAL_SYSTEM_CONFIG_DIR",
+                    str(DEFAULT_SYSTEM_CONFIG_DIR),
+                ),
+                "CHATGPT_TEST_STATE_DIR": str(user_config_path.parent),
                 "BUILTIN_PLUGINS": str(REPOSITORY_ROOT / "plugins"),
                 "PIP_CONSTRAINT": str(PLUGIN_RUNTIME_CONSTRAINTS),
                 "OLLAMA_OPENAI_BASE_URL": os.getenv(
@@ -423,6 +680,7 @@ class DocumentationEvaluationHarness:
         )
         self.profile = profile
         self.guidance = guidance or selected_guidance_source()
+        self.runner_mode = runner_mode
         self.evaluation = AgentEval(
             default_environment=environment,
             artifact_root=artifact_root / profile.name,
@@ -432,6 +690,55 @@ class DocumentationEvaluationHarness:
 
     def close(self) -> None:
         self.evaluation.close()
+
+    def inspect_scenario_system_message(
+        self,
+        *,
+        test_id: str,
+        fixture_id: str,
+        include_tasks: bool,
+    ) -> Run[dict[str, object]]:
+        if self.runner_mode != RUNNER_DEFAULT_SYSTEM_MESSAGE:
+            raise ValueError(
+                "system-message preflight requires default runner mode"
+            )
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=True,
+            guidance=self.guidance,
+        )
+
+        def inspect(
+            context: CrystalLatticeContext,
+        ) -> dict[str, object]:
+            if context.workspace is None:
+                raise ValueError("missing evaluation workspace")
+            if context.session_or_none is None:
+                context.start(self.profile.agent_id)
+            context.config.update(
+                self.profile.request_overrides(
+                    context.workspace,
+                    include_tasks=include_tasks,
+                )
+            )
+            _reload_context_with_defaults(context)
+            return compiled_system_message_evidence(
+                context,
+                profile=self.profile,
+                guidance=self.guidance,
+                include_tasks=include_tasks,
+            )
+
+        return self.evaluation.run(
+            test_id,
+            inspect,
+            workspace=workspace,
+            cache_key=(
+                f"documentation-standard:{self.profile.name}:{test_id}:"
+                f"{self.guidance.sha256()}:{PROFILE_CONFIG_VERSION}:"
+                f"{self.runner_mode}:{include_tasks}"
+            ),
+        )
 
     def seed(
         self,
@@ -443,7 +750,7 @@ class DocumentationEvaluationHarness:
         key = f"seed:{seed_id}"
         if key in self._runs:
             return self._runs[key]
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, "## Exact seed prompt")
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, "## Exact seed prompt")
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
             candidate_guidance=False,
@@ -462,6 +769,101 @@ class DocumentationEvaluationHarness:
         self._runs[key] = run
         return run
 
+    def fresh_scenario(
+        self,
+        *,
+        test_id: str,
+        spec_file: str,
+        fixture_id: str,
+        reasoning_effort: str,
+        cache_variant: str,
+        prompt_heading: str = "## Exact user prompt",
+        guidance_instruction_paths: tuple[str, ...] | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
+    ) -> Run[TurnValue]:
+        instruction_paths = guidance_instruction_paths or self.guidance.paths
+        key = (
+            f"fresh:{test_id}:{reasoning_effort}:{cache_variant}:"
+            f"{prompt_heading}:{_sha256_text(json.dumps(instruction_paths))}:"
+            f"{self.runner_mode}:{include_tasks}:{inspect_system_message}"
+        )
+        if key in self._runs:
+            return self._runs[key]
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=True,
+            guidance=self.guidance,
+        )
+        cache_key = (
+            f"documentation-standard:{self.profile.name}:{test_id}:"
+            f"{self.guidance.name}:{self.guidance.sha256()}:"
+            f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+            f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
+            f"{_sha256_text(json.dumps(instruction_paths))}:"
+            f"{reasoning_effort}:{cache_variant}:{self.runner_mode}:"
+            f"{include_tasks}:{inspect_system_message}"
+        )
+        run = self.evaluation.run(
+            test_id,
+            lambda context: self._turn(
+                context,
+                prompt,
+                guidance=self.guidance,
+                inject_guidance=(
+                    self.runner_mode == RUNNER_DIRECT_INJECTION
+                ),
+                guidance_instruction_paths=instruction_paths,
+                reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
+                inspect_system_message=inspect_system_message,
+            ),
+            workspace=workspace,
+            cache_key=cache_key,
+        )
+        self._runs[key] = run
+        return run
+
+    def fresh_prompt(
+        self,
+        *,
+        test_id: str,
+        prompt: str,
+        reasoning_effort: str,
+        cache_variant: str,
+        fixture_id: str = "requirement-quality-judge",
+    ) -> Run[TurnValue]:
+        key = (
+            f"fresh-prompt:{test_id}:{reasoning_effort}:{cache_variant}:"
+            f"{_sha256_text(prompt)}"
+        )
+        if key in self._runs:
+            return self._runs[key]
+        workspace = ScenarioWorkspaceFactory(
+            fixture_id=fixture_id,
+            candidate_guidance=False,
+        )
+        cache_key = (
+            f"documentation-standard:{self.profile.name}:{test_id}:"
+            f"{_sha256_text(prompt)}:{fixture_revision(fixture_id)}:"
+            f"{PROFILE_CONFIG_VERSION}:{reasoning_effort}:{cache_variant}"
+        )
+        run = self.evaluation.run(
+            test_id,
+            lambda context: self._turn(
+                context,
+                prompt,
+                guidance=None,
+                inject_guidance=False,
+                reasoning_effort=reasoning_effort,
+            ),
+            workspace=workspace,
+            cache_key=cache_key,
+        )
+        self._runs[key] = run
+        return run
+
     def branch(
         self,
         *,
@@ -474,12 +876,14 @@ class DocumentationEvaluationHarness:
         cache: bool = True,
         guidance_instruction_paths: tuple[str, ...] | None = None,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
     ) -> Run[TurnValue]:
         effort_key = reasoning_effort or "default"
         key = f"branch:{test_id}:{branch_variant}:{effort_key}"
         if key in self._runs:
             return self._runs[key]
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
         cache_variant = os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip()
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
@@ -512,6 +916,8 @@ class DocumentationEvaluationHarness:
                 inject_guidance=True,
                 guidance_instruction_paths=guidance_instruction_paths,
                 reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
+                inspect_system_message=inspect_system_message,
             ),
             continue_from=parent,
             workspace=workspace,
@@ -535,7 +941,7 @@ class DocumentationEvaluationHarness:
             return self._runs[key]
         if parent.workspace is None:
             raise ValueError("parent run has no workspace")
-        prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
+        prompt = extract_blockquote(SCENARIO_ROOT / spec_file, prompt_heading)
         workspace = ParentWorkspaceFactory(
             parent_workspace=parent.workspace,
             fixture_id=fixture_id,
@@ -572,6 +978,8 @@ class DocumentationEvaluationHarness:
         inject_guidance: bool = False,
         guidance_instruction_paths: tuple[str, ...] | None = None,
         reasoning_effort: str | None = None,
+        include_tasks: bool = False,
+        inspect_system_message: bool = False,
     ) -> TurnValue:
         if context.workspace is None:
             raise ValueError("missing evaluation workspace")
@@ -581,8 +989,11 @@ class DocumentationEvaluationHarness:
             self.profile.request_overrides(
                 context.workspace,
                 reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
             )
         )
+        if inspect_system_message:
+            _reload_context_with_defaults(context)
         context.services.record(
             "documentation_standard.profile",
             {
@@ -653,6 +1064,17 @@ class DocumentationEvaluationHarness:
                 "paths": list(injected_paths),
             },
         )
+        if inspect_system_message:
+            compiled_message = compiled_system_message_evidence(
+                context,
+                profile=self.profile,
+                guidance=guidance,
+                include_tasks=include_tasks,
+            )
+            context.services.record(
+                "documentation_standard.compiled_system_message",
+                compiled_message,
+            )
         context.services.record(
             "documentation_standard.branch_cache_variant",
             os.getenv("AGENT_EVAL_BRANCH_CACHE_VARIANT", "").strip() or "default",
@@ -727,6 +1149,14 @@ def original_develop_guidance_source() -> GuidanceSource:
     )
 
 
+def followup_baseline_guidance_source() -> GuidanceSource:
+    return GuidanceSource(
+        name="followup-baseline",
+        revision=FOLLOWUP_BASELINE_GUIDANCE_REVISION,
+        paths=CURRENT_GUIDANCE_PATHS,
+    )
+
+
 def selected_guidance_source() -> GuidanceSource:
     name = os.getenv("AGENT_EVAL_GUIDANCE_VARIANT", "candidate").strip()
     if name == "candidate":
@@ -735,6 +1165,8 @@ def selected_guidance_source() -> GuidanceSource:
         return baseline_guidance_source()
     if name == "develop":
         return original_develop_guidance_source()
+    if name == "followup-baseline":
+        return followup_baseline_guidance_source()
     raw_root = os.getenv("AGENT_EVAL_GUIDANCE_DIR")
     if not raw_root:
         raise ValueError(
@@ -821,7 +1253,7 @@ def record_review(
     spec_file: str,
     findings: tuple[AssertionFinding, ...],
 ) -> None:
-    spec_path = SPEC_ROOT / spec_file
+    spec_path = SCENARIO_ROOT / spec_file
     human_questions = extract_section(spec_path, "## Human review")
     value = run.value
     prompt = value.prompt if value is not None else "(Run failed before prompt execution.)"
@@ -944,6 +1376,7 @@ def _project_config_for_profile(
     *,
     artifact_root: Path,
     profile: ModelProfile,
+    include_guidance_feature: bool = True,
 ) -> Path:
     raw = json.loads(source.read_text())
     if not isinstance(raw, dict):
@@ -961,6 +1394,16 @@ def _project_config_for_profile(
     plugins = raw.get("plugins")
     if not isinstance(plugins, list):
         raise ValueError(f"Crystal Lattice config has no plugins list: {source}")
+    plugin_fragments = profile.plugin_fragments
+    if not include_guidance_feature:
+        expected_tool_fragment = (
+            "/claude-tools" if profile.name == "glm" else "/codex-tools"
+        )
+        plugin_fragments = tuple(
+            fragment
+            for fragment in profile.plugin_fragments
+            if fragment not in {"/codex-tools", "/claude-tools"}
+        ) + (expected_tool_fragment,)
     selected_plugins = [
         item
         for item in plugins
@@ -968,7 +1411,7 @@ def _project_config_for_profile(
             isinstance(item, str)
             and (
                 not item.startswith(("path:", "bash:", "node:"))
-                or any(fragment in item for fragment in profile.plugin_fragments)
+                or any(fragment in item for fragment in plugin_fragments)
             )
         )
     ]
@@ -982,13 +1425,13 @@ def _project_config_for_profile(
             if (
                 isinstance(item, str)
                 and item.startswith(("path:", "bash:", "node:"))
-                and any(fragment in item for fragment in profile.plugin_fragments)
+                and any(fragment in item for fragment in plugin_fragments)
                 and item not in selected_plugins
             ):
                 selected_plugins.append(item)
     missing_fragments = [
         fragment
-        for fragment in profile.plugin_fragments
+        for fragment in plugin_fragments
         if not any(
             isinstance(item, str) and fragment in item for item in selected_plugins
         )
@@ -998,11 +1441,31 @@ def _project_config_for_profile(
             f"Crystal Lattice config is missing profile plugins "
             f"{missing_fragments!r}: {source}"
         )
-    projected_agent = {
-        **selected,
-        "shell_tool_mode": "shell",
-        "plugins": [GUIDANCE_FEATURE_PLUGIN, *EVALUATION_TOOL_PLUGINS],
-    }
+    projected_agent = {**selected}
+    if include_guidance_feature:
+        projected_agent.update(
+            {
+                "shell_tool_mode": "shell",
+                "plugins": [
+                    GUIDANCE_FEATURE_PLUGIN,
+                    *EVALUATION_TOOL_PLUGINS,
+                ],
+            }
+        )
+    else:
+        projected_agent["plugins"] = list(selected.get("plugins") or [])
+    if profile.auth_mode is not None:
+        projected_agent["auth_mode"] = profile.auth_mode
+    if profile.name == "gpt":
+        state_root = Path(
+            os.getenv(
+                "CHATGPT_TEST_STATE_DIR",
+                str(DEFAULT_CONFIG.parent),
+            )
+        ).expanduser()
+        projected_agent["chatgpt_credentials_path"] = str(
+            state_root / "auth" / "chatgpt-auth.json"
+        )
     projection = {
         **raw,
         "agents": {profile.agent_id: projected_agent},
@@ -1018,7 +1481,10 @@ def _project_config_for_profile(
     config_root.mkdir(parents=True, exist_ok=True)
     target = (
         config_root
-        / f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}.json"
+        / (
+            f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}-"
+            f"{'direct' if include_guidance_feature else 'default'}.json"
+        )
     )
     rendered = json.dumps(projection, indent=2, sort_keys=True) + "\n"
     if not target.exists() or target.read_text() != rendered:
@@ -1100,6 +1566,20 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         _fixture_requirement_scope(workspace, branch_variant)
     elif fixture_id == "testing-strategy":
         _fixture_testing_strategy(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-batch":
+        _fixture_requirement_quality_batch(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-timeout":
+        _fixture_requirement_quality_timeout(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-output":
+        _fixture_requirement_quality_output(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-eleventy":
+        _fixture_requirement_quality_eleventy(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-fastapi":
+        _fixture_requirement_quality_fastapi(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-flask-vue":
+        _fixture_requirement_quality_flask_vue(workspace, branch_variant)
+    elif fixture_id == "requirement-quality-judge":
+        _fixture_requirement_quality_judge(workspace, branch_variant)
     else:
         raise KeyError(f"unknown fixture: {fixture_id}")
 
@@ -1718,6 +2198,434 @@ adapter. Do not implement the change or edit test code.
     elif branch_variant != "base":
         raise KeyError(f"unknown testing-strategy variant: {branch_variant}")
     _write_synthetic_fixture(workspace, files)
+
+
+def _fixture_requirement_quality_batch(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-batch variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/offline-queue/README.md": """# offline-queue
+
+`Queue.enqueue(item)` appends one item to the local in-memory queue.
+""",
+            "packages/offline-queue/src/queue.py": """class Queue:
+    def __init__(self):
+        self.items = []
+
+    def enqueue(self, item):
+        self.items.append(item)
+""",
+            "packages/offline-queue/docs/development/index.md": """# Offline queue development
+
+No batch-enqueue specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_timeout(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-timeout variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/request-client/README.md": """# request-client
+
+Create `Client(transport, timeout=30)` and call `fetch(url)`. The configured
+timeout is used for every request.
+""",
+            "packages/request-client/src/client.py": """class Client:
+    def __init__(self, transport, timeout=30):
+        self.transport = transport
+        self.timeout = timeout
+
+    def fetch(self, url):
+        return self.transport(url, timeout=self.timeout)
+""",
+            "packages/request-client/docs/development/index.md": """# Request client development
+
+No per-request timeout specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_output(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-output variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/report-cli/README.md": """# report-cli
+
+Run `report-cli` to print the JSON report to standard output.
+""",
+            "packages/report-cli/src/report_cli.py": """import json
+
+
+def render_report(rows):
+    return json.dumps({"rows": rows}, indent=2, sort_keys=True)
+
+
+def main(rows):
+    print(render_report(rows))
+    return 0
+""",
+            "packages/report-cli/docs/development/index.md": """# Report CLI development
+
+No output-file specification exists.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_eleventy(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-eleventy variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from Eleventy Base Blog.
+
+- Repository: https://github.com/11ty/eleventy-base-blog
+- Revision: 26b26106d7fbb30b7b40d9ef52589d10ddbcb462
+- License: MIT
+""",
+            "README.md": """# Eleventy Base Blog
+
+A performance-focused static blog starter. Production output is pre-rendered
+and uses no client-side JavaScript.
+
+The generated site includes a home page, complete blog archive, tag pages,
+feed, sitemap, and previous/next links between individual posts.
+""",
+            "package.json": """{
+  "name": "eleventy-base-blog",
+  "version": "9.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "npx @11ty/eleventy",
+    "benchmark": "cross-env DEBUG=Eleventy:Benchmark* npx @11ty/eleventy"
+  }
+}
+""",
+            "_includes/postslist.njk": """<ol reversed class="postlist">
+{%- for post in postslist | reverse %}
+  <li>
+    <a href="{{ post.url }}">{{ post.data.title }}</a>
+    <time datetime="{{ post.date | htmlDateString }}">{{ post.date | readableDate }}</time>
+  </li>
+{%- endfor %}
+</ol>
+""",
+            "content/blog.njk": """---js
+const eleventyNavigation = {
+  key: "Archive",
+  order: 2
+};
+---
+<h1>Archive</h1>
+
+{% set postslist = collections.posts %}
+{% include "postslist.njk" %}
+""",
+            "content/index.njk": """---js
+const numberOfLatestPostsToShow = 3;
+---
+{% set postslist = collections.posts | head(-1 * numberOfLatestPostsToShow) %}
+{% include "postslist.njk" %}
+""",
+            "content/tag-pages.njk": """---js
+const pagination = {
+  data: "collections",
+  size: 1,
+  alias: "tag",
+  filter: ["all", "posts"],
+};
+---
+<h1>Tagged “{{ tag }}”</h1>
+{% set postslist = collections[tag] %}
+{% include "postslist.njk" %}
+""",
+            "content/sitemap.xml.njk": """---
+permalink: /sitemap.xml
+layout: false
+---
+<urlset>
+{%- for page in collections.all %}
+  <url><loc>{{ page.url | htmlBaseUrl(metadata.url) }}</loc></url>
+{%- endfor %}
+</urlset>
+""",
+            "_includes/layouts/post.njk": """<h1>{{ title }}</h1>
+{{ content | safe }}
+
+{% set previousPost = collections.posts | getPreviousCollectionItem %}
+{% set nextPost = collections.posts | getNextCollectionItem %}
+""",
+            "eleventy.config.js": """export default async function(eleventyConfig) {
+  eleventyConfig.addPlugin(feedPlugin, {
+    outputPath: "/feed/feed.xml",
+    collection: { name: "posts", limit: 10 },
+  });
+}
+""",
+            "docs/development/index.md": """# Development
+
+The project has no archive-pagination specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_fastapi(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-fastapi variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from FastAPI CRUD Async.
+
+- Repository: https://github.com/testdrivenio/fastapi-crud-async
+- Revision: 4fa7ae952ece61e228135285de1b6a5ff65a1dc8
+- License: MIT
+""",
+            "README.md": """# FastAPI CRUD Async
+
+An asynchronous public notes REST API with create, list, read, update, and
+delete routes. `GET /notes/` currently returns every note as a plain JSON
+array.
+""",
+            "src/app/api/models.py": """from pydantic import BaseModel, Field
+
+
+class NoteSchema(BaseModel):
+    title: str = Field(..., min_length=3, max_length=50)
+    description: str = Field(..., min_length=3, max_length=50)
+
+
+class NoteDB(NoteSchema):
+    id: int
+""",
+            "src/app/api/crud.py": """from app.db import database, notes
+
+
+async def get_all():
+    query = notes.select()
+    return await database.fetch_all(query=query)
+""",
+            "src/app/api/notes.py": """from typing import List
+
+from fastapi import APIRouter, HTTPException, Path
+
+from app.api import crud
+from app.api.models import NoteDB, NoteSchema
+
+router = APIRouter()
+
+
+@router.get("/", response_model=List[NoteDB])
+async def read_all_notes():
+    return await crud.get_all()
+
+
+@router.get("/{id}/", response_model=NoteDB)
+async def read_note(id: int = Path(..., gt=0)):
+    note = await crud.get(id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
+@router.post("/", response_model=NoteDB, status_code=201)
+async def create_note(payload: NoteSchema):
+    note_id = await crud.post(payload)
+    return {"id": note_id, **payload.model_dump()}
+
+
+@router.put("/{id}/", response_model=NoteDB)
+async def update_note(payload: NoteSchema, id: int = Path(..., gt=0)):
+    return await crud.put(id, payload)
+
+
+@router.delete("/{id}/", response_model=NoteDB)
+async def delete_note(id: int = Path(..., gt=0)):
+    return await crud.delete(id)
+""",
+            "src/tests/test_notes.py": """def test_read_all_notes(test_app, monkeypatch):
+    test_data = [
+        {"title": "first", "description": "one", "id": 1},
+        {"title": "second", "description": "two", "id": 2},
+    ]
+
+    async def mock_get_all():
+        return test_data
+
+    monkeypatch.setattr(crud, "get_all", mock_get_all)
+    response = test_app.get("/notes/")
+    assert response.status_code == 200
+    assert response.json() == test_data
+""",
+            "docs/development/index.md": """# Development
+
+The project has no notes-pagination specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_flask_vue(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-flask-vue variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "UPSTREAM.md": """# Upstream source
+
+This compact evaluation fixture is adapted from Flask-Vue CRUD.
+
+- Repository: https://github.com/testdrivenio/flask-vue-crud
+- Revision: be91da59a10d07384537c2f76f4505eb344d1682
+- License: MIT
+""",
+            "README.md": """# Flask-Vue CRUD
+
+A user-facing Vue single-page Books application backed by a Flask JSON API.
+The table displays title, author, and read status. The client reloads all
+books after add, update, and delete operations.
+""",
+            "server/app.py": """from flask import Flask, jsonify, request
+
+
+app = Flask(__name__)
+BOOKS = [
+    {"id": "1", "title": "On the Road", "author": "Jack Kerouac", "read": True},
+    {"id": "2", "title": "Green Eggs and Ham", "author": "Dr. Seuss", "read": False},
+]
+
+
+@app.route("/books", methods=["GET", "POST"])
+def all_books():
+    response = {"status": "success"}
+    if request.method == "POST":
+        BOOKS.append(request.get_json())
+        response["message"] = "Book added!"
+    else:
+        response["books"] = BOOKS
+    return jsonify(response)
+
+
+@app.route("/books/<book_id>", methods=["PUT", "DELETE"])
+def single_book(book_id):
+    return jsonify({"status": "success"})
+""",
+            "client/src/components/Books.vue": """<template>
+  <main>
+    <h1>Books</h1>
+    <table>
+      <tr v-for="book in books" :key="book.id">
+        <td>{{ book.title }}</td>
+        <td>{{ book.author }}</td>
+        <td>{{ book.read ? "Yes" : "No" }}</td>
+      </tr>
+    </table>
+  </main>
+</template>
+
+<script>
+import axios from "axios";
+
+export default {
+  data() {
+    return {
+      books: [],
+    };
+  },
+  methods: {
+    getBooks() {
+      axios.get("http://localhost:5001/books").then((res) => {
+        this.books = res.data.books;
+      });
+    },
+    addBook(payload) {
+      axios.post("http://localhost:5001/books", payload).then(this.getBooks);
+    },
+    updateBook(payload, id) {
+      axios.put(`http://localhost:5001/books/${id}`, payload).then(this.getBooks);
+    },
+    removeBook(id) {
+      axios.delete(`http://localhost:5001/books/${id}`).then(this.getBooks);
+    },
+  },
+  created() {
+    this.getBooks();
+  },
+};
+</script>
+""",
+            "docs/development/index.md": """# Development
+
+The project has no book-filter specification.
+""",
+        },
+    )
+
+
+def _fixture_requirement_quality_judge(
+    workspace: Path,
+    branch_variant: str,
+) -> None:
+    if branch_variant != "base":
+        raise KeyError(
+            f"unknown requirement-quality-judge variant: {branch_variant}"
+        )
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "README.md": """# Requirement-quality semantic evaluation
+
+This isolated workspace is used only to obtain a structured semantic
+assessment from the model. The complete assessment input is in the user
+message. Do not inspect or modify repository files.
+""",
+        },
+    )
 
 
 def _write_synthetic_fixture(

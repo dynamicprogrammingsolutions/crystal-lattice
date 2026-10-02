@@ -81,7 +81,7 @@ async function collapseExpandedComposer(): Promise<void> {
 }
 
 describe("portable rich session UI", () => {
-  it("places Resend and Cancel in Session actions", async () => {
+  it("places Resend, hard cancel, and soft cancel in Session actions", async () => {
     await launchHarness();
 
     await element(by.id("session-actions-menu")).tap();
@@ -89,6 +89,9 @@ describe("portable rich session UI", () => {
       .toBeVisible()
       .withTimeout(10000);
     await detoxExpect(element(by.id("actions-menu-action-cancel"))).toExist();
+    await detoxExpect(
+      element(by.id("actions-menu-action-softCancel"))
+    ).toHaveLabel("Soft cancel request");
     await detoxExpect(
       element(by.id("actions-menu-action-localWatchlist"))
     ).toHaveLabel("Add to Watchlist");
@@ -147,19 +150,29 @@ describe("portable rich session UI", () => {
     await waitFor(element(by.id("composer-action-append")))
       .toBeVisible()
       .withTimeout(10000);
-    await waitFor(element(by.id("composer-action-resend")))
+    await waitFor(element(by.id("composer-primary-action-resend")))
       .toBeVisible()
       .withTimeout(10000);
 
-    const cancelAttributes: any = await element(
-      by.id("composer-cancel-request")
+    await element(by.label("Open Composer actions")).tap();
+    await waitFor(element(by.id("actions-menu-action-cancel")))
+      .toBeVisible()
+      .withTimeout(10000);
+    await detoxExpect(
+      element(by.id("actions-menu-action-softCancel"))
+    ).toExist();
+    await detoxExpect(element(by.id("actions-menu-action-resend"))).toExist();
+    await element(by.id("actions-menu-close")).tap();
+
+    const resendAttributes: any = await element(
+      by.id("composer-primary-action-resend")
     ).getAttributes();
     const sendAttributes: any = await element(
       by.id("composer-send")
     ).getAttributes();
-    if (!(cancelAttributes.frame.y < sendAttributes.frame.y)) {
+    if (!(resendAttributes.frame.y < sendAttributes.frame.y)) {
       throw new Error(
-        `Expected Cancel above Send, got cancelY=${cancelAttributes.frame.y} sendY=${sendAttributes.frame.y}`
+        `Expected Resend above Send, got resendY=${resendAttributes.frame.y} sendY=${sendAttributes.frame.y}`
       );
     }
 

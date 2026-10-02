@@ -35,13 +35,12 @@ These requirements track the live implementation of the
 | CLIDIST-114 | Direct archive use, Bash installation, and PowerShell installation have independent user-path acceptance implementations and mutable state; every applicable native release target runs the relevant root npm scenarios against its built archive. | Implemented | Automated | Documented | All six targets passed applicable scenarios in run `34860183022`; current CLI-distribution implementation guide |
 | CLIDIST-115 | Users can select the correct immutable release archive for every supported target, extract it, run its platform launcher directly, and optionally install a command without depending on either public installer. | Implemented | Automated | Documented | Direct archive use passed on all six targets in run `34860183022`; manual installation guide |
 | CLIDIST-116 | Release publication validates and publishes `install.sh`, `install.ps1`, `latest.txt`, and all six native archives, then performs bounded post-CDN public endpoint and installation checks that do not rely only on pre-publication loopback servers. | Implemented | Automated | Documented | `v0.1.5` release run `34878990045`; production download smoke passed on 2026-09-14 |
+| CLIDIST-117 | Source, direct archive/manual, Bash-installed, and PowerShell-installed scenarios execute deterministic tasks through both their actual CLI and packaged Python SDK and validate the full access-variable contract. | Implemented | Automated | Documented | Clean macOS ARM64 source smoke plus every applicable native archive/Bash/PowerShell path passed in [run 34999315316](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34999315316) |
+| CLIDIST-118 | Every native release target runs one real model-mediated CLI/SDK access scenario against its extracted archive, with provider credentials excluded from model-controlled tool and child environments. | Implemented | Automated | Documented | Both model-mediated routes passed on Linux AMD64/ARM64, macOS AMD64/ARM64, and Windows AMD64/ARM64 in [run 35062591328](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/35062591328) |
+| CLIDIST-119 | Source, direct archive/manual, applicable Bash-installed, and native PowerShell-installed commands execute representative plugin-filtered `sessions` and per-session projected `messages` queries with platform-safe JSONPath quoting and line-oriented chaining. | Implemented | Automated | Documented | Clean macOS ARM64 source smoke plus all applicable direct archive, Bash, and PowerShell paths passed on six native targets in [run 36442124636](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/36442124636) |
 
 ## Current-state note
 
-Requirements `CLIDIST-001` through `CLIDIST-103` have local automated evidence.
-Requirements `CLIDIST-110` through `CLIDIST-116` define the approved
-cross-platform installation target and are in progress. The existing
-package-local
-extracted-archive and default-installer npm smokes also pass independently on
-Linux AMD64, macOS AMD64, macOS ARM64, and Windows AMD64 in
-[run 34455407631](https://github.com/dynamicprogrammingsolutions/crystal-lattice/actions/runs/34455407631).
+Requirements through `CLIDIST-118` have current native evidence.
+`CLIDIST-119` is implemented and verified under the
+[session and message data query specification](../session-data-query/index.md).

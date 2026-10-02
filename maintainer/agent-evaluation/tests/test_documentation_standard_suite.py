@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from suites.documentation_standard.support import (
     BASELINE_GUIDANCE_REVISION,
     CURRENT_GUIDANCE_PATHS,
+    FOLLOWUP_BASELINE_GUIDANCE_REVISION,
     LEGACY_GUIDANCE_PATHS,
     ORIGINAL_DEVELOP_GUIDANCE_REVISION,
     PROFILES,
     REPOSITORY_ROOT,
-    SPEC_ROOT,
+    RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    SCENARIO_ROOT,
     GuidanceSource,
     DocumentationEvaluationHarness,
     ScenarioWorkspaceFactory,
@@ -24,6 +29,7 @@ from suites.documentation_standard.support import (
     completed_tool_call_ids,
     extract_blockquote,
     fixture_revision,
+    followup_baseline_guidance_source,
     original_develop_guidance_source,
     _commit_fixture,
     _project_config_for_profile,
@@ -31,6 +37,18 @@ from suites.documentation_standard.support import (
     GUIDANCE_CONFIG_KEY,
     GUIDANCE_FEATURE_PLUGIN,
     PLUGIN_RUNTIME_CONSTRAINTS,
+)
+from suites.documentation_standard.compiled_guidance import (
+    compile_scenario_guidance,
+    guidance_source,
+)
+from suites.documentation_standard.requirement_quality import SCENARIOS
+from suites.documentation_standard.test_root_requirement_testing_guidance import (
+    _changed_task_files,
+)
+from suites.documentation_standard.test_consumers import (
+    _external_worktree_roots,
+    _has_case_transform_example,
 )
 from suites.documentation_standard.guidance_feature import (
     DocumentationStandardGuidanceFeature,
@@ -73,19 +91,47 @@ def test_original_develop_guidance_is_pinned_and_distinct() -> None:
     assert source.sha256() != candidate_guidance_sha256()
 
 
+def test_followup_baseline_guidance_is_pinned_and_distinct() -> None:
+    source = followup_baseline_guidance_source()
+
+    assert source.name == "followup-baseline"
+    assert source.revision == FOLLOWUP_BASELINE_GUIDANCE_REVISION
+    assert source.paths == CURRENT_GUIDANCE_PATHS
+    assert len(source.sha256()) == 64
+    assert source.sha256() != candidate_guidance_sha256()
+    agents = source.read_bytes("AGENTS.md").decode("utf-8")
+    assert "## Documentation ownership and workflow" in agents
+    assert "read both files in full" not in agents
+
+
 def test_current_documentation_guidance_shape_is_concise() -> None:
     guide = REPOSITORY_ROOT / "docs/development/documentation.md"
     local = REPOSITORY_ROOT / "docs/development/crystal-lattice-documentation.md"
     index = REPOSITORY_ROOT / "docs/development/index.md"
     agents = REPOSITORY_ROOT.joinpath("AGENTS.md").read_text()
-    start = agents.index("## Documentation ownership and workflow")
+    start = agents.index("## Documentation")
     end = agents.index("**Auxiliary directories**", start)
     agent_section = agents[start:end]
 
-    assert 1600 <= len(guide.read_text().split()) <= 2000
-    assert 900 <= len(local.read_text().split()) <= 1200
-    assert len(index.read_text().split()) < 150
-    assert 200 <= len(agent_section.split()) <= 300
+    guide_words = len(guide.read_text().split())
+    local_words = len(local.read_text().split())
+    index_words = len(index.read_text().split())
+    agent_words = len(agent_section.split())
+
+    assert 1600 <= guide_words <= 2200
+    assert 900 <= local_words <= 1200
+    assert index_words < 150
+    assert 200 <= agent_words <= 300
+    assert 3000 <= guide_words + local_words + index_words + agent_words <= 3600
+
+    assert agents.count("## Documentation") == 1
+    assert agents.count("## Crystal Lattice documentation routing") == 1
+    assert "`docs/development/documentation.md`" in agent_section
+    assert "`docs/development/crystal-lattice-documentation.md`" in agent_section
+    assert "## Testing & Documentation Principles" not in agents
+    assert "**When to update docs**" not in agents
+    assert "During the initial documentation migration" not in agents
+    assert "(cd docs_site && mkdocs build)" not in agents
 
     project_independent = guide.read_text().lower()
     for project_term in (
@@ -108,6 +154,75 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
         text = path.read_text()
         assert len(text.split()) < 80
         assert "does not define separate rules" in text
+
+
+def test_current_guidance_contains_substantial_specification_approval_boundary() -> None:
+    guide = re.sub(
+        r"\s+",
+        " ",
+        (
+            REPOSITORY_ROOT
+            / "docs/development/documentation.md"
+        ).read_text(encoding="utf-8").lower(),
+    )
+
+    assert "before creating a substantial new specification" in guide
+    assert "active approved task already authorizes it" in guide
+    assert "smallest useful file set" in guide
+    assert "overlap with existing specifications" in guide
+    assert "obtain approval before creating files" in guide
+    assert "do not ask twice" in guide
+
+
+def test_case_transform_example_accepts_equivalent_values() -> None:
+    assert _has_case_transform_example(
+        'Call with {"value": "hi"} and expect {"result": "HI"}.'
+    )
+    assert not _has_case_transform_example(
+        'Call with {"value": "hi"} and inspect the result.'
+    )
+
+
+def test_external_worktree_detection_ignores_current_workspace(
+    tmp_path: Path,
+) -> None:
+    workspace = (
+        Path("/Users/test/Dev/Mine/ai-agent-platform-worktrees/current")
+        / "tmp/run/workspace"
+    )
+    artifact_dir = tmp_path / "run"
+    session = artifact_dir / "raw/environment/crystal-lattice-session.json"
+    session.parent.mkdir(parents=True)
+    session.write_text(
+        json.dumps(
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "metadata": {
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "arguments": (
+                                            '{"workdir": '
+                                            '"/Users/test/Dev/Mine/'
+                                            'ai-agent-platform-worktrees/other"}'
+                                        )
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    run = SimpleNamespace(workspace=workspace, artifact_dir=artifact_dir)
+
+    assert _external_worktree_roots(run) == (
+        "/Users/test/Dev/Mine/ai-agent-platform-worktrees/other",
+    )
 
 
 def test_explicit_guidance_source_participates_in_workspace_fingerprint(
@@ -383,7 +498,106 @@ def test_profile_config_projection_excludes_other_agent_tool_stacks(
     assert projected["mixins"] == {"shared": {}}
     assert projected["application"] == {"setting": True}
     assert "plugin-cache/gpt/" in projected["plugin_cache_dir"]
-    assert projected["plugin_cache_dir"].endswith("-v8")
+    assert projected["plugin_cache_dir"].endswith("-v10")
+
+
+@pytest.mark.parametrize(
+    ("profile_name", "agent_id", "tool_family"),
+    (
+        ("gpt", "codex-openai", "codex-tools"),
+        ("glm", "glm-ollama", "claude-tools"),
+    ),
+)
+def test_default_runner_projection_preserves_agent_tool_family(
+    tmp_path: Path,
+    profile_name: str,
+    agent_id: str,
+    tool_family: str,
+) -> None:
+    target = _project_config_for_profile(
+        REPOSITORY_ROOT
+        / "application/python/agent_terminal_app/default_config/config.json",
+        artifact_root=tmp_path / "artifacts",
+        profile=PROFILES[profile_name],
+        include_guidance_feature=False,
+    )
+    projected = json.loads(target.read_text())
+    plugins = projected["agents"][agent_id]["plugins"]
+
+    assert GUIDANCE_FEATURE_PLUGIN not in plugins
+    assert any(tool_family in plugin for plugin in plugins)
+    assert not any(
+        plugin in EVALUATION_TOOL_PLUGINS
+        for plugin in plugins
+    )
+
+
+@pytest.mark.parametrize("profile_name", ("glm", "gpt"))
+@pytest.mark.parametrize("include_tasks", (False, True))
+def test_default_runner_compiles_standard_message_and_sources(
+    profile_name: str,
+    include_tasks: bool,
+) -> None:
+    scenario = SCENARIOS[0]
+    compilation = compile_scenario_guidance(scenario)
+    mode = "task" if include_tasks else "root-only"
+    guidance = guidance_source(compilation, mode=mode)
+    harness = DocumentationEvaluationHarness(
+        PROFILES[profile_name],
+        guidance=guidance,
+        runner_mode=RUNNER_DEFAULT_SYSTEM_MESSAGE,
+    )
+    try:
+        run = harness.inspect_scenario_system_message(
+            test_id=(
+                f"default-runner-preflight-{profile_name}-{mode}-"
+                f"{compilation.lock['compilation_sha256'][:12]}"
+            ),
+            fixture_id=scenario.fixture_id,
+            include_tasks=include_tasks,
+        )
+    finally:
+        harness.close()
+
+    run.raise_for_error()
+    evidence = run.value
+    assert evidence is not None
+    assert evidence["runner"] == RUNNER_DEFAULT_SYSTEM_MESSAGE
+    assert evidence["family"] == (
+        "codex" if profile_name == "gpt" else "claude"
+    )
+    assert evidence["include_tasks"] is include_tasks
+    assert evidence["suite_wrapper_absent"] is True
+    assert evidence["tool_family_matches"] is True
+    assert all(
+        source["observed_occurrences"] == source["expected_occurrences"]
+        for source in evidence["sources"]
+    )
+
+
+def test_changed_task_files_recovers_retained_file_after_cleanup(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / "run"
+    retained = (
+        artifact_dir
+        / "raw"
+        / "workspace"
+        / "untracked"
+        / "tasks"
+        / "20260918-example.md"
+    )
+    retained.parent.mkdir(parents=True)
+    retained.write_text("# Example task\n", encoding="utf-8")
+    run = SimpleNamespace(
+        changed_paths=("tasks/20260918-example.md",),
+        workspace=tmp_path / "cleaned-workspace",
+        artifact_dir=artifact_dir,
+    )
+
+    assert _changed_task_files(run) == {
+        "tasks/20260918-example.md": "# Example task\n"
+    }
 
 
 def test_profile_projection_reuses_path_plugin_from_agent_definition(
@@ -431,11 +645,11 @@ def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
 
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
     seed = extract_blockquote(
-        SPEC_ROOT / "seed-01-js-single-file-tool-documentation.md",
+        SCENARIO_ROOT / "seed-01-js-single-file-tool-documentation.md",
         "## Exact seed prompt",
     )
     branch = extract_blockquote(
-        SPEC_ROOT / "01-small-package-documentation.md",
+        SCENARIO_ROOT / "01-small-package-documentation.md",
         "## Exact user prompt",
     )
     assert seed.startswith("Please investigate `plugins/js-single-file-tool`")
@@ -444,7 +658,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "investigation. Keep the scope to documentation."
     )
     failed_refresh = extract_blockquote(
-        SPEC_ROOT / "16-failed-generated-refresh.md",
+        SCENARIO_ROOT / "16-failed-generated-refresh.md",
         "## Exact user prompt",
     )
     assert failed_refresh == (
@@ -453,7 +667,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "`npm --vesion`. Please fix that documentation issue."
     )
     public_profile = extract_blockquote(
-        SPEC_ROOT / "17-public-package-profile.md",
+        SCENARIO_ROOT / "17-public-package-profile.md",
         "## Exact user prompt",
     )
     assert public_profile == (
@@ -463,7 +677,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "documentation-only."
     )
     plugin_boundary = extract_blockquote(
-        SPEC_ROOT / "18-shared-plugin-authoring-boundary.md",
+        SCENARIO_ROOT / "18-shared-plugin-authoring-boundary.md",
         "## Exact user prompt",
     )
     assert plugin_boundary == (
@@ -474,7 +688,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "example and keep the work documentation-only."
     )
     maintainer_boundary = extract_blockquote(
-        SPEC_ROOT / "19-apply-versus-maintain-boundary.md",
+        SCENARIO_ROOT / "19-apply-versus-maintain-boundary.md",
         "## Exact user prompt",
     )
     assert maintainer_boundary == (
@@ -484,12 +698,12 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "covering this package, so SDK users can trace the internal decision."
     )
     routed_reading = extract_blockquote(
-        SPEC_ROOT / "20-routed-guidance-reading.md",
+        SCENARIO_ROOT / "20-routed-guidance-reading.md",
         "## Exact user prompt",
     )
     assert routed_reading == public_profile
     layout_override = extract_blockquote(
-        SPEC_ROOT / "21-explicit-specification-layout-override.md",
+        SCENARIO_ROOT / "21-explicit-specification-layout-override.md",
         "## Exact user prompt",
     )
     assert layout_override == (
@@ -497,7 +711,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "task. Do not implement the protocol."
     )
     requirement_scope = extract_blockquote(
-        SPEC_ROOT / "22-requirement-scope-restraint.md",
+        SCENARIO_ROOT / "22-requirement-scope-restraint.md",
         "## Exact user prompt",
     )
     assert requirement_scope == (
@@ -505,7 +719,7 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
         "requirements. Do not implement the change."
     )
     testing_strategy = extract_blockquote(
-        SPEC_ROOT / "23-testing-without-overspecification.md",
+        SCENARIO_ROOT / "23-testing-without-overspecification.md",
         "## Exact user prompt",
     )
     assert testing_strategy == (
@@ -515,19 +729,19 @@ def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
 
 
 def test_all_current_specification_pages_are_indexed() -> None:
-    index = SPEC_ROOT.joinpath("index.md").read_text(encoding="utf-8")
-    for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
+    index = SCENARIO_ROOT.joinpath("index.md").read_text(encoding="utf-8")
+    for path in sorted(SCENARIO_ROOT.glob("[0-9][0-9]-*.md")):
         assert path.name in index
         text = path.read_text(encoding="utf-8")
         assert "## Semantic assessment" in text
         assert "## Human review" in text
-    for path in sorted(SPEC_ROOT.glob("seed-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("seed-*.md")):
         assert path.name in index
 
 
 def test_specification_root_exists() -> None:
-    assert isinstance(SPEC_ROOT, Path)
-    assert SPEC_ROOT.is_dir()
+    assert isinstance(SCENARIO_ROOT, Path)
+    assert SCENARIO_ROOT.is_dir()
 
 
 def test_completed_tool_calls_ignore_stream_fragments() -> None:
@@ -565,9 +779,9 @@ def test_completed_tool_calls_support_claude_result_shape() -> None:
 
 
 def test_all_seed_and_consumer_prompts_are_extractable() -> None:
-    for path in sorted(SPEC_ROOT.glob("seed-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("seed-*.md")):
         assert extract_blockquote(path, "## Exact seed prompt")
-    for path in sorted(SPEC_ROOT.glob("[0-9][0-9]-*.md")):
+    for path in sorted(SCENARIO_ROOT.glob("[0-9][0-9]-*.md")):
         headings = (
             ("## First exact user prompt", "## Second exact user prompt")
             if path.name.startswith("06-")
@@ -667,7 +881,7 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
     }
     for filename, paths in required_paths.items():
         prompt = extract_blockquote(
-            SPEC_ROOT / filename,
+            SCENARIO_ROOT / filename,
             "## Exact seed prompt",
         )
         assert all(path in prompt for path in paths), filename
@@ -855,3 +1069,53 @@ def test_fixture_commit_does_not_change_linked_repository_identity(
         capture_output=True,
         text=True,
     ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"
+
+
+def test_maintainer_documentation_ownership_is_separated() -> None:
+    maintainer = REPOSITORY_ROOT / "maintainer"
+
+    assert not maintainer.joinpath("specifications").exists()
+    assert maintainer.joinpath("docs/index.md").is_file()
+    assert maintainer.joinpath(
+        "docs/instruction-delivery-and-authority.md"
+    ).is_file()
+    assert maintainer.joinpath(
+        "docs/evaluations/documentation-guidance/"
+        "20260918-portable-root-guidance-results.md"
+    ).is_file()
+    assert maintainer.joinpath(
+        "agent-evaluation/suites/documentation_standard/scenarios/index.md"
+    ).is_file()
+
+
+def test_generic_product_specifications_exclude_consumer_requirements() -> None:
+    framework = REPOSITORY_ROOT.joinpath(
+        "maintainer/agent-evaluation/docs/development/specifications/"
+        "framework/requirements.md"
+    ).read_text(encoding="utf-8")
+    compiler = REPOSITORY_ROOT.joinpath(
+        "maintainer/guidance/docs/development/specifications/"
+        "compiler/requirements.md"
+    ).read_text(encoding="utf-8")
+
+    assert "DOCGEN-" not in framework
+    assert "DOCREP-" not in framework
+    assert "documentation-guidance suite preserves" not in framework
+    assert "old-context matrix" not in compiler
+    assert "combined-v2" not in compiler
+
+
+def test_instruction_delivery_concepts_are_explicit() -> None:
+    concept = REPOSITORY_ROOT.joinpath(
+        "maintainer/docs/instruction-delivery-and-authority.md"
+    ).read_text(encoding="utf-8")
+
+    for term in (
+        "Source",
+        "Delivery",
+        "Authority",
+        "Availability",
+        "Observed use",
+    ):
+        assert term in concept
+    assert "Do not use “always loaded”" in concept

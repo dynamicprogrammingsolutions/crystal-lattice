@@ -34,7 +34,8 @@ Native compaction is implemented by:
 
 - `openai_responses_native_compaction.py` for API and ChatGPT transports;
 - `openai_responses_native_compaction_extension.py` for session-history
-  selection, compaction application, and transcript rebuilding;
+  selection, automatic ordinary-request compaction, manual compaction
+  application, and transcript rebuilding;
 - `openai_responses_native_compaction_app.py` and
   `openai_responses_native_compaction_process.py` for the background action,
   cancellation, notifications, and reconciled persistence.

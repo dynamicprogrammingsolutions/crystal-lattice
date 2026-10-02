@@ -28,6 +28,9 @@ jest.mock('@react-native-documents/picker', () => {
     pick: jest.fn(async () => {
       throw canceled;
     }),
+    pickDirectory: jest.fn(async () => {
+      throw canceled;
+    }),
     keepLocalCopy: jest.fn(async () => [
       {
         status: 'error',

@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-glm-max-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194514.582979Z-task-guidance-file-fidelity-tg04-flask-vue-discovery-decomposition-glm-max-s0-01783467",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b1d51c567732343e79d2b324b5006f93f990c05dea4c2822d29a14747ea0fc60",
+    "original_sha256": "4884980381978a72b8d8e1d17e513a5097fc70d9b68e44a3c4e35a5163b79ec8",
+    "path": "shared/system-messages/glm-assessor-b1d51c567732.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

@@ -9,10 +9,13 @@ users can drive with their own provider credentials.
 - [ ] A fresh install exposes a testable path without requiring the reviewer
   to install the desktop CLI, join a private LAN, or provide reviewer-owned
   provider credentials.
-- [ ] App Review may use a supplied private Crystal Lattice reviewer login
-  backed by a live public OpenAI-compatible service.
+- [x] App Review may use a supplied private Crystal Lattice reviewer login
+  backed by a live public OpenAI Responses service.
 - [ ] API-key or supported ChatGPT-backed authorization is the first-class
   normal-user model path; an actual on-device/platform model is a fallback.
+- [ ] On-device OpenAI settings let the user explicitly select API-key or
+  ChatGPT authentication, invoke plugin-driven login/status actions directly,
+  and retain per-session overrides without exposing an automatic mode.
 - [ ] The review path uses a real model and the normal agent/tool loop; it does
   not expose a deterministic product or reviewer model.
 - [ ] The minimal reviewed flow exercises sessions, message send/receive,
@@ -61,9 +64,9 @@ As of September 10, 2026:
   persistence host. The primary model may remain remote.
 - Normal users should first configure an API key or a supported
   ChatGPT-backed authorization path.
-- App Review may receive a private caller key for a public OpenAI-compatible
-  proxy backed by `gpt-5.6-luna`, restricted to that model and protected by a
-  configurable persisted cost budget/cooldown.
+- App Review may receive a private caller key for a public OpenAI Responses
+  proxy backed by `gpt-5.6-luna`, restricted to that model and protocol and
+  protected by a configurable persisted cost budget/cooldown.
 - The on-device model is a fallback, not the first-run primary model.
 - No deterministic model is part of the product or reviewer path.
 - The initial capability is deliberately small and general: one fixed agent,
@@ -119,10 +122,11 @@ As of September 10, 2026:
 - The first proof of concept needs only a fixed OpenAI-compatible endpoint plus
   a basic API-key entry path. Production-grade credential provenance and
   polished settings remain separate hardening.
-- The current ChatGPT device-code plugin is useful follow-up research, but its
-  filesystem credential storage, `curl` subprocess fallback, polling
-  lifecycle, and production authorization assumptions require iOS-specific
-  work. It is not part of the initial proof of concept.
+- The ChatGPT device-code plugin remains outside the initial proof of concept,
+  but follow-up subtask `017` now supplies app-sandbox credential storage,
+  plugin-driven settings actions, verified bundled CA roots, and an
+  in-process HTTP fallback suitable for iOS. Human authorization and the real
+  hosted tool request remain separately gated acceptance.
 - A developer-operated reviewer proxy changes the completed privacy premise
   that no developer service receives user traffic. Before external review,
   privacy answers and the published policy must be reassessed for the actual
@@ -195,23 +199,25 @@ These ideas do not expand the initial proof-of-concept specification.
 
 ## Reviewer service follow-up
 
-The reopened
-`tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`
-owns the reviewer service implementation and deployment.
+Historical reviewer proxy implementation and Chat Completions verification
+remain in
+`tasks/20260910-ios-embedded-runtime-poc/015-useful-runtime-tools-providers-and-settings.md`.
+The approved protocol, TLS, and built-in ChatGPT settings correction is owned
+by
+`tasks/20260910-ios-embedded-runtime-poc/017-openai-responses-reviewer-and-chatgpt-settings.md`.
 
-The planned App Review instructions are:
+The target App Review instructions below are not current until subtask `017`
+completes:
 
 1. Open **On-device Provider Settings** from Home.
-2. In **OpenAI-compatible reviewer**, enter the private caller key supplied in
-   App Review notes.
-3. Set the endpoint to
-   `https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1` and the model
-   to `gpt-5.6-luna`.
-4. Test and save the profile, open **On-device Python agents**, and create a
-   `reviewer-claude` session.
-5. Ask the agent to create a workspace file with `Write`, read it with `Read`,
-   and report the result.
-6. Confirm that tool calls/results are visible and the session/workspace
+2. In **OpenAI Responses reviewer**, enter the private caller key supplied in
+   App Review notes; the endpoint, `gpt-5.6-luna`, and reviewer CA are
+   preconfigured.
+3. Test and save the profile, open **On-device Python agents**, and create a
+   `reviewer-codex` session.
+4. Ask the agent to create a workspace file with `apply_patch`, read it with
+   the Codex-like file tools, and report the result.
+5. Confirm that tool calls/results are visible and the session/workspace
    survives navigation or relaunch.
 
 The distributed app contains only the public reviewer CA certificate. The
@@ -233,9 +239,11 @@ is complete. It delivered:
 - bounded native lifecycle state and delayed background continuation;
 - production-screen, real-model, persistence, and background simulator tests.
 
-The completed foundation does not deliver the public reviewer service,
-ChatGPT authorization, on-device model fallback, Tavily, restricted Python,
-privacy reconciliation, or external TestFlight review package.
+The completed `010` foundation does not itself deliver the public reviewer
+service, ChatGPT authorization, on-device model fallback, Tavily, restricted
+Python, privacy reconciliation, or external TestFlight review package.
+Follow-up `017` has since verified real ChatGPT login start and cancellation
+in the Release simulator, while human authorization remains gated.
 
 ## App Review and completion notes
 

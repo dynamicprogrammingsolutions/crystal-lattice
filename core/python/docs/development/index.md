@@ -1,6 +1,7 @@
 # Core Python development
 
 - [Application owner](application-owner.md)
+- [Plugin installation cache lifecycle](plugin-cache.md)
 - [Configuration composition implementation](configuration-composition.md)
 - [Structured logging](logging.md)
 - [Notification implementation](notification-implementation.md)

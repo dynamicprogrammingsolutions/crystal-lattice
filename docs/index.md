@@ -23,8 +23,9 @@ harnesses.
   default application configuration.
 - [Event stream types](packages/core-python/events.md): understand application
   events exposed by HTTP polling and bridge streaming.
-- [Development documentation](development/index.md): reusable standards,
-  Crystal Lattice repository policy, and cross-package target specifications.
+- [Development documentation](development/index.md): documentation and
+  specification guidance, Crystal Lattice conventions, and cross-package
+  targets.
 
 ## Developer Reference
 

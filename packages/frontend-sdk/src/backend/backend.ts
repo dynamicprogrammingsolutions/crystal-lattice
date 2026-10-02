@@ -15,6 +15,12 @@ import type {
 } from '../types/notifications';
 import type { SessionRequestStatusSnapshot } from '../types/sessionRequestStatus';
 import type { AgentDescriptor } from '../types/agents';
+import type {
+  MessageDataQueryParams,
+  MessageDataQueryResult,
+  SessionDataQueryParams,
+  SessionDataQueryResult,
+} from '../types/sessionDataQuery';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -78,6 +84,9 @@ export interface AgentBackend {
     idempotencyKey?: string;
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
+  querySessions?(
+    params?: SessionDataQueryParams,
+  ): Promise<SessionDataQueryResult>;
   getSessionSummary(sessionId: string): Promise<SessionSummary>;
   getSessionRequestStatuses?(
     sessionIds: readonly string[],
@@ -127,6 +136,10 @@ export interface AgentBackend {
     sessionId: string,
     params?: { start?: number; end?: number },
   ): Promise<ListMessagesResult>;
+  queryMessages?(
+    sessionId: string,
+    params?: MessageDataQueryParams,
+  ): Promise<MessageDataQueryResult>;
 
   appendMessage(
     sessionId: string,
@@ -173,6 +186,7 @@ export interface AgentBackend {
   ): Promise<{ status?: string; request_id?: string }>;
 
   cancelRequest(requestId: string, options?: { idempotencyKey?: string }): Promise<void>;
+  softCancelRequest(requestId: string, options?: { idempotencyKey?: string }): Promise<void>;
 
   // --- Events ---
   listEvents(params: {

@@ -6,6 +6,9 @@ run:
 - a FastAPI HTTP API for sessions, messages, requests, plugins, config, and
   application actions
 - a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
+- local Python and one-shot CLI APIs for configured agent tasks, follow-ups,
+  bounded progress, compact history, plugin-filtered session enumeration, and
+  projected canonical message ranges
 - both together, sharing the same session store and in-memory event stream
 - optional Bonjour/mDNS advertisement for LAN discovery
 - optional bridge registration for paired mobile access across networks
@@ -19,6 +22,8 @@ Documentation:
 - [Installation](docs/installation.md)
 - [Quickstart](docs/quickstart.md)
 - [Terminal guide](docs/terminal.md)
+- [Local headless agent runs](docs/headless-agent-runs.md)
+- [Session and message queries](docs/session-data-query.md)
 - [Application configuration](docs/configuration.md)
 - [Configuration mixins](docs/configuration-mixins.md)
 - [Configuration variants](docs/configuration-variants.md)
@@ -47,7 +52,7 @@ or use the source install below for development.
 
 ### Source Install
 
-From the repository root:
+For development from the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"
@@ -95,8 +100,8 @@ For contributors and local validation:
   pytest application/python/tests -m docker -q
   ```
 
-The shipped CLI distribution has four independently executable local smoke
-scenarios:
+The shipped CLI distribution has four independently executable
+credential-free installation smoke scenarios:
 
 ```bash
 npm run test:cli:source-install
@@ -111,6 +116,16 @@ launcher directly. The default-installer smoke runs the public download
 installer with default paths and executes `crystal-lattice` by name through
 PATH. The PowerShell-installer smoke runs the native Windows installer and
 verifies the command from both PowerShell and `cmd.exe`.
+
+Each scenario also executes one deterministic agent request through the CLI
+and one through the packaged Python SDK. The separately gated real
+model-mediated check is:
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E=1 \
+OPENROUTER_API_KEY=... \
+npm run test:cli:agent-access
+```
 
 The direct archive and applicable installer smokes use separate temporary
 homes, configurations, plugin caches, and pip caches. Each independently
@@ -131,6 +146,21 @@ real-provider tests and does not overwrite already-exported environment
 variables.
 
 ## Running Crystal Lattice
+
+### One-shot agent tasks
+
+Run a configured agent without starting the server or interactive terminal:
+
+```bash
+crystal-lattice agents
+crystal-lattice run --agent codex-openai --prompt-file task.md
+```
+
+Use `--format json` for machine-safe results and reuse the returned
+`session_id` with `crystal-lattice run --session ...` for a follow-up. Python
+callers can use `open_runtime()` from `agent_terminal_app`. See
+[Local headless agent runs](docs/headless-agent-runs.md) for progress,
+parallelism, compact history, cancellation, and output contracts.
 
 ### Quick Start
 
@@ -308,6 +338,10 @@ Important layout behavior:
   rather than the active config file location.
 - `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
   sources in binary installs.
+- `CRYSTAL_LATTICE_CLI_ARGV_JSON`, `CRYSTAL_LATTICE_CLI_COMMAND`,
+  `CRYSTAL_LATTICE_CONFIG`, and `CRYSTAL_LATTICE_SESSIONS` identify the same
+  runtime for optional delegated local runs; interpreter, API, local-docs, and
+  public-docs values determine whether full or CLI-only guidance is available.
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
 
@@ -336,11 +370,21 @@ The default Claude routes are provider-qualified:
 
 - `claude-openrouter` uses Claude through OpenRouter.
 - `claude-anthropic` uses the direct Anthropic API and selects model-specific
-  reasoning defaults, beta, and context-management settings through
-  configuration variants. The Anthropic reasoning-controls extension derives
-  available mode and effort UI from model capabilities or known fallbacks. It
-  defaults to Sonnet 5 and can select supported Haiku, Sonnet, Opus, Fable, and
-  Mythos models from model discovery.
+  reasoning and context-management defaults through configuration variants.
+  The Anthropic reasoning-controls, context-editing, and compaction extensions
+  derive their applicable UI from model capabilities. Supported compaction,
+  keep-all thinking retention, and conservative tool-use clearing are enabled
+  by default. Current one-million-token models compact at 800,000 tokens and
+  begin tool-use clearing at 200,000 tokens. The agent defaults to Sonnet 5
+  and can select supported Haiku, Sonnet, Opus, Fable, and Mythos models from
+  model discovery.
+
+The default OpenAI Responses provider keeps automatic compaction disabled.
+Users can enable it and adjust its 200,000-token trigger in session settings.
+Model variants select all-turn reasoning retention for GPT-5.6-and-later
+numeric model families. Existing manual full/prefix compaction remains
+available as a session action. OpenAI currently has no independent native
+tool-use-clearing control.
 
 For model-like request testing without any external API or local model, use the
 echo config:
@@ -435,7 +479,19 @@ Or, to avoid passing `--bridge-url` every time, add it to `.crystal/profile.json
 or to `config.json` under the `application` section:
 
 ```json
-{"application": {"bridge_url": "ws://localhost:4000/ws/websocket"}}
+{
+  "application": {
+    "bridge_url": "ws://localhost:4000/ws/websocket",
+    "bridge": {
+      "ws_max_size_bytes": 16777216,
+      "http_timeout_seconds": 120.0,
+      "http_chunk_size_bytes": 921600,
+      "http_chunk_threshold_bytes": 262144,
+      "http_max_body_bytes": 10485760,
+      "debug": false
+    }
+  }
+}
 ```
 
 Then simply:
@@ -469,12 +525,20 @@ Common bridge options:
 - `--bridge-takeover-local` - with the local guard, try to terminate and replace
   the existing local process.
 
-The equivalent environment override for the public HTTP origin is
-`BRIDGE_HTTP_BASE_URL`. The server WebSocket remains the registration and
-control channel. For HTTP/hybrid frontends, request bodies are downloaded from
-the bridge and local response bodies are uploaded to it as raw HTTP byte
-streams; only status, headers, paths, and short-lived transfer credentials use
-the WebSocket.
+Bridge and Bonjour are activated and configured only through these explicit
+CLI/profile/application sources. Ambient `BRIDGE_*`, `BONJOUR_*`,
+`ENABLE_BONJOUR`, `SERVER_HOST`, `SERVER_PORT`, and `PORT` values do not
+configure the internally hosted integrations. Direct uvicorn embedders must
+call `configure_integrations(...)` before startup when they need either
+integration.
+
+The settings under `application.bridge` are advanced process-start transport
+controls. Their complete types, defaults, validation, and restart behavior are
+documented in [Application configuration](docs/configuration.md#bridge-runtime-settings).
+The server WebSocket remains the registration and control channel. For
+HTTP/hybrid frontends, request bodies are downloaded from the bridge and local
+response bodies are uploaded to it as raw HTTP byte streams; only status,
+headers, paths, and short-lived transfer credentials use the WebSocket.
 
 Maintainers can find lifecycle, legacy/v2 forwarding, header, cancellation,
 and test ownership details in
@@ -734,7 +798,10 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
   notifications use the same endpoint with `session_id` and persist in session
   metadata. Both use standard `banner`, `inline`, and `modal` display
   presentations.
-- `POST /requests/{request_id}/cancel` - cancel an active request.
+- `POST /requests/{request_id}/cancel` - hard-cancel an active request,
+  interrupting a cooperative foreground tool.
+- `POST /requests/{request_id}/soft-cancel` - stop after an active foreground
+  tool finishes and its result is saved.
 - `GET /agents` - list configured agents.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.

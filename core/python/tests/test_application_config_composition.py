@@ -501,6 +501,36 @@ def test_variants_support_exact_regex_order_and_deep_default() -> None:
     }
 
 
+def test_later_matching_variant_wins_scalar_conflict() -> None:
+    base = {
+        "model": "example-pro",
+        "service_tier": "default",
+        "$variants": [
+            {
+                "$when": {"model": {"$matches": "^example-"}},
+                "service_tier": "standard",
+                "request_options": {"reasoning": {"enabled": True}},
+            },
+            {
+                "$when": {"model": "example-pro"},
+                "service_tier": "priority",
+                "request_options": {"reasoning": {"effort": "high"}},
+            },
+        ],
+    }
+
+    resolved, errors = resolve_config_variants(base, selector=base)
+
+    assert errors == []
+    assert resolved["service_tier"] == "priority"
+    assert resolved["request_options"] == {
+        "reasoning": {
+            "enabled": True,
+            "effort": "high",
+        }
+    }
+
+
 def test_nested_variants_use_root_selector_and_controls_are_removed() -> None:
     base = {
         "model": "claude-haiku-4-5-20251001",

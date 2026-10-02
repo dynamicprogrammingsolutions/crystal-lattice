@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 23
+    },
+    "parent_run_id": "20260925T204505.910880Z-task-guidance-tg03-flask-vue-refresh-handoff-high-0325779b"
+  },
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T204508.422291Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-b4104d13",
+  "system_message": {
+    "availability": {
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
+    },
+    "normalized_sha256": "fd7aa37060bef3274e61c4cda078617ee3cfaa78abf4a61b5d8c416ac5d449f7",
+    "original_sha256": "5249849d5b5eeb4d1f3b4f890d1bf4a85d5aa5be3ee35d1cc504113bb5ee12bd",
+    "path": "shared/system-messages/gpt-fd7aa37060be.md",
+    "source": "inherited-from-producer-run"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-preserve-books-filter-after-crud-refresh.md"
+  ],
+  "valid": true
+}

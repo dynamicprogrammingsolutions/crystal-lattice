@@ -7,7 +7,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCREP-003`, `DOCMIG-003`, `DOCPUB-006`

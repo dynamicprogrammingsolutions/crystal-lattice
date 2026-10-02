@@ -25,9 +25,9 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 import openai_responses_plugins.openai_responses_provider as provider_module  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import (
+from openai_responses_plugins.openai_responses_provider import (  # noqa: E402
     OpenAIResponsesProvider,
-)  # noqa: E402
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
@@ -145,6 +145,12 @@ def test_openai_prompt_cache_ui_schema_and_create_time_key(
     assert len(session_actions) == 1
     assert session_actions[0]["action_id"] == "regenerate_prompt_cache_key"
     assert session_actions[0]["action_owner"] == "provider_extension"
+    assert session_actions[0]["rich_ui"] == {
+        "kind": "button",
+        "placements": ["session_settings"],
+        "anchor_key": "prompt_cache_key",
+        "position": "after",
+    }
 
 
 def test_openai_prompt_cache_key_can_be_edited_and_regenerated(

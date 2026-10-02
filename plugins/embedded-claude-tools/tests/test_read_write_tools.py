@@ -85,3 +85,34 @@ def test_tools_reject_absolute_traversal_and_symlink_escape(tmp_path: Path) -> N
         write_state,
     )["success"]
     assert not (outside / "escape.txt").exists()
+
+
+def test_tools_use_session_directory_within_fixed_workspace(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    selected = workspace / "projects" / "alpha"
+    sibling = workspace / "projects" / "beta"
+    selected.mkdir(parents=True)
+    sibling.mkdir()
+    config = {
+        "workspace_root": str(workspace),
+        "allowed_paths": [str(workspace)],
+        "working_directory": str(selected),
+    }
+    write = ClaudeLikeWriteTool()
+    state = write.init(config)
+
+    written = write.execute_tool(
+        "Write",
+        {"file_path": "session.txt", "content": "alpha"},
+        state,
+    )
+    escaped = write.execute_tool(
+        "Write",
+        {"file_path": "../beta/escape.txt", "content": "blocked"},
+        state,
+    )
+
+    assert written["success"]
+    assert (selected / "session.txt").read_text(encoding="utf-8") == "alpha"
+    assert not escaped["success"]
+    assert not (sibling / "escape.txt").exists()

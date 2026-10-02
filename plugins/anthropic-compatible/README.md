@@ -25,11 +25,15 @@ The package currently provides:
   `AnthropicUsageExtension`;
 - automatic 5-minute or 1-hour prompt caching through
   `AnthropicPromptCachingExtension`;
+- automatic provider-native compaction through
+  `AnthropicCompactionExtension`;
+- independent thinking-retention and tool-use context editing through
+  `AnthropicContextEditingExtension`;
 - local Ollama compatibility for discovery, text, streaming, tools, thinking,
   usage, duration/TPS, and reasoning-effort passthrough.
 
-Image attachments, OAuth, cost estimation, server tools, and native compaction
-are not part of the current implementation.
+Image attachments, OAuth, cost estimation, and server tools are not part of
+the current implementation.
 
 ## Installation
 
@@ -215,7 +219,7 @@ Adaptive thinking:
 }
 ```
 
-Beta context management uses provider beta config plus a raw request body:
+Raw beta context management remains available:
 
 ```json
 {
@@ -236,6 +240,22 @@ Beta context management uses provider beta config plus a raw request body:
 Register the request-options feature whenever these fields are used. The
 provider reserves `messages`, `system`, and `stream`; unknown compatible
 request fields are forwarded through the SDK body escape hatch.
+
+## Native context management
+
+`AnthropicCompactionExtension` owns automatic token-triggered compaction.
+`AnthropicContextEditingExtension` separately owns thinking retention and
+tool-use clearing.
+
+Official model descriptors enable the applicable controls independently.
+The extension schema remains opt-in, while the shipped direct Anthropic
+configuration enables supported compaction, keep-all thinking retention, and
+conservative tool-use clearing. The returned compaction block is preserved
+exactly in provider-native history and reused on later requests.
+
+See [Anthropic native context management](docs/context-management.md) for
+settings, beta behavior, applied-edit metadata, complete iteration usage,
+compatible endpoint opt-in, limitations, and the hosted continuation test.
 
 ## Prompt caching extension
 
@@ -274,7 +294,8 @@ native history. Explicit raw `request_options.cache_control` wins.
 - session-cumulative totals;
 - stable turn IDs and terminal/tool-call state;
 - stable turn totals used by performance extensions, including
-  `DurationExtension` turn TPS.
+  `DurationExtension` turn TPS;
+- complete `usage.iterations` totals and separate compaction token classes.
 
 The extension does not calculate monetary cost or estimate missing cached
 tokens.
@@ -317,6 +338,14 @@ pytest plugins/anthropic-compatible/tests \
 
 Hosted tests require `ANTHROPIC_API_KEY`. Set `ANTHROPIC_TEST_MODEL` to
 override the discovered low-cost test model.
+
+Native compaction requires a separate slow hosted run:
+
+```bash
+pytest \
+  plugins/anthropic-compatible/tests/test_anthropic_compaction_api_integration.py \
+  -m "integration and api and anthropic and slow_integration" -q
+```
 
 ## Development documentation
 

@@ -266,7 +266,7 @@ def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
             == installer.requests[-2].revision
         )
         assert "local_dependency_versions" not in installer.requests[-1].metadata
-        assert installer.requests[-1].policy["pip_cache_dir"] == str(cache_dir / "pip")
+        assert installer.requests[-1].policy["pip_cache_dir"] is None
         assert "--no-cache-dir" not in installer.requests[-1].policy.get("pip_args", [])
 
         (shared_pkg / "__init__.py").write_text("VALUE = 2\n", encoding="utf-8")

@@ -552,12 +552,16 @@ def test_release_workflow_runs_distribution_smokes_through_npm() -> None:
 
     assert "id: locate_archive" in workflow
     assert workflow.count("npm run test:cli:archive") == 1
+    assert workflow.count("npm run test:cli:agent-access") == 1
     assert workflow.count("npm run test:cli:default-install") == 1
     assert workflow.count("npm run test:cli:powershell-install") == 1
     assert "always() && steps.locate_archive.outcome == 'success'" in workflow
     assert "smoke_runtime_archive.py" not in workflow
     assert "matrix.platform == 'windows'" in workflow
     assert "matrix.bash-installer" in workflow
+    assert "RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E" in workflow
+    assert "inputs.run_agent_access == true" in workflow
+    assert "OPENROUTER_API_KEY is required for real agent access" in workflow
 
 
 def test_release_workflow_builds_all_native_targets() -> None:

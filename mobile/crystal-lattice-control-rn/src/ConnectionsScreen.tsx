@@ -223,7 +223,11 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
                     <Text style={styles.methodBadgeText}>{methodLabel(record.kind)}</Text>
                   </View>
                 </View>
-                <Text style={styles.itemSubLabel} numberOfLines={1}>
+                <Text
+                  testID={`connection-info-${record.id}`}
+                  style={styles.itemSubLabel}
+                  numberOfLines={1}
+                >
                   {getConnectionAdditionalInfo(record)}
                 </Text>
                 <View style={styles.cardFooter}>

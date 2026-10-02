@@ -73,6 +73,21 @@ def test_requests_transport_models_and_response_payloads() -> None:
     assert session.requests[1]["url"] == "https://api.test/v1/responses"
     assert session.requests[1]["headers"]["Authorization"] == "Bearer secret"
     assert session.requests[1]["json"]["model"] == "gpt-test"
+    assert session.requests[1]["verify"] is True
+
+
+def test_requests_transport_uses_configured_ca_bundle() -> None:
+    session = _Session([_Response({"data": []})])
+    client = RequestsOpenAIClient(
+        api_key="secret",
+        base_url="https://reviewer.test/v1",
+        timeout=30,
+        verify="/runtime/reviewer-ca.pem",
+        session=session,
+    )
+
+    assert client.models.list().data == []
+    assert session.requests[0]["verify"] == "/runtime/reviewer-ca.pem"
 
 
 def test_requests_transport_stream_parses_sse_events() -> None:

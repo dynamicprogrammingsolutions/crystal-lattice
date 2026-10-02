@@ -2,6 +2,7 @@
   "schema_version": 1,
   "layout": "source",
   "bundle_paths": {
+    "application_docs": "../docs",
     "builtin_plugins": "../../../plugins",
     "default_config_template": "default_config",
     "config_examples": ".",

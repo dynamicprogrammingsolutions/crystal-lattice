@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "plan-retain",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T202419.829081Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-6875868f",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "fd7aa37060bef3274e61c4cda078617ee3cfaa78abf4a61b5d8c416ac5d449f7",
+    "original_sha256": "d5ed456c20e3af29c3fa1242cd9b899362f93474e7190c5c408a4386be97cb9d",
+    "path": "shared/system-messages/gpt-fd7aa37060be.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md"
+  ],
+  "valid": true
+}

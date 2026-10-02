@@ -24,6 +24,9 @@ from .openai_responses_native_compaction import (
 _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
 _COMPACTION_MODEL_KEY = "compaction_model"
 _USE_PLACEHOLDER_TRANSCRIPT_KEY = "use_compaction_placeholder_transcript"
+_ENABLE_AUTOMATIC_COMPACTION_KEY = "enable_openai_automatic_compaction"
+_AUTOMATIC_COMPACTION_TRIGGER_KEY = "openai_compaction_trigger_tokens"
+_DEFAULT_AUTOMATIC_COMPACTION_TRIGGER = 200_000
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 _COMPACTION_METADATA_KEY = "openai_responses_compaction"
 _COMPACTION_PLACEHOLDER_TEXT = "Earlier conversation compacted to reduce context size."
@@ -40,6 +43,26 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
+            _ENABLE_AUTOMATIC_COMPACTION_KEY: {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "When true, ordinary Responses requests ask OpenAI to compact "
+                    "the active context automatically at the configured token "
+                    "threshold."
+                ),
+            },
+            _AUTOMATIC_COMPACTION_TRIGGER_KEY: {
+                "type": "integer",
+                "required": False,
+                "default": _DEFAULT_AUTOMATIC_COMPACTION_TRIGGER,
+                "minimum": 1,
+                "description": (
+                    "Input-token threshold passed to OpenAI automatic context "
+                    "compaction."
+                ),
+            },
             _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY: {
                 "type": "boolean",
                 "required": False,
@@ -79,6 +102,24 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             ),
         }
 
+    def _automatic_compaction_trigger(
+        self,
+        config: Optional[Dict[str, Any]],
+    ) -> int:
+        raw = (
+            config.get(_AUTOMATIC_COMPACTION_TRIGGER_KEY)
+            if isinstance(config, dict)
+            else None
+        )
+        if raw is None:
+            return _DEFAULT_AUTOMATIC_COMPACTION_TRIGGER
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+            raise ValueError(
+                "[openai_responses_native_compaction] "
+                "openai_compaction_trigger_tokens must be a positive integer"
+            )
+        return raw
+
     def get_ui_elements(
         self,
         config: Optional[Dict[str, Any]] = None,
@@ -86,8 +127,31 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = tags, models
+        if (
+            isinstance(config, dict)
+            and config.get("native_compaction_enabled") is False
+        ):
+            return []
         placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": _ENABLE_AUTOMATIC_COMPACTION_KEY,
+                "label": "Enable automatic OpenAI compaction",
+                "default": bool(
+                    isinstance(config, dict)
+                    and config.get(_ENABLE_AUTOMATIC_COMPACTION_KEY, False)
+                ),
+            },
+            {
+                "ui_type": "config",
+                "type": "number",
+                "key": _AUTOMATIC_COMPACTION_TRIGGER_KEY,
+                "label": "Automatic OpenAI compaction trigger tokens",
+                "default": self._automatic_compaction_trigger(config),
+                "minimum": 1,
+            },
             {
                 "ui_type": "config",
                 "type": "checkbox",
@@ -132,6 +196,37 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             },
         ]
 
+    def initialize_request(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        _ = context
+        config = state.get("config")
+        config = config if isinstance(config, dict) else {}
+        if not bool(config.get(_ENABLE_AUTOMATIC_COMPACTION_KEY, False)):
+            return list(native_messages), state
+
+        request = state.get("request")
+        request = request if isinstance(request, dict) else {}
+        payload = request.get("payload")
+        payload = dict(payload) if isinstance(payload, dict) else {}
+        payload["context_management"] = [
+            {
+                "type": "compaction",
+                "compact_threshold": self._automatic_compaction_trigger(config),
+            }
+        ]
+        return list(native_messages), {
+            **state,
+            "request": {
+                **request,
+                "payload": payload,
+            },
+        }
+
     def get_tags(
         self, config: Dict[str, Any], models: List[Dict[str, Any]]
     ) -> List[str]:
@@ -143,6 +238,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        if config.get("native_compaction_enabled") is False:
+            return []
         placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
             {

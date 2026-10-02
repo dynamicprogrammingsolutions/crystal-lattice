@@ -75,6 +75,12 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
         if isinstance(tags, list) and "openai_responses" not in tags:
             return []
 
+        if (
+            isinstance(config, dict)
+            and config.get("provider_transport") == "requests"
+        ):
+            return []
+
         return [
             {
                 "type": "select",

@@ -87,10 +87,41 @@ beforeEach(() => {
             option_label: "Use '{value}' as a custom model ID",
           },
         },
+        {
+          ui_type: 'config',
+          key: 'include_crystal_lattice_access',
+          type: 'checkbox',
+          label: 'Include Crystal Lattice Access Guidance (CLI only)',
+          description:
+            'CLI-only guidance is available; Python SDK guidance is unavailable.',
+          disabled: false,
+        },
+        {
+          ui_type: 'config',
+          key: 'crystal_lattice_access_unavailable_fixture',
+          type: 'checkbox',
+          label: 'Include Crystal Lattice Access Guidance (unavailable)',
+          description:
+            'Unavailable because CRYSTAL_LATTICE_CLI_COMMAND is missing.',
+          disabled: true,
+        },
       ],
+      actions: [],
       overrides: {},
-      configSchema: [{ key: 'model', type: 'string' }],
-      baseConfig: { model: 'claude-a' },
+      configSchema: [
+        { key: 'model', type: 'string' },
+        { key: 'include_crystal_lattice_access', type: 'boolean', default: false },
+        {
+          key: 'crystal_lattice_access_unavailable_fixture',
+          type: 'boolean',
+          default: false,
+        },
+      ],
+      baseConfig: {
+        model: 'claude-a',
+        include_crystal_lattice_access: false,
+        crystal_lattice_access_unavailable_fixture: false,
+      },
       loading: false,
       refreshing: false,
       savingKeys: [],
@@ -122,6 +153,44 @@ test('renders a custom dropdown through MacComboBox', async () => {
   const dropdown = screen.getByTestId('session-setting-dropdown-model');
   expect(dropdown).toBeTruthy();
   expect(screen.getByDisplayValue('claude-a')).toBeTruthy();
+  expect(
+    screen.getByText('Include Crystal Lattice Access Guidance (CLI only)'),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      'CLI-only guidance is available; Python SDK guidance is unavailable.',
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.getByText('Include Crystal Lattice Access Guidance (unavailable)'),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(
+      'Unavailable because CRYSTAL_LATTICE_CLI_COMMAND is missing.',
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.getByTestId(
+      'session-setting-checkbox-crystal_lattice_access_unavailable_fixture',
+    ).props.disabled,
+  ).toBe(true);
+});
+
+test('does not patch a disabled access setting', () => {
+  render(<SessionSettingsWindow />);
+
+  fireEvent(
+    screen.getByTestId(
+      'session-setting-checkbox-crystal_lattice_access_unavailable_fixture',
+    ),
+    'valueChange',
+    true,
+  );
+
+  expect(patchOverride).not.toHaveBeenCalledWith(
+    'crystal_lattice_access_unavailable_fixture',
+    true,
+  );
 });
 
 test('patches an arbitrary model from the desktop dropdown editor', async () => {

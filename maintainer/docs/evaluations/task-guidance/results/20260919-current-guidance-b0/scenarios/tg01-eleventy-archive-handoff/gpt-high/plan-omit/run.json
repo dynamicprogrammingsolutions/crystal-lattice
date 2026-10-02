@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "plan-omit",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260919T201428.107254Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-b210dce4",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "337f21950e81474d1e6086291e7707b4004c19a27e4f2548e8311b389fd221ee",
+    "original_sha256": "b78cc2de35f074db54061bbfaeb1dc4e255f41ab4c1b480275dc31d744449a5c",
+    "path": "shared/system-messages/gpt-337f21950e81.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg01-eleventy-archive-handoff.md"
+  ],
+  "valid": true
+}

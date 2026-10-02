@@ -738,7 +738,7 @@ mobile/crystal-lattice-control-rn/
 ## Related Documentation
 
 - [Home, Watchlist, and recent sessions](docs/home.md)
-- [Mobile frontend hosting](docs/development/frontend-hosting.md)
+- [Mobile development documentation](docs/development/index.md)
 - [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)
 - [react-native-zeroconf GitHub](https://github.com/balthazar/react-native-zeroconf)

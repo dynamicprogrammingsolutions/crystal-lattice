@@ -11,6 +11,7 @@ from plugins.file_reader_tool import FileReaderTool
 from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
+    AnthropicContextEditingExtension,
     AnthropicProvider,
     AnthropicReasoningExtension,
     AnthropicToolsExtension,
@@ -27,7 +28,6 @@ pytestmark = [
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REASONING_TEST_DIR = REPO_ROOT / "core/python/tests/reasoning_test"
-CONTEXT_MANAGEMENT_BETA = "context-management-2025-06-27"
 
 
 def _api_key() -> str:
@@ -73,23 +73,22 @@ def _manual_config() -> dict[str, Any]:
 
 
 def _adaptive_context_config(*, keep: Any) -> dict[str, Any]:
+    retention = "all" if keep == "all" else "turns"
+    turns_to_keep = (
+        keep.get("value")
+        if isinstance(keep, dict) and isinstance(keep.get("value"), int)
+        else 1
+    )
     return _base_config(
         _sonnet_model(),
-        betas=[CONTEXT_MANAGEMENT_BETA],
+        anthropic_thinking_retention=retention,
+        anthropic_thinking_turns_to_keep=turns_to_keep,
         request_options={
             "thinking": {
                 "type": "adaptive",
                 "display": "summarized",
             },
             "output_config": {"effort": "high"},
-            "context_management": {
-                "edits": [
-                    {
-                        "type": "clear_thinking_20251015",
-                        "keep": keep,
-                    }
-                ]
-            },
         },
     )
 
@@ -102,6 +101,7 @@ def _core() -> AgentCore:
         extensions=[
             AnthropicToolsExtension,
             AnthropicReasoningExtension,
+            AnthropicContextEditingExtension,
             AnthropicUsageExtension,
         ],
     )

@@ -317,6 +317,62 @@ describe('backend integration (real FastAPI server + plugins + SDK)', () => {
     });
   }
 
+  it('Q: production REST adapter retrieves projected sessions and messages without changing complete loads', async () => {
+    await ensureServer();
+    const backend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl }),
+    });
+    const sessionId = await createSession(backend);
+    await backend.appendMessage(sessionId, {
+      role: 'user',
+      content: 'Crystal Lattice projected query',
+      metadata: { private: 'omit-me' },
+    });
+
+    const projectedSessions = await backend.querySessions({
+      include: ['$.sessions[*].session_id'],
+    });
+    expect(projectedSessions).toEqual({
+      sessions: [{ session_id: sessionId }],
+    });
+
+    const projectedMessages = await backend.queryMessages(sessionId, {
+      include: [
+        '$.messages[*].index',
+        '$.messages[*].message.role',
+        '$.messages[*].message.content',
+      ],
+    });
+    expect(projectedMessages).toEqual({
+      messages: [
+        {
+          index: 0,
+          message: {
+            role: 'system',
+            content: 'You are a helpful system template.',
+          },
+        },
+        {
+          index: 1,
+          message: {
+            role: 'user',
+            content: 'Crystal Lattice projected query',
+          },
+        },
+      ],
+    });
+
+    const complete = await backend.listMessages(sessionId);
+    expect(complete.messages[1]).toMatchObject({
+      index: 1,
+      message: {
+        role: 'user',
+        content: 'Crystal Lattice projected query',
+        metadata: { private: 'omit-me' },
+      },
+    });
+  }, 30000);
+
   it('A: system_message_feature first append triggers one auto reload and recovers', async () => {
     const { controller, tracking, sessionId } = await bootstrapController({
       transportOptions: { tracking: true },

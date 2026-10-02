@@ -60,6 +60,39 @@ describe('RestAgentBackend session listing', () => {
     });
   });
 
+  it('encodes plugin filters and ordered JSONPath projection separately', async () => {
+    const transport = {
+      request: vi.fn(async () => ({
+        status: 200,
+        data: { sessions: [{ session_id: 'session/one' }] },
+      })),
+    } as unknown as Transport;
+    const backend = new RestAgentBackend({ transport });
+
+    await expect(
+      backend.querySessions({
+        filters: {
+          modified_after: '2026-09-01T00:00:00Z',
+          status: ['todo', 'blocked'],
+        },
+        applyFilterDefaults: true,
+        include: ['$.sessions[*].session_id'],
+        exclude: ['$.sessions[?(@.metadata.archived == true)]'],
+      }),
+    ).resolves.toEqual({
+      sessions: [{ session_id: 'session/one' }],
+    });
+    expect(transport.request).toHaveBeenCalledWith({
+      method: 'GET',
+      path:
+        '/sessions?apply_filter_defaults=true' +
+        '&filter=modified_after%3D2026-09-01T00%3A00%3A00Z' +
+        '&filter=status%3Dtodo%2Cblocked' +
+        '&include=%24.sessions%5B*%5D.session_id' +
+        '&exclude=%24.sessions%5B%3F(%40.metadata.archived%20%3D%3D%20true)%5D',
+    });
+  });
+
   it('accepts wrapped and unwrapped exact summaries', async () => {
     const transport = {
       request: vi

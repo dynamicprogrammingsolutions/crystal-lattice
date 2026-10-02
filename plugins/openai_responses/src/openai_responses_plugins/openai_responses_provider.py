@@ -107,6 +107,7 @@ from .openai_responses_codex_models import (
     load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
     merge_model_descriptors as _merge_model_descriptors_shared,
 )
+from .verified_ssl import verified_ssl_context as _verified_ssl_context
 
 log = get_logger("openai_responses_provider")
 
@@ -196,6 +197,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "default": "api",
                 "description": "Authentication mode: api, chatgpt, or auto.",
             },
+            "auth_mode_options": {
+                "type": "array",
+                "required": False,
+                "description": (
+                    "Optional UI subset of api, chatgpt, and auto. "
+                    "Request behavior remains controlled by auth_mode."
+                ),
+            },
             "api_key": {
                 "type": "string",
                 "required": False,
@@ -206,6 +215,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "required": False,
                 "default": "sdk",
                 "description": "HTTP client implementation: sdk or requests.",
+            },
+            "tls_ca_bundle": {
+                "type": "string",
+                "required": False,
+                "description": (
+                    "Optional CA bundle path used by provider_transport=requests."
+                ),
             },
             "base_url": {
                 "type": "string",
@@ -300,7 +316,32 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 }
             )
 
-        return [
+        auth_mode_options = [
+            {"value": "api", "label": "API"},
+            {"value": "chatgpt", "label": "ChatGPT"},
+            {"value": "auto", "label": "Auto"},
+        ]
+        configured_auth_modes = (
+            config.get("auth_mode_options") if isinstance(config, dict) else None
+        )
+        show_auth_mode = True
+        if isinstance(configured_auth_modes, list):
+            if not configured_auth_modes:
+                show_auth_mode = False
+            allowed_auth_modes = {
+                value
+                for value in configured_auth_modes
+                if isinstance(value, str)
+            }
+            filtered = [
+                option
+                for option in auth_mode_options
+                if option["value"] in allowed_auth_modes
+            ]
+            if filtered:
+                auth_mode_options = filtered
+
+        elements = [
             {
                 "ui_type": "config",
                 "type": "dropdown",
@@ -329,18 +370,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     "default_pinned": True,
                 },
             },
-            {
+        ]
+        if show_auth_mode:
+            elements.append(
+                {
                 "ui_type": "config",
                 "type": "select",
                 "key": "auth_mode",
                 "label": "OpenAI auth mode",
-                "options": [
-                    {"value": "api", "label": "API"},
-                    {"value": "chatgpt", "label": "ChatGPT"},
-                    {"value": "auto", "label": "Auto"},
-                ],
+                "options": auth_mode_options,
                 "default": "api",
-            },
+                }
+            )
+        elements.extend(
+            [
             {
                 "ui_type": "config",
                 "type": "checkbox",
@@ -364,7 +407,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "label": "Image",
                 "icon": "image",
             },
-        ]
+            ]
+        )
+        return elements
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
@@ -804,7 +849,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = Request(url, headers=headers, method="GET")
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
         try:
-            with urlopen(request, timeout=timeout) as response:
+            with urlopen(
+                request,
+                timeout=timeout,
+                context=_verified_ssl_context(),
+            ) as response:
                 body = response.read().decode("utf-8")
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")

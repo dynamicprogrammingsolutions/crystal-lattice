@@ -51,3 +51,7 @@ export type SessionSettingsFrameRenderer = (ctx: {
   items: SessionSettingItem[];
   children: ReactNode;
 }) => ReactNode;
+
+export type SessionSettingsAfterItemRenderer = (ctx: {
+  item: SessionSettingItem;
+}) => ReactNode;

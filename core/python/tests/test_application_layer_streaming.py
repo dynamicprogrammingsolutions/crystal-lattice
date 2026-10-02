@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 from agent_app.app_context import ApplicationContext
 from agent_app.application_future import AgentApplication
-from agent_app.tool_loop import ToolLoopRunner
+from agent_app.tool_loop import RequestCancellation, ToolLoopRunner
 from agent_core import AgentCore
 
 
@@ -47,6 +47,26 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)
     assert any(ev["type"] == "request_completed" for ev in events)
+
+
+def test_soft_cancel_interrupts_provider_signal_but_not_tool_signal() -> None:
+    cancellation = RequestCancellation()
+    provider_interrupted = threading.Event()
+    tool_interrupted = threading.Event()
+    cancellation.add_callback(provider_interrupted.set)
+    cancellation.tool_cancellation.add_callback(tool_interrupted.set)
+
+    cancellation.soft_cancel()
+
+    assert cancellation.is_cancelled()
+    assert cancellation.cancellation_mode() == "soft"
+    assert provider_interrupted.is_set()
+    assert not tool_interrupted.is_set()
+
+    cancellation.cancel()
+
+    assert cancellation.cancellation_mode() == "hard"
+    assert tool_interrupted.is_set()
 
 
 def test_streaming_assistant_lifecycle_carries_reserved_message_index(
@@ -276,6 +296,22 @@ def _make_blocking_tool_config(tmp_path: Path) -> Path:
     return path
 
 
+def _make_finite_blocking_tool_config(tmp_path: Path) -> Path:
+    cfg = {
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.FiniteBlockingTool",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+    path = tmp_path / "config_finite_blocking_tool.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
 def _make_failing_prepare_tool_config(tmp_path: Path) -> Path:
     cfg = {
         "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
@@ -427,6 +463,51 @@ def test_cancel_request_during_registration_is_not_lost(
     app._clear_request_cancellation(request_id)
 
 
+def test_pre_registered_soft_cancel_preserves_tool_until_hard_escalation(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    request_id = "pre-registered-soft-cancel"
+
+    app.soft_cancel_request(request_id)
+    cancellation = app._register_request_cancellation(request_id)
+
+    assert cancellation.is_cancelled()
+    assert cancellation.cancellation_mode() == "soft"
+    assert cancellation.tool_cancellation.is_cancelled() is False
+
+    app.cancel_request(request_id)
+
+    assert cancellation.cancellation_mode() == "hard"
+    assert cancellation.tool_cancellation.is_cancelled() is True
+    app._clear_request_cancellation(request_id)
+
+
+def test_early_hard_cancel_cannot_be_downgraded_by_soft_cancel(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    request_id = "pre-registered-hard-cancel"
+
+    app.cancel_request(request_id)
+    app.soft_cancel_request(request_id)
+    cancellation = app._register_request_cancellation(request_id)
+
+    assert cancellation.cancellation_mode() == "hard"
+    assert cancellation.tool_cancellation.is_cancelled() is True
+    app._clear_request_cancellation(request_id)
+
+
 def test_failure_then_resume(tmp_path: Path) -> None:
     from tests.dummy_provider import reset_failing_dummy_provider_state
 
@@ -496,6 +577,10 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
     assert "request_cancelled" in kinds
     assert "request_completed" in kinds
     assert "tool_results" in kinds
+    cancelled_event = next(
+        event for event in events if event.get("type") == "request_cancelled"
+    )
+    assert cancelled_event["cancellation_mode"] == "hard"
 
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     assert checkpoints
@@ -521,6 +606,141 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
     assert "final" in kinds2
     assert "request_completed" in kinds2
     assert "request_cancelled" not in kinds2
+
+
+def test_soft_cancel_waits_for_active_tool_and_persists_result(tmp_path: Path) -> None:
+    from tests.dummy_tool import (
+        get_finite_blocking_tool_state,
+        release_finite_blocking_tool,
+        reset_finite_blocking_tool_state,
+    )
+
+    reset_finite_blocking_tool_state()
+    config_path = _make_finite_blocking_tool_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    tool_call = {
+        "id": "call_finish",
+        "type": "function",
+        "function": {
+            "name": "finish_when_released",
+            "arguments": json.dumps({}),
+        },
+    }
+    second_tool_call = {
+        **tool_call,
+        "id": "call_must_not_start",
+    }
+    session = core.add_message(
+        session,
+        "assistant",
+        "",
+        {"tool_calls": [tool_call, second_tool_call]},
+    )
+    app.save_session(session)
+    events: list[dict] = []
+    request_id = "req_tool_soft_cancel"
+
+    worker = threading.Thread(
+        target=lambda: events.extend(
+            app.send_request(
+                core,
+                session,
+                base_config,
+                stream=True,
+                request_id=request_id,
+            )
+        )
+    )
+    worker.start()
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if get_finite_blocking_tool_state()["entered"]:
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("finite tool did not start")
+
+    app.soft_cancel_request(request_id)
+    time.sleep(0.1)
+    assert worker.is_alive()
+    assert get_finite_blocking_tool_state()["interrupted"] is False
+
+    release_finite_blocking_tool()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    cancelled = next(event for event in events if event.get("type") == "request_cancelled")
+    assert cancelled["cancellation_mode"] == "soft"
+    assert any(event.get("type") == "tool_results" for event in events)
+    checkpoints = [
+        event for event in events if event.get("type") == "session_checkpoint"
+    ]
+    assert checkpoints
+    assert checkpoints[-1]["session"].messages[-1].content == "finished normally"
+    assert get_finite_blocking_tool_state()["call_count"] == 1
+    assert not any(event.get("type") == "final" for event in events)
+
+
+def test_hard_cancel_escalates_soft_cancel_during_active_tool(tmp_path: Path) -> None:
+    from tests.dummy_tool import (
+        get_finite_blocking_tool_state,
+        reset_finite_blocking_tool_state,
+    )
+
+    reset_finite_blocking_tool_state()
+    config_path = _make_finite_blocking_tool_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    tool_call = {
+        "id": "call_escalate",
+        "type": "function",
+        "function": {
+            "name": "finish_when_released",
+            "arguments": json.dumps({}),
+        },
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
+    request_id = "req_tool_soft_then_hard"
+    events: list[dict] = []
+    worker = threading.Thread(
+        target=lambda: events.extend(
+            app.send_request(
+                core,
+                session,
+                base_config,
+                stream=True,
+                request_id=request_id,
+            )
+        )
+    )
+    worker.start()
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if get_finite_blocking_tool_state()["entered"]:
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("finite tool did not start")
+
+    app.soft_cancel_request(request_id)
+    app.cancel_request(request_id)
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert get_finite_blocking_tool_state()["interrupted"] is True
+    cancelled = next(event for event in events if event.get("type") == "request_cancelled")
+    assert cancelled["cancellation_mode"] == "hard"
 
 
 def test_cancel_request_interrupts_tool_after_partial_output(tmp_path: Path) -> None:

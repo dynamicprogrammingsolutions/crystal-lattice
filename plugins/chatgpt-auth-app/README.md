@@ -25,6 +25,15 @@ The plugin exposes session actions for OpenAI Responses sessions with
 - **Cancel ChatGPT login** / **Log out of ChatGPT**: login lifecycle
   controls.
 
+## HTTPS and fixed runtimes
+
+Device-code start, polling, token exchange, and credential refresh keep TLS
+verification enabled and use Certifi's bundled public roots. OpenAI's
+device-auth endpoint may return a Cloudflare route error to Python `urllib`;
+the plugin retries that specific response with the in-process `requests`
+client. The plugin does not require a `curl` subprocess, so the same login
+actions work in fixed runtimes such as the embedded iOS application.
+
 ## ChatGPT usage journal
 
 Usage reports and reset markers operate on the append-only

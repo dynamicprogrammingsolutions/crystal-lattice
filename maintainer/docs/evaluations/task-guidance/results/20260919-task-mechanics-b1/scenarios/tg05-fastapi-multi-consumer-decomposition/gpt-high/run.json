@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260919T222222.626724Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-high-f5a4942f",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "900ec1942094e0d0ac855fa2ec5e5147821acc754854908ab60c5918285f61fd",
+    "original_sha256": "0e58dffcee3862db9a98dfe0e43c0799a89ef35bca37b0a87d9c5769596d5ab9",
+    "path": "shared/system-messages/gpt-900ec1942094.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-notes-query/000-main.md",
+    "task-files/tasks/20260919-notes-query/010-service-contract-and-api.md",
+    "task-files/tasks/20260919-notes-query/020-reusable-client.md",
+    "task-files/tasks/20260919-notes-query/030-cli-production-path.md"
+  ],
+  "valid": true
+}

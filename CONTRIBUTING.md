@@ -40,13 +40,21 @@ tasks, and staged plans.
 Short task prompts work only when the model actually receives the project's
 standing guidance. A file existing in the repository is not enough by itself.
 
-Before relying on an agent, make sure its developer/system message—or, if the
-agent has no project-instruction mechanism, the first user message—contains:
+Before relying on an agent, identify both the maintained source and how the
+host delivered it:
 
-- the applicable root and package `AGENTS.md` guidance;
-- the repository's task guidance when task files are in use;
-- the expected authority, safety, planning, testing, documentation, and
-  delivery rules.
+- system or developer instructions carry the authority assigned to that
+  instruction channel;
+- root and package `AGENTS.md` may be automatically supplied by the host,
+  explicitly injected, or merely available as repository files;
+- task guidance should be delivered through the task-enabled developer
+  instructions when task files are in use;
+- package documentation may need to be discovered and read from the
+  workspace.
+
+A repository file being present does not prove that the agent read it, and
+injecting a file's text as system/developer instructions is not the same test
+as repository discovery.
 
 Asking the agent what it received is a useful first check, but inspecting the
 effective message or outgoing request is stronger evidence.
@@ -57,7 +65,7 @@ Task guidance is optional in Crystal Lattice sessions. Enable it before
 planning or changing a tracked task:
 
 - **Mobile:** open the active conversation in **Messages**, select the Settings
-  gear, open **Session settings**, and enable **Include TASKS Guidance**.
+gear, open **Session settings**, and enable **Include TASKS Guidance**.
 - **Desktop:** open the active chat, select **Settings**, open the
   **Session settings** window, and enable **Include TASKS Guidance**.
 - **Terminal:** run:
@@ -67,10 +75,12 @@ planning or changing a tracked task:
   ```
 
 From the session actions, select **Show compiled system message**. Crystal
-Lattice compiles the current developer/system message on demand and displays it
-in a dialog. Check that the expected `AGENTS.md` content and, when enabled,
-task guidance are present. This inspection does not send a request to the
-model or alter the conversation.
+Lattice compiles the current developer/system instructions on demand and
+displays them in a dialog. Check which guidance text is present and which
+instruction channel the runtime will use. Presence in that dialog proves
+request-time instruction delivery; it does not prove that an ordinary
+workspace page was independently discovered or read. This inspection does not
+send a request to the model or alter the conversation.
 
 ### Inspect Requests from Other Agents
 
@@ -117,10 +127,10 @@ task prompt focused on information that is new for the current conversation.
 
 | Location | What it contributes |
 |---|---|
-| Developer/system message | Platform-wide behavior, authority, safety, and tool-use rules |
-| Root and package `AGENTS.md` | Repository and package constraints, ownership, important paths, verification, and documentation routes |
-| [`TASKS-v7`](agents/TASKS-v7.md) | Task creation, planning, approval, status, evidence, and completion rules |
-| Package documentation | Current setup, supported behavior, architecture, testing, and maintenance guidance |
+| Developer/system instructions | Platform-wide behavior, authority, safety, and tool-use rules delivered through those instruction channels |
+| Root and package `AGENTS.md` | Maintained repository and package guidance; verify whether the host supplied it as instructions or the agent read it as a file |
+| [`TASKS-v7`](agents/TASKS-v7.md) | Maintained task rules delivered through the task-enabled developer-message layer |
+| Package documentation | Current setup, supported behavior, architecture, testing, and maintenance guidance read from the workspace |
 | Specifications and requirements | Intended behavior and design, completed outcomes, live state, verification, documentation, and evidence |
 | Current user prompt | Your objective, new context, requested stage, decisions, concerns, and authority granted now |
 

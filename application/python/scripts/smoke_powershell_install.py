@@ -26,7 +26,9 @@ from distribution_support import (
     resolve_powershell,
 )
 from download_server import serve_directory
+from headless_access_smoke import assert_headless_access
 from progress import StepLogger
+from smoke_runtime_archive import python_path
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,7 +55,7 @@ def smoke_test_powershell_install(archive: Path) -> None:
         raise RuntimeError(f"Archive does not exist: {archive}")
     assert_archive_matches_current_platform(archive)
 
-    progress = StepLogger(total_steps=4)
+    progress = StepLogger(total_steps=5)
     with tempfile.TemporaryDirectory(prefix="crystal-powershell-install-smoke-") as tmp:
         temp_dir = Path(tmp)
         progress.step("Preparing isolated PowerShell-installer state")
@@ -161,11 +163,16 @@ def smoke_test_powershell_install(archive: Path) -> None:
                 destination_dir=temp_dir / "config",
                 additional_plugin_name=DYNAMIC_PLUGIN_PROBE,
             )
+            installed_command = installed_command_invocation(
+                powershell=powershell,
+                installed_command=bin_dir / f"{COMMAND_NAME}.cmd",
+                wrapper_path=temp_dir / "invoke installed crystal lattice.ps1",
+            )
             progress.step(
                 "Booting the PowerShell-installed command and installing the probe plugin"
             )
             assert_config_boot(
-                [COMMAND_NAME],
+                installed_command,
                 config_path=config_path,
                 workspace=temp_dir / "workspace",
                 home_dir=home_dir,
@@ -174,6 +181,15 @@ def smoke_test_powershell_install(archive: Path) -> None:
                 base_env=fresh_env,
                 timeout_seconds=300,
                 progress=progress.detail,
+            )
+            progress.step("Verifying installed CLI and Python SDK headless access")
+            assert_headless_access(
+                installed_command,
+                python=python_path(installed_bundle),
+                config_path=config_path,
+                workspace=temp_dir / "headless access workspace",
+                home_dir=home_dir,
+                base_env=fresh_env,
             )
 
 
@@ -274,6 +290,28 @@ def count_path_entry(path_value: str, directory: Path) -> int:
         for entry in path_value.split(os.pathsep)
         if entry.strip()
     )
+
+
+def installed_command_invocation(
+    *,
+    powershell: str,
+    installed_command: Path,
+    wrapper_path: Path,
+) -> list[str]:
+    quoted_command = str(installed_command.resolve()).replace("'", "''")
+    wrapper_path.write_text(
+        f"& '{quoted_command}' @args\nexit $LASTEXITCODE\n",
+        encoding="utf-8",
+    )
+    return [
+        powershell,
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(wrapper_path),
+    ]
 
 
 @contextmanager

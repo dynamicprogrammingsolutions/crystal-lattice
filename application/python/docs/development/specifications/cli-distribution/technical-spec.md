@@ -239,6 +239,43 @@ changes only when it is directly consolidated with the shared probe. A
 repository-wide cleanup of provider test environments is not part of this
 specification.
 
+## Headless access contract
+
+The headless-run specification owns the CLI/SDK APIs and system-message
+content. Distribution acceptance additionally proves that each supported user
+entry point exposes those APIs through its native packaged runtime.
+
+Source installation, direct archive/manual use, Bash installation, and
+PowerShell installation each run a credential-free deterministic probe that:
+
+- sends one request with `crystal-lattice run`;
+- sends one request through the packaged interpreter and `open_runtime`;
+- verifies the full runtime-access variable set and compiled full-access
+  section;
+- uses isolated config, session, docs, and installation paths containing
+  spaces;
+- asserts the expected persisted sessions and results.
+
+Installer scenarios retain their independent by-name command-discovery
+checks. The headless probe then invokes the exact installed extensionless Bash
+launcher or Windows `.cmd` launcher so Python executable lookup cannot fall
+through to a same-named console executable elsewhere on PATH.
+
+The
+[session and message data query specification](../session-data-query/index.md)
+adds deterministic `sessions` and `messages` command checks. Distribution
+acceptance must execute representative JSONPath filter expressions and
+line-oriented chaining through source installation, direct archive/manual use,
+applicable Bash installation, and native PowerShell installation. Query
+semantics remain owned by the query specification; distribution tests prove
+packaging, platform quoting, and installed-command availability.
+
+The real provider scenario runs once per native target against the extracted
+archive rather than once per installer transformation. Release tags require
+the scenario; workflow dispatch may opt in. See the
+[headless-run technical specification](../headless-agent-runs/technical-spec.md#native-installation-and-model-mediated-acceptance)
+for model, credential-isolation, tool, and child-session requirements.
+
 ## Source-installation smoke
 
 The source-installation smoke creates a new venv and installs:

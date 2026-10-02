@@ -60,7 +60,9 @@ class OpenAIResponsesNativeCompactionAppPlugin:
         config: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = state, config
+        _ = state
+        if isinstance(config, dict) and config.get("native_compaction_enabled") is False:
+            return []
         tags = context.get("tags") if isinstance(context, dict) else None
         if not isinstance(tags, list) or (
             "ext:openai_responses_native_compaction" not in tags

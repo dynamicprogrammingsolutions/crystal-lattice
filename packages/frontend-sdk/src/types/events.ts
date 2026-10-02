@@ -60,6 +60,11 @@ export interface RequestStartedEvent extends BaseEvent {
   stream?: boolean;
 }
 
+export interface RequestCancelledEvent extends BaseEvent {
+  type: 'request_cancelled';
+  cancellation_mode?: 'soft' | 'hard';
+}
+
 export interface ErrorEvent extends BaseEvent {
   type: 'error';
   detail?: string;
@@ -88,6 +93,7 @@ export type Event =
   | MessagesDeletedEvent
   | ToolResultsEvent
   | RequestStartedEvent
+  | RequestCancelledEvent
   | ErrorEvent
   | AssistantMessageEvent
   | PartialEvent

@@ -131,6 +131,8 @@ def test_public_run_signature_stays_minimal() -> None:
         "continue_from",
         "workspace",
         "cache_key",
+        "cache_read",
+        "cache_publish",
     )
 
 
@@ -254,6 +256,51 @@ def test_program_failure_preserves_environment_and_traceback(
     assert run.error.traceback_artifact is not None
     assert run.artifact_dir.joinpath(run.error.traceback_artifact).is_file()
     assert "planned failure" in run.canonical_text()
+
+
+def test_cache_publish_predicate_prevents_publication(tmp_path: Path) -> None:
+    environment = ReplayEnvironment(["first", "second"])
+    with evaluator(tmp_path, environment) as evaluation:
+        evaluation.run(
+            "unpublishable",
+            lambda context: context.next_response("question"),
+            cache_key="predicate-v1",
+            cache_publish=lambda run: False,
+        )
+        second = evaluation.run(
+            "unpublishable",
+            lambda context: context.next_response("question"),
+            cache_key="predicate-v1",
+            cache_publish=lambda run: False,
+        )
+
+    assert second.cache_hit is False
+    assert environment.open_count == 2
+
+
+def test_cache_read_false_reexecutes_but_still_publishes(tmp_path: Path) -> None:
+    environment = ReplayEnvironment(["first", "second"])
+    with evaluator(tmp_path, environment) as evaluation:
+        evaluation.run(
+            "fresh",
+            lambda context: context.next_response("question"),
+            cache_key="fresh-v1",
+        )
+        fresh = evaluation.run(
+            "fresh",
+            lambda context: context.next_response("question"),
+            cache_key="fresh-v1",
+            cache_read=False,
+        )
+        replay = evaluation.run(
+            "fresh",
+            lambda context: "unreachable",
+            cache_key="fresh-v1",
+        )
+
+    assert fresh.cache_hit is False
+    assert replay.cache_hit is True
+    assert environment.open_count == 2
 
 
 def test_generic_import_does_not_load_crystal_lattice_packages() -> None:

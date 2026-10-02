@@ -1,10 +1,22 @@
 /// <reference types="detox" />
 
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import * as detox from "detox";
 
 const detoxExpect = detox.expect;
 
-type ProfileId = "reviewer" | "openai" | "openrouter" | "anthropic";
+type ProfileId =
+  | "compatible"
+  | "reviewer"
+  | "openai"
+  | "openrouter"
+  | "anthropic";
+
+const APP_BUNDLE_ID =
+  "com.dynamicprogrammingsolutions.crystallatticecontrolrn";
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name];
@@ -39,6 +51,55 @@ async function tapById(testId: string, timeoutMs = 15000): Promise<void> {
   }
 }
 
+async function settleAfterModalTransition(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 600));
+}
+
+async function scrollUntilVisible(
+  scrollId: string,
+  testId: string,
+  direction: "up" | "down" = "up"
+): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      await waitFor(element(by.id(testId))).toBeVisible().withTimeout(1500);
+      return;
+    } catch {
+      await element(by.id(scrollId)).swipe(direction, "fast", 0.45);
+    }
+  }
+  throw new Error(`${testId} never became visible`);
+}
+
+function installSimulatorTlsCa(sourcePath: string): string {
+  if (device.getPlatform() !== "ios") {
+    throw new Error("The embedded reviewer TLS fixture is iOS-only.");
+  }
+  const container = execFileSync(
+    "/usr/bin/xcrun",
+    [
+      "simctl",
+      "get_app_container",
+      device.id,
+      APP_BUNDLE_ID,
+      "data",
+    ],
+    { encoding: "utf-8" }
+  ).trim();
+  const destinationDirectory = path.join(
+    container,
+    "Library",
+    "Application Support",
+    "CrystalLatticeEmbeddedRuntime",
+    "config",
+    "test-certs"
+  );
+  fs.mkdirSync(destinationDirectory, { recursive: true });
+  const destination = path.join(destinationDirectory, "reviewer-local-ca.pem");
+  fs.copyFileSync(sourcePath, destination);
+  return destination;
+}
+
 async function readText(testId: string): Promise<string> {
   const attributes = (await element(by.id(testId)).getAttributes()) as {
     text?: string;
@@ -46,6 +107,27 @@ async function readText(testId: string): Promise<string> {
     value?: string;
   };
   return String(attributes.text ?? attributes.label ?? attributes.value ?? "");
+}
+
+async function waitForTextValue(
+  testId: string,
+  expected: string,
+  timeoutMs: number
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastValue = "";
+  while (Date.now() < deadline) {
+    try {
+      lastValue = await readText(testId);
+      if (lastValue === expected) return;
+    } catch {
+      lastValue = "";
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `${testId} did not become ${JSON.stringify(expected)}; last value was ${JSON.stringify(lastValue)}`
+  );
 }
 
 async function waitForMatrixReady(timeoutMs: number): Promise<void> {
@@ -87,6 +169,12 @@ async function waitForEnabled(testId: string): Promise<void> {
   throw new Error(`${testId} did not become enabled`);
 }
 
+async function ensureToggleOn(testId: string): Promise<void> {
+  const target = element(by.id(testId));
+  await target.performAccessibilityAction("activate");
+  await new Promise<void>((resolve) => setTimeout(resolve, 500));
+}
+
 async function createSession(agentId: string): Promise<void> {
   await waitFor(element(by.id("sessions-actions-menu")))
     .toBeVisible()
@@ -96,7 +184,9 @@ async function createSession(agentId: string): Promise<void> {
     .toBeVisible()
     .withTimeout(30000);
   await waitForEnabled("actions-menu-action-newSession");
-  await tapById("actions-menu-action-newSession");
+  await element(
+    by.id("actions-menu-action-newSession")
+  ).performAccessibilityAction("activate");
   await waitFor(element(by.id(`new-session-agent-${agentId}`)))
     .toBeVisible()
     .withTimeout(30000);
@@ -114,7 +204,8 @@ async function configureProfile(options: {
   baseUrl: string;
   model: string;
   apiKey: string;
-  authMode: "api" | "auto" | "chatgpt";
+  authMode: "api" | "chatgpt";
+  tlsCaBundle?: string;
 }): Promise<void> {
   await tapById("home-tab");
   await waitFor(element(by.id("home-embedded-settings")))
@@ -124,34 +215,27 @@ async function configureProfile(options: {
   await waitFor(element(by.id("embedded-runtime-settings")))
     .toBeVisible()
     .withTimeout(30000);
-  const scroll = by.id("embedded-runtime-settings-scroll");
+  await settleAfterModalTransition();
+  const scrollId = "embedded-runtime-settings-scroll";
+  const scroll = by.id(scrollId);
   const prefix = `embedded-provider-${options.profileId}`;
-  if (options.profileId === "openrouter") {
-    await element(scroll).scroll(500, "down");
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .withTimeout(30000);
-  } else if (options.profileId === "anthropic") {
-    await element(scroll).swipe("up", "fast", 0.8);
-    await element(scroll).swipe("up", "fast", 0.8);
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .withTimeout(30000);
-  } else {
-    await waitFor(element(by.id(`${prefix}-base-url`)))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
+  if (options.profileId === "reviewer") {
+    await scrollUntilVisible(scrollId, "embedded-reviewer-visible");
+    await tapById("embedded-reviewer-visible");
+    await scrollUntilVisible(scrollId, prefix);
   }
-
+  if (options.profileId === "openai" && options.authMode === "chatgpt") {
+    await scrollUntilVisible(
+      scrollId,
+      "embedded-provider-openai-auth-chatgpt"
+    );
+    await tapById("embedded-provider-openai-auth-chatgpt");
+  }
   const replaceProfileField = async (
     fieldId: string,
     value: string
   ): Promise<void> => {
-    await waitFor(element(by.id(fieldId)))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
+    await scrollUntilVisible(scrollId, fieldId);
     const deadline = Date.now() + 15000;
     while (true) {
       try {
@@ -164,30 +248,31 @@ async function configureProfile(options: {
     }
   };
 
-  await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
-  await replaceProfileField(`${prefix}-model`, options.model);
-  if (options.profileId === "openai") {
-    const authModeId = `embedded-provider-openai-auth-${options.authMode}`;
-    await waitFor(element(by.id(authModeId)))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
-    await tapById(authModeId);
+  if (options.profileId !== "reviewer") {
+    await replaceProfileField(`${prefix}-base-url`, options.baseUrl);
+    await replaceProfileField(`${prefix}-model`, options.model);
   }
   await replaceProfileField(`${prefix}-api-key`, options.apiKey);
-  await waitFor(element(by.id(`${prefix}-test`)))
-    .toBeVisible()
-    .whileElement(scroll)
-    .scroll(100, "down");
-  await tapById(`${prefix}-test`);
-  await waitFor(element(by.id(`${prefix}-validation`)))
-    .toHaveText(`Connected to ${options.model}`)
-    .withTimeout(120000);
-  await element(scroll).scrollTo("bottom");
-  await waitFor(element(by.id("embedded-runtime-settings-save")))
-    .toBeVisible()
-    .withTimeout(30000);
-  await tapById("embedded-runtime-settings-save");
+  await element(by.id(`${prefix}-api-key`)).tapReturnKey();
+  await scrollUntilVisible(scrollId, `${prefix}-test`);
+  await element(by.id(`${prefix}-test`)).performAccessibilityAction(
+    "activate"
+  );
+  await scrollUntilVisible(scrollId, `${prefix}-validation`);
+  await waitForTextValue(
+    `${prefix}-validation`,
+    `Connected to ${options.model}`,
+    120000
+  );
+  if (options.profileId !== "reviewer") {
+    await scrollUntilVisible(scrollId, `${prefix}-enabled`, "down");
+    await ensureToggleOn(`${prefix}-enabled`);
+  }
+  await scrollUntilVisible(scrollId, `${prefix}-default`, "down");
+  await element(by.id(`${prefix}-default`)).performAccessibilityAction(
+    "activate"
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, 900));
   await waitFor(element(by.text("Provider settings saved.")))
     .toBeVisible()
     .withTimeout(30000);
@@ -205,10 +290,15 @@ describe("embedded provider real API matrix", () => {
     const apiKey = requiredEnvironment("CRYSTAL_EMBEDDED_MATRIX_API_KEY");
     const model = requiredEnvironment("CRYSTAL_EMBEDDED_MATRIX_MODEL");
     const authMode = (process.env.CRYSTAL_EMBEDDED_MATRIX_AUTH_MODE ??
-      "api") as "api" | "auto" | "chatgpt";
+      "api") as "api" | "chatgpt";
+    const tlsCaSource =
+      process.env.CRYSTAL_EMBEDDED_MATRIX_TLS_CA_SOURCE ?? null;
     const marker = `MATRIX_${profileId.toUpperCase()}`;
 
     await launchApp(true);
+    const tlsCaBundle = tlsCaSource
+      ? installSimulatorTlsCa(tlsCaSource)
+      : undefined;
     await openEmbeddedConnection();
     await createSession("local");
     await detoxExpect(element(by.id("session-chat-error"))).not.toExist();
@@ -220,6 +310,7 @@ describe("embedded provider real API matrix", () => {
       model,
       apiKey,
       authMode,
+      tlsCaBundle,
     });
 
     await tapById("messages-tab");
@@ -247,10 +338,52 @@ describe("embedded provider real API matrix", () => {
     await detoxExpect(
       element(by.id("embedded-provider-matrix-agent"))
     ).toHaveText(agentId);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-tools"))
+    ).toHaveText(
+      profileId === "reviewer" || profileId === "openai"
+        ? "apply_patch"
+        : "Write"
+    );
+    if (profileId === "openai") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText(
+        authMode === "chatgpt"
+          ? "web_search,image"
+          : "web_search,image,flex,fast"
+      );
+    } else if (profileId === "reviewer" || profileId === "openrouter") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText("web_search,image");
+    }
     const sessionId = await readText("embedded-provider-matrix-session");
     await detoxExpect(
-      element(by.id("embedded-provider-matrix-assistant"))
+      element(by.id("embedded-provider-matrix-tool-evidence"))
     ).toHaveText(marker);
+    if (profileId === "openai") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText(
+        authMode === "chatgpt"
+          ? "web_search,image"
+          : "web_search,image,flex,fast"
+      );
+    } else if (profileId === "reviewer" || profileId === "openrouter") {
+      await detoxExpect(
+        element(by.id("embedded-provider-matrix-provider-capabilities"))
+      ).toHaveText("web_search,image");
+    }
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace"))
+    ).toHaveText("matrix-alpha");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-boundary"))
+    ).toHaveText("rejected");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-isolation"))
+    ).toHaveText("isolated");
 
     await device.terminateApp();
     await device.launchApp({
@@ -269,5 +402,17 @@ describe("embedded provider real API matrix", () => {
     await detoxExpect(
       element(by.id("embedded-provider-matrix-session"))
     ).toHaveText(sessionId);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-tool-evidence"))
+    ).toHaveText(marker);
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace"))
+    ).toHaveText("matrix-alpha");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-boundary"))
+    ).toHaveText("rejected");
+    await detoxExpect(
+      element(by.id("embedded-provider-matrix-workspace-isolation"))
+    ).toHaveText("isolated");
   }, 600000);
 });

@@ -179,6 +179,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"progressiveScrollBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"initialRestoreReady" : @(!EnvironmentFlagEnabled(@"CLC_TRANSCRIPT_SCROLL_RESTORE_READY_FALSE")),
     @"websiteVisualKind" : [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_KIND"] ?: @"agent-codex",
+    @"transcriptTextSurfaceScenario" :
+        [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_TEXT_SURFACE_SCENARIO"] ?: @"none",
   } mutableCopy];
   if (LaunchArgumentPresent(@"--human-time-native-test")) {
     NSString *fixtureJson =

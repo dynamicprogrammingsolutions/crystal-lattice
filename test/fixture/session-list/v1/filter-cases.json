@@ -87,6 +87,23 @@
       }
     },
     {
+      "name": "datetime on or after",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "modified_after",
+        "label": "Modified after",
+        "data": "modified",
+        "type": "datetime",
+        "match": "on_or_after",
+        "default": null
+      },
+      "expected": {
+        "valid": true,
+        "type": "datetime",
+        "main_search": false
+      }
+    },
+    {
       "name": "text rejects one of",
       "raw": {
         "ui_type": "session_list_filter",
@@ -162,6 +179,37 @@
         "type": "select",
         "match": "equals",
         "options": [{"value": "any", "label": "Literal any"}]
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "datetime rejects naive default",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-date",
+        "label": "Bad date",
+        "data": "modified",
+        "type": "datetime",
+        "match": "after",
+        "default": "2026-09-01T00:00:00"
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "datetime rejects non-comparison match",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-date-match",
+        "label": "Bad date match",
+        "data": "modified",
+        "type": "datetime",
+        "match": "equals"
       },
       "expected": {
         "valid": false,
@@ -534,6 +582,91 @@
         {"session_id": "archived", "metadata": {"archived": true}}
       ],
       "expected_ids": ["ordinary", "archived"]
+    },
+    {
+      "name": "datetime compares numeric and offset timestamps as UTC instants",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "modified_after",
+          "label": "Modified after",
+          "data": "modified",
+          "type": "datetime",
+          "match": "on_or_after"
+        }
+      ],
+      "values": {"modified_after": "2026-09-01T02:00:00+02:00"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "older", "modified": 1788220799},
+        {"session_id": "equal", "modified": "2026-09-01T00:00:00Z"},
+        {"session_id": "newer", "modified": 1788307200},
+        {"session_id": "naive", "modified": "2026-09-02T00:00:00"}
+      ],
+      "expected_ids": ["equal", "newer"]
+    },
+    {
+      "name": "datetime before excludes the equal instant",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "modified_before",
+          "label": "Modified before",
+          "data": "modified",
+          "type": "datetime",
+          "match": "before"
+        }
+      ],
+      "values": {"modified_before": "2026-09-01T00:00:00Z"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "older", "modified": 1788220799},
+        {"session_id": "equal", "modified": 1788220800},
+        {"session_id": "newer", "modified": 1788307200}
+      ],
+      "expected_ids": ["older"]
+    },
+    {
+      "name": "datetime on or before includes the equal instant",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "modified_before",
+          "label": "Modified before",
+          "data": "modified",
+          "type": "datetime",
+          "match": "on_or_before"
+        }
+      ],
+      "values": {"modified_before": "2026-09-01T00:00:00Z"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "older", "modified": 1788220799},
+        {"session_id": "equal", "modified": 1788220800},
+        {"session_id": "newer", "modified": 1788307200}
+      ],
+      "expected_ids": ["older", "equal"]
+    },
+    {
+      "name": "datetime after excludes the equal instant",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "modified_after",
+          "label": "Modified after",
+          "data": "modified",
+          "type": "datetime",
+          "match": "after"
+        }
+      ],
+      "values": {"modified_after": "2026-09-01T00:00:00Z"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "older", "modified": 1788220799},
+        {"session_id": "equal", "modified": 1788220800},
+        {"session_id": "newer", "modified": 1788307200}
+      ],
+      "expected_ids": ["newer"]
     }
   ]
 }

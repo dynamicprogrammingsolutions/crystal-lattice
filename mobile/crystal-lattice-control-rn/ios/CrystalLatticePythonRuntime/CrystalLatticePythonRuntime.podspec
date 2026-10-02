@@ -16,6 +16,7 @@ Pod::Spec.new do |spec|
   spec.resource_bundles = {
     'CrystalLatticePythonRuntimeResources' => [
       'Resources/crystal_lattice_app.zip',
+      'Resources/embedded-ios-config.json',
       'Resources/reviewer-proxy-ca.pem'
     ]
   }

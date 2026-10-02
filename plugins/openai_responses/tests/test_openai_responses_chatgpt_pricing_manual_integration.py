@@ -391,16 +391,18 @@ def test_openai_responses_chatgpt_saved_login_default_tier_pricing(
 @pytest.mark.manual_integration
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_chatgpt_saved_login_priority_tier_pricing(
+def test_openai_responses_chatgpt_saved_login_fast_tier_pricing(
     tmp_path: Path,
 ) -> None:
-    """Priority/Fast mode ChatGPT pricing test using gpt-5.6-luna.
+    """Fast mode ChatGPT pricing test using gpt-5.6-luna.
 
     Verifies:
-    - The outgoing request uses ``service_tier: "priority"``.
-    - When the backend reports priority, priority pricing is used.
-    - If the account/model does not receive priority, report the backend tier
-      explicitly rather than claiming priority pricing was verified.
+    - The outgoing request uses ``service_tier: "priority"`` — the only tier
+      name the ChatGPT backend accepts for Fast mode.
+    - When the backend reports the fast tier, fast pricing is used.
+    - If the account/model does not receive the fast tier (the backend reports
+      ``default``), report that explicitly rather than claiming fast pricing
+      was verified.
     """
     load_dotenv(REPO_ROOT / ".env")
 
@@ -440,7 +442,7 @@ def test_openai_responses_chatgpt_saved_login_priority_tier_pricing(
     session = core.add_message(
         session,
         "user",
-        "Reply with exactly: CHATGPT_PRICING_PRIORITY_OK",
+        "Reply with exactly: CHATGPT_PRICING_FAST_OK",
         config=config,
     )
 
@@ -449,9 +451,11 @@ def test_openai_responses_chatgpt_saved_login_priority_tier_pricing(
     final = final_messages[-1]
     assert final.get("role") == "assistant"
     assert isinstance(final.get("content"), str)
-    assert "CHATGPT_PRICING_PRIORITY_OK" in final["content"]
+    assert "CHATGPT_PRICING_FAST_OK" in final["content"]
 
-    # Verify the outgoing request uses service_tier: "priority".
+    # Verify the outgoing request uses the ChatGPT backend's wire name. The
+    # ChatGPT backend only accepts the legacy ``priority`` tier name
+    # (sending ``fast`` fails with 400 ``Unsupported service_tier``).
     assert (
         _RecordingChatGPTProvider.recorded_requests
     ), "expected at least one recorded request"
@@ -476,14 +480,17 @@ def test_openai_responses_chatgpt_saved_login_priority_tier_pricing(
     assert metadata.get("usage_effective_auth_mode") == "chatgpt"
 
     reported_tier = metadata.get("usage_service_tier")
-    if reported_tier != "priority":
+    if reported_tier not in ("fast", "priority"):
         pytest.xfail(
             f"ChatGPT backend reported service_tier={reported_tier!r} for gpt-5.6-luna; "
-            "priority pricing not verified for this account/model."
+            "the fast tier was not applied for this account/model, so fast-tier "
+            "pricing is not verified."
         )
 
-    # When the backend reports priority, assert priority pricing was used.
-    assert reported_tier == "priority"
+    # When the backend reports the fast tier, assert fast pricing was used.
+    # ``priority`` is the obsolete name for the same tier and resolves the
+    # same fast-tier prices.
+    assert reported_tier in ("fast", "priority")
     assert isinstance(metadata.get("usage_total_cost"), (int, float))
     assert metadata.get("usage_total_cost") > 0
 
@@ -493,10 +500,10 @@ def test_openai_responses_chatgpt_saved_login_priority_tier_pricing(
     cache_write_tokens = details.get("cache_write_tokens")
     if isinstance(cache_write_tokens, int) and cache_write_tokens > 0:
         print(
-            f"\nChatGPT priority-tier test: backend reported cache_write_tokens={cache_write_tokens}"
+            f"\nChatGPT fast-tier test: backend reported cache_write_tokens={cache_write_tokens}"
         )
     else:
         print(
-            "\nChatGPT priority-tier test: backend omitted cache_write_tokens; "
+            "\nChatGPT fast-tier test: backend omitted cache_write_tokens; "
             "write-inclusive cost not verified."
         )

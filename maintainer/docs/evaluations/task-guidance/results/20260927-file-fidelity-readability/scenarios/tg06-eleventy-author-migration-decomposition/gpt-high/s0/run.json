@@ -1,0 +1,28 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T221653.119247Z-task-guidance-tg06-eleventy-author-migration-decomposition-high-c59c7574",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "06e58964b23184976e4f88b6d615ba96c0696698eece9cad70352c67915d0a93",
+    "original_sha256": "f90992afc564e92a23c7dd685440cee1a20f22d3c2a8d58632ef230bb071510a",
+    "path": "shared/system-messages/gpt-06e58964b231.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-author-metadata-migration/000-main.md",
+    "task-files/tasks/20260925-author-metadata-migration/010-author-contract-and-content.md",
+    "task-files/tasks/20260925-author-metadata-migration/020-rendering-and-generated-output.md",
+    "task-files/tasks/20260925-author-metadata-migration/030-authoring-tool.md",
+    "task-files/tasks/20260925-author-metadata-migration/040-legacy-retirement.md"
+  ],
+  "valid": true
+}

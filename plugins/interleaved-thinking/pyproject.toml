@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "interleaved-thinking"
+version = "0.1.0"
+description = "Provider extension that omits previous-turn thinking blocks from outgoing requests"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+]
+
+
+[project.optional-dependencies]
+dev = [
+  "agent-core>=0.3.0",
+  "pytest>=7.0.0",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}

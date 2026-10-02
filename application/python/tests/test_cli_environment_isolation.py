@@ -13,12 +13,12 @@ from agent_terminal_app.__main__ import (
     _build_server_integration_config,
     _collect_additional_dotenv_values,
     _parse_contributed_command,
-    _read_bridge_url_from_config,
     _resolve_effective_host,
     _resolve_fastapi_log_file,
     _resolve_log_file,
 )
 from agent_terminal_app.project_profile import ProjectProfile
+from agent_terminal_app.server_integration_settings import BridgeApplicationSettings
 
 
 def _args(**overrides: Any) -> argparse.Namespace:
@@ -169,8 +169,41 @@ def test_cli_bonjour_config_does_not_populate_process_env(monkeypatch) -> None:
     assert "BONJOUR_SERVICE_NAME" not in os.environ
 
 
-def test_cli_bridge_config_preserves_external_env_as_fallback(monkeypatch) -> None:
+def test_cli_bonjour_config_ignores_external_environment(monkeypatch) -> None:
+    monkeypatch.setenv("BONJOUR_PORT", "9876")
+    monkeypatch.setenv("BONJOUR_SERVICE_NAME", "Inherited")
+    monkeypatch.setenv("SERVER_PORT", "9876")
+
+    config = _build_server_integration_config(
+        _args(enable_bonjour=True),
+        server_mod=server_mod,
+        effective_port=8765,
+    )
+
+    assert config is not None
+    assert config.bonjour is not None
+    assert config.bonjour.port == 8765
+    assert config.bonjour.service_name == "Agent Terminal App"
+
+
+def test_cli_bridge_config_ignores_external_environment(monkeypatch) -> None:
+    monkeypatch.setenv("BRIDGE_URL", "wss://inherited.example/ws/websocket")
     monkeypatch.setenv("BRIDGE_SERVER_ID", "from-process-env")
+    monkeypatch.setenv("BRIDGE_DISPLAY_NAME", "from-process-env")
+    monkeypatch.setenv("BRIDGE_LOCATION", "from-process-env")
+    monkeypatch.setenv("BRIDGE_LOCAL_HTTP_BASE", "http://env.example")
+    monkeypatch.setenv("BRIDGE_HTTP_BASE_URL", "https://env.example")
+    monkeypatch.setenv("BRIDGE_WS_MAX_SIZE_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_TIMEOUT_SECONDS", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_MAX_BODY_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_DEBUG", "1")
+    monkeypatch.setenv("BRIDGE_EXIT_ON_SUPERSEDED", "1")
+    monkeypatch.setenv("BRIDGE_LOCAL_GUARD", "1")
+    monkeypatch.setenv("BRIDGE_TAKEOVER_LOCAL", "1")
+    monkeypatch.setenv("SERVER_HOST", "env.example")
+    monkeypatch.setenv("SERVER_PORT", "9876")
 
     config = _build_server_integration_config(
         _args(bridge_url="wss://bridge.example/ws/websocket"),
@@ -181,7 +214,21 @@ def test_cli_bridge_config_preserves_external_env_as_fallback(monkeypatch) -> No
 
     assert config is not None
     assert config.bridge is not None
-    assert config.bridge.server_id == "from-process-env"
+    assert config.bridge.bridge_url == "wss://bridge.example/ws/websocket"
+    assert config.bridge.server_id != "from-process-env"
+    assert config.bridge.display_name == "Agent Terminal App"
+    assert config.bridge.location is None
+    assert config.bridge.local_http_base == "http://127.0.0.1:8765"
+    assert config.bridge.bridge_http_base is None
+    assert config.bridge.ws_max_size_bytes == 16 * 1024 * 1024
+    assert config.bridge.http_timeout_seconds == 120.0
+    assert config.bridge.request_chunk_size_bytes == 900 * 1024
+    assert config.bridge.response_chunking_threshold_bytes == 256 * 1024
+    assert config.bridge.max_body_bytes == 10 * 1024 * 1024
+    assert config.bridge.debug is False
+    assert config.bridge.exit_on_superseded is False
+    assert config.bridge.local_guard is False
+    assert config.bridge.takeover_local is False
     assert os.environ["BRIDGE_SERVER_ID"] == "from-process-env"
 
 
@@ -228,8 +275,11 @@ def test_server_startup_uses_explicit_bridge_config_without_env(
         server_mod.clear_configured_integrations()
 
 
-def test_server_startup_direct_env_bridge_fallback_still_works(monkeypatch) -> None:
+def test_server_startup_ignores_inherited_integration_environment(
+    monkeypatch,
+) -> None:
     created_configs: list[Any] = []
+    bonjour_calls: list[tuple[str, int]] = []
 
     class FakeBridgeClient:
         def __init__(self, config: Any) -> None:
@@ -244,19 +294,73 @@ def test_server_startup_direct_env_bridge_fallback_still_works(monkeypatch) -> N
 
     monkeypatch.setenv("BRIDGE_URL", "wss://env.example/ws/websocket")
     monkeypatch.setenv("BRIDGE_SERVER_ID", "env-server")
+    monkeypatch.setenv("BRIDGE_DISPLAY_NAME", "Inherited")
+    monkeypatch.setenv("BRIDGE_LOCATION", "Inherited")
+    monkeypatch.setenv("BRIDGE_LOCAL_HTTP_BASE", "http://env.example")
+    monkeypatch.setenv("BRIDGE_HTTP_BASE_URL", "https://env.example")
+    monkeypatch.setenv("BRIDGE_WS_MAX_SIZE_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_TIMEOUT_SECONDS", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_HTTP_MAX_BODY_BYTES", "1")
+    monkeypatch.setenv("BRIDGE_DEBUG", "1")
+    monkeypatch.setenv("BRIDGE_EXIT_ON_SUPERSEDED", "1")
+    monkeypatch.setenv("BRIDGE_LOCAL_GUARD", "1")
+    monkeypatch.setenv("BRIDGE_TAKEOVER_LOCAL", "1")
     monkeypatch.setenv("SERVER_HOST", "127.0.0.1")
     monkeypatch.setenv("SERVER_PORT", "9876")
-    monkeypatch.delenv("ENABLE_BONJOUR", raising=False)
+    monkeypatch.setenv("PORT", "9876")
+    monkeypatch.setenv("ENABLE_BONJOUR", "1")
+    monkeypatch.setenv("BONJOUR_PORT", "9876")
+    monkeypatch.setenv("BONJOUR_SERVICE_NAME", "Inherited")
     monkeypatch.setattr(server_mod.bridge_mod, "BridgeClient", FakeBridgeClient)
+    monkeypatch.setattr(
+        server_mod.bonjour_mod,
+        "start_bonjour",
+        lambda service_name, port: bonjour_calls.append((service_name, port)),
+    )
 
     try:
         server_mod.clear_configured_integrations()
         asyncio.run(server_mod._on_startup())
 
-        assert len(created_configs) == 1
-        assert created_configs[0].bridge_url == "wss://env.example/ws/websocket"
-        assert created_configs[0].server_id == "env-server"
-        assert created_configs[0].local_http_base == "http://127.0.0.1:9876"
+        assert created_configs == []
+        assert bonjour_calls == []
+    finally:
+        asyncio.run(server_mod._on_shutdown())
+        server_mod.clear_configured_integrations()
+
+
+def test_server_startup_explicit_bonjour_ignores_inherited_bridge(
+    monkeypatch,
+) -> None:
+    advertised: list[tuple[str, int]] = []
+    bridge_clients: list[Any] = []
+    monkeypatch.setenv("BRIDGE_URL", "wss://inherited.example/ws/websocket")
+    monkeypatch.setenv("BRIDGE_SERVER_ID", "inherited-server")
+    monkeypatch.setattr(
+        server_mod.bonjour_mod,
+        "start_bonjour",
+        lambda service_name, port: advertised.append((service_name, port)) or None,
+    )
+    monkeypatch.setattr(
+        server_mod.bridge_mod,
+        "BridgeClient",
+        lambda config: bridge_clients.append(config),
+    )
+
+    try:
+        server_mod.configure_integrations(
+            server_mod.ServerIntegrationRuntimeConfig(
+                bonjour=server_mod.BonjourRuntimeConfig(
+                    service_name="Explicit",
+                    port=8765,
+                )
+            )
+        )
+        asyncio.run(server_mod._on_startup())
+        assert advertised == [("Explicit", 8765)]
+        assert bridge_clients == []
     finally:
         asyncio.run(server_mod._on_shutdown())
         server_mod.clear_configured_integrations()
@@ -374,39 +478,6 @@ def test_resolve_fastapi_log_file_none_when_log_file_none() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Bridge URL from config tests
-# ---------------------------------------------------------------------------
-
-
-def test_read_bridge_url_from_config(tmp_path: Path) -> None:
-    config = tmp_path / "config.json"
-    config.write_text('{"application": {"bridge_url": "wss://bridge.example/ws"}}')
-    assert _read_bridge_url_from_config(config) == "wss://bridge.example/ws"
-
-
-def test_read_bridge_url_from_config_missing(tmp_path: Path) -> None:
-    config = tmp_path / "config.json"
-    config.write_text('{"application": {"tool_output_line_limit": 20}}')
-    assert _read_bridge_url_from_config(config) is None
-
-
-def test_read_bridge_url_from_config_no_application(tmp_path: Path) -> None:
-    config = tmp_path / "config.json"
-    config.write_text('{"providers": {}}')
-    assert _read_bridge_url_from_config(config) is None
-
-
-def test_read_bridge_url_from_config_missing_file(tmp_path: Path) -> None:
-    assert _read_bridge_url_from_config(tmp_path / "nonexistent.json") is None
-
-
-def test_read_bridge_url_from_config_invalid_json(tmp_path: Path) -> None:
-    config = tmp_path / "config.json"
-    config.write_text("{invalid")
-    assert _read_bridge_url_from_config(config) is None
-
-
-# ---------------------------------------------------------------------------
 # --enable-bridge tests
 # ---------------------------------------------------------------------------
 
@@ -445,7 +516,9 @@ def test_enable_bridge_resolves_url_from_config() -> None:
         _args(enable_bridge=True),
         server_mod=server_mod,
         profile=profile,
-        bridge_url_from_config="wss://from-config.example/ws",
+        bridge_application=BridgeApplicationSettings(
+            bridge_url="wss://from-config.example/ws"
+        ),
         effective_host="0.0.0.0",
         effective_port=8090,
     )
@@ -488,7 +561,9 @@ def test_bridge_url_cli_wins_over_profile_and_config() -> None:
         _args(bridge_url="wss://from-cli.example/ws"),
         server_mod=server_mod,
         profile=profile,
-        bridge_url_from_config="wss://from-config.example/ws",
+        bridge_application=BridgeApplicationSettings(
+            bridge_url="wss://from-config.example/ws"
+        ),
         effective_host="0.0.0.0",
         effective_port=8090,
     )
@@ -557,11 +632,8 @@ def test_explicit_display_name_wins_over_profile_name() -> None:
     assert config.bridge.display_name == "Custom Name"
 
 
-def test_bridge_local_http_base_uses_effective_host_and_port(monkeypatch) -> None:
+def test_bridge_local_http_base_uses_effective_host_and_port() -> None:
     """local_http_base defaults to http://<effective_host>:<effective_port>."""
-    monkeypatch.delenv("SERVER_HOST", raising=False)
-    monkeypatch.delenv("SERVER_PORT", raising=False)
-    monkeypatch.delenv("BRIDGE_LOCAL_HTTP_BASE", raising=False)
     profile = ProjectProfile(
         name="myproject",
         port=8090,
@@ -580,13 +652,7 @@ def test_bridge_local_http_base_uses_effective_host_and_port(monkeypatch) -> Non
     assert config.bridge.local_http_base == "http://0.0.0.0:8090"
 
 
-def test_bridge_http_base_cli_override_is_kept_separate_from_local_base(
-    monkeypatch,
-) -> None:
-    monkeypatch.delenv("BRIDGE_HTTP_BASE_URL", raising=False)
-    monkeypatch.delenv("BRIDGE_LOCAL_HTTP_BASE", raising=False)
-    monkeypatch.delenv("SERVER_HOST", raising=False)
-    monkeypatch.delenv("SERVER_PORT", raising=False)
+def test_bridge_http_base_cli_override_is_kept_separate_from_local_base() -> None:
     profile = ProjectProfile(
         name="myproject",
         port=8090,
@@ -607,6 +673,40 @@ def test_bridge_http_base_cli_override_is_kept_separate_from_local_base(
     assert config.bridge is not None
     assert config.bridge.bridge_http_base == "https://bridge-http.example/prefix"
     assert config.bridge.local_http_base == "http://127.0.0.1:8090"
+
+
+def test_bridge_application_settings_are_applied_to_bridge_config() -> None:
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://bridge.example/ws/websocket",
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        bridge_application=BridgeApplicationSettings(
+            ws_max_size_bytes=None,
+            http_timeout_seconds=45.5,
+            http_chunk_size_bytes=8192,
+            http_chunk_threshold_bytes=4096,
+            http_max_body_bytes=65536,
+            debug=True,
+        ),
+        effective_host="127.0.0.1",
+        effective_port=8090,
+    )
+
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.ws_max_size_bytes is None
+    assert config.bridge.http_timeout_seconds == 45.5
+    assert config.bridge.request_chunk_size_bytes == 8192
+    assert config.bridge.request_chunking_threshold_bytes == 4096
+    assert config.bridge.response_chunking_threshold_bytes == 4096
+    assert config.bridge.max_body_bytes == 65536
+    assert config.bridge.debug is True
 
 
 # ---------------------------------------------------------------------------

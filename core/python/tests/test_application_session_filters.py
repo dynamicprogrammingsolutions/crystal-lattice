@@ -8,6 +8,7 @@ import pytest
 
 from agent_app.application_future import AgentApplication
 from agent_app.session_filters import (
+    coerce_session_list_filter_input,
     evaluate_session_list_filters,
     normalize_session_list_filter_schema,
 )
@@ -162,6 +163,36 @@ def test_filter_contract_accepts_highlight_option_tone() -> None:
 
     assert schema.diagnostics == ()
     assert schema.filters[0].options[1].tone == "highlight"
+
+
+def test_datetime_filter_terminal_input_requires_timezone_or_any() -> None:
+    schema = normalize_session_list_filter_schema(
+        [
+            {
+                "ui_type": "session_list_filter",
+                "id": "modified_after",
+                "label": "Modified after",
+                "data": "modified",
+                "type": "datetime",
+                "match": "on_or_after",
+            }
+        ]
+    )
+    declaration = schema.filters[0]
+
+    assert (
+        coerce_session_list_filter_input(
+            declaration,
+            "2026-09-01T02:00:00+02:00",
+        )
+        == "2026-09-01T02:00:00+02:00"
+    )
+    assert coerce_session_list_filter_input(declaration, "any") is None
+    with pytest.raises(ValueError, match="timezone-aware"):
+        coerce_session_list_filter_input(
+            declaration,
+            "2026-09-01T00:00:00",
+        )
 
 
 # Requirements:

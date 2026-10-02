@@ -1,0 +1,291 @@
+{
+  "plugin_policy": {
+    "allow_bash_tools": false,
+    "allow_dynamic_plugin_install": false,
+    "allow_node_tools": false,
+    "allow_remote": false
+  },
+  "embedded_settings": {
+    "defaultAgent": "reviewer-codex",
+    "profileOrder": [
+      "openai",
+      "compatible",
+      "openrouter",
+      "anthropic",
+      "reviewer"
+    ],
+    "profiles": {
+      "compatible": {
+        "agentId": "compatible-claude",
+        "label": "OpenAI-compatible",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "http://127.0.0.1:3000/v1",
+        "model": "qwen3.5:0.8b"
+      },
+      "reviewer": {
+        "agentId": "reviewer-codex",
+        "label": "OpenAI Responses reviewer",
+        "toolFamily": "codex-like",
+        "enabledByDefault": true,
+        "baseUrl": "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+        "model": "gpt-5.6-luna",
+        "usesBundledReviewerCA": true
+      },
+      "openai": {
+        "agentId": "openai-codex",
+        "label": "OpenAI Responses",
+        "toolFamily": "codex-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://api.openai.com/v1",
+        "model": "gpt-5.6-luna",
+        "authMode": "api"
+      },
+      "openrouter": {
+        "agentId": "openrouter-claude",
+        "label": "OpenRouter",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "model": "anthropic/claude-haiku-4.5"
+      },
+      "anthropic": {
+        "agentId": "anthropic-claude",
+        "label": "Anthropic",
+        "toolFamily": "claude-like",
+        "enabledByDefault": false,
+        "baseUrl": "https://api.anthropic.com",
+        "model": "claude-haiku-4-5-20251001"
+      }
+    }
+  },
+  "mixins": {
+    "embedded_agent_defaults": {
+      "workspace_root": "${env:EMBEDDED_WORKSPACE_DIR}",
+      "working_directory": "${env:EMBEDDED_WORKSPACE_DIR}",
+      "workspace_grants": "${env:EMBEDDED_WORKSPACE_GRANTS_JSON}",
+      "allowed_paths": [
+        "${env:EMBEDDED_WORKSPACE_DIR}"
+      ],
+      "cost_tracking_db_path": "${env:EMBEDDED_COST_TRACKING_DB_PATH}",
+      "system_message_enabled": true,
+      "system_message": {
+        "template": ""
+      }
+    }
+  },
+  "providers": {
+    "embedded": {
+      "provider": "embedded_smoke_provider",
+      "model": "embedded-smoke"
+    },
+    "compatible": {
+      "provider": "reference_openai_compatible",
+      "api_key": "${env:EMBEDDED_COMPATIBLE_API_KEY}",
+      "base_url": "${env:EMBEDDED_COMPATIBLE_BASE_URL}",
+      "model": "${env:EMBEDDED_COMPATIBLE_MODEL}",
+      "timeout": 180
+    },
+    "reviewer": {
+      "provider": "openai_responses",
+      "provider_transport": "requests",
+      "api_key": "${env:EMBEDDED_REVIEWER_API_KEY}",
+      "base_url": "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1",
+      "model": "gpt-5.6-luna",
+      "tls_ca_bundle": "${env:EMBEDDED_REVIEWER_CA_BUNDLE}",
+      "auth_mode": "api",
+      "auth_mode_options": [],
+      "reasoning_effort": "low",
+      "reasoning_summary": "concise",
+      "image_attachment_mode": "inline",
+      "show_flex_processing_ui": false,
+      "show_fast_mode_ui": false,
+      "timeout": 180
+    },
+    "openai": {
+      "provider": "openai_responses",
+      "provider_transport": "requests",
+      "api_key": "${env:EMBEDDED_OPENAI_API_KEY}",
+      "base_url": "${env:EMBEDDED_OPENAI_BASE_URL}",
+      "api_base_url": "${env:EMBEDDED_OPENAI_BASE_URL}",
+      "model": "${env:EMBEDDED_OPENAI_MODEL}",
+      "auth_mode": "${env:EMBEDDED_OPENAI_AUTH_MODE}",
+      "auth_mode_options": [],
+      "chatgpt_credentials_path": "${env:EMBEDDED_CHATGPT_CREDENTIALS_PATH}",
+      "chatgpt_rate_limits_path": "${env:EMBEDDED_CHATGPT_RATE_LIMITS_PATH}",
+      "reasoning_effort": "low",
+      "reasoning_summary": "concise",
+      "image_attachment_mode": "inline",
+      "timeout": 180
+    },
+    "openrouter": {
+      "provider": "openrouter",
+      "api_key": "${env:EMBEDDED_OPENROUTER_API_KEY}",
+      "base_url": "${env:EMBEDDED_OPENROUTER_BASE_URL}",
+      "model": "${env:EMBEDDED_OPENROUTER_MODEL}",
+      "timeout": 180
+    },
+    "anthropic": {
+      "provider": "anthropic",
+      "provider_transport": "requests",
+      "api_key": "${env:EMBEDDED_ANTHROPIC_API_KEY}",
+      "base_url": "${env:EMBEDDED_ANTHROPIC_BASE_URL}",
+      "model": "${env:EMBEDDED_ANTHROPIC_MODEL}",
+      "max_tokens": 4096,
+      "timeout": 180
+    }
+  },
+  "plugins": [
+    "crystal_lattice_mobile_runtime.EmbeddedSmokeProvider",
+    "reference_openai_compatible_provider.provider.OpenAICompatibleProvider",
+    "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension",
+    "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
+    "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension",
+    "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension",
+    "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension",
+    "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension",
+    "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
+    "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
+    "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
+    "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
+    "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension",
+    "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature",
+    "openrouter_plugins.openrouter_provider.OpenRouterProvider",
+    "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension",
+    "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension",
+    "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension",
+    "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
+    "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
+    "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension",
+    "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension",
+    "anthropic_plugins.provider.AnthropicProvider",
+    "anthropic_plugins.tools_extension.AnthropicToolsExtension",
+    "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+    "anthropic_plugins.usage_extension.AnthropicUsageExtension",
+    "feature_system_message.system_message_feature.SystemMessageFeature",
+    "feature_request_options.RequestOptionsFeature",
+    "timestamp_extension.timestamp_extension.TimestampExtension",
+    "timestamp_extension.duration_extension.DurationExtension",
+    "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
+    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature",
+    "embedded_workspace_settings.workspace_app_plugin.EmbeddedWorkspaceAppPlugin",
+    "chatgpt_auth_app.ChatGPTAuthAppPlugin",
+    "generate_title_app.GenerateTitleAppPlugin",
+    "session_actions_app.SessionActionsAppPlugin",
+    "summarize_range_app.SummarizeRangeAppPlugin",
+    "session_archive_app.SessionArchiveAppPlugin",
+    "session_main_search_app.SessionMainSearchAppPlugin",
+    "session_message_count_meta_app.SessionMessageCountMetaAppPlugin",
+    "session_ordering_buckets_app.SessionOrderingBucketsAppPlugin",
+    "session_pinned_app.SessionPinnedAppPlugin",
+    "rebuild_native_app.RebuildNativeAppPlugin",
+    "session_status_app.SessionStatusAppPlugin",
+    "session_timestamp_meta_app.SessionTimestampMetaAppPlugin",
+    "session_title_app.SessionTitleAppPlugin",
+    "session_asset_attachments.SessionAssetAttachmentsAppPlugin",
+    "cost_tracking_plugins.cost_tracking_app_plugin.CostTrackingAppPlugin"
+  ],
+  "agents": {
+    "local": {
+      "enabled": "${env:EMBEDDED_SMOKE_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "embedded"
+    },
+    "compatible-claude": {
+      "enabled": "${env:EMBEDDED_COMPATIBLE_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "compatible",
+      "plugins": [
+        "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+        "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+        "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+        "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+        "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+        "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool"
+      ],
+      "tool_family": "claude-like"
+    },
+    "reviewer-codex": {
+      "enabled": "${env:EMBEDDED_REVIEWER_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "reviewer",
+      "plugins": [
+        "embedded_codex_tools.sed_tool.CodexLikeSedTool",
+        "embedded_codex_tools.rg_tool.CodexLikeRgTool",
+        "embedded_codex_tools.find_tool.CodexLikeFindTool",
+        "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
+        "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool"
+      ],
+      "tool_family": "codex-like"
+    },
+    "openai-codex": {
+      "enabled": "${env:EMBEDDED_OPENAI_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "openai",
+      "plugins": [
+        "embedded_codex_tools.sed_tool.CodexLikeSedTool",
+        "embedded_codex_tools.rg_tool.CodexLikeRgTool",
+        "embedded_codex_tools.find_tool.CodexLikeFindTool",
+        "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
+        "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool"
+      ],
+      "tool_family": "codex-like"
+    },
+    "openrouter-claude": {
+      "enabled": "${env:EMBEDDED_OPENROUTER_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "openrouter",
+      "plugins": [
+        "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+        "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+        "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+        "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+        "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+        "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool"
+      ],
+      "tool_family": "claude-like"
+    },
+    "anthropic-claude": {
+      "enabled": "${env:EMBEDDED_ANTHROPIC_ENABLED}",
+      "mixin_refs": [
+        "embedded_agent_defaults"
+      ],
+      "provider": "anthropic",
+      "plugins": [
+        "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
+        "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
+        "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
+        "embedded_claude_tools.glob_tool.ClaudeLikeGlobTool",
+        "embedded_claude_tools.grep_tool.ClaudeLikeGrepTool",
+        "embedded_claude_tools.web_fetch_tool.ClaudeLikeWebFetchTool"
+      ],
+      "tool_family": "claude-like"
+    }
+  },
+  "application": {
+    "generate_title_max_messages": 999,
+    "session_actions": {
+      "allow_delete": true
+    },
+    "session_status_show_in_session_list_footer": true,
+    "summarize_range_prompt": "Provide a detailed but concise summary of the selected conversation range.",
+    "rebuild_native_enabled": true,
+    "chatgpt_auth": {
+      "credentials_path": "${env:EMBEDDED_CHATGPT_CREDENTIALS_PATH}",
+      "rate_limits_path": "${env:EMBEDDED_CHATGPT_RATE_LIMITS_PATH}"
+    },
+    "cost_tracking": {
+      "db_path": "${env:EMBEDDED_COST_TRACKING_DB_PATH}"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+format = 1
+id = "crystal-lattice"
+kind = "project"
+
+[outputs]
+"AGENTS.md" = "AGENTS.md.in"
+"agents/TASKS-v7.md" = "agents/TASKS-v7.md.in"
+
+[slots.documentation]
+source = "bundle"
+section = "documentation"
+
+[slots.documentation-routing]
+source = "target"
+path = "sections/documentation-routing.md"
+
+[slots.requirements]
+source = "bundle"
+section = "requirements"
+
+[slots.root-testing]
+source = "bundle"
+section = "root-testing"
+
+[slots.tasks-v7]
+source = "bundle"
+section = "tasks-v7"

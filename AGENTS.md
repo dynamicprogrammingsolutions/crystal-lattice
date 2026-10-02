@@ -104,62 +104,63 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Used mainly for tests, compatibility, and a small set of package-local/core features.
   - Do not place new plugins here without explicit user consent.
 
-**Docs & scripts**
+**Documentation & scripts**
 - Root: `ARCHITECTURE.md` and cross-package documentation entry points.
-- Core package docs: `core/python/docs/index.md`,
-  `core/python/docs/core-sdk.md`, `core/python/docs/events.md`,
-  `core/python/docs/types-and-protocols.md`, and generated
-  `core/python/docs/examples.md`.
-- Development hub: `docs/development/index.md`.
-- Reusable standards: `docs/development/standards/index.md`.
-- Crystal Lattice repository policy: `docs/development/repository/index.md`.
-- Standards-maintenance specifications: `maintainer/specifications/`.
-- Generated Core API reference: `docs/reference/agent_core/*`.
+- Core package docs: `core/python/docs/index.md`; generated Core API reference:
+  `docs/reference/agent_core/`.
+- Development documentation and conventions: `docs/development/index.md`.
+- Guidance-maintenance documentation and specifications:
+  `maintainer/docs/`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - General plugin overview: `plugins/docs/overview.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
 
-## Documentation ownership and workflow
+## Documentation
 
-Start package work by reading its `README.md`, nearest `AGENTS.md`, and
-`docs/index.md` when present. Use the smallest documentation structure that
-helps the reader; README-only, one-page, and larger documentation or
-specification layouts are all valid.
+- Start package work by reading its `README.md`, nearest `AGENTS.md`, and
+  `docs/index.md` when present.
+- Use the smallest documentation structure that helps the intended reader. Do
+  not create placeholder pages or directories merely to complete a preferred
+  layout.
+- Place documentation with the package or subsystem that owns the behavior.
+  Choose the destination by audience and ownership, not by the code currently
+  being changed.
+- User and developer documentation describes current supported behavior.
+  Specifications may describe an intended target. Requirements track necessary
+  outcomes and their implementation, verification, and documentation state.
+  Tasks track approval and execution. Target-only user text may be drafted with
+  a visible `Not implemented` marker, but is not current guidance.
+- Update the affected maintained documentation when behavior changes. Keep new
+  public claims in the same reviewed change as the code or configuration that
+  makes them true.
+- Change generated documentation through its maintained source or generator.
+  If generation is blocked, preserve the source boundary and report what
+  remains.
+- Document verified facts discovered during the current work. Do not
+  reconstruct large unfamiliar areas merely to establish a documentation
+  baseline.
+- Before creating, moving, or materially restructuring documentation or
+  specifications, read `docs/development/documentation.md`. A local factual
+  correction does not require unrelated structure guidance.
+
+## Crystal Lattice documentation routing
 
 Put package-user documentation under `<package>/docs/` and current internals,
 architecture, testing, and specifications under
 `<package>/docs/development/`. Keep root `docs/` for project-wide guidance,
 cross-package architecture and behavior, and site entry points.
 
-Specifications describe intended targets. Requirements track necessary
-outcomes and their implementation, verification, and documentation state.
-Tasks track approval and execution. Published user and developer documentation
-describe available behavior in language appropriate to their readers.
-Target-only user text may be drafted on a development branch with a visible
-`Not implemented` marker, but is not published as current guidance by default.
+Never edit `docs_site/prepared/` or `docs_site/dist/` directly. Publication and
+site-generation commands are maintained in the Crystal Lattice conventions.
 
-Change generated documentation through its maintained source or generator;
-never edit `docs_site/prepared/` or `docs_site/dist/` directly. If a required
-generation or validation step is blocked, preserve the source and validation
-boundaries and report the remaining action.
+Before materially changing documentation structure, also read
+`docs/development/crystal-lattice-documentation.md`. When changing this
+guidance, task guidance, publication rules, or their validation, read:
 
-Document verified facts discovered during the current work. Do not reconstruct
-large unfamiliar areas merely to fill an illustrated directory structure.
-
-Before creating, moving, or materially restructuring documentation or
-specifications, read:
-
-- `docs/development/documentation.md`
-- `docs/development/crystal-lattice-documentation.md`
-
-A local factual correction does not require unrelated structure guidance when
-the page, reader, and maintained source are clear.
-
-When changing this guidance, task guidance, publication rules, or their
-validation, also read:
-
-- `maintainer/specifications/documentation-and-specification-standard/index.md`
-- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
+- `maintainer/docs/development/specifications/documentation-guidance/index.md`
+- `maintainer/docs/development/specifications/documentation-guidance/requirements.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`
 
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
@@ -248,14 +249,6 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - `black core/python/agent_core core/python/tests core/python/examples core/python/plugins`
 - `pyright`
 
-**Docs**
-- `python -m pip install -r docs_site/requirements.txt`
-- `python docs_site/scripts/prepare_mkdocs_site.py`
-- `(cd docs_site && mkdocs serve -a 127.0.0.1:8001)` / `(cd docs_site && mkdocs build)`
-- Use `python docs_site/scripts/build_mkdocs_site.py` only when the task also
-  intends to refresh committed generated reference snapshots.
-- After changing examples: run the relevant example tests selectively, then `python scripts/generate_examples_md.py`
-
 ---
 
 ## Where to Change What
@@ -295,7 +288,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## 5. Plugin Development (Summary)
+## Plugin Development (Summary)
 
 - Plugins are plain classes with instance methods, using explicit `state: dict`.
 - Instances are short-lived per request; avoid persistent mutable attributes.
@@ -325,7 +318,7 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 
 ---
 
-## Testing & Documentation Principles
+## Testing Principles
 
 **When to add tests**
 - Any new public behavior or API surface.
@@ -333,7 +326,9 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - Any change in `agent_core`, `agent_app`, `agent_terminal_app`, built-in plugin projects, or core-packaged plugins visible to users.
 
 **What to test**
-- Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
+- Use the least expensive test that proves the requirement without bypassing
+  the important boundary. Unit and component tests suit pure functions,
+  protocol implementations, local state, and rendering behavior.
 - Use **integration tests** for multi-layer flows or provider-backed behavior; mark them with `integration`.
 - Add `api` for hosted real-provider tests that require credentials and may incur cost.
 - Add `slow_integration` for broad, high-latency, or expensive integration suites that should be run selectively.
@@ -368,24 +363,8 @@ Examples: `Improve error handling`, `Add cache validation`, `Update deployment n
 - First-party built-in plugin projects live under repo-root `plugins/`, and their tests live alongside them.
 - Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
-**When to update docs**
-- Changing public behavior:
-  - Update the owning package's current user docs and any affected
-    cross-package user guidance.
-- Changing implementation, architecture, testing, or maintenance behavior:
-  - Update the owning package's `docs/development/` pages.
-- Changing an intended target:
-  - Update its specification first and update requirements as implementation,
-    verification, and documentation progress.
-- Current hand-written Core SDK, event, type/protocol, and examples
-  documentation lives under `core/python/docs/`. Generated Core reference
-  snapshots remain under `docs/reference/agent_core/` until their owning
-  reference-normalization task completes.
-- Changing examples or adding new ones:
-  - Update example code + tests, then regenerate
-    `core/python/docs/examples.md`.
-
-Treat tests, type hints, and documentation updates as part of “done” for any substantive change.
+Treat applicable tests, type hints, and documentation updates as part of
+“done” for substantive changes.
 
 ## Long-running work and waiting
 

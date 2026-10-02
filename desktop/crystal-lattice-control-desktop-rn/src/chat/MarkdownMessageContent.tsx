@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import {
   atomOneDark,
@@ -78,6 +78,18 @@ interface MarkdownErrorBoundaryProps {
 
 interface MarkdownErrorBoundaryState {
   hasError: boolean;
+}
+
+function SelectableCodeText(props: any): React.JSX.Element {
+  return (
+    <Text
+      {...props}
+      style={[props.style, styles.selectableCodeText]}
+      selectable
+      accessibilityLabel="Markdown code block"
+      testID="desktop-markdown-code-block"
+    />
+  );
 }
 
 class MarkdownErrorBoundary extends React.PureComponent<
@@ -180,31 +192,27 @@ function MarkdownMessageContent({
         return (
           <View
             key={node.key}
+            accessible
+            accessibilityLabel="Markdown code block"
+            testID="desktop-markdown-code-block"
             style={[
               styles.codeBlockOuter,
               { backgroundColor: theme.codeBlockBg, borderColor: theme.border },
             ]}
           >
-            <ScrollView
-              horizontal
-              style={styles.codeBlockScrollHorizontal}
-              contentContainerStyle={styles.codeBlockScrollHorizontalContent}
-              showsHorizontalScrollIndicator
+            <SyntaxHighlighter
+              language={language}
+              style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
+              highlighter="hljs"
+              fontFamily="Menlo"
+              fontSize={theme.typography.fontSize.code}
+              lineHeight={theme.typography.lineHeight.code}
+              customStyle={styles.codeBlockInner}
+              PreTag={View as any}
+              CodeTag={SelectableCodeText as any}
             >
-              <SyntaxHighlighter
-                language={language}
-                style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
-                highlighter="hljs"
-                fontFamily="Menlo"
-                fontSize={theme.typography.fontSize.code}
-                lineHeight={theme.typography.lineHeight.code}
-                customStyle={styles.codeBlockInner}
-                PreTag={View as any}
-                CodeTag={Text as any}
-              >
-                {content}
-              </SyntaxHighlighter>
-            </ScrollView>
+              {content}
+            </SyntaxHighlighter>
           </View>
         );
       },
@@ -218,31 +226,27 @@ function MarkdownMessageContent({
         return (
           <View
             key={node.key}
+            accessible
+            accessibilityLabel="Markdown code block"
+            testID="desktop-markdown-code-block"
             style={[
               styles.codeBlockOuter,
               { backgroundColor: theme.codeBlockBg, borderColor: theme.border },
             ]}
           >
-            <ScrollView
-              horizontal
-              style={styles.codeBlockScrollHorizontal}
-              contentContainerStyle={styles.codeBlockScrollHorizontalContent}
-              showsHorizontalScrollIndicator
+            <SyntaxHighlighter
+              language={language}
+              style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
+              highlighter="hljs"
+              fontFamily="Menlo"
+              fontSize={theme.typography.fontSize.code}
+              lineHeight={theme.typography.lineHeight.code}
+              customStyle={styles.codeBlockInner}
+              PreTag={View as any}
+              CodeTag={SelectableCodeText as any}
             >
-              <SyntaxHighlighter
-                language={language}
-                style={(isDarkCodeBlock ? atomOneDark : atomOneLight) as any}
-                highlighter="hljs"
-                fontFamily="Menlo"
-                fontSize={theme.typography.fontSize.code}
-                lineHeight={theme.typography.lineHeight.code}
-                customStyle={styles.codeBlockInner}
-                PreTag={View as any}
-                CodeTag={Text as any}
-              >
-                {content}
-              </SyntaxHighlighter>
-            </ScrollView>
+              {content}
+            </SyntaxHighlighter>
           </View>
         );
       },
@@ -316,13 +320,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderRadius: 6,
     borderWidth: 1,
-    overflow: 'hidden',
-  },
-  codeBlockScrollHorizontal: {
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  codeBlockScrollHorizontalContent: {
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -330,6 +327,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     padding: 0,
     margin: 0,
+    alignSelf: 'stretch',
+  },
+  selectableCodeText: {
+    flexShrink: 1,
   },
 });
 

@@ -6,9 +6,27 @@ It is disabled by default (default_enabled = False).
 
 import shlex
 import sys
+import threading
+import time
 
 from agent_core.plugin import ToolWrapper
 from codex_tools.shell_tool_legacy import ShellTool
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callback = None
+
+    def add_callback(self, callback):
+        self._callback = callback
+        return 1
+
+    def remove_callback(self, token: int) -> None:
+        self._callback = None
+
+    def cancel(self) -> None:
+        if self._callback is not None:
+            self._callback()
 
 
 def test_shell_tool_runs_basic_command(tmp_path):
@@ -153,6 +171,32 @@ def test_shell_tool_stream_stdin_reader_receives_eof(tmp_path):
     final = _get_final_stream_result(events)
     assert final["success"] is True
     assert "stdin-bytes 0" in str(final.get("stdout") or "")
+
+
+def test_shell_tool_stream_hard_cancellation(tmp_path):
+    wrapper = ToolWrapper(ShellTool)
+    state = wrapper.init({"working_directory": str(tmp_path)})
+    cancellation = _TestCancellation()
+    events = []
+    worker = threading.Thread(
+        target=lambda: events.extend(
+            wrapper.stream_tool(
+                "shell_legacy",
+                {"command": "sleep 60", "workdir": str(tmp_path)},
+                state,
+                cancellation=cancellation,
+            )
+        )
+    )
+    worker.start()
+    time.sleep(0.2)
+    cancellation.cancel()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    final = _get_final_stream_result(events)
+    assert final["success"] is False
+    assert final["cancelled"] is True
 
 
 def _get_final_stream_result(events):

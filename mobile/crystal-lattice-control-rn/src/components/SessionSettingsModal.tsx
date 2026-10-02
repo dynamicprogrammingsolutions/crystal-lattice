@@ -10,22 +10,33 @@ import {
   View,
 } from "react-native";
 import type {
+  ActionDisplayPayload,
+  ActionUiElement,
   AgentBackend,
   ConfigCustomValue,
   RichDropdownOption,
 } from "@crystal-lattice/frontend-sdk";
 import {
+  getSessionSettingsActionAnchor,
+  runApplicationAction,
+} from "@crystal-lattice/frontend-sdk";
+import {
   buildConfigSchemaByKey,
   buildSessionSettingItems,
   SessionSettingsHost,
+  usePluginActionDialog,
   useSessionSettingsController,
   type SessionSettingRenderCtx,
   type SessionSettingsRenderers,
 } from "@crystal-lattice/frontend-sdk-react";
+import { ApplicationActionDialog } from "@crystal-lattice/frontend-rn-components";
 import Icon from "react-native-vector-icons/Feather";
 
+import { acquireActionClientValues } from "../actionClientInputs";
 import OptionsPickerModal from "./OptionsPickerModal";
 import PanelModalFrame from "./PanelModalFrame";
+import ActionResultModal from "./ActionResultModal";
+import { useMobileApplicationActionDialogFieldRenderers } from "./applicationActionDialogRenderers";
 import { useTheme, type Theme } from "../theme";
 
 export interface SessionSettingsModalProps {
@@ -34,6 +45,9 @@ export interface SessionSettingsModalProps {
   sessionId: string;
   visible: boolean;
   onRequestClose: () => void;
+  acquireClientValues?: (
+    element: ActionUiElement
+  ) => Promise<Record<string, unknown> | null>;
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
@@ -42,9 +56,15 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   sessionId,
   visible,
   onRequestClose,
+  acquireClientValues = acquireActionClientValues,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionDialogFieldRenderers =
+    useMobileApplicationActionDialogFieldRenderers();
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [actionDisplay, setActionDisplay] =
+    useState<ActionDisplayPayload | null>(null);
 
   const [pendingTextByKey, setPendingTextByKey] = useState<
     Record<string, string>
@@ -66,6 +86,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
     enabled: visible,
   });
   const elements = settingsState?.elements ?? [];
+  const settingsActions = settingsState?.actions ?? [];
   const schemaByKey = useMemo(
     () => buildConfigSchemaByKey(settingsState?.configSchema || []),
     [settingsState?.configSchema]
@@ -197,6 +218,116 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       // Controller state captures errors.
     }
   };
+
+  const executeSettingsAction = useCallback(
+    async (
+      element: ActionUiElement,
+      dialogValues: Record<string, any> | undefined
+    ) => {
+      if (!backend) {
+        Alert.alert("No connection", "Connect to a server to run actions.");
+        return;
+      }
+      setActiveActionId(element.id);
+      try {
+        const clientValues = await acquireClientValues(element);
+        if (clientValues === null) {
+          return;
+        }
+        const result = await runApplicationAction({
+          backend,
+          element,
+          actionsById: {},
+          context: {
+            sessionId,
+            dialogValues,
+            clientValues,
+          },
+          effects: {
+            currentSessionId: sessionId,
+          },
+        });
+        if (!result.ok) {
+          Alert.alert(
+            "Action error",
+            result.errorMessage || "Failed to execute action."
+          );
+          return;
+        }
+        if (result.display) {
+          setActionDisplay(result.display);
+        }
+        controller?.invalidate();
+        await controller?.load();
+      } catch (error: any) {
+        Alert.alert(
+          "Action error",
+          error?.message || "Failed to execute action."
+        );
+      } finally {
+        setActiveActionId(null);
+      }
+    },
+    [acquireClientValues, backend, controller, sessionId]
+  );
+
+  const {
+    activeElement: activeDialogElement,
+    openForElement: openAction,
+    handleSubmit: submitActionDialog,
+    handleCancel: cancelActionDialog,
+  } = usePluginActionDialog<{ sessionId: string }>(
+    async (element, _context, values) => {
+      await executeSettingsAction(element, values);
+    }
+  );
+
+  const anchoredActionsByKey = useMemo(() => {
+    const result: Record<string, ActionUiElement[]> = {};
+    settingsActions.forEach((action) => {
+      const anchor = getSessionSettingsActionAnchor(action);
+      if (!anchor.key || !itemByKey[anchor.key]) {
+        return;
+      }
+      result[anchor.key] = [...(result[anchor.key] ?? []), action];
+    });
+    Object.values(result).forEach((actions) =>
+      actions.sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+    );
+    return result;
+  }, [itemByKey, settingsActions]);
+
+  const fallbackActions = useMemo(
+    () =>
+      settingsActions
+        .filter((action) => {
+          const anchor = getSessionSettingsActionAnchor(action);
+          return !anchor.key || !itemByKey[anchor.key];
+        })
+        .sort((left, right) => (left.order ?? 0) - (right.order ?? 0)),
+    [itemByKey, settingsActions]
+  );
+
+  const renderSettingsAction = (action: ActionUiElement) => (
+    <TouchableOpacity
+      key={`${action.plugin}:${action.id}`}
+      accessibilityRole="button"
+      testID={`session-settings-action-${action.id}`}
+      style={styles.settingsActionButton}
+      disabled={activeActionId !== null}
+      onPress={() => openAction(action, { sessionId })}
+    >
+      <Icon
+        name={action.icon || "zap"}
+        size={15}
+        color={theme.primary}
+      />
+      <Text style={styles.settingsActionLabel}>{action.label}</Text>
+      {activeActionId === action.id ? (
+        <ActivityIndicator size="small" color={theme.primary} />
+      ) : null}
+    </TouchableOpacity>
+  );
 
   if (!visible) {
     return null;
@@ -536,6 +667,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={opt.value}
+                    testID={`session-setting-select-${item.key}-${opt.value}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
                     style={[
                       isSelected ? styles.chipSelected : styles.chip,
                       item.disabled && styles.chipDisabled,
@@ -666,6 +800,196 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         </View>
       );
     },
+    directory: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const options = normalizeOptions((item.element as any).options);
+      if (!options.length) {
+        return null;
+      }
+      const selected =
+        typeof item.effectiveValue === "string"
+          ? item.effectiveValue
+          : String(item.effectiveValue ?? "");
+      const selectedLabel =
+        options.find((option) => option.value === selected)?.label ??
+        "Unavailable directory";
+      return (
+        <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+                {item.tagLabel && (
+                  <View
+                    style={
+                      item.tagLabel === "config"
+                        ? styles.tagConfig
+                        : styles.tagDefault
+                    }
+                  >
+                    <Text
+                      style={
+                        item.tagLabel === "config"
+                          ? styles.tagTextConfig
+                          : styles.tagTextDefault
+                      }
+                    >
+                      {item.tagLabel}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {item.hasOverride && (
+                <TouchableOpacity
+                  style={styles.trashRightOfLabel}
+                  onPress={() => ctx.actions.revertToDefault(item.key)}
+                  disabled={item.disabled}
+                >
+                  <Icon name="trash-2" size={14} color={theme.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {item.description ? (
+              <Text
+                style={[
+                  styles.itemDescription,
+                  item.disabled && styles.itemDescriptionDisabled,
+                ]}
+              >
+                {item.description}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              testID={`session-setting-directory-${item.key}`}
+              style={[
+                styles.dropdownButton,
+                item.disabled && styles.dropdownButtonDisabled,
+              ]}
+              disabled={item.disabled}
+              onPress={() => {
+                setDropdownState({
+                  key: item.key,
+                  label: item.label,
+                  options,
+                  selected,
+                  placeholder:
+                    typeof (item.element as any).placeholder === "string"
+                      ? (item.element as any).placeholder
+                      : "Select a workspace directory",
+                });
+              }}
+            >
+              <Icon name="folder" size={14} color={theme.textSecondary} />
+              <Text style={styles.dropdownButtonValue} numberOfLines={1}>
+                {selectedLabel}
+              </Text>
+              <Icon name="chevron-down" size={14} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
+    workspace: (ctx: SessionSettingRenderCtx) => {
+      const { item } = ctx;
+      const rawOptions = Array.isArray((item.element as any).options)
+        ? (item.element as any).options
+        : [];
+      const options = rawOptions
+        .filter(
+          (option: any) =>
+            option &&
+            typeof option === "object" &&
+            typeof option.value === "string" &&
+            option.available !== false
+        )
+        .map((option: any) => {
+          const source =
+            option.source === "private"
+              ? "Private"
+              : option.source === "files"
+              ? "Files"
+              : "Shared";
+          return {
+            value: option.value,
+            label: `${source} · ${String(option.label || option.value)}`,
+            icon:
+              option.source === "private"
+                ? "lock"
+                : option.source === "files"
+                ? "hard-drive"
+                : "users",
+          };
+        });
+      const selected =
+        typeof item.effectiveValue === "string"
+          ? item.effectiveValue
+          : String(item.effectiveValue ?? "");
+      const selectedRaw = rawOptions.find(
+        (option: any) => option?.value === selected
+      );
+      const selectedSource =
+        selectedRaw?.source === "private"
+          ? "Private"
+          : selectedRaw?.source === "files"
+          ? "Files"
+          : "Shared";
+      const selectedLabel = selectedRaw
+        ? `${
+            selectedRaw.available === false ? "Unavailable" : selectedSource
+          } · ${selectedRaw.label || selectedRaw.value}`
+        : "Unavailable workspace";
+      return (
+        <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
+          <View style={styles.itemTextColumn}>
+            <View style={styles.itemLabelRow}>
+              <View style={styles.itemLabelChipColumn}>
+                <Text
+                  style={[
+                    styles.itemLabel,
+                    item.disabled && styles.itemLabelDisabled,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </View>
+            </View>
+            {item.description ? (
+              <Text style={styles.itemDescription}>{item.description}</Text>
+            ) : null}
+            <TouchableOpacity
+              testID={`session-setting-workspace-${item.key}`}
+              style={[
+                styles.dropdownButton,
+                item.disabled && styles.dropdownButtonDisabled,
+              ]}
+              disabled={item.disabled}
+              onPress={() =>
+                setDropdownState({
+                  key: item.key,
+                  label: item.label,
+                  options,
+                  selected,
+                  placeholder: "Choose a working directory",
+                })
+              }
+            >
+              <Icon name="folder" size={14} color={theme.textSecondary} />
+              <Text style={styles.dropdownButtonValue} numberOfLines={1}>
+                {selectedLabel}
+              </Text>
+              <Icon name="chevron-down" size={14} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
     text: renderTextLike,
     multiline: renderTextLike,
   };
@@ -679,53 +1003,88 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
   return (
-    <PanelModalFrame
-      visible={visible}
-      testID="session-settings-modal"
-      title="Session settings"
-      titleTestID="session-settings-title"
-      onRequestClose={onRequestClose}
-      statusText={statusText}
-      statusTone={statusTone}
-      showSpinner={showSpinner}
-      scroll={!error && items.length > 0}
-      scrollTestID="session-settings-scroll"
-      overlayChildren={
-        <OptionsPickerModal
-          visible={!!dropdownState}
-          options={dropdownState?.options ?? []}
-          selectedValue={dropdownState?.selected ?? ""}
-          placeholder={dropdownState?.placeholder}
-          customValue={dropdownState?.customValue}
-          useModal={false}
-          onSelect={(value) => {
-            if (dropdownState) {
-              handleSelectOption(dropdownState.key, value);
-              setDropdownState(null);
-            }
-          }}
-          onRequestClose={() => setDropdownState(null)}
-        />
-      }
-    >
-      {!error && hasLoaded && items.length === 0 && (
-        <Text style={styles.helperText}>
-          No configurable settings are available for this session.
-        </Text>
-      )}
-      {!error && items.length > 0 && (
-        <SessionSettingsHost
-          items={items}
-          actions={{
-            toggleCheckbox: handleToggleCheckbox,
-            selectOption: handleSelectOption,
-            saveText: handleSaveText,
-            revertToDefault: handleRevertToDefault,
-          }}
-          renderers={renderers}
-        />
-      )}
-    </PanelModalFrame>
+    <>
+      <PanelModalFrame
+        visible={visible}
+        testID="session-settings-modal"
+        title="Session settings"
+        titleTestID="session-settings-title"
+        onRequestClose={onRequestClose}
+        statusText={statusText}
+        statusTone={statusTone}
+        showSpinner={showSpinner}
+        scroll={!error && (items.length > 0 || fallbackActions.length > 0)}
+        scrollTestID="session-settings-scroll"
+        overlayChildren={
+          <OptionsPickerModal
+            visible={!!dropdownState}
+            options={dropdownState?.options ?? []}
+            selectedValue={dropdownState?.selected ?? ""}
+            placeholder={dropdownState?.placeholder}
+            customValue={dropdownState?.customValue}
+            useModal={false}
+            onSelect={(value) => {
+              if (dropdownState) {
+                handleSelectOption(dropdownState.key, value);
+                setDropdownState(null);
+              }
+            }}
+            onRequestClose={() => setDropdownState(null)}
+          />
+        }
+      >
+        {!error &&
+          hasLoaded &&
+          items.length === 0 &&
+          fallbackActions.length === 0 && (
+            <Text style={styles.helperText}>
+              No configurable settings are available for this session.
+            </Text>
+          )}
+        {!error && items.length > 0 && (
+          <SessionSettingsHost
+            items={items}
+            actions={{
+              toggleCheckbox: handleToggleCheckbox,
+              selectOption: handleSelectOption,
+              saveText: handleSaveText,
+              revertToDefault: handleRevertToDefault,
+            }}
+            renderers={renderers}
+            renderAfterItem={({ item }) => {
+              const actions = anchoredActionsByKey[item.key] ?? [];
+              return actions.length > 0 ? (
+                <View style={styles.settingsActionGroup}>
+                  {actions.map(renderSettingsAction)}
+                </View>
+              ) : null;
+            }}
+          />
+        )}
+        {!error && fallbackActions.length > 0 ? (
+          <View style={styles.settingsActionsSection}>
+            <Text style={styles.settingsActionsTitle}>Actions</Text>
+            {fallbackActions.map(renderSettingsAction)}
+          </View>
+        ) : null}
+      </PanelModalFrame>
+      <ApplicationActionDialog
+        visible={!!activeDialogElement}
+        dialog={(activeDialogElement as any)?.dialog || null}
+        titleFallback={activeDialogElement?.label}
+        prefillContext={{ session: { session_id: sessionId } }}
+        fieldRenderers={actionDialogFieldRenderers}
+        onSubmit={submitActionDialog}
+        onCancel={cancelActionDialog}
+      />
+      <ActionResultModal
+        testID="session-settings-action-result"
+        visible={!!actionDisplay}
+        display={actionDisplay}
+        onRequestClose={() => setActionDisplay(null)}
+        fieldRenderers={actionDialogFieldRenderers}
+      />
+    </>
   );
 };
 
@@ -738,6 +1097,38 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.normal,
       color: theme.textSecondary,
       marginBottom: 8,
+    },
+    settingsActionGroup: {
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    settingsActionsSection: {
+      marginTop: 14,
+    },
+    settingsActionsTitle: {
+      color: theme.text,
+      fontSize: theme.typography.fontSize.normal,
+      fontWeight: "600",
+      marginBottom: 6,
+    },
+    settingsActionButton: {
+      minHeight: 38,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      marginBottom: 6,
+      backgroundColor: theme.surfaceAlt,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    settingsActionLabel: {
+      flex: 1,
+      marginLeft: 8,
+      color: theme.primary,
+      fontSize: theme.typography.fontSize.small,
+      fontWeight: "600",
     },
     itemRow: {
       flexDirection: "row",
@@ -767,6 +1158,7 @@ const createStyles = (theme: Theme) =>
       flex: 1,
     },
     itemLabel: {
+      flexShrink: 1,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
       fontWeight: "500",

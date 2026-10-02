@@ -7,6 +7,7 @@ ios/CrystalLatticePythonRuntime/.prepared-python-runtime
 ios/CrystalLatticePythonRuntime/Resources/python/
 ios/CrystalLatticePythonRuntime/Resources/python312.zip
 ios/CrystalLatticePythonRuntime/Resources/crystal_lattice_app.zip
+ios/CrystalLatticePythonRuntime/Resources/embedded-ios-config.json
 !ios/CrystalLatticePythonRuntime/Resources/reviewer-proxy-ca.pem
 ios/CrystalLatticePythonRuntime/Vendor/
 fastlane/.env

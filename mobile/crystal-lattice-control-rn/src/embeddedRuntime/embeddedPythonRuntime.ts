@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from "react-native";
+import type { ActionDisplayPayload } from "@crystal-lattice/frontend-sdk";
 
 export interface EmbeddedPythonRuntimeInfo {
   status: "ready";
@@ -27,6 +28,7 @@ export interface EmbeddedRuntimeResponse<T = any> {
 }
 
 export type EmbeddedProviderProfileId =
+  | "compatible"
   | "reviewer"
   | "openai"
   | "openrouter"
@@ -36,7 +38,7 @@ export interface EmbeddedProviderProfileUpdate {
   enabled?: boolean;
   baseUrl?: string;
   model?: string;
-  authMode?: "api" | "auto" | "chatgpt";
+  authMode?: "api" | "chatgpt";
   tlsCaBundle?: string;
   apiKey?: string;
   clearApiKey?: boolean;
@@ -50,14 +52,15 @@ export interface EmbeddedProviderProfile {
   enabled: boolean;
   baseUrl: string;
   model: string;
-  authMode?: "api" | "auto" | "chatgpt";
+  authMode?: "api" | "chatgpt";
   tlsCaBundle?: string;
   hasApiKey: boolean;
 }
 
 export interface EmbeddedRuntimeConfiguration {
-  version?: 2;
+  version?: 3;
   defaultAgent?: string;
+  reviewerVisible?: boolean;
   providers?: Partial<
     Record<EmbeddedProviderProfileId, EmbeddedProviderProfileUpdate>
   >;
@@ -69,12 +72,15 @@ export interface EmbeddedRuntimeConfiguration {
 }
 
 export interface EmbeddedRuntimePublicConfiguration {
-  version: 2;
+  version: 3;
   defaultAgent: string;
+  reviewerVisible: boolean;
+  profileOrder: EmbeddedProviderProfileId[];
   providers: Record<EmbeddedProviderProfileId, EmbeddedProviderProfile>;
   // Legacy reviewer setup aliases.
   proxyUrl: string;
   model: string;
+  selectedProfileId?: EmbeddedProviderProfileId;
   hasApiKey: boolean;
   inspectionOnly?: boolean;
 }
@@ -119,6 +125,10 @@ interface EmbeddedPythonRuntimeModule {
   getConfiguration(): Promise<EmbeddedRuntimePublicConfiguration>;
   noteAppState(state: string): Promise<EmbeddedRuntimeLifecycleStatus>;
   getLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus>;
+  registerWorkspaceDirectoryGrant(input: {
+    uri: string;
+    bookmark?: string;
+  }): Promise<{ grantId: string; displayName: string }>;
 }
 
 const nativeRuntime =
@@ -177,4 +187,50 @@ export async function noteEmbeddedPythonRuntimeAppState(
 
 export async function getEmbeddedPythonRuntimeLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus> {
   return requireNativeRuntime().getLifecycleStatus();
+}
+
+export async function registerEmbeddedWorkspaceDirectoryGrant(input: {
+  uri: string;
+  bookmark?: string;
+}): Promise<{ grantId: string; displayName: string }> {
+  return requireNativeRuntime().registerWorkspaceDirectoryGrant(input);
+}
+
+export interface EmbeddedRuntimeApplicationActionResult {
+  display?: ActionDisplayPayload;
+  auth_status?: {
+    state?: string;
+    verification_url?: string;
+    user_code?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export async function executeEmbeddedRuntimeApplicationAction(options: {
+  pluginId: string;
+  actionId: string;
+  actionOwner?: string;
+  inputs?: Record<string, unknown>;
+}): Promise<EmbeddedRuntimeApplicationActionResult> {
+  const response = await executeEmbeddedRuntimeCommand<{
+    status: "ok" | "error";
+    message?: string;
+    result?: EmbeddedRuntimeApplicationActionResult;
+  }>({
+    method: "POST",
+    path: "/actions",
+    body: {
+      plugin: options.pluginId,
+      action_id: options.actionId,
+      action_owner: options.actionOwner,
+      inputs: options.inputs ?? {},
+    },
+  });
+  if (response.status >= 300 || response.data.status !== "ok") {
+    throw new Error(
+      response.data.message ?? "Embedded application action failed."
+    );
+  }
+  return response.data.result ?? {};
 }

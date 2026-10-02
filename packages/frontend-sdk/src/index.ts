@@ -6,6 +6,21 @@ export type {
   SessionSummaryPresentation,
 } from "./types/sessions";
 
+export type {
+  JsonPrimitive,
+  JsonProjectionOptions,
+  JsonValue,
+  MessageDataQueryParams,
+  MessageDataQueryResult,
+  ProjectedApiMessage,
+  ProjectedIndexedMessage,
+  ProjectedMessageQueryDocument,
+  ProjectedSessionQueryDocument,
+  ProjectedSessionSummary,
+  SessionDataQueryParams,
+  SessionDataQueryResult,
+} from "./types/sessionDataQuery";
+
 export type { SessionPluginEntry } from "./types/sessionPlugins";
 
 export type {
@@ -403,6 +418,7 @@ export { SessionApplicationUiSchemaController } from "./uiSchema/sessionApplicat
 
 export type {
   ChatRichUiPlacement,
+  SessionSettingsActionAnchor,
   ConfigCustomValue,
   ConfigDropdownPresentation,
   ConfigDropdownSuggestion,
@@ -425,6 +441,7 @@ export {
   createConfigDropdownSuggestionEngine,
   getDefaultPinnedConfigRichUiKeys,
   getSessionActionRichUiPlacements,
+  getSessionSettingsActionAnchor,
   isSessionActionPlacedAt,
   normalizeConfigDropdownPresentation,
   normalizeConfigRichUiElement,

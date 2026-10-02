@@ -18,6 +18,9 @@ RUNTIME_MODULE = (
     / "crystal_lattice_mobile_runtime.py"
 )
 CORE_PYTHON = Path(__file__).resolve().parents[3] / "core" / "python"
+APPLICATION_PYTHON = (
+    Path(__file__).resolve().parents[3] / "application" / "python"
+)
 EMBEDDED_TOOLS_SHARED = (
     Path(__file__).resolve().parents[3]
     / "plugins"
@@ -75,6 +78,13 @@ APPLICATION_PLUGIN_SOURCES = tuple(
         "session-timestamp-meta-app",
         "session-title-app",
         "session-asset-attachments",
+        "feature-system-message",
+        "feature-request-options",
+        "timestamp-extension",
+        "summarize-range-app",
+        "rebuild-native-app",
+        "cost-tracking",
+        "embedded-workspace-settings",
     )
 )
 
@@ -82,6 +92,7 @@ APPLICATION_PLUGIN_SOURCES = tuple(
 def load_runtime_module():
     for path in (
         CORE_PYTHON,
+        APPLICATION_PYTHON,
         EMBEDDED_TOOLS_SHARED,
         EMBEDDED_CLAUDE_TOOLS,
         EMBEDDED_CODEX_TOOLS,
@@ -104,16 +115,25 @@ def load_runtime_module():
     return module
 
 
-def call(module, root: Path, method: str, path: str, body=None):
+def call(
+    module,
+    root: Path,
+    method: str,
+    path: str,
+    body=None,
+    *,
+    configuration=None,
+):
+    request = {
+        "method": method,
+        "path": path,
+        "body": body,
+    }
+    if configuration is not None:
+        request["runtimeConfiguration"] = configuration
     response = json.loads(
         module.execute_json(
-            json.dumps(
-                {
-                    "method": method,
-                    "path": path,
-                    "body": body,
-                }
-            ),
+            json.dumps(request),
             str(root),
         )
     )
@@ -180,6 +200,185 @@ def test_in_process_transport_session_request_flow(tmp_path: Path) -> None:
             messages["messages"][-1]["message"]["content"]
             == "Embedded runtime smoke response"
         )
+    finally:
+        module.shutdown_runtime()
+
+
+@pytest.mark.parametrize("route", ["send", "send_message"])
+def test_embedded_send_routes_preserve_local_smoke_requests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+) -> None:
+    module = load_runtime_module()
+    try:
+        session_id = call(
+            module, tmp_path, "POST", "/sessions", {"agent_id": "local"}
+        )["session"]["session_id"]
+        application = module._get_runtime(str(tmp_path)).application
+        method_name = (
+            "start_session_request_with_message"
+            if route == "send_message"
+            else "start_session_request"
+        )
+        original_start = getattr(application, method_name)
+        stream_values: list[bool] = []
+
+        def record_start(*args, **kwargs):
+            stream_values.append(kwargs["stream"])
+            return original_start(*args, **kwargs)
+
+        monkeypatch.setattr(application, method_name, record_start)
+        if route == "send":
+            call(
+                module,
+                tmp_path,
+                "POST",
+                f"/sessions/{session_id}/messages",
+                {"role": "user", "content": "hello"},
+            )
+        started = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/{route}",
+            (
+                {"message": {"role": "user", "content": "hello"}}
+                if route == "send_message"
+                else {}
+            ),
+        )
+        assert stream_values == [False]
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            events = call(
+                module,
+                tmp_path,
+                "GET",
+                f"/events?session_id={session_id}&request_id={started['request_id']}",
+            )["events"]
+            if any(event.get("type") == "request_completed" for event in events):
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("Embedded local smoke request did not complete")
+        assert not any(event.get("type") == "request_failed" for event in events)
+        messages = call(
+            module, tmp_path, "GET", f"/sessions/{session_id}/messages"
+        )["messages"]
+        assert messages[-1]["message"]["content"] == "Embedded runtime smoke response"
+    finally:
+        module.shutdown_runtime()
+
+
+@pytest.mark.parametrize("route", ["send", "send_message"])
+@pytest.mark.parametrize(
+    ("default_mode", "stored_mode", "request_mode", "expected_stream"),
+    [
+        ("api", None, None, False),
+        ("chatgpt", None, None, True),
+        ("chatgpt", None, "api", False),
+        ("api", "chatgpt", None, True),
+        ("api", "chatgpt", "api", False),
+        ("api", None, "chatgpt", True),
+    ],
+)
+def test_embedded_openai_request_streams_only_for_effective_chatgpt_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    route: str,
+    default_mode: str,
+    stored_mode: str | None,
+    request_mode: str | None,
+    expected_stream: bool,
+) -> None:
+    from agent_app.request_execution import SessionRequestStart
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    module = load_runtime_module()
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    auth_dir = tmp_path / "config" / "auth"
+    auth_dir.mkdir(parents=True)
+    (auth_dir / "chatgpt-auth.json").write_text(
+        json.dumps(
+            {
+                "access_token": "test-access-token",
+                "expires_at": "2099-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    configuration = {
+        "version": 3,
+        "default_agent": "openai-codex",
+        "providers": {
+            "openai": {
+                "enabled": True,
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-5.6-luna",
+                "api_key": "test-api-key",
+                "auth_mode": default_mode,
+            }
+        },
+    }
+    try:
+        session_id = call(
+            module,
+            tmp_path,
+            "POST",
+            "/sessions",
+            {"agent_id": "openai-codex"},
+            configuration=configuration,
+        )["session"]["session_id"]
+        application = module._get_runtime(str(tmp_path), configuration).application
+        if stored_mode is not None:
+            application.patch_session_settings(
+                session_id, {"auth_mode": stored_mode}
+            )
+        if route == "send":
+            call(
+                module,
+                tmp_path,
+                "POST",
+                f"/sessions/{session_id}/messages",
+                {"role": "user", "content": "hello"},
+                configuration=configuration,
+            )
+        method_name = (
+            "start_session_request_with_message"
+            if route == "send_message"
+            else "start_session_request"
+        )
+        stream_values: list[bool] = []
+
+        def record_start(*args, **kwargs):
+            stream_values.append(kwargs["stream"])
+            return SessionRequestStart(
+                status="started",
+                session_id=session_id,
+                request_id="stream-selection-test",
+            )
+
+        monkeypatch.setattr(application, method_name, record_start)
+        body = (
+            {"message": {"role": "user", "content": "hello"}}
+            if route == "send_message"
+            else {}
+        )
+        if request_mode is not None:
+            body["config_overrides"] = {"auth_mode": request_mode}
+        result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/{route}",
+            body,
+            configuration=configuration,
+        )
+        assert result["request_id"] == "stream-selection-test"
+        assert stream_values == [expected_stream]
     finally:
         module.shutdown_runtime()
 
@@ -295,7 +494,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         },
         tmp_path / "workspace",
     )
-    assert legacy_config["agents"]["reviewer-claude"]["plugins"] == [
+    assert legacy_config["agents"]["compatible-claude"]["plugins"] == [
         "embedded_claude_tools.read_tool.ClaudeLikeReadTool",
         "embedded_claude_tools.write_tool.ClaudeLikeWriteTool",
         "embedded_claude_tools.edit_tool.ClaudeLikeEditTool",
@@ -305,8 +504,9 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     ]
 
     full_configuration = {
-        "version": 2,
+        "version": 3,
         "default_agent": "openai-codex",
+        "reviewer_visible": True,
         "providers": {
             profile_id: {
                 "enabled": True,
@@ -321,26 +521,31 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         full_configuration,
         tmp_path / "workspace",
     )
-    assert runtime_config["providers"]["reviewer"]["provider"] == (
+    assert runtime_config["providers"]["compatible"]["provider"] == (
         "reference_openai_compatible"
     )
+    assert runtime_config["providers"]["reviewer"]["provider"] == "openai_responses"
+    assert runtime_config["providers"]["reviewer"]["provider_transport"] == (
+        "requests"
+    )
+    assert runtime_config["providers"]["reviewer"]["auth_mode_options"] == []
     assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
     assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
+    assert runtime_config["providers"]["openai"]["auth_mode_options"] == []
     assert runtime_config["providers"]["openrouter"]["provider"] == "openrouter"
     assert runtime_config["providers"]["anthropic"]["provider"] == "anthropic"
     assert runtime_config["providers"]["anthropic"]["provider_transport"] == (
         "requests"
     )
-    assert runtime_config["agents"]["openai-codex"]["plugins"] == (
-        module.CODEX_TOOL_PLUGINS
-    )
+    codex_tools = runtime_config["agents"]["openai-codex"]["plugins"]
+    assert runtime_config["agents"]["reviewer-codex"]["plugins"] == codex_tools
     for agent_id in (
-        "reviewer-claude",
+        "compatible-claude",
         "openrouter-claude",
         "anthropic-claude",
     ):
         assert runtime_config["agents"][agent_id]["plugins"] == (
-            module.CLAUDE_TOOL_PLUGINS
+            runtime_config["agents"]["compatible-claude"]["plugins"]
         )
     assert (
         "openai_responses_plugins.openai_responses_chatgpt_auth_feature."
@@ -368,41 +573,347 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         full_configuration,
     )
     try:
+        raw_config = runtime.config_path.read_text(encoding="utf-8")
+        assert "${env:EMBEDDED_OPENAI_API_KEY}" in raw_config
+        assert "openai-key" not in raw_config
+        assert runtime.config_environment["EMBEDDED_OPENAI_API_KEY"] == (
+            "openai-key"
+        )
         assert runtime.application.list_agents() == [
             "anthropic-claude",
+            "compatible-claude",
             "local",
             "openai-codex",
             "openrouter-claude",
-            "reviewer-claude",
+            "reviewer-codex",
         ]
         default_session = runtime.create_session()
         assert default_session.metadata["agent_id"] == "openai-codex"
+        loaded = runtime.application.load_session(default_session.session_id)
+        assert loaded is not None
+        core, base_config, _session = loaded
+        ui_elements = core.get_ui_schema(base_config)
+        assert not any(
+            element.get("key") == "auth_mode" for element in ui_elements
+        )
+        ui_keys = {
+            element.get("key")
+            for element in ui_elements
+            if isinstance(element, dict)
+        }
+        assert {
+            "enable_web_search",
+            "enable_flex_processing",
+            "enable_fast_mode",
+        }.issubset(ui_keys)
+        assert any(
+            element.get("ui_type") == "composer_attachment"
+            and element.get("attachment_type") == "image"
+            and element.get("attachment_action_plugin")
+            == "openai_responses_attachments"
+            for element in ui_elements
+        )
+        assert any(
+            element.get("id") == "show_compiled_system_message"
+            for element in ui_elements
+        )
+        application_ui = runtime.application.get_session_application_ui_schema(
+            default_session.session_id
+        )
+        working_directory_element = next(
+            element
+            for element in application_ui
+            if element.get("key") == "workspace_id"
+        )
+        assert working_directory_element["type"] == "workspace"
+        assert working_directory_element["options"][0]["value"] == "shared:root"
+        assert working_directory_element["options"][0]["label"] == "Workspace root"
         assert {
             plugin["id"] for plugin in runtime.application.list_application_plugins()
         } == {
+            "embedded_workspace_app",
             "chatgpt_auth",
             "generate_title",
             "session_actions",
+            "summarize_range",
             "session_archive",
             "session_main_search",
             "session_message_count_meta",
             "session_ordering_buckets",
             "session_pinned",
+            "rebuild_native",
             "session_status",
             "session_timestamp_meta",
             "session_title",
             "session_asset_attachments",
+            "cost_tracking_app",
         }
+        plugin_ids = {
+            plugin["id"] for plugin in runtime.application.list_plugins()
+        }
+        assert {
+            "system_message",
+            "request_options",
+            "timestamp_extension",
+            "duration_extension",
+            "cost_tracking",
+        }.issubset(plugin_ids)
+
+        reviewer_session = runtime.create_session(agent_id="reviewer-codex")
+        reviewer_loaded = runtime.application.load_session(
+            reviewer_session.session_id
+        )
+        assert reviewer_loaded is not None
+        reviewer_core, reviewer_config, _reviewer_session = reviewer_loaded
+        reviewer_ui = reviewer_core.get_ui_schema(reviewer_config)
+        reviewer_keys = {
+            element.get("key")
+            for element in reviewer_ui
+            if isinstance(element, dict)
+        }
+        assert "enable_web_search" in reviewer_keys
+        assert "enable_flex_processing" not in reviewer_keys
+        assert "enable_fast_mode" not in reviewer_keys
+        openrouter_session = runtime.create_session(agent_id="openrouter-claude")
+        openrouter_loaded = runtime.application.load_session(
+            openrouter_session.session_id
+        )
+        assert openrouter_loaded is not None
+        openrouter_core, openrouter_config, _openrouter_session = openrouter_loaded
+        openrouter_ui = openrouter_core.get_ui_schema(openrouter_config)
+        assert any(
+            element.get("key") == "enable_web_search"
+            for element in openrouter_ui
+        )
+        assert any(
+            element.get("ui_type") == "composer_attachment"
+            and element.get("attachment_type") == "image"
+            and element.get("attachment_action_plugin") == "openrouter_attachments"
+            for element in openrouter_ui
+        )
     finally:
         runtime.application.close()
 
 
-def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> None:
+def test_sessions_select_independent_contained_working_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = load_runtime_module()
+    from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
+
+    monkeypatch.setattr(
+        OpenAICompatibleProvider,
+        "get_models",
+        lambda self, config: [],
+    )
+    runtime = module.MobileRuntime(
+        str(tmp_path / "runtime"),
+        {
+            "version": 3,
+            "default_agent": "compatible-claude",
+            "providers": {
+                "compatible": {
+                    "enabled": True,
+                    "api_key": "test-key",
+                    "base_url": "http://127.0.0.1:3000/v1",
+                    "model": "test-model",
+                }
+            },
+        },
+    )
+    try:
+        alpha = runtime.workspace_dir / "projects" / "alpha"
+        beta = runtime.workspace_dir / "projects" / "beta"
+        alpha.mkdir(parents=True)
+        beta.mkdir(parents=True)
+        first = runtime.create_session(agent_id="compatible-claude")
+        second = runtime.create_session(agent_id="compatible-claude")
+
+        runtime.application.patch_session_settings(
+            first.session_id,
+            {"working_directory": str(alpha)},
+        )
+        runtime.application.patch_session_settings(
+            second.session_id,
+            {"working_directory": str(beta)},
+        )
+        with pytest.raises(ValueError, match="contained"):
+            runtime.application.patch_session_settings(
+                first.session_id,
+                {"working_directory": str(tmp_path)},
+            )
+        module._runtime = runtime
+        try:
+            rejected = json.loads(
+                module.execute_json(
+                    json.dumps(
+                        {
+                            "method": "PATCH",
+                            "path": f"/sessions/{first.session_id}/overrides",
+                            "body": {
+                                "values": {
+                                    "working_directory": str(tmp_path),
+                                }
+                            },
+                            "runtimeConfiguration": runtime.runtime_configuration,
+                        }
+                    ),
+                    str(runtime.root),
+                )
+            )
+        finally:
+            module._runtime = None
+        assert rejected["status"] == 400
+        assert "contained" in rejected["data"]["detail"]
+
+        for session, expected_directory, content in (
+            (first, alpha, "first"),
+            (second, beta, "second"),
+        ):
+            loaded = runtime.application.load_session(session.session_id)
+            assert loaded is not None
+            core, base_config, stored = loaded
+            effective = runtime.application.resolve_effective_config(
+                base_config,
+                stored,
+            )
+            assert effective["working_directory"] == str(
+                expected_directory.resolve()
+            )
+            result = core.execute_tool_calls(
+                [
+                    {
+                        "id": f"write-{content}",
+                        "type": "function",
+                        "function": {
+                            "name": "Write",
+                            "arguments": json.dumps(
+                                {
+                                    "file_path": "session.txt",
+                                    "content": content,
+                                }
+                            ),
+                        },
+                    }
+                ],
+                effective,
+            )
+            assert result[0]["metadata"]["tool_name"] == "Write"
+            assert (expected_directory / "session.txt").read_text(
+                encoding="utf-8"
+            ) == content
+
+        assert not (alpha / "session.txt").samefile(beta / "session.txt")
+    finally:
+        runtime.application.close()
+
+
+def test_external_workspace_grant_is_selectable_without_copying(
+    tmp_path: Path,
+) -> None:
+    module = load_runtime_module()
+    external = tmp_path / "files-provider" / "project"
+    external.mkdir(parents=True)
+    marker = external / "marker.txt"
+    marker.write_text("external-marker", encoding="utf-8")
+    runtime = module.MobileRuntime(
+        str(tmp_path / "runtime"),
+        {
+            "workspace_grants": {
+                "grant-1": {
+                    "path": str(external),
+                    "display_name": "Project",
+                    "available": True,
+                }
+            }
+        },
+    )
+    try:
+        session = runtime.create_session(agent_id="local")
+        result = runtime.application.execute_action(
+            "embedded_workspace_app",
+            "select_external_workspace",
+            {
+                "session_id": session.session_id,
+                "grant_id": "grant-1",
+            },
+            action_owner="application",
+            context={"session_id": session.session_id},
+        )
+        assert result["mutations"]["updated_session_ids"] == [session.session_id]
+        overrides = runtime.application.get_session_settings(session.session_id)
+        assert overrides["workspace_id"] == "external:grant-1"
+        assert overrides["working_directory"] == str(external.resolve())
+        assert marker.read_text(encoding="utf-8") == "external-marker"
+        assert not (runtime.workspace_dir / "marker.txt").exists()
+    finally:
+        runtime.application.close()
+
+
+def test_reviewer_agent_requires_global_visibility(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_runtime_module()
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    configuration = {
+        "version": 3,
+        "default_agent": "reviewer-codex",
+        "reviewer_visible": False,
+        "providers": {
+            "reviewer": {
+                "enabled": True,
+                "api_key": "review-key",
+                "base_url": "https://untrusted-user-value.test/v1",
+                "model": "user-model",
+                "tls_ca_bundle": "/runtime/reviewer-ca.pem",
+            }
+        },
+    }
+    hidden = module.MobileRuntime(str(tmp_path / "hidden"), configuration)
+    try:
+        assert "reviewer-codex" not in hidden.application.list_agents()
+        assert (
+            hidden.config_environment["EMBEDDED_REVIEWER_ENABLED"]
+            == "false"
+        )
+    finally:
+        hidden.application.close()
+
+    configuration["reviewer_visible"] = True
+    visible = module.MobileRuntime(str(tmp_path / "visible"), configuration)
+    try:
+        assert "reviewer-codex" in visible.application.list_agents()
+        assert (
+            visible.config_environment["EMBEDDED_REVIEWER_ENABLED"]
+            == "true"
+        )
+        resolved = module._config_payload(
+            configuration,
+            tmp_path / "visible" / "workspace",
+        )
+        assert resolved["providers"]["reviewer"]["base_url"] == (
+            "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1"
+        )
+        assert resolved["providers"]["reviewer"]["model"] == "gpt-5.6-luna"
+    finally:
+        visible.application.close()
+
+
+def test_chatgpt_profile_and_reviewer_ca_use_maintained_config(
+    tmp_path: Path,
+) -> None:
     module = load_runtime_module()
     runtime_config = module._config_payload(
         {
-            "version": 2,
+            "version": 3,
             "default_agent": "openai-codex",
+            "reviewer_visible": True,
             "providers": {
                 "reviewer": {
                     "enabled": True,
@@ -426,11 +937,123 @@ def test_chatgpt_profile_and_reviewer_ca_are_configurable(tmp_path: Path) -> Non
     assert runtime_config["providers"]["reviewer"]["tls_ca_bundle"] == (
         "/runtime/reviewer-ca.pem"
     )
+    assert runtime_config["providers"]["reviewer"]["provider"] == "openai_responses"
+    assert runtime_config["providers"]["reviewer"]["base_url"] == (
+        "https://ireland-s1.dynamicprogrammingsolutions.com:3443/v1"
+    )
+    assert runtime_config["providers"]["reviewer"]["model"] == "gpt-5.6-luna"
+    assert runtime_config["agents"]["reviewer-codex"]["enabled"] == "true"
     assert runtime_config["providers"]["openai"]["auth_mode"] == "chatgpt"
     assert "openai-codex" in runtime_config["agents"]
     assert runtime_config["application"]["chatgpt_auth"]["credentials_path"].endswith(
         "/config/auth/chatgpt-auth.json"
     )
+    normalized_auto = module._normalized_runtime_configuration(
+        {
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5.6-luna",
+                    "auth_mode": "auto",
+                }
+            }
+        }
+    )
+    assert normalized_auto["providers"]["openai"]["auth_mode"] == "api"
+
+
+def test_chatgpt_saved_default_and_session_override_are_independent(
+    tmp_path: Path,
+) -> None:
+    module = load_runtime_module()
+    runtime_root = tmp_path / "runtime"
+    credentials_path = runtime_root / "config" / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2099-01-01T00:00:00Z",
+                "account_id": "account-1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime = module.MobileRuntime(
+        str(runtime_root),
+        {
+            "version": 3,
+            "default_agent": "openai-codex",
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "api_key": "openai-api-key",
+                    "base_url": "https://api.openai.com/v1",
+                    "model": "gpt-5.6-luna",
+                    "auth_mode": "chatgpt",
+                }
+            },
+        },
+    )
+    try:
+        session = runtime.create_session(agent_id="openai-codex")
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        core, base_config, stored_session = loaded
+        assert base_config["auth_mode"] == "chatgpt"
+        assert runtime.runtime_configuration["providers"]["openai"]["auth_mode"] == (
+            "chatgpt"
+        )
+
+        runtime.application.patch_session_settings(
+            session.session_id,
+            {"auth_mode": "api"},
+        )
+        session_settings = runtime.application.get_session_settings(
+            session.session_id
+        )
+        assert session_settings["auth_mode"] == "api"
+        assert session_settings["prompt_cache_key"].startswith("opcache_")
+        chatgpt_ui = core.get_ui_schema(base_config)
+        chatgpt_ui_keys = {
+            element.get("key")
+            for element in chatgpt_ui
+            if isinstance(element, dict)
+        }
+        assert "enable_web_search" in chatgpt_ui_keys
+        assert "enable_flex_processing" not in chatgpt_ui_keys
+        assert "enable_fast_mode" not in chatgpt_ui_keys
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        _core, base_config, stored_session = loaded
+        assert base_config["auth_mode"] == "chatgpt"
+        assert runtime.application.resolve_effective_config(
+            base_config,
+            stored_session,
+        )["auth_mode"] == "api"
+
+        runtime.application.delete_session_setting(
+            session.session_id,
+            "auth_mode",
+        )
+        loaded = runtime.application.load_session(session.session_id)
+        assert loaded is not None
+        _core, base_config, stored_session = loaded
+        remaining_settings = runtime.application.get_session_settings(
+            session.session_id
+        )
+        assert set(remaining_settings) == {"prompt_cache_key"}
+        assert remaining_settings["prompt_cache_key"].startswith("opcache_")
+        assert runtime.application.resolve_effective_config(
+            base_config,
+            stored_session,
+        )["auth_mode"] == "chatgpt"
+        assert runtime.runtime_configuration["providers"]["openai"]["auth_mode"] == (
+            "chatgpt"
+        )
+    finally:
+        runtime.application.close()
 
 
 def test_provider_import_smoke_uses_requests_transports(tmp_path: Path) -> None:
@@ -473,14 +1096,14 @@ def test_local_session_remains_usable_after_provider_enable(
     configured_runtime = module.MobileRuntime(
         str(root),
         {
-            "version": 2,
-            "default_agent": "reviewer-claude",
+            "version": 3,
+            "default_agent": "compatible-claude",
             "providers": {
-                "reviewer": {
+                "compatible": {
                     "enabled": True,
-                    "api_key": "reviewer-key",
-                    "base_url": "https://reviewer.test/v1",
-                    "model": "reviewer-model",
+                    "api_key": "compatible-key",
+                    "base_url": "https://compatible.test/v1",
+                    "model": "compatible-model",
                 }
             },
         },
@@ -527,6 +1150,23 @@ def test_application_plugins_actions_snapshots_and_settings_routes(
         assert ("session_title", "set_session_title") in action_pairs
         assert ("session_archive", "toggle_session_archived") in action_pairs
 
+        chatgpt_status = call(
+            module,
+            tmp_path,
+            "POST",
+            "/actions",
+            {
+                "plugin": "chatgpt_auth",
+                "action_id": "check_status",
+                "inputs": {},
+            },
+        )
+        assert chatgpt_status["status"] == "ok"
+        assert (
+            chatgpt_status["result"]["display"]["title"]
+            == "ChatGPT Login Status"
+        )
+
         application_ui = call(
             module,
             tmp_path,
@@ -572,6 +1212,99 @@ def test_application_plugins_actions_snapshots_and_settings_routes(
             and element.get("id") == "fork_session_at_message"
             for element in session_ui
             if isinstance(element, dict)
+        )
+        workspace_element = next(
+            element
+            for element in session_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("key") == "workspace_id"
+        )
+        assert workspace_element["type"] == "workspace"
+        assert {
+            element.get("id")
+            for element in session_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("ui_type") == "session_action"
+        } == {
+            "create_private_workspace",
+            "create_shared_workspace",
+            "select_external_workspace",
+        }
+
+        private_result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/actions",
+            {
+                "plugin": "embedded_workspace_app",
+                "action_id": "create_private_workspace",
+                "action_owner": "application",
+                "inputs": {"session_id": session_id},
+            },
+        )
+        assert private_result["status"] == "ok"
+        private_overrides = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{session_id}/overrides",
+        )["overrides"]
+        assert private_overrides["workspace_id"].startswith(
+            f"private:{session_id}:"
+        )
+        assert Path(private_overrides["working_directory"]).is_dir()
+
+        shared_result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/actions",
+            {
+                "plugin": "embedded_workspace_app",
+                "action_id": "create_shared_workspace",
+                "action_owner": "application",
+                "inputs": {
+                    "session_id": session_id,
+                    "name": "shared-matrix",
+                },
+            },
+        )
+        assert shared_result["status"] == "ok"
+        shared_overrides = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{session_id}/overrides",
+        )["overrides"]
+        assert shared_overrides["workspace_id"] == "shared:shared-matrix"
+
+        other_session = call(
+            module,
+            tmp_path,
+            "POST",
+            "/sessions",
+            {"agent_id": "local"},
+        )["session"]
+        other_ui = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{other_session['session_id']}/application/ui-schema",
+        )["elements"]
+        other_workspace = next(
+            element
+            for element in other_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("key") == "workspace_id"
+        )
+        other_values = {
+            option["value"] for option in other_workspace["options"]
+        }
+        assert "shared:shared-matrix" in other_values
+        assert not any(
+            value.startswith(f"private:{session_id}:")
+            for value in other_values
         )
 
         title_result = call(

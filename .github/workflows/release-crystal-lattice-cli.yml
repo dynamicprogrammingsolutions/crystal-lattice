@@ -2,6 +2,12 @@ name: Release crystal-lattice-cli
 
 on:
   workflow_dispatch:
+    inputs:
+      run_agent_access:
+        description: Run real model-mediated CLI and SDK access on every target
+        required: false
+        type: boolean
+        default: false
   push:
     tags:
       - "crystal-lattice-cli-v*"
@@ -202,6 +208,19 @@ jobs:
         env:
           CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
         run: npm run test:cli:archive
+
+      - name: Smoke-test real agent CLI and SDK access
+        if: ${{ startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v') || inputs.run_agent_access == true }}
+        env:
+          CRYSTAL_LATTICE_PYTHON_RUNTIME_ARCHIVE: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RUN_CRYSTAL_LATTICE_OPENROUTER_ACCESS_E2E: "1"
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "OPENROUTER_API_KEY is required for real agent access" >&2
+            exit 1
+          fi
+          npm run test:cli:agent-access
 
       - name: Smoke-test default installer
         if: ${{ always() && steps.locate_archive.outcome == 'success' && matrix.bash-installer }}

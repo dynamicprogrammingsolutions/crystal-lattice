@@ -15,6 +15,12 @@ terminal interface, HTTP API, local discovery, and bridge connectivity.
   optionally place a release archive on PATH.
 - [Quickstart](quickstart.md): install the command, start the local server, and
   verify its HTTP endpoint.
+- [Local headless agent runs](headless-agent-runs.md): call configured agents
+  from Python or one-shot CLI commands, observe progress, continue sessions,
+  and load compact history.
+- [Session and message queries](session-data-query.md): enumerate
+  plugin-filtered sessions, project canonical message fields with JSONPath,
+  and compose JSON or grep-friendly shell workflows.
 - [Terminal guide](terminal.md): use slash commands, indexed message headers,
   progress indicators, compact tool results, message history, and terminal
   configuration.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 import asyncio
 import hashlib
@@ -20,6 +20,7 @@ from fastapi import (  # type: ignore[reportMissingImports]
     FastAPI,
     Header,
     HTTPException,
+    Query,
     Request,
     Response,
 )
@@ -46,10 +47,12 @@ from agent_app.request_execution import (
     StaleApplicationGenerationError,
 )
 from agent_app.sessions import FilesystemSnapshotSelectionStore
+from agent_app.json_projection import project_json_document
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
 from agent_terminal_app.runtime_layout import load_runtime_layout
+from agent_terminal_app.session_query import coerce_session_filter_assignments
 
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
@@ -115,7 +118,6 @@ class ServerIntegrationRuntimeConfig:
     bridge: Optional[bridge_mod.BridgeConfig] = None
 
 
-_integration_config_explicit = False
 _integration_config: Optional[ServerIntegrationRuntimeConfig] = None
 
 
@@ -124,22 +126,18 @@ def configure_integrations(
 ) -> None:
     """Configure optional integrations for the current process.
 
-    The CLI entrypoint uses this hook to pass bridge/Bonjour settings without
-    mutating ``os.environ``. When this hook is not used, startup falls back to
-    environment variables for direct ``uvicorn agent_terminal_app.server:app``
-    launches.
+    The CLI entrypoint and embedding runtimes use this hook to pass
+    bridge/Bonjour settings without mutating or consulting ``os.environ``.
     """
 
-    global _integration_config_explicit, _integration_config
-    _integration_config_explicit = True
+    global _integration_config
     _integration_config = config
 
 
 def clear_configured_integrations() -> None:
-    """Return startup integration wiring to direct-env fallback mode."""
+    """Disable optional integrations for subsequent startup."""
 
-    global _integration_config_explicit, _integration_config
-    _integration_config_explicit = False
+    global _integration_config
     _integration_config = None
 
 
@@ -325,14 +323,12 @@ async def _on_startup() -> None:
     * Optionally advertise the HTTP API via Bonjour/mDNS.
     * Optionally start the bridge client.
 
-    CLI launches configure these integrations explicitly so bridge identities
-    are not added to ambient process env. Direct uvicorn launches continue to
-    use environment variables as a fallback.
+    Integrations start only from explicit process-local runtime configuration.
     """
 
     global _agent_app, _bonjour_handle, _bridge_client, _bridge_task
 
-    explicit_config = _integration_config if _integration_config_explicit else None
+    explicit_config = _integration_config
 
     # Bonjour advertising -------------------------------------------------
     bonjour_config = explicit_config.bonjour if explicit_config is not None else None
@@ -358,47 +354,11 @@ async def _on_startup() -> None:
                 service_name,
                 port,
             )
-    elif os.getenv("ENABLE_BONJOUR"):
-        # The advertised port can be configured explicitly via
-        # ``BONJOUR_PORT``. When not set, fall back to ``SERVER_PORT`` or
-        # the common FastAPI default of 8000.
-        port_str = os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT") or "8000"
-        try:
-            port = int(port_str)
-        except ValueError:  # pragma: no cover - defensive
-            port = 8000
-
-        service_name = os.getenv("BONJOUR_SERVICE_NAME") or "Agent Terminal App"
-        _log.info(
-            "[bonjour] starting registration: service=%r port=%d", service_name, port
-        )
-        # ``zeroconf`` uses its own asyncio machinery under the hood and
-        # calling it directly from within FastAPI's event loop can lead to
-        # deadlocks (manifesting as ``EventLoopBlocked``). Run the blocking
-        # registration in a separate thread instead.
-        _bonjour_handle = await asyncio.to_thread(
-            bonjour_mod.start_bonjour, service_name, port
-        )
-
-        if _bonjour_handle is not None:
-            _log.info(
-                "[bonjour] registration finished: service=%r port=%d",
-                service_name,
-                port,
-            )
-        else:
-            _log.warning(
-                "[bonjour] registration failed; see earlier logs for details "
-                "(service=%r port=%d)",
-                service_name,
-                port,
-            )
-
     # Bridge client -------------------------------------------------------
     if explicit_config is not None and explicit_config.bridge is not None:
         client = bridge_mod.BridgeClient(explicit_config.bridge)
     else:
-        client = bridge_mod.create_bridge_client_from_env()
+        client = None
     if client is not None:
         _bridge_client = client
         # Run the bridge client in the background for the lifetime of the
@@ -1970,11 +1930,31 @@ def delete_messages(
 @app.get("/sessions")
 def list_sessions(
     limit: Optional[int] = None,
+    filters: Annotated[Optional[List[str]], Query(alias="filter")] = None,
+    include: Annotated[Optional[List[str]], Query()] = None,
+    exclude: Annotated[Optional[List[str]], Query()] = None,
+    apply_filter_defaults: bool = False,
     app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
+) -> Any:
     """List shared application-layer session summaries."""
 
-    return {"sessions": app_instance.list_session_summaries(limit=limit)}
+    if not filters and not include and not exclude and not apply_filter_defaults:
+        return {"sessions": app_instance.list_session_summaries(limit=limit)}
+
+    try:
+        filter_values = coerce_session_filter_assignments(
+            app_instance,
+            filters or [],
+        )
+        return app_instance.list_session_summaries_document(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+            include=include,
+            exclude=exclude,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/sessions/request-statuses")
@@ -2313,8 +2293,10 @@ def list_session_messages(
     session_id: str,
     start: Optional[int] = None,
     end: Optional[int] = None,
+    include: Annotated[Optional[List[str]], Query()] = None,
+    exclude: Annotated[Optional[List[str]], Query()] = None,
     app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
+) -> Any:
     """List messages for a session with optional slice-style bounds."""
 
     snapshot_fields = _snapshot_response_fields(app_instance, session_id)
@@ -2326,13 +2308,18 @@ def list_session_messages(
             message_count = len(session.messages)
 
             if message_count == 0:
-                return {
+                response = {
                     "messages": [],
                     "cursor_event_id": app_instance.get_session_cursor_event_id(
                         session_id
                     ),
                     **snapshot_fields,
                 }
+                return project_json_document(
+                    response,
+                    include=include,
+                    exclude=exclude,
+                )
 
             try:
                 start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
@@ -2368,13 +2355,23 @@ def list_session_messages(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {
+    response = {
         "messages": results,
         "cursor_event_id": cursor_event_id,
         "active_request_id": active_request_id,
         **snapshot_fields,
     }
+    try:
+        return project_json_document(
+            response,
+            include=include,
+            exclude=exclude,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/events")
@@ -2481,6 +2478,32 @@ def cancel_request(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     response = {"request_id": request_id, "status": "cancelled"}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.post("/requests/{request_id}/soft-cancel")
+def soft_cancel_request(
+    request_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Stop a request after its active foreground tool finishes."""
+
+    scope = f"POST /requests/{request_id}/soft-cancel"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
+    try:
+        app_instance.soft_cancel_request(request_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {
+        "request_id": request_id,
+        "status": "soft_cancel_requested",
+    }
     _idempotency_store(scope, idempotency_key, {}, response)
     return response
 
@@ -2986,13 +3009,6 @@ def run_api(
     elif app_instance is not None:
         _application_owner = None
         _agent_app = app_instance
-
-    # Expose host/port via environment variables so that optional
-    # integrations (Bonjour, bridge client) can infer the local HTTP
-    # base URL and advertised port when the server is launched via this
-    # helper instead of directly through ``uvicorn``.
-    os.environ.setdefault("SERVER_HOST", host)
-    os.environ.setdefault("SERVER_PORT", str(port))
 
     kwargs: Dict[str, Any] = {
         "host": host,
