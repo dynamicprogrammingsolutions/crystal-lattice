@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-09-27T21:40:52+00:00",
+  "fetched_at": "2026-10-02T14:19:10+00:00",
   "models": {
     "babbage-002": {
       "model": "babbage-002",
@@ -1316,6 +1316,12 @@
           "cached_input_per_1m": 1.0,
           "input_per_1m": 10.0,
           "output_per_1m": 50.0
+        },
+        "ultrafast": {
+          "cache_write_per_1m": 75.0,
+          "cached_input_per_1m": 6.0,
+          "input_per_1m": 60.0,
+          "output_per_1m": 300.0
         }
       },
       "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
@@ -1386,6 +1392,42 @@
         "standard": {
           "cache_write_per_1m": 2.5,
           "cached_input_per_1m": 0.2,
+          "input_per_1m": 2.0,
+          "output_per_1m": 10.0
+        }
+      },
+      "source_url": "https://developers.openai.com/api/docs/pricing?latest-pricing=flex"
+    },
+    "gpt-6.1-sol": {
+      "model": "gpt-6.1-sol",
+      "pricing": {
+        "cache_write_per_1m": 2.5,
+        "cached_input_per_1m": 0.1,
+        "input_per_1m": 2.0,
+        "output_per_1m": 10.0
+      },
+      "service_tiers": {
+        "batch": {
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.05,
+          "input_per_1m": 1.0,
+          "output_per_1m": 5.0
+        },
+        "fast": {
+          "cache_write_per_1m": 5.0,
+          "cached_input_per_1m": 0.2,
+          "input_per_1m": 4.0,
+          "output_per_1m": 20.0
+        },
+        "flex": {
+          "cache_write_per_1m": 1.25,
+          "cached_input_per_1m": 0.05,
+          "input_per_1m": 1.0,
+          "output_per_1m": 5.0
+        },
+        "standard": {
+          "cache_write_per_1m": 2.5,
+          "cached_input_per_1m": 0.1,
           "input_per_1m": 2.0,
           "output_per_1m": 10.0
         }

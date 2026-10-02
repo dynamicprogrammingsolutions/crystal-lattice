@@ -51,6 +51,10 @@ _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
 ] = (
     (re.compile(r"^gpt-5-pro(?:-|$)"), ("high",)),
     (
+        re.compile(r"^gpt-6\.1-sol(?:-|$)"),
+        ("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
+    (
         re.compile(r"^gpt-6-(?:astra|sol)(?:-|$)"),
         ("low", "medium", "high", "xhigh", "max", "ultra"),
     ),

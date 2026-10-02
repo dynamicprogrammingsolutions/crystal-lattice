@@ -396,6 +396,54 @@ def test_get_ui_elements_gpt_6_astra_options() -> None:
     ]
 
 
+def test_get_ui_elements_gpt_61_sol_options() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6.1-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6.1-sol"}],
+    )
+
+    assert _effort_options(elements) == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra",
+    ]
+
+
+def test_gpt_61_sol_offers_pro_mode_and_context() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-6.1-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-6.1-sol"}],
+    )
+
+    keys = [element.get("key") for element in elements]
+    assert "reasoning_mode" in keys
+    assert "reasoning_context" in keys
+
+
+def test_initialize_request_injects_ultra_for_gpt_61_sol() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "ultra",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    request_options = new_state["config"]["request_options"]
+    assert request_options["reasoning"] == {"effort": "ultra"}
+
+
 def test_get_ui_elements_gpt_6_sol_options_match_astra() -> None:
     ext = OpenAIResponsesReasoningExtension()
 

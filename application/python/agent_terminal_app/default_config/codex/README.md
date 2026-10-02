@@ -10,6 +10,8 @@ Sources:
 - Repository: `https://github.com/openai/codex`
 - File (current): `codex-rs/models-manager/models.json`
 - File (historical, pre-`models-manager`): `codex-rs/core/models.json`
+- Commit for the `gpt-6.1-sol` import:
+  `ca466061d64f0b44f416135c7fd06aa7af850bbc` (2026-10-02)
 - Commit for the `gpt-6-sol` / `gpt-6-luna` import, the `gpt-6-astra` and
   GPT-5.6 2026-09-23 template refresh, and the earlier `gpt-5.5` /
   `gpt-5.4` refresh: `ea647275560ffbcd4cf240d048eab44aa66ba9ae`
@@ -83,18 +85,26 @@ The placeholders used by the bundled templates are:
   - Upstream renders it literally (it is not a runtime substitution), so it
     is kept verbatim in the imported files.
 
-## GPT-6 family notes
+## GPT-6.1 and GPT-6 family notes
 
-The GPT-6 family currently comprises `gpt-6-sol`, `gpt-6-luna`, and
-`gpt-6-astra`. All three follow the same import shape: templates open with
+The GPT-6.1 family currently comprises `gpt-6.1-sol` (upstream's default
+catalog model since 2026-09-29). Imported from upstream commit
+`ca466061d64f0b44f416135c7fd06aa7af850bbc` (2026-10-02); template content
+introduced 2026-09-29 (`b1e72963c3b7`, #49318), so the dated files carry
+`20260929`: 21769 chars, sha256
+`e1bdd4f8f0df4b20f4a0ffc8a861ce819df45325d8cecdfb92e80379cf8d142e`
+("Latest workhorse model for coding and everyday work."; default
+reasoning level `low`; reasoning efforts `low` through `ultra`).
+
+The GPT-6 family comprises `gpt-6-sol`, `gpt-6-luna`, and `gpt-6-astra`. Both families follow the same import shape: templates open with
 `You are Codex, an agent based on GPT-6`, contain the literal
 `{{connector_id}}` text (see Placeholder behavior), have no personality
 placeholder, empty `instructions_variables`, and a shared 5737-char
 persistent-mode block (provenance copies only). Their
 `codex_developer_messages` rows omit the `personality` field, so every
-personality resolves to the same dated file. The bare `gpt-6` alias is
-intentionally not mapped; the authoritative Codex catalog publishes only
-the three explicit family IDs.
+personality resolves to the same dated file. The bare `gpt-6` and `gpt-6.1`
+aliases are intentionally not mapped; the authoritative Codex catalog
+publishes only explicit family IDs.
 
 ### gpt-6-sol and gpt-6-luna
 

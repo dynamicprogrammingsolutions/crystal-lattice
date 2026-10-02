@@ -128,6 +128,10 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-6\\.1-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6.1-sol/instructions_default.20260929.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-6-sol$",
           "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-sol/instructions_default.20260922.md}"
         },

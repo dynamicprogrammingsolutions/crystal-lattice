@@ -600,6 +600,17 @@ def test_checked_in_snapshot_has_gpt_6_family_and_no_priority_tiers() -> None:
     assert models["gpt-5.6-luna"]["pricing"]["input_per_1m"] == 0.2
     assert models["gpt-5.6-luna"]["pricing"]["output_per_1m"] == 1.2
 
+    # GPT-6.1 Sol (published 2026-10-02 pricing page; cached input is
+    # cheaper than gpt-6-sol).
+    sol61 = models["gpt-6.1-sol"]
+    assert sol61["pricing"] == {
+        "input_per_1m": 2.0,
+        "cached_input_per_1m": 0.1,
+        "cache_write_per_1m": 2.5,
+        "output_per_1m": 10.0,
+    }
+    assert sol61["service_tiers"]["fast"]["output_per_1m"] == 20.0
+
     # GPT-6 Sol and Luna (published 2026-09-27 pricing page).
     sol = models["gpt-6-sol"]
     assert sol["pricing"] == {
