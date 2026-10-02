@@ -41,7 +41,7 @@ FIXTURE_REVISIONS = {
     "js-single-file-tool": "v4",
     "report-export": "v3",
     "mobile-composer": "v1",
-    "event-retry": "v5",
+    "event-retry": "v6",
     "batch-sync": "v2",
     "path-policy": "v3",
     "slug-utils": "v3",
@@ -1303,8 +1303,19 @@ Create the specification only. Do not implement the UI.
 
 
 def _fixture_event_retry(workspace: Path, branch_variant: str) -> None:
-    if branch_variant != "base":
+    if branch_variant not in {"base", "inherited-user-terminology"}:
         raise KeyError(f"unknown event-retry variant: {branch_variant}")
+    publishing = """# Publishing events
+
+Call `publish(event)`. Transient delivery failures are retried automatically.
+"""
+    if branch_variant == "inherited-user-terminology":
+        publishing = """# Publishing events
+
+## Milestone Cedar
+
+Call `publish(event)`. Transient delivery failures are retried automatically.
+"""
     _write_synthetic_fixture(
         workspace,
         {
@@ -1322,10 +1333,7 @@ SDK for publishing events.
 
 - [Publishing events](publishing.md)
 """,
-            "packages/event-sdk/docs/publishing.md": """# Publishing events
-
-Call `publish(event)`. Transient delivery failures are retried automatically.
-""",
+            "packages/event-sdk/docs/publishing.md": publishing,
             "packages/event-sdk/src/events.py": """def retry_state(attempt, max_attempts=3):
     if attempt >= max_attempts:
         return "failed"

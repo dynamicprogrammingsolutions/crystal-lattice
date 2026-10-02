@@ -11,6 +11,9 @@ write, summarize, or restate the standard being evaluated.
 
 Latest comparison:
 
+- [September 16, 2026 destination-terminology robustness results](20260916-destination-terminology-robustness-results.md)
+- [September 16, 2026 destination-terminology specific results](20260916-destination-terminology-specific-results.md)
+- [September 16, 2026 destination-terminology generic results](20260916-destination-terminology-generic-results.md)
 - [September 14, 2026 guidance follow-up results](20260914-guidance-followup-results.md)
 - [September 12, 2026 guidance rewrite results](20260912-guidance-rewrite-results.md)
 - [September 15, 2026 example-backed terminology results](20260915-example-backed-terminology-results.md)
@@ -113,7 +116,7 @@ Current seeds:
 | [Seed 01](seed-01-js-single-file-tool-documentation.md) | Compare one plugin README with its code and shared Node-tool facts | Tests [01](01-small-package-documentation.md), [02](02-generated-output-correction.md), [16](16-failed-generated-refresh.md), [18](18-shared-plugin-authoring-boundary.md), and [28](28-small-package-proportionate-documentation.md) |
 | [Seed 02](seed-02-report-export-row-limit.md) | Inspect one approved row-limit task and its current spec/code/test/doc state | Tests [03](03-target-specification-workflow.md), [07](07-approved-task-specification-only.md), [08](08-approved-specification-implementation.md), [15](15-premature-current-documentation.md), and [29](29-early-user-documentation-is-explicit.md) |
 | [Seed 03](seed-03-mobile-composer-refinement.md) | Inspect one portable contract, mobile package, and approved UX task | Test [04](04-package-owned-refinement.md) |
-| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), [20](20-routed-guidance-reading.md), and [27](27-routed-current-guidance.md) |
+| [Seed 04](seed-04-event-retry-documentation.md) | Compare implemented retry, target-only replay, user docs, and link paths | Tests [05](05-normative-owner-and-discoverability.md), [17](17-public-package-profile.md), [19](19-apply-versus-maintain-boundary.md), [20](20-routed-guidance-reading.md), [27](27-routed-current-guidance.md), and [32](32-inherited-terminology-in-current-user-documentation.md) |
 | [Seed 05](seed-05-batch-sync-design.md) | Inspect one package and related persistence/transport contracts | Tests [06](06-substantial-specification-approval.md), [09](09-task-authorized-new-specification.md), [21](21-explicit-specification-layout-override.md), [26](26-explicit-optional-layout.md), and [30](30-source-terms-in-specification-records.md) |
 | [Seed 06](seed-06-existing-contract-bugfix.md) | Reproduce one public bug against an already-correct target contract | Test [10](10-bug-fix-with-existing-specification.md) |
 | [Seed 07](seed-07-local-bugfix.md) | Reproduce one internal race with no durable public contract | Test [11](11-local-bugfix-without-durable-specification.md) |
@@ -267,6 +270,7 @@ AI assessment is supporting evidence and does not satisfy human verification.
 | [Explicit early user documentation](29-early-user-documentation-is-explicit.md) | Seed 02 | Permit only clearly marked branch-only target documentation | `DOCGUIDE-004`, `DOCVAL-010` |
 | [Source terms in specification records](30-source-terms-in-specification-records.md) | Seed 05 | Create an approved specification while source-local task, sequence, and evaluative wording is present | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCVAL-011` |
 | [Source terms in code and tests](31-source-terms-in-code-and-tests.md) | Seed 12 | Implement a pending API while choosing source, test, evidence, and developer-documentation terminology | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCVAL-011` |
+| [Inherited terminology in current user documentation](32-inherited-terminology-in-current-user-documentation.md) | Seed 04 | Remove an internal progress label already present in a user page while preserving current behavior | `DOCGUIDE-007`–`DOCGUIDE-008`, `DOCVAL-011` |
 
 ## Execution groups
 

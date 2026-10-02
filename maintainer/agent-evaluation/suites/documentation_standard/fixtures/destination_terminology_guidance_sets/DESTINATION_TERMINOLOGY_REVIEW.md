@@ -2,8 +2,7 @@
 
 Reviewed: September 16, 2026
 
-Reviewer: implementation agent. Independent human review and real-model
-provenance checks remain pending.
+Reviewer: implementation agent. Independent human review remains pending.
 
 ## Scope
 
@@ -78,14 +77,17 @@ byte-identical to the checkpoint.
    phrase to verifying the semantic relation between terminology and the
    defined context.
 
-## Pending empirical gate
+## Empirical loading result
 
-The first real-model branch for each set must still confirm:
+The first real-model branch for every generic and specific set confirmed:
 
 - the recorded guidance name and combined hash match `guidance-set.json`;
 - the isolated workspace contains the expected compiled files;
 - the guidance-injection record contains the expected paths and strategy;
-- the resulting output is suitable before the remainder of that set's matrix
-  starts.
+- the branch uses GLM's leading-system-message strategy or GPT's late endpoint
+  instructions as appropriate.
 
-No real-model run was performed as part of this fixture-preparation review.
+The complete behavioral comparison is recorded in the September 16 generic,
+specific, and robustness result pages. Behavioral success varies by candidate;
+this section confirms fixture consistency and delivery rather than guidance
+quality.

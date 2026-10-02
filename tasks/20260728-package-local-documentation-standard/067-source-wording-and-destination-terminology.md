@@ -9,8 +9,8 @@ Specification:
 `maintainer/specifications/documentation-and-specification-standard/index.md`
 
 Requirement IDs:
-`DOCGUIDE-007`–`DOCGUIDE-008`, `DOCAGENT-002`, `DOCFLOW-007`,
-`DOCVAL-011`
+`DOCGUIDE-008`–`DOCGUIDE-009`, `DOCAGENT-002`, `DOCFLOW-007`,
+`DOCVAL-014`, `DSEVAL-004`
 
 # Source Wording and Destination Terminology
 
@@ -22,12 +22,13 @@ and behavioral evidence across the important destination boundaries.
 
 ## Requirements checklist
 
-### Functional requirements
+### Preserved functional requirements
 
-- [ ] The project-independent documentation guide explains that relevant
-      source information does not automatically make the source's wording,
-      labels, examples, or organization appropriate terminology for another
-      maintained destination.
+- [ ] When creating or adding maintained content, the project-independent
+      documentation guide prevents wording, labels, examples, or organization
+      from a conversation, task, specification, or other source from becoming
+      new destination terminology merely because it was available to the
+      author.
 - [ ] Terms are reused when exact wording is required, already established for
       the destination, or introduced and explained there; otherwise the
       destination names the underlying behavior, component, condition, or
@@ -56,12 +57,40 @@ and behavioral evidence across the important destination boundaries.
       does not depend on internal task, requirement, decision, or development
       context. A developer-documentation link remains an optional labeled
       reference.
-- [ ] Root `AGENTS.md` contains a concise always-loaded version of the general
-      rule covering maintained prose, filenames, identifiers, tests, comments,
-      and commit or pull-request titles.
+- [ ] The portable Documentation section compiles a concise version of the
+      general rule into root `AGENTS.md`, covering maintained prose, filenames,
+      identifiers, tests, comments, and commit or pull-request titles. Source,
+      compilation, runtime delivery, and observed use remain separate
+      provenance.
 - [ ] Canonical and bundled task guidance contain the task-file-specific rule
       through the synchronization boundary owned by
       `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`.
+
+### New or changed functional requirements
+
+- [ ] Prevention of new terminology transfer is the primary rule and is
+      verified separately from cleanup of wording already present in a
+      maintained file.
+- [ ] Existing wording is not silently removed merely because the terminology
+      rule would have prevented introducing it. When a request touches content
+      containing a potentially internal or progress label but does not
+      authorize its removal, the agent identifies the concern, recommends the
+      destination-appropriate change, and asks one focused confirmation
+      question before editing.
+- [ ] Test 13 continues to exercise partial major-change documentation, but
+      its initial user documentation contains no phase, stage, milestone, or
+      other progress label. The prompt supplies internal phase wording, and the
+      acceptance boundary verifies that the agent does not introduce that
+      organization into current user documentation.
+- [ ] A separate existing-wording scenario begins with an internal-looking
+      label already present in user documentation. The first agent response
+      leaves files unchanged, explains the ambiguity, recommends whether to
+      remove or translate the label, and asks the user to confirm the removal.
+- [ ] The confirmation scenario has a structured model-assisted semantic
+      assertion for notice, recommendation, explicit confirmation, focused
+      question quality, no completion claim, and no silent decision. Model
+      assessment remains supporting evidence and does not replace deterministic
+      mutation/provenance checks or human review.
 
 ### Non-functional requirements
 
@@ -79,9 +108,24 @@ and behavioral evidence across the important destination boundaries.
       facts and mutation boundaries exercise the new concern with minimal
       change; a new seed is added only when reuse would make the situation
       ambiguous or unrealistic.
-- [ ] Test 13 remains unchanged as a user-documentation boundary and must pass
-      without adding its observed or synonymous source labels to agent-visible
-      guidance.
+- [ ] Test 13 retains its user-documentation and partial-state boundary while
+      removing pre-existing phase labels from the user-page fixture; historical
+      Test 13 results remain evidence for the older mixed setup but are not
+      acceptance evidence for the revised prevention-only scenario.
+- [ ] Active terminology scenarios, requirement IDs, and result references do
+      not collide with the integrated requirement-quality work. Historical run
+      IDs and dated results retain their original numbers with an explicit
+      mapping to the renumbered active scenarios.
+- [ ] Semantic assertions use a versioned hidden target, structured JSON
+      schema, deterministic validation, source-hashed producer records,
+      narrowly documented parser repairs, separate judge provenance, and
+      frozen results suitable for later reproduction.
+- [ ] Implementation starts from a clean branch based on the committed
+      structural tip of
+      `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260728-documentation-guide-rewrite`
+      and selectively transplants reviewed terminology material without
+      merging this old branch, copying its complete compiled roots, or
+      rerunning unrelated requirement-quality and root-guidance matrices.
 - [ ] Initial additions to each maintained guidance file remain below 20% of
       that file's integrated pre-change size. Root recurring documentation
       guidance also remains within its approved approximate 200–300-word
@@ -112,21 +156,52 @@ requires user approval before changing this checklist.
 - Initial additions remain below 20% per guidance file; more text requires
   paired evidence that the concise candidate remains insufficient.
 
+## Proposed revised scope decisions
+
+These decisions reflect the September 17–18, 2026 direction and become approved
+only after the revised execution plan is accepted:
+
+- New-label prevention and existing-label cleanup are separate behavior and
+  test boundaries.
+- Test 13 becomes prevention-only by removing pre-existing phase labels from
+  its initial user documentation.
+- Existing ambiguous terminology is not silently removed. The agent recommends
+  the cleanup and asks confirmation when the request has not authorized it.
+- The existing-wording confirmation response receives separate structured
+  semantic assessment using the calibrated producer/dataset/judge pattern from
+  the documentation-guide-rewrite worktree.
+- A new branch starts from the committed documentation-guide-rewrite structural
+  tip. Only reviewed terminology requirements, candidate wording, scenario
+  behavior, and historical interpretation are transplanted; this old branch
+  and its obsolete compiler/output layout are not merged.
+- The active terminology scenarios move to Tests 36–38, and this task's
+  validation requirements use `DOCVAL-014` and `DSEVAL-004`.
+
 ## Scope
 
 In scope:
 
-- the source-wording and destination-terminology target in the existing
-  documentation and specification standard;
+- the reusable terminology target under
+  `maintainer/docs/development/specifications/documentation-guidance/`;
+- the Crystal Lattice compilation, task-guidance, and validation refinement
+  under
+  `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/`;
+- the documentation-suite producer and semantic-evaluation contract under
+  `maintainer/agent-evaluation/suites/documentation_standard/docs/development/`;
 - `docs/development/documentation.md`;
-- the concise documentation section in root `AGENTS.md`;
+- portable Documentation candidate sections under
+  `maintainer/guidance/candidates/`, compiled into temporary root
+  `AGENTS.md` files through the central compiler;
 - the task-specific addition to canonical and bundled `TASKS-v7` through
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`;
-- existing documentation-standard behavioral consumers and narrowly justified
-  new branches or scenarios;
+- suite-owned scenarios, semantic targets, frozen records, and narrowly
+  justified test consumers under
+  `maintainer/agent-evaluation/suites/documentation_standard/`;
+- dated interpretation under
+  `maintainer/docs/evaluations/documentation-guidance/`;
 - deterministic suite support needed for provenance, model/reasoning
   selection, and secondary assertions;
-- requirement and task evidence for this subtask.
+- requirement and task evidence for the new Subtask 075.
 
 Out of scope:
 
@@ -137,6 +212,11 @@ Out of scope:
 - changes to product behavior or package APIs;
 - rewriting unrelated behavioral scenarios;
 - replacing semantic and human review with token matching;
+- copying the old branch's complete compiled guidance roots or task-local
+  compiler into the new structure;
+- merging or rebasing this old implementation branch into the structural
+  branch;
+- branching from uncommitted structural changes;
 - resolving task-guidance source synchronization independently from subtask
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`.
 
@@ -149,11 +229,12 @@ product/package/interface vocabulary, and write for the destination reader.
 It does not explicitly distinguish the relevance of source information from
 the suitability of its wording or organization in a destination.
 
-Test 13 already demonstrates one important failure mode: a model can preserve
-the source's internal organization in current user documentation while
-substituting different words. This is stronger evidence than a failure to
-obey one literal-word prohibition and must remain an unchanged acceptance
-case.
+Historical Test 13 demonstrates an important mixed failure mode: a model can
+preserve internal organization already present in user documentation while
+also receiving new phase wording from the prompt. That evidence remains useful
+for diagnosis, but it cannot distinguish failure to prevent a new label from
+failure to clean up an existing one. Revised Test 13 isolates prevention and a
+separate confirmation scenario owns existing-wording cleanup.
 
 The existing suite also provides two promising reusable fixture families:
 
@@ -167,6 +248,49 @@ cannot by themselves prove that an evaluative use of the same word was
 translated correctly. Their prior outputs may still reveal naming behavior,
 but adding a new assertion to them is justified only when it does not confuse
 an established domain term with source-local wording.
+
+### September 18 structural findings
+
+- `maintainer/specifications/` has been removed. Reusable guidance and Crystal
+  Lattice integration now have separate specifications under
+  `maintainer/docs/development/specifications/`.
+- Human-readable evaluation reports now belong under
+  `maintainer/docs/evaluations/documentation-guidance/`.
+- Documentation-suite scenarios, targets, operational documentation, and
+  frozen machine-readable evidence are owned by
+  `maintainer/agent-evaluation/suites/documentation_standard/`.
+- Portable root and task guidance now have maintained source under
+  `maintainer/guidance/`, with bundle overlays, project-owned targets,
+  deterministic compilation locks, and manual promotion.
+- The suite's common runner now requires the normal Crystal Lattice
+  system-message feature, the selected Codex or Claude instruction template,
+  matching tool package, workspace AGENTS loading, and conditional canonical
+  task guidance. Direct injection is a distinct diagnostic setup.
+- The new structure already owns Tests 30–35, `DOCGUIDE-007`,
+  `DOCVAL-011`–`DOCVAL-013`, `DOCAGENT-003`–`DOCAGENT-004`, and Subtask 067.
+- The other worktree's committed structural tip is `02f557b5`, but it
+  currently has uncommitted runner-fidelity corrections across evaluator,
+  suite-documentation, result, and task files. A new branch must wait for a
+  committed clean base rather than using that dirty state.
+- Rebasing this branch would conflict across deleted specification paths,
+  moved scenario/result paths, the central compiler, requirement IDs, task
+  numbering, and evaluator delivery semantics. A selective clean transplant
+  has a smaller modification surface and clearer provenance.
+
+### Migration options considered
+
+- **Migrate the existing branch:** not recommended. A rebase or merge would
+  spend most of the work resolving obsolete generated roots, a duplicate
+  compiler, deleted specification paths, moved scenario/report paths, and
+  conflicting IDs before the terminology behavior could be reviewed.
+- **Start immediately from committed tip `02f557b5`:** possible but not
+  recommended while the structural worktree has uncommitted runner-fidelity
+  corrections. It would require another reconciliation before meaningful
+  producer evidence could run.
+- **Start a clean branch from the next committed structural tip and transplant
+  selected material:** recommended. It preserves the new ownership and runner
+  contracts, keeps historical evidence reachable in the old branch, and
+  carries only material that contributes to final behavior or interpretation.
 
 ### Initial guidance candidates
 
@@ -598,10 +722,361 @@ Do not overwrite or independently reproduce that branch's work.
   and `:378`. The new compiler and fixture test are type-clean.
 - No real-model evaluation or temporary parallel launcher was started during
   fixture preparation.
+- Added focused Test 32 for remediation rather than prevention. Its event SDK
+  user page begins with `Milestone Cedar`, while the prompt does not contain
+  that term. The test requires removal, preserved current behavior, exclusion
+  of target-only replay, no replacement progress heading, and one-page scope.
+- Completed the high-effort generic comparison across five guidance sets and
+  both providers:
+  - all ten Test 32 candidate runs had matching manifest hashes and correct
+    injection provenance;
+  - all 90 Tests 04/13/14/30/31 branches completed without provider errors;
+  - one stalled GLM file-centered process was excluded after seven branches,
+    and its two missing Test 31 branches completed in a focused retry;
+  - no generic wording was uniformly strongest across both providers;
+  - every generic candidate failed Test 13 on both providers;
+  - abstract was strongest for Test 30, while contextual and explicit-contexts
+    were strongest for GLM Test 31;
+  - action-first was weakest overall and uniquely failed GLM Test 32.
+- Recorded the generic matrix in
+  `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260916-destination-terminology-generic-results.md`.
+- Completed the paired high-effort specific comparison:
+  - all ten specific Test 32 runs passed;
+  - all 90 Tests 04/13/14/30/31 branches completed without provider errors;
+  - the specific section eliminated every Test 31 failure across both
+    providers and all wording families;
+  - explicit-contexts showed the strongest Test 30 improvement;
+  - abstract remained the strongest overall terminology candidate;
+  - Test 13 failed for every candidate on both providers;
+  - GPT control failures remained documentation-state differences rather than
+    terminology regressions.
+- Selected abstract-specific, explicit-contexts-specific, and
+  file-centered-specific for high repeats and low/max sentinels.
+- Recorded the specific matrix in
+  `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260916-destination-terminology-specific-results.md`.
+- Completed fresh high repeats and low/max sentinels for abstract-specific,
+  explicit-contexts-specific, and file-centered-specific:
+  - Test 13 failed in all 24 selected candidate/provider/effort samples;
+  - all 36 full-matrix and repeat Test 31 samples passed after the specific
+    requirement-reference rule was added;
+  - Test 32 passed 27 of 28 specific samples, with one low-effort GLM run
+    adding excluded replay behavior as a limitation;
+  - Test 30 remained stochastic, with explicit-contexts strongest for sequence
+    labels and file-centered strongest in the fresh high repeat;
+  - two GPT abstract max-effort attempts exhausted the default 30-tool budget
+    and were excluded; the unchanged branch completed and passed with an
+    explicit budget of 50.
+- Recorded the robustness evidence in
+  `maintainer/specifications/documentation-and-specification-standard/agent-behavior-verification/20260916-destination-terminology-robustness-results.md`.
 
 ## Execution plan
 
-Status: Approved
+Status: Draft
+
+The revised plan below supersedes Sections 1–10 for all remaining work.
+Sections 1–10 are retained afterward as the historical plan that produced the
+September 15–16 fixture and behavioral evidence. Execution of the revised plan
+waits for explicit approval.
+
+### Current revised plan
+
+#### 1. Preserve and map historical evidence
+
+1. Keep commit `ef936892` and the September 15–16 generic, specific, and
+   robustness results as historical evidence for the pre-reconciliation
+   baseline.
+2. Treat the currently uncommitted Test 32 mutation/removal scenario and its
+   runs as exploratory evidence. Do not use them as acceptance evidence for
+   the new confirmation-before-removal requirement.
+3. Add an explicit historical-to-active mapping rather than rewriting run IDs
+   or dated evidence:
+   - historical Test 30 -> active Test 36;
+   - historical Test 31 -> active Test 37;
+   - historical Test 32 -> superseded exploratory removal behavior;
+   - active Test 38 -> confirmation before removing existing terminology.
+4. Record that historical Test 13 mixed prevention with cleanup because its
+   user page already contained phase wording. Revised Test 13 starts from a
+   user page without progress labels.
+
+#### 2. Start from the new ownership and compilation structure
+
+Use
+`/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260728-documentation-guide-rewrite`
+as a read-only reference. The September 18 structure moves maintainer
+specifications and reports, gives the documentation suite ownership of its
+scenarios and targets, and introduces `maintainer/guidance/` as the source and
+compiler boundary.
+
+Prefer a new independent branch rather than rebasing or merging this branch:
+
+1. Wait until the other worktree's pending runner-fidelity corrections are
+   committed. Record that exact commit as the structural base; do not branch
+   from its dirty working tree.
+2. Create a new worktree and branch from the committed structural tip, or from
+   `develop` if that tip has already been integrated:
+   - proposed branch:
+     `task/20260918-destination-terminology-guidance`;
+   - proposed worktree:
+     `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20260918-destination-terminology-guidance`.
+3. Add a new subtask at
+   `tasks/20260728-package-local-documentation-standard/075-destination-terminology-guidance.md`.
+   Subtask 067 is already owned by requirement-quality calibration in the new
+   structure, so the current task file remains historical planning evidence
+   rather than being copied wholesale.
+4. Update the parent task's subtask list and requirement mapping in the new
+   branch.
+5. Do not cherry-pick `ef936892` or merge this branch. Its 96-file fixture
+   commit reproduces complete roots using an obsolete compiler and ownership
+   layout, creating more conflicts than useful history.
+
+#### 3. Transplant only durable material
+
+Carry forward:
+
+1. The approved requirement distinctions:
+   - prevention of newly introduced source-local labels;
+   - separate authority and confirmation for existing wording;
+   - destination-specific reference and naming rules;
+   - semantic assessment as supporting evidence.
+2. The useful candidate wording sources:
+   - abstract;
+   - explicit-contexts;
+   - file-centered only as a possible sentinel;
+   - the concise specific-rule section.
+3. The behavioral ideas and reviewed assertions from historical Tests 30–31,
+   renamed to Tests 36–37.
+4. The revised Test 13 prevention-only design.
+5. The existing-label observations from historical Test 32, but not its
+   autonomous-removal acceptance rule or implementation.
+6. The September 16 generic, specific, and robustness reports as historical
+   interpretation, moved under
+   `maintainer/docs/evaluations/documentation-guidance/` with a concise current
+   note explaining their old numbering and direct-injection setup.
+7. The decisions and rationale from this task needed to understand candidate
+   selection, rejected alternatives, and the prevention/removal split.
+
+Recreate in the new structure rather than copying:
+
+1. Portable root candidates as ordinary bundle overlays under
+   `maintainer/guidance/candidates/`, each extending
+   `maintainer/guidance/current` and overriding only the portable
+   `documentation` section.
+2. Full project-independent guide variants as suite-owned evaluation inputs
+   paired to the same candidate IDs. They are not compiler outputs.
+3. Active scenario pages under
+   `maintainer/agent-evaluation/suites/documentation_standard/scenarios/`.
+4. Semantic targets under
+   `maintainer/agent-evaluation/suites/documentation_standard/targets/`.
+5. Deterministic and real-model consumers using the suite's common Crystal
+   Lattice runner, production system-message feature, matching Codex/Claude
+   tools, normal workspace `AGENTS.md` loading, and conditional canonical task
+   guidance.
+6. Frozen producer/judge records under the suite's `fixtures/` tree and dated
+   human interpretation under `maintainer/docs/evaluations/`.
+7. Requirement rows in their new owners:
+   - reusable terminology behavior in
+     `maintainer/docs/development/specifications/documentation-guidance/requirements.md`;
+   - Crystal Lattice compilation, task-guidance, and validation integration in
+     `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`;
+   - suite mechanics and semantic-evaluation requirements in
+     `maintainer/agent-evaluation/suites/documentation_standard/docs/development/requirements.md`.
+
+Leave behind:
+
+1. The ten complete compiled guidance roots.
+2. The task-local destination-terminology compiler and its deterministic test.
+3. Old central `maintainer/specifications/` paths and mixed
+   specification/result/scenario indexes.
+4. The active Test 32 autonomous-removal assertion.
+5. Action-first and contextual candidate families unless later evidence
+   establishes a distinct remaining question.
+6. Old root/full-guide snapshots already represented by commit `ef936892` and
+   the historical reports.
+
+#### 4. Reconcile IDs and active scenario numbers
+
+1. Preserve the new structure's ownership of:
+   - Tests 30–35;
+   - `DOCGUIDE-007`;
+   - `DOCVAL-011`–`DOCVAL-013`;
+   - `DOCAGENT-003`–`DOCAGENT-004`;
+   - Subtask 067.
+2. Use:
+   - Test 36: source terms in specification records;
+   - Test 37: source terms in code and tests;
+   - Test 38: confirmation before removing existing terminology.
+3. Use the still-available IDs:
+   - `DOCGUIDE-008`: prevention and destination-specific terminology;
+   - `DOCGUIDE-009`: existing-wording notice and confirmation;
+   - `DOCAGENT-002`: concise portable root terminology instruction;
+   - `DOCFLOW-007`: task-guidance terminology and reference behavior;
+   - `DOCVAL-014`: Crystal Lattice behavioral validation;
+   - `DSEVAL-004`: suite-owned producer/semantic assertion contract.
+4. Historical dated result pages retain Tests 30–32 and their original run
+   IDs. New pages provide the explicit mapping to Tests 36–38.
+
+#### 5. Make Test 13 prevention-only
+
+1. Change the sync-engine fixture's initial README to describe only current
+   capability in user language, with no `Phase`, `Stage`, milestone, task ID,
+   or requirement ID.
+2. Keep phase terminology in the internal task/specification/requirements and
+   branch prompt so the request still creates realistic source pressure.
+3. Preserve the partial-implementation behavior:
+   - Phase 2 implementation and evidence become current;
+   - later conflict resolution stays pending internally;
+   - one target specification remains.
+4. Assert that the final README explains delivered capability without
+   introducing the prompt's phase organization or internal future boundary.
+5. Treat all pre-reconciliation Test 13 runs as historical mixed-scenario
+   evidence and establish a fresh integrated-guidance baseline for the revised
+   fixture.
+
+#### 6. Replace autonomous cleanup with confirmation-before-removal
+
+1. Redesign the event SDK branch as active Test 38:
+   - the existing user page contains a progress-like label not present in the
+     prompt or current product vocabulary;
+   - the user requests an otherwise ordinary documentation update;
+   - removal of the existing label is not explicitly authorized.
+2. The first agent turn must:
+   - make no file changes;
+   - notice and identify the existing label as potentially internal or
+     inappropriate for the page;
+   - recommend a destination-appropriate replacement or removal;
+   - ask one focused question confirming whether to remove it;
+   - avoid claiming that the documentation update is complete.
+3. Keep an optional continuation after an affirmative user response only if
+   needed to verify the resulting edit. The acceptance boundary requested here
+   is the first confirmation-seeking response.
+4. Do not require a literal question sentence, fixed vocabulary, or direct
+   repetition of the hidden semantic target.
+
+#### 7. Add separate structured semantic assessment
+
+Adopt the technique used by the documentation-guide-rewrite worktree without
+copying its requirement-quality domain model or datasets.
+
+1. Producer runs remain ordinary terminology tests and record:
+   - response;
+   - changed paths;
+   - guidance/model/effort provenance;
+   - source run ID and source-record hash;
+   - deterministic no-mutation and completion findings.
+2. Freeze selected Test 38 producer outputs into a small
+   destination-terminology dataset. Do not call a judge inline from every
+   producer test.
+3. Add a versioned hidden target and JSON-only evaluator schema covering:
+   - existing label noticed;
+   - ambiguity explained;
+   - removal/translation recommendation;
+   - explicit confirmation requested;
+   - question focused and actionable;
+   - no silent decision;
+   - no completion claim.
+4. Run a separate neutral-workspace semantic evaluator with GLM at max effort
+   using the existing `fresh_prompt` pattern.
+5. Reuse the proven parsing discipline:
+   - strip an optional JSON fence;
+   - extract one JSON object;
+   - permit only enumerated, recorded repairs such as a trailing comma or
+     missing candidate-closing brace;
+   - reject other malformed output.
+6. Deterministically validate schema version, dataset/scenario IDs, exact
+   candidate set, all required semantic dimensions, enums, evidence, and
+   evaluator provenance.
+7. Calibrate against human-approved anchor responses representing a clear
+   confirmation request, a vague mention without a question, silent removal,
+   and silent preservation.
+8. Record judge results and parser repairs separately. Model judgment is
+   supporting evidence; human review remains required.
+
+#### 8. Recreate the smallest useful candidate set
+
+1. Recreate abstract-specific and explicit-contexts-specific as candidate
+   bundle overlays that override only the portable `documentation` section.
+2. Pair each candidate ID with one suite-owned
+   `docs/development/documentation.md` variant assembled from the same reviewed
+   wording source. Add a deterministic consistency check between the portable
+   and full-guide forms without inventing a second general compiler.
+3. Retain file-centered as a sentinel only if its different behavior still
+   adds diagnostic value after deterministic inspection.
+4. Do not rerun action-first or the full five-by-two candidate matrix unless
+   the smaller comparison leaves a material ambiguity.
+5. Keep examples lexically separate from Tests 13, 36, 37, and 38.
+6. Compile candidate root guidance with `maintainer.guidance` into temporary
+   workspaces. Do not commit complete compiled root trees.
+
+#### 9. Run the revised behavioral comparison
+
+1. Establish the exact structural-base current bundle, target, full guide, and
+   canonical task-guidance hashes before candidate evaluation.
+2. Run prevention scenarios separately:
+   - revised Test 13 for user-documentation phase-label prevention;
+   - Test 36 for specification/task-reference terminology;
+   - Test 37 for code, tests, and requirement-reference terminology;
+   - Tests 04/14 as established-term controls.
+3. Run Test 38 separately as an existing-wording authority/confirmation
+   scenario.
+4. Start with both providers at high effort. Add low/max sentinels only for
+   boundaries showing variance or a distinct failure.
+5. Use the suite's common Crystal Lattice runner for acceptance evidence:
+   - compile workspace `AGENTS.md` from the selected bundle and Crystal Lattice
+     target;
+   - load it through the production system-message feature;
+   - preserve the standard Codex or Claude model-family message and matching
+     tool package;
+   - use canonical task guidance through `include_tasks` only when the
+     scenario requires it;
+   - verify source hashes, occurrence counts, delivery role/strategy, and shell
+     schema before the model call.
+6. A direct-injection wording-isolation run may be used diagnostically, but it
+   is labeled as injection evidence and cannot replace the production-runner
+   acceptance result.
+7. Run the semantic evaluator only after producer records are frozen and
+   complete.
+8. Inspect complete files, responses, diffs, tool behavior, deterministic
+   findings, semantic assessments, and provenance. Do not substitute judge
+   output for artifact inspection.
+9. Do not rerun the documentation-guide-rewrite worktree's requirement-quality
+   or root-guidance model matrices.
+
+#### 10. Calibrate guidance from the separated evidence
+
+1. The primary public and root rule says what to do when creating or adding
+   content: preserve required behavior and established terms, but do not
+   introduce source-local labels or organization as destination names.
+2. A separate existing-wording instruction says not to silently normalize a
+   maintained page. When cleanup is not already authorized, identify the
+   concern, recommend the change, and ask confirmation.
+3. Keep the evidence-backed requirement-reference rule and explanatory
+   assertion example.
+4. Refine the task-reference rule only as needed to prevent an otherwise
+   descriptive link from being followed by a local number, stage, or nickname.
+5. Add a current-user-documentation prevention example only when revised Test
+   13 evidence shows the concise rule remains insufficient. Use wording
+   different from all behavioral fixtures.
+
+#### 11. Verify and present for approval
+
+1. Run central guidance compiler checks, documentation-suite deterministic
+   tests, candidate/full-guide consistency checks, task-guidance parity, Ruff,
+   Black, focused/full type checks, maintained-link checks, documentation
+   preparation, and the normal MkDocs build as applicable.
+2. Add new dated result pages. Preserve September 15–16 pages as historical
+   evidence and document the active-number mapping.
+3. Update the reusable guidance, Crystal Lattice integration, and suite-owned
+   requirements; dated evaluation index; new Subtask 075; and parent status
+   without marking model judgment human verified.
+4. Present:
+   - the exact structural base and selective transplant inventory;
+   - revised prevention and confirmation scenarios;
+   - deterministic and semantic assertion design;
+   - paired model results;
+   - recommended final guidance wording;
+   - remaining human decisions.
+
+### Historical executed plan
 
 ### 1. Reconcile the integrated baseline
 
@@ -836,6 +1311,31 @@ destination-terminology test plan live under
 
 ### Implementation decisions and open questions
 
+- **Proposed September 17 direction, awaiting approval:** make prevention of
+  newly introduced source-local labels the primary terminology rule, isolate
+  existing-wording cleanup in a confirmation-before-removal scenario, and use
+  a separate structured semantic evaluator for that response.
+- Proposed: Test 13 keeps its partial-implementation workflow but starts from
+  user documentation without phase/stage terminology.
+- Proposed: active Tests 30–32 move to 36–38 because the integrated
+  documentation-guide worktree owns requirement-quality Tests 30–35.
+- Proposed: this task's terminology validation ID moves from `DOCVAL-011` to
+  `DOCVAL-014`, with suite mechanics under `DSEVAL-004`; the integrated
+  requirement-quality and root-guidance work keeps `DOCVAL-011`–`DOCVAL-013`.
+- **Proposed September 18 structural migration:** create a clean independent
+  branch from the committed documentation-guide-rewrite structural tip and a
+  new Subtask 075. Transplant reviewed terminology material manually; do not
+  merge, rebase, or cherry-pick this old branch.
+- Proposed: represent portable root wording as central compiler candidate
+  overlays and full-guide wording as paired suite-owned evaluation inputs.
+  Compile temporary outputs for tests instead of committing complete roots.
+- Proposed: use the documentation suite's production Crystal Lattice runner
+  for acceptance evidence. Direct injection remains diagnostic wording
+  isolation and is labeled accordingly.
+- Proposed: semantic evaluation follows the other worktree's producer/frozen
+  dataset/hidden target/separate max-effort judge/schema validation pattern,
+  but uses a small destination-terminology-specific schema and accepted
+  anchors.
 - **Approved follow-up direction (September 15, 2026):** retain the
   rule/example structure, but test whether explicitly naming requests, tasks,
   specifications, files, code, tests, and documentation is more effective than
@@ -855,14 +1355,14 @@ destination-terminology test plan live under
 - Approved: root `AGENTS.md` candidates may contain several concise examples
   covering prevention, remediation, and preservation, while the complete root
   documentation policy remains at most 300 words.
-- Approved: candidate document versions are complete isolated guidance roots
-  compiled from a maintained snapshot fixture; public master files change only
-  after comparison and human selection.
-- **Approved simplification (September 16, 2026):** maintain source sections
-  and a small deterministic compiler beside the documentation-standard tests,
-  commit every complete compiled guidance root as a fixture, and select a set
-  by directory during evaluation. Do not add a general orchestration framework
-  for this one-off comparison.
+- Historical decision: September 16 candidates were complete isolated
+  guidance roots compiled from a maintained snapshot fixture. The September 18
+  Draft migration replaces that representation with central candidate bundles,
+  paired full-guide inputs, and temporary compilation.
+- **Historical simplification (September 16, 2026; superseded for new work):**
+  the old branch used a task-local deterministic compiler and committed
+  complete roots. Preserve commit `ef936892` for reproduction, but do not
+  transplant that compiler or its generated trees.
 - Approved: deterministic fixture tests do not pin a Git commit. Historical
   provenance belongs in task and result records; current repository guidance
   remains a separate selectable source.
@@ -895,8 +1395,10 @@ destination-terminology test plan live under
 - Approved: both the general rule and concise file-role applications belong in
   the project-independent guide. The Crystal Lattice page remains a local
   paths and exceptions addendum.
-- Approved: Test 13 remains unchanged as a required user-documentation
-  behavior case.
+- Historical decision: Test 13 remained unchanged for the September 15–16
+  matrices. The September 17 Draft plan supersedes that fixture choice if
+  approved, while preserving the old runs as mixed prevention/removal
+  evidence.
 - Approved: initial evaluation observes complete artifacts across multiple
   models and reasoning efforts before final assertions or guidance wording are
   selected.
@@ -910,25 +1412,43 @@ destination-terminology test plan live under
   scenario contracts, and evidence. The task at
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
   owns canonical/bundled task-guidance delivery and synchronization.
-- No unresolved requirement question changes the approved outcome.
+- No unresolved requirement question changes the requested outcome. Approval
+  is required for the revised execution plan before repository files other
+  than this task are changed.
 
 ### Documentation
 
 - `docs/development/documentation.md`
-- root `AGENTS.md`
+- portable Documentation candidate sections and manifests under
+  `maintainer/guidance/candidates/`
+- temporary compiled root `AGENTS.md` outputs and compilation locks as
+  evaluation evidence, not committed maintained roots
 - canonical `agents/TASKS-v7.md`
 - bundled task guidance through
   `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
-- `maintainer/specifications/documentation-and-specification-standard/`
-- affected agent-behavior scenario contracts and dated results
-- compiled terminology fixtures, source sections, compiler, and test plan under
-  `maintainer/agent-evaluation/suites/documentation_standard/fixtures/destination_terminology_guidance_sets/`
-- deterministic fixture tests under `maintainer/agent-evaluation/tests/`
-- this task and the parent task
+- reusable target and requirements under
+  `maintainer/docs/development/specifications/documentation-guidance/`
+- Crystal Lattice refinement and requirements under
+  `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/`
+- suite scenarios, semantic targets, full-guide candidate inputs, frozen
+  records, and operational documentation under
+  `maintainer/agent-evaluation/suites/documentation_standard/`
+- dated historical and revised result reports under
+  `maintainer/docs/evaluations/documentation-guidance/`
+- deterministic evaluator and compiler-consumer tests under
+  `maintainer/agent-evaluation/tests/`
+- a focused destination-terminology semantic evaluator, hidden target, frozen
+  producer dataset, accepted anchors, and result freezer under
+  `maintainer/agent-evaluation/suites/documentation_standard/`
+- new
+  `tasks/20260728-package-local-documentation-standard/075-destination-terminology-guidance.md`
+  and the parent task
 
 No substantive Crystal Lattice conventions change is planned.
 
 ### Task checklist
+
+#### Historical old-branch work
 
 - [x] Create the isolated worktree and branch.
 - [x] Add this subtask to the documentation-standard workstream.
@@ -970,10 +1490,49 @@ No substantive Crystal Lattice conventions change is planned.
 - [x] Add deterministic compiler, manifest, pairing, and example checks.
 - [x] Complete semantic review of every compiled root and pairwise diff.
 - [ ] Obtain independent human review of the compiled fixtures.
-- [ ] Add the focused inherited-terminology remediation scenario.
-- [ ] Run and record all generic-only candidates.
-- [ ] Run and record all comprehensive-specific candidates.
-- [ ] Repeat the strongest candidates across selected reasoning efforts.
+- [x] Add the focused inherited-terminology remediation scenario.
+- [x] Run and record all generic-only candidates.
+- [x] Run and record all comprehensive-specific candidates.
+- [x] Repeat the strongest candidates across selected reasoning efforts.
+
+#### Clean-branch migration and revised evaluation
+
+- [ ] Wait for the documentation-guide-rewrite worktree's pending
+      runner-fidelity changes to be committed and record the exact structural
+      base commit.
+- [ ] Create the proposed independent worktree and
+      `task/20260918-destination-terminology-guidance` branch from that clean
+      structural base.
+- [ ] Create Subtask 075 in the new structure and add it to the parent task.
+- [ ] Record the carry-forward, recreate, and leave-behind inventory before
+      copying any old-branch material.
+- [ ] Reserve Tests 30–35, `DOCGUIDE-007`, `DOCVAL-011`–`DOCVAL-013`,
+      `DOCAGENT-003`–`DOCAGENT-004`, and Subtask 067 for their new-structure
+      owners.
+- [ ] Add `DOCGUIDE-008`–`DOCGUIDE-009`, `DOCAGENT-002`, `DOCFLOW-007`,
+      `DOCVAL-014`, and `DSEVAL-004` to the correct reusable, integration, and
+      suite-owned requirement ledgers.
+- [ ] Recreate active terminology Tests 36–38 under the suite-owned scenario
+      paths and preserve the old Test 30–32 mapping only in historical reports.
+- [ ] Recreate abstract-specific and explicit-contexts-specific as central
+      candidate bundle overlays with paired full-guide inputs; add
+      file-centered only if it remains diagnostically useful.
+- [ ] Move the September 16 reports into the maintainer evaluation-results
+      structure with a concise interpretation note; do not copy old compiled
+      roots or the task-local compiler.
+- [ ] Make Test 13 prevention-only by removing progress labels from its initial
+      user documentation.
+- [ ] Replace autonomous removal Test 32 with Test 38's no-mutation,
+      confirmation-seeking first response.
+- [ ] Add and calibrate the structured destination-terminology semantic
+      evaluator and accepted response anchors.
+- [ ] Verify every producer uses the common production Crystal Lattice runner,
+      matching model-family tools, compiled workspace AGENTS, and conditional
+      canonical task guidance; label direct injection as diagnostic only.
+- [ ] Run the revised structural baseline and smallest useful candidate matrix
+      without rerunning unrelated requirement-quality/root matrices.
+- [ ] Freeze revised producer and semantic results with source hashes and
+      parser-repair, compilation, and instruction-delivery provenance.
 - [ ] Select and apply the final public guidance.
 - [ ] Obtain human review.
 
@@ -981,11 +1540,13 @@ No substantive Crystal Lattice conventions change is planned.
 
 | Requirement group | Acceptance evidence |
 |---|---|
-| General terminology boundary (`DOCGUIDE-007`) | The project-independent guide states one source-independent rule; paired behavioral outputs across several source terms and destinations use terminology available to the destination while retaining explicit or established names. |
+| New-label prevention (`DOCGUIDE-008`) | Revised Test 13 and Tests 36–37 begin without the held-out label in the destination, then demonstrate that prompt/task terminology is not introduced into user documentation, specification records, source, or tests while explicit and established names remain intact. |
 | File-role applications (`DOCGUIDE-008`) | Source inspection and scenario outputs demonstrate defined task wording, descriptive complete record references, behavior-based code/test names, self-contained developer documentation, and user documentation independent of internal records. |
-| Root recurring guidance (`DOCAGENT-002`) | The integrated root section remains approximately 200–300 words, contains the concise general rule, and affected scenarios receive it through the normal guidance path. |
+| Existing-wording authority (`DOCGUIDE-009`) | Test 38 starts with an existing ambiguous label, leaves the workspace unchanged on the first turn, and receives deterministic plus calibrated semantic evidence that the agent notices the concern, recommends a destination-appropriate change, and asks focused confirmation. |
+| Portable root guidance (`DOCAGENT-002`) | The accepted portable Documentation section contains the concise rule, compiles through the Crystal Lattice target, and is observed through the production system-message path with exact source, compilation, and delivery provenance. |
 | Task guidance (`DOCFLOW-007`) | Canonical and bundled v7 guidance match through `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`; generated task files define retained conversational terms and use descriptive full references without reproducing the complete public guide. |
-| Behavioral method (`DOCVAL-011`) | Preserved pre-change and candidate runs use the same prompts, fixtures, model profiles, reasoning efforts, and assertions; Test 13 remains intact; full files and responses receive semantic/human inspection; narrow mechanical checks remain secondary. |
+| Crystal Lattice behavioral validation (`DOCVAL-014`) | Revised prevention and existing-wording producers compare the current structural baseline and selected candidates across the approved profiles and efforts without rerunning unrelated matrices; dated interpretation preserves failures, passing controls, and historical mapping. |
+| Suite producer and semantic contract (`DSEVAL-004`) | Tests 13 and 36–38 use the common production runner, exact compilation and delivery provenance, repeat-pinned deterministic producer records, and a separately versioned Test 38 judge whose schema and repairs validate before its findings count as supporting evidence. |
 | Minimal growth | Measured initial net additions remain below 20% for every touched guidance file, and any later expansion is linked to repeated paired failures. |
 
 ### Additional implementation verification

@@ -1127,3 +1127,103 @@ def test_31_source_terms_in_code_and_tests(
         findings=findings,
     )
     assert_findings(findings)
+
+
+@pytest.mark.extended
+@pytest.mark.requirements("DOCGUIDE-007", "DOCGUIDE-008", "DOCVAL-011")
+def test_32_inherited_terminology_in_current_user_documentation(
+    harness: DocumentationEvaluationHarness,
+) -> None:
+    """Verify removal of an inherited user-doc label without prompt priming.
+
+    The existing publishing page begins with the internal heading
+    ``Milestone Cedar``. The prompt never names that term and asks for current
+    supported behavior only. The inherited-label assertion covers
+    DOCGUIDE-007, while the user-language, target-exclusion, and one-page scope
+    assertions cover DOCGUIDE-008 and DOCVAL-011.
+    """
+
+    reasoning_effort = selected_reasoning_effort()
+    run = harness.branch(
+        test_id="32-inherited-terminology-in-current-user-documentation",
+        spec_file="32-inherited-terminology-in-current-user-documentation.md",
+        parent=_seed_04(harness),
+        fixture_id="event-retry",
+        branch_variant="inherited-user-terminology",
+        reasoning_effort=reasoning_effort,
+    )
+    publishing_path = "packages/event-sdk/docs/publishing.md"
+    publishing = file_text(run, publishing_path)
+    headings = _markdown_headings(publishing)
+    lowered = publishing.lower()
+    profile = _evidence_value(run, "documentation_standard.profile")
+    profile_value = profile if isinstance(profile, dict) else {}
+    findings = basic_run_findings(run) + (
+        AssertionFinding(
+            "selected reasoning effort recorded",
+            reasoning_effort is None
+            or profile_value.get("reasoning_effort") == reasoning_effort,
+            json.dumps(profile_value, sort_keys=True),
+        ),
+        AssertionFinding(
+            "inherited terminology removed",
+            "milestone cedar" not in lowered,
+            publishing,
+        ),
+        AssertionFinding(
+            "supported publishing behavior preserved",
+            "publish(event)" in publishing and "retry" in lowered,
+            publishing,
+        ),
+        AssertionFinding(
+            "retry boundary explained",
+            ("attempt" in lowered or "limit" in lowered)
+            and ("fail" in lowered or "failed" in lowered),
+            publishing,
+        ),
+        AssertionFinding(
+            "target-only replay excluded",
+            "replay" not in lowered,
+            publishing,
+        ),
+        AssertionFinding(
+            "no replacement tracking heading introduced",
+            not _contains_source_term(
+                headings,
+                (
+                    "milestone",
+                    "phase",
+                    "stage",
+                    "checkpoint",
+                    "workstream",
+                    "iteration",
+                ),
+            ),
+            headings,
+        ),
+        AssertionFinding(
+            "page remains independent of internal records",
+            not _contains_source_term(
+                publishing,
+                (
+                    "event-001",
+                    "event-002",
+                    "technical specification",
+                    "target-only",
+                    "tasks/",
+                ),
+            ),
+            publishing,
+        ),
+        AssertionFinding(
+            "scope remains one current user page",
+            run.changed_paths == (publishing_path,),
+            repr(run.changed_paths),
+        ),
+    )
+    record_review(
+        run,
+        spec_file="32-inherited-terminology-in-current-user-documentation.md",
+        findings=findings,
+    )
+    assert_findings(findings)

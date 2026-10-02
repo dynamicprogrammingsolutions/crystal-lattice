@@ -1,6 +1,7 @@
 # Destination-terminology guidance-set test plan
 
-Status: Draft for compiled-set review
+Status: Executed through high/low/max robustness comparison; final selection
+pending human review
 
 ## Outcome
 

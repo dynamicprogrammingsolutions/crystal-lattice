@@ -64,6 +64,9 @@ normative, how much to summarize, or which links/pages should change.
 - [Routed guidance reading](20-routed-guidance-reading.md): verify that root
   AGENTS routing causes the relevant standards pages to be read before a
   documentation-structure edit.
+- [Inherited terminology in current user documentation](32-inherited-terminology-in-current-user-documentation.md):
+  remove a progress label already present in a page without repeating it in
+  the new prompt.
 
 Future branches may ask to document the target-only replay behavior, add a
 duplicate root page, or repair only the link graph.

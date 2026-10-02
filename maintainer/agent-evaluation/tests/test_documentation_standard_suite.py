@@ -956,7 +956,7 @@ def test_fixture_revision_participates_in_workspace_fingerprint() -> None:
     assert fixture_revision("slug-utils") == "v3"
     assert factory.fingerprint()["fixture_revision"] == "v3"
     assert fixture_revision("js-single-file-tool") == "v4"
-    assert fixture_revision("event-retry") == "v5"
+    assert fixture_revision("event-retry") == "v6"
     assert fixture_revision("requirement-scope") == "v1"
     assert fixture_revision("testing-strategy") == "v1"
     assert fixture_revision("status-labels") == "v2"
@@ -1033,6 +1033,29 @@ def test_terminology_branch_variants_add_source_context(tmp_path: Path) -> None:
             )
             task = workspace.joinpath("tasks", task_name).read_text(encoding="utf-8")
             assert phrase in task
+
+
+def test_inherited_user_terminology_is_present_only_in_the_fixture(
+    tmp_path: Path,
+) -> None:
+    """DOCVAL-011: remediation starts with leakage absent from the new prompt."""
+
+    workspace = tmp_path / "event-retry-inherited-user-terminology"
+    workspace.mkdir()
+    workspace.joinpath(".git").write_text("fixture\n", encoding="utf-8")
+    apply_fixture(workspace, "event-retry", "inherited-user-terminology")
+
+    publishing = workspace.joinpath("packages/event-sdk/docs/publishing.md").read_text(
+        encoding="utf-8"
+    )
+    prompt = extract_blockquote(
+        SPEC_ROOT / "32-inherited-terminology-in-current-user-documentation.md",
+        "## Exact user prompt",
+    )
+
+    assert "Milestone Cedar" in publishing
+    assert "milestone cedar" not in prompt.lower()
+    assert "milestone" not in prompt.lower()
 
 
 def test_fixture_commit_does_not_change_linked_repository_identity(
