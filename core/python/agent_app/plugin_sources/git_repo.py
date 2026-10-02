@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional
 
-import hashlib
 import os
 import shutil
 import subprocess
@@ -155,7 +154,7 @@ class GitRepoSource:
                 "git": url,
                 "ref": ref,
                 "commit": commit,
-                "project_dir": str(project_dir),
+                "project_dir": f"{url}#{subdir or ''}",
                 "entry": entries[0] if len(entries) == 1 else None,
             }
 
@@ -170,6 +169,8 @@ class GitRepoSource:
                         metadata=metadata,
                     )
                 )
+                if ctx.claim is not None:
+                    ctx.claim(install_dir)
             except PluginInstallError as exc:
                 return PluginResolution(classes=[], errors=[{
                     "type": "plugin_install_error",

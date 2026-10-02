@@ -265,6 +265,10 @@ class LocalPathRepoSource:
                 )
             )
             self._reactivate_dependency_install_dirs(dependency_install_dirs)
+            if ctx.claim is not None:
+                for dependency_dir in dependency_install_dirs:
+                    ctx.claim(dependency_dir)
+                ctx.claim(install_dir)
         except PluginInstallError as exc:
             return PluginResolution(
                 classes=[],

@@ -36,6 +36,7 @@ class InstallRequest:
 class InstallStrategy(Protocol):
     def ensure_installed(self, request: InstallRequest) -> Path:
         """Ensure the project is installed into the cache and importable."""
+        ...
 
 
 class PipTargetInstallStrategy:
@@ -63,19 +64,21 @@ class PipTargetInstallStrategy:
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         install_dir = cache_dir / f"{request.safe_id}@{request.revision}"
-        if install_dir.exists() and self._install_dir_matches_request(
-            install_dir, request
-        ):
+        if install_dir.exists() and self._install_dir_matches_request(install_dir, request):
             self._activate_sys_path(install_dir)
             return install_dir
 
         with self._install_lock(cache_dir, request.safe_id, request.revision):
-            if install_dir.exists() and self._install_dir_matches_request(
-                install_dir, request
-            ):
+            if install_dir.exists() and self._install_dir_matches_request(install_dir, request):
                 self._activate_sys_path(install_dir)
                 return install_dir
             if install_dir.exists():
+                protected = request.policy.get("_cache_in_use")
+                if callable(protected) and protected(install_dir):
+                    raise PluginInstallError(
+                        detail="Installed plugin is in use by another process",
+                        path=str(install_dir),
+                    )
                 shutil.rmtree(install_dir, ignore_errors=True)
 
             temp_dir = cache_dir / f".{request.safe_id}@{request.revision}.tmp"
@@ -106,9 +109,7 @@ class PipTargetInstallStrategy:
                 meta = dict(request.metadata)
                 meta.setdefault("id", request.safe_id)
                 meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")
-                (temp_dir / "plugin_metadata.json").write_text(
-                    json.dumps(meta), encoding="utf-8"
-                )
+                (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
                 temp_dir.replace(install_dir)
             except Exception as exc:
                 shutil.rmtree(temp_dir, ignore_errors=True)
@@ -129,17 +130,13 @@ class PipTargetInstallStrategy:
             return shutil.which("python3") or shutil.which("python") or sys.executable
         return sys.executable
 
-    def _dynamic_install_disabled_for_frozen_runtime(
-        self, request: InstallRequest
-    ) -> bool:
+    def _dynamic_install_disabled_for_frozen_runtime(self, request: InstallRequest) -> bool:
         if not getattr(sys, "frozen", False):
             return False
         return request.policy.get("allow_dynamic_plugin_install") is not True
 
     @contextmanager
-    def _install_lock(
-        self, cache_dir: Path, safe_id: str, revision: str
-    ) -> Iterator[None]:
+    def _install_lock(self, cache_dir: Path, safe_id: str, revision: str) -> Iterator[None]:
         lock_dir = cache_dir / ".locks"
         lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = lock_dir / f"{safe_id}@{revision}.lock"
@@ -219,13 +216,9 @@ class PipTargetInstallStrategy:
     def _top_level_modules_for_install_dir(self, install_dir: Path) -> set[str]:
         discovered: set[str] = set()
         needs_install_dir_scan = False
-        dist_info_dirs = [
-            path for path in install_dir.glob("*.dist-info") if path.is_dir()
-        ]
+        dist_info_dirs = [path for path in install_dir.glob("*.dist-info") if path.is_dir()]
         for dist_info_dir in dist_info_dirs:
-            distribution_modules = self._top_level_modules_for_distribution(
-                dist_info_dir
-            )
+            distribution_modules = self._top_level_modules_for_distribution(dist_info_dir)
             if distribution_modules:
                 discovered.update(distribution_modules)
             else:
@@ -242,9 +235,7 @@ class PipTargetInstallStrategy:
             except Exception:
                 text = ""
             discovered = {
-                name
-                for line in text.splitlines()
-                if (name := line.strip()) and name.isidentifier()
+                name for line in text.splitlines() if (name := line.strip()) and name.isidentifier()
             }
             if discovered:
                 return discovered
@@ -253,9 +244,7 @@ class PipTargetInstallStrategy:
         if not record_file.is_file():
             return set()
         try:
-            with record_file.open(
-                encoding="utf-8", errors="ignore", newline=""
-            ) as file:
+            with record_file.open(encoding="utf-8", errors="ignore", newline="") as file:
                 rows = list(csv.reader(file))
         except Exception:
             return set()
@@ -271,9 +260,7 @@ class PipTargetInstallStrategy:
             if top_level.endswith((".dist-info", ".data")):
                 continue
             if len(parts) > 1:
-                if top_level.isidentifier() and self._is_importable_module_file(
-                    parts[-1]
-                ):
+                if top_level.isidentifier() and self._is_importable_module_file(parts[-1]):
                     discovered.add(top_level)
                 continue
             module_name = self._module_name_from_file(top_level)
@@ -312,24 +299,17 @@ class PipTargetInstallStrategy:
             return True
         if filename.endswith((".py", ".pyc")):
             return True
-        return any(
-            filename.endswith(suffix)
-            for suffix in importlib.machinery.EXTENSION_SUFFIXES
-        )
+        return any(filename.endswith(suffix) for suffix in importlib.machinery.EXTENSION_SUFFIXES)
 
-    def _pip_cache_args(
-        self, request: InstallRequest, pip_args: List[str]
-    ) -> List[str]:
+    def _pip_cache_args(self, request: InstallRequest, pip_args: List[str]) -> List[str]:
         if "--no-cache-dir" in pip_args:
             return []
-        if any(
-            arg == "--cache-dir" or arg.startswith("--cache-dir=") for arg in pip_args
-        ):
+        if any(arg == "--cache-dir" or arg.startswith("--cache-dir=") for arg in pip_args):
             return []
 
         raw_cache_dir = request.policy.get("pip_cache_dir")
         if not isinstance(raw_cache_dir, str) or not raw_cache_dir.strip():
-            return []
+            return ["--no-cache-dir"]
 
         cache_dir = Path(os.path.expanduser(raw_cache_dir))
         if not cache_dir.is_absolute():
@@ -351,9 +331,9 @@ class PipTargetInstallStrategy:
             return False
         if not isinstance(installed, dict):
             return False
-        for key, value in request.metadata.items():
-            if installed.get(key) != value:
-                return False
+        installed_id = installed.get("id")
+        if not isinstance(installed_id, str) or installed_id != request.safe_id:
+            return False
         requested_dep_versions = request.metadata.get("local_dependency_versions")
         if isinstance(requested_dep_versions, dict):
             installed_dep_versions = self._installed_distribution_versions(install_dir)
@@ -361,9 +341,7 @@ class PipTargetInstallStrategy:
                 if not isinstance(raw_name, str) or not isinstance(raw_version, str):
                     return False
                 if (
-                    installed_dep_versions.get(
-                        self._normalize_distribution_name(raw_name)
-                    )
+                    installed_dep_versions.get(self._normalize_distribution_name(raw_name))
                     != raw_version
                 ):
                     return False
@@ -378,9 +356,7 @@ class PipTargetInstallStrategy:
             name: str | None = None
             version: str | None = None
             try:
-                lines = metadata_path.read_text(
-                    encoding="utf-8", errors="ignore"
-                ).splitlines()
+                lines = metadata_path.read_text(encoding="utf-8", errors="ignore").splitlines()
             except Exception:
                 continue
             for line in lines:

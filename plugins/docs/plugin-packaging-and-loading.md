@@ -179,7 +179,9 @@ Applications support multiple ways to reference plugins:
 - Git installs run arbitrary code via `pip install`.
 - Prefer pinned refs (tag/commit) and host allowlists.
 - Remote git URLs are typically disabled by default; enable explicitly with `plugin_policy.allow_remote`.
-- Python dependency installs use `plugin_policy.pip_cache_dir` as pip's cache. When omitted, it defaults to a sibling `pip` directory next to the plugin install cache, for example `~/.crystal/cache/pip` when `plugin_cache_dir` is `~/.crystal/cache/plugins`.
+- Python dependency installs reuse completed plugin installations in `plugin_cache_dir`. By default pip's separate download cache is disabled, and any old default `pip` cache is cleared at application startup. If you explicitly set `plugin_policy.pip_cache_dir` or pass pip cache options through `pip_args`, that cache stays under your control and is not cleared.
+- Each application startup removes unused cached plugin revisions and old abandoned temporary clones/installs. Running applications retain the installations they use through refreshed process leases; on close, those entries become eligible for cleanup at the next startup. The lease records and cache lock live beside `plugin_cache_dir`.
+- **When upgrading to the version with startup cleanup:** stop or restart every older agent runtime that uses the same `plugin_cache_dir` *before the first startup of the new version against that cache*. Older runtimes do not publish leases and their files may be reclaimed. A current session needs a restart only if its runtime uses that same cache; projects using separate cache directories do not need a coordinated restart. A previously created pip download cache is also removed at that first startup.
 - The bundled-Python runtime package is the supported distribution for
   plugin-rich installs. It uses a normal packaged Python interpreter for
   dynamic plugin installation. PyInstaller/frozen artifacts are

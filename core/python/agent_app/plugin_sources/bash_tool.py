@@ -212,7 +212,9 @@ class BashToolSource:
         safe_id = base.name or "bash_tool"
 
         install_dir = ctx.cache_dir / "bash" / f"{safe_id}@{revision}"
-        install_dir = self._ensure_cached_copy(install_dir, project_dir, expects_manifest=True)
+        install_dir = self._ensure_cached_copy(install_dir, project_dir, expects_manifest=True, policy=ctx.policy)
+        if ctx.claim is not None:
+            ctx.claim(install_dir)
         return self._classes_from_manifest(install_dir, ctx.policy)
 
     # ------------------------------------------------------------------
@@ -304,7 +306,9 @@ class BashToolSource:
 
             safe_id = self._safe_id(url)
             install_dir = ctx.cache_dir / "bash" / f"{safe_id}@{commit}"
-            install_dir = self._ensure_cached_copy(install_dir, project_dir, expects_manifest=True)
+            install_dir = self._ensure_cached_copy(install_dir, project_dir, expects_manifest=True, policy=ctx.policy)
+            if ctx.claim is not None:
+                ctx.claim(install_dir)
             return self._classes_from_manifest(install_dir, ctx.policy)
         finally:
             try:
@@ -361,10 +365,16 @@ class BashToolSource:
         safe_id = Path(raw_file).stem or "bash_tool"
 
         install_dir = ctx.cache_dir / "bash" / f"{safe_id}@{revision}"
+        protected = ctx.policy.get("_cache_in_use")
+        if callable(protected) and install_dir.exists() and protected(install_dir):
+            if not (install_dir / path.name).is_file():
+                raise RuntimeError(f"Cached bash tool is in use: {install_dir}")
         install_dir.mkdir(parents=True, exist_ok=True)
         dst = install_dir / path.name
         if not dst.exists():
             shutil.copy2(path, dst)
+        if ctx.claim is not None:
+            ctx.claim(install_dir)
 
         schema, err = self._read_tool_schema(dst, ctx.policy)
         if err is not None or schema is None:
@@ -804,7 +814,8 @@ class BashToolSource:
     # ------------------------------------------------------------------
 
     def _ensure_cached_copy(
-        self, install_dir: Path, project_dir: Path, *, expects_manifest: bool
+        self, install_dir: Path, project_dir: Path, *, expects_manifest: bool,
+        policy: Mapping[str, Any],
     ) -> Path:
         marker = install_dir / "agent_plugin.json" if expects_manifest else install_dir
         if install_dir.is_dir() and marker.exists():
@@ -812,6 +823,9 @@ class BashToolSource:
 
         install_dir.parent.mkdir(parents=True, exist_ok=True)
         if install_dir.exists():
+            protected = policy.get("_cache_in_use")
+            if callable(protected) and protected(install_dir):
+                raise RuntimeError(f"Cached bash tool is in use: {install_dir}")
             shutil.rmtree(install_dir, ignore_errors=True)
         shutil.copytree(
             project_dir,

@@ -50,16 +50,19 @@ def _init_local_git_repo(repo: Path) -> str:
     # Initialize git and commit
     subprocess.check_call(["git", "init"], cwd=str(repo))
     subprocess.check_call(["git", "add", "."], cwd=str(repo))
-    subprocess.check_call([
-        "git",
-        "-c",
-        "user.email=test@example.com",
-        "-c",
-        "user.name=Test User",
-        "commit",
-        "-m",
-        "init",
-    ], cwd=str(repo))
+    subprocess.check_call(
+        [
+            "git",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "user.name=Test User",
+            "commit",
+            "-m",
+            "init",
+        ],
+        cwd=str(repo),
+    )
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo)).decode().strip()
     return commit
 
@@ -91,3 +94,19 @@ def test_git_installer_installs_and_imports(tmp_path: Path) -> None:
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     assert meta.get("commit") == commit
     assert meta.get("entry") == entry
+    installed_at = meta["installed_at"]
+    mgr.close()
+    mgr2 = PluginManager(cache_dir=cache_dir)
+    try:
+        assert mgr2.resolve_all([spec]).errors == []
+        assert json.loads(meta_path.read_text(encoding="utf-8"))["installed_at"] == installed_at
+        mgr3 = PluginManager(cache_dir=cache_dir)
+        try:
+            conflicting = {**spec, "ref": "HEAD"}
+            result = mgr3.resolve_all([conflicting])
+            assert result.errors == []
+            assert json.loads(meta_path.read_text(encoding="utf-8"))["installed_at"] == installed_at
+        finally:
+            mgr3.close()
+    finally:
+        mgr2.close()

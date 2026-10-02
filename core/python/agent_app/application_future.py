@@ -477,6 +477,7 @@ class AgentApplication:
             policy=plugin_policy,
             sources=plugin_sources,
         )
+        self._plugin_manager = mgr
 
         providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}
@@ -783,6 +784,7 @@ class AgentApplication:
             self._agent_plugin_runtimes[agent_id] = runtime
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
+        mgr.cleanup()
         self._raise_for_fatal_config_errors()
         if replay_server_settings_on_startup:
             self._replay_server_settings_on_startup()
@@ -2467,6 +2469,7 @@ class AgentApplication:
                 )
         self._runtime_store.close()
         self._async_runtime_host.close()
+        self._plugin_manager.close()
         if self._runtime_env_finalizer.alive:
             self._runtime_env_finalizer()
 
