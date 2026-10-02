@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createConfigDropdownSuggestionEngine,
   getDefaultPinnedConfigRichUiKeys,
+  getSessionSettingsActionAnchor,
   isSessionActionPlacedAt,
   normalizeConfigDropdownPresentation,
   normalizeConfigRichUiElement,
@@ -537,5 +538,61 @@ describe("session action rich UI", () => {
     expect(isSessionActionPlacedAt(result.value!, "session_header")).toBe(
       false,
     );
+  });
+
+  it("normalizes a settings button with a config-field anchor", () => {
+    const result = normalizeSessionActionRichUiElement({
+      ui_type: "session_action",
+      plugin: "openai_responses_prompt_caching",
+      id: "regenerate_prompt_cache_key",
+      label: "Regenerate cache key",
+      action_id: "regenerate_prompt_cache_key",
+      action_owner: "provider_extension",
+      rich_ui: {
+        kind: "button",
+        placements: ["session_settings"],
+        anchor_key: "prompt_cache_key",
+        position: "after",
+        tone: "muted",
+      },
+    });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.value?.rich_ui).toEqual({
+      kind: "button",
+      placements: ["session_settings"],
+      anchor_key: "prompt_cache_key",
+      position: "after",
+      tone: "muted",
+    });
+    expect(
+      isSessionActionPlacedAt(result.value!, "session_settings"),
+    ).toBe(true);
+    expect(isSessionActionPlacedAt(result.value!, "session_header")).toBe(
+      false,
+    );
+    expect(getSessionSettingsActionAnchor(result.value!)).toEqual({
+      key: "prompt_cache_key",
+      position: "after",
+    });
+  });
+
+  it("rejects unsupported settings button positions", () => {
+    const result = normalizeSessionActionRichUiElement({
+      ui_type: "session_action",
+      plugin: "settings",
+      id: "repair",
+      label: "Repair",
+      action_id: "repair",
+      rich_ui: {
+        kind: "button",
+        placements: ["session_settings"],
+        position: "before",
+      },
+    });
+
+    expect(result.value).not.toBeNull();
+    expect(result.value?.rich_ui).toBeUndefined();
+    expect(result.diagnostics[0].message).toContain("supports only 'after'");
   });
 });

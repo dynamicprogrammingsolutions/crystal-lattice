@@ -91,21 +91,30 @@ fixed proxy pricing and daily budget cannot be changed by a session control.
 
 `workspace_root` is the fixed app-owned filesystem authorization boundary.
 `working_directory` is the session-specific directory used to resolve
-relative file-tool paths. The embedded workspace-settings feature contributes
-a `directory` control containing the root and existing descendant
-directories, with workspace-relative labels.
+relative file-tool paths. The embedded workspace package contributes a
+`workspace` control whose value is an opaque `workspace_id`, plus
+plugin-driven action buttons for creating private/shared workspaces and
+selecting a folder from iOS Files.
 
-Session overrides cannot change `workspace_root` or `allowed_paths`.
-`AgentApplication` canonicalizes and validates a selected working directory
-before persistence, and the shared embedded tool resolver repeats containment
-validation during tool initialization. Traversal, sibling paths, symlink
-escape, missing directories, and non-UI attempts to expand the root are
-rejected.
+Known choices are classified as:
 
-The first version does not create directories from the selector and does not
-retain arbitrary iOS Files/iCloud security-scoped access. Tools may create
-ordinary descendant directories as part of authorized workspace file writes;
-reopening Session settings then lists them as choices.
+- private directories under the current session's app-owned area;
+- shared directories under the fixed app workspace; and
+- native-host-authorized external directories represented by opaque grant
+  IDs.
+
+The native host stores and restores security-scoped bookmarks and injects only
+active grant IDs, display names, and resolved authorized roots into the
+embedded runtime. Session metadata stores `workspace_id` and the canonical
+effective `working_directory`, never a bookmark. Direct path updates remain
+limited to the app workspace; an external path is accepted only when derived
+from an active registered grant.
+
+Both Claude-like and Codex-like tools use the selected working directory as
+their immediate root. The shared resolver accepts the fixed app root plus
+active external grants as authorization boundaries, while still rejecting
+parent traversal, sibling access, symlink escape, missing directories, and
+unregistered external paths.
 
 ## Verification
 

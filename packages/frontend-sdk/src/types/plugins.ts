@@ -27,6 +27,11 @@ export interface ActionUiElement {
   fixed_params?: Record<string, any>;
   param_map?: Record<string, string>;
   dialog?: any;
+  client_input?: {
+    kind: string;
+    input_name: string;
+    [k: string]: any;
+  };
   metadata?: Record<string, any>;
   [k: string]: any;
 }

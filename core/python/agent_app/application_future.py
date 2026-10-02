@@ -1731,21 +1731,104 @@ class AgentApplication:
         return dict(updates)
 
     @staticmethod
-    def _validate_workspace_session_updates(
+    def _workspace_grants_from_config(
         base_config: Dict[str, Any],
+    ) -> Dict[str, Dict[str, Any]]:
+        raw = base_config.get("workspace_grants")
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                raw = {}
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(grant_id): dict(record)
+            for grant_id, record in raw.items()
+            if isinstance(grant_id, str) and isinstance(record, dict)
+        }
+
+    @classmethod
+    def _resolve_workspace_selection(
+        cls,
+        base_config: Dict[str, Any],
+        session_id: str,
+        workspace_id: str,
+    ) -> Path:
+        workspace_root = Path(str(base_config["workspace_root"])).expanduser().resolve()
+        if workspace_id == "shared:root":
+            candidate = workspace_root
+        elif workspace_id.startswith("shared:"):
+            relative = Path(workspace_id.removeprefix("shared:"))
+            if relative.is_absolute() or ".sessions" in relative.parts:
+                raise ValueError("shared workspace selection is invalid")
+            candidate = (workspace_root / relative).resolve()
+            try:
+                candidate.relative_to(workspace_root)
+            except ValueError as exc:
+                raise ValueError("shared workspace selection escapes workspace_root") from exc
+        elif workspace_id.startswith("private:"):
+            parts = workspace_id.split(":", 2)
+            if len(parts) != 3 or parts[1] != session_id:
+                raise ValueError("private workspace belongs to another session")
+            relative = Path(parts[2])
+            private_root = (workspace_root / ".sessions" / session_id).resolve()
+            candidate = (private_root / relative).resolve()
+            try:
+                candidate.relative_to(private_root)
+            except ValueError as exc:
+                raise ValueError("private workspace selection is invalid") from exc
+        elif workspace_id.startswith("external:"):
+            grant_id = workspace_id.removeprefix("external:")
+            record = cls._workspace_grants_from_config(base_config).get(grant_id)
+            raw_path = record.get("path") if isinstance(record, dict) else None
+            if (
+                not isinstance(raw_path, str)
+                or not raw_path.strip()
+                or record.get("available") is not True
+            ):
+                raise ValueError("external workspace permission is unavailable")
+            candidate = Path(raw_path).expanduser().resolve()
+        else:
+            raise ValueError("workspace_id is not recognized")
+
+        if not candidate.is_dir():
+            raise ValueError("selected workspace must identify an existing directory")
+        return candidate
+
+    @classmethod
+    def _validate_workspace_session_updates(
+        cls,
+        base_config: Dict[str, Any],
+        session_id: str,
         updates: Dict[str, Any],
     ) -> Dict[str, Any]:
         raw_workspace_root = base_config.get("workspace_root")
         if not isinstance(raw_workspace_root, str) or not raw_workspace_root.strip():
             return updates
 
-        locked_keys = {"workspace_root", "allowed_paths"}
+        locked_keys = {"workspace_root", "allowed_paths", "workspace_grants"}
         attempted_locked = sorted(locked_keys.intersection(updates))
         if attempted_locked:
             raise ValueError(
                 "session settings cannot override fixed workspace keys: "
                 + ", ".join(attempted_locked)
             )
+
+        if "workspace_id" in updates:
+            raw_workspace_id = updates.get("workspace_id")
+            if not isinstance(raw_workspace_id, str) or not raw_workspace_id.strip():
+                raise ValueError("workspace_id must be a non-empty string")
+            working_directory = cls._resolve_workspace_selection(
+                base_config,
+                session_id,
+                raw_workspace_id.strip(),
+            )
+            return {
+                **updates,
+                "workspace_id": raw_workspace_id.strip(),
+                "working_directory": str(working_directory),
+            }
 
         if "working_directory" not in updates:
             return updates
@@ -1909,6 +1992,7 @@ class AgentApplication:
             core, base_config, session = ctx
             normalized_updates = self._validate_workspace_session_updates(
                 base_config,
+                session_id,
                 normalized_updates,
             )
             metadata = session.metadata if isinstance(session.metadata, dict) else {}

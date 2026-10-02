@@ -21,14 +21,19 @@ const mockedUseSessionSettingsController =
 
 const patchOverride = jest.fn<Promise<void>, [string, unknown]>(async () => {});
 const deleteOverride = jest.fn<Promise<void>, [string]>(async () => {});
+const invalidate = jest.fn();
+const load = jest.fn<Promise<void>, []>(async () => {});
 
 function renderSettingsModal() {
   mockedUseSessionSettingsController.mockReturnValue({
     controller: {
       patchOverride,
       deleteOverride,
+      invalidate,
+      load,
     } as any,
     state: {
+      actions: [],
       elements: [
         {
           ui_type: 'config',
@@ -149,8 +154,11 @@ function renderOpenAIAuthSettingsModal(
     controller: {
       patchOverride,
       deleteOverride,
+      invalidate,
+      load,
     } as any,
     state: {
+      actions: [],
       elements: [
         {
           ui_type: 'config',
@@ -314,5 +322,159 @@ test('session settings directory opens contained options and persists selection'
       'working_directory',
       '/app/workspace/projects/alpha'
     );
+  });
+});
+
+test('session settings renders and executes an action anchored to a field', async () => {
+  const executeSessionAction = jest.fn(async () => ({
+    status: 'ok' as const,
+    plugin: 'openai_responses_prompt_caching',
+    action_id: 'regenerate_prompt_cache_key',
+    action_owner: 'provider_extension',
+    result: {
+      mutations: { updated_session_ids: ['session-1'] },
+      ui_effects: { reload_session_ids: ['session-1'] },
+    },
+  }));
+  mockedUseSessionSettingsController.mockReturnValue({
+    controller: {
+      patchOverride,
+      deleteOverride,
+      invalidate,
+      load,
+    } as any,
+    state: {
+      elements: [
+        {
+          ui_type: 'config',
+          key: 'prompt_cache_key',
+          type: 'text',
+          label: 'Prompt cache key',
+        },
+      ],
+      actions: [
+        {
+          ui_type: 'session_action',
+          plugin: 'openai_responses_prompt_caching',
+          id: 'regenerate_prompt_cache_key',
+          label: 'Regenerate cache key',
+          action_id: 'regenerate_prompt_cache_key',
+          action_owner: 'provider_extension',
+          param_map: { session_id: '$session.session_id' },
+          rich_ui: {
+            kind: 'button',
+            placements: ['session_settings'],
+            anchor_key: 'prompt_cache_key',
+            position: 'after',
+          },
+        },
+      ],
+      overrides: {},
+      configSchema: [{ key: 'prompt_cache_key' }],
+      baseConfig: { prompt_cache_key: 'opcache_old' },
+      loading: false,
+      refreshing: false,
+      savingKeys: [],
+      error: null,
+      statusMessage: null,
+      statusTone: 'idle',
+      lastSavedAt: null,
+      lastLoadedAt: 1,
+    },
+  });
+
+  renderWithMobileProviders(
+    <SessionSettingsModal
+      backend={{ executeSessionAction } as any}
+      sessionId="session-1"
+      visible
+      acquireClientValues={async () => ({})}
+      onRequestClose={jest.fn()}
+    />
+  );
+
+  fireEvent.press(
+    screen.getByTestId(
+      'session-settings-action-regenerate_prompt_cache_key'
+    )
+  );
+
+  await waitFor(() => {
+    expect(executeSessionAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        actionId: 'regenerate_prompt_cache_key',
+        inputs: { session_id: 'session-1' },
+      })
+    );
+    expect(invalidate).toHaveBeenCalled();
+    expect(load).toHaveBeenCalled();
+  });
+});
+
+test('canceling a directory client input skips action execution', async () => {
+  const executeSessionAction = jest.fn();
+  mockedUseSessionSettingsController.mockReturnValue({
+    controller: {
+      patchOverride,
+      deleteOverride,
+      invalidate,
+      load,
+    } as any,
+    state: {
+      elements: [],
+      actions: [
+        {
+          ui_type: 'session_action',
+          plugin: 'workspace',
+          id: 'select_external_workspace',
+          label: 'Choose folder from Files…',
+          action_id: 'select_external_workspace',
+          action_owner: 'application',
+          client_input: {
+            kind: 'directory',
+            input_name: 'workspace_grant_id',
+            persistent: true,
+          },
+          param_map: {
+            session_id: '$session.session_id',
+            grant_id: '$client.workspace_grant_id',
+          },
+          rich_ui: {
+            kind: 'button',
+            placements: ['session_settings'],
+          },
+        },
+      ],
+      overrides: {},
+      configSchema: [],
+      baseConfig: {},
+      loading: false,
+      refreshing: false,
+      savingKeys: [],
+      error: null,
+      statusMessage: null,
+      statusTone: 'idle',
+      lastSavedAt: null,
+      lastLoadedAt: 1,
+    },
+  });
+
+  renderWithMobileProviders(
+    <SessionSettingsModal
+      backend={{ executeSessionAction } as any}
+      sessionId="session-1"
+      visible
+      acquireClientValues={async () => null}
+      onRequestClose={jest.fn()}
+    />
+  );
+
+  fireEvent.press(
+    screen.getByTestId('session-settings-action-select_external_workspace')
+  );
+
+  await waitFor(() => {
+    expect(executeSessionAction).not.toHaveBeenCalled();
   });
 });

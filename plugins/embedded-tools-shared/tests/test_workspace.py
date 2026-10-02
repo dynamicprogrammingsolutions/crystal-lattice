@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -72,3 +73,34 @@ def test_workspace_without_boundary_keeps_legacy_behavior(tmp_path: Path) -> Non
     assert resolve_workspace_root({"working_directory": str(selected)}) == (
         selected.resolve()
     )
+
+
+def test_workspace_accepts_only_registered_external_grants(tmp_path: Path) -> None:
+    internal = tmp_path / "internal"
+    external = tmp_path / "external"
+    unregistered = tmp_path / "unregistered"
+    internal.mkdir()
+    external.mkdir()
+    unregistered.mkdir()
+    config = {
+        "workspace_root": str(internal),
+        "working_directory": str(external),
+        "workspace_grants": json.dumps(
+            {
+                "grant-1": {
+                    "path": str(external),
+                    "available": True,
+                }
+            }
+        ),
+    }
+
+    assert resolve_workspace_root(config) == external.resolve()
+
+    with pytest.raises(WorkspacePathError, match="escapes"):
+        resolve_workspace_root(
+            {
+                **config,
+                "working_directory": str(unregistered),
+            }
+        )

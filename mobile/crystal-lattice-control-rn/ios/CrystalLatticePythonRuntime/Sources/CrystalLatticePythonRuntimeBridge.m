@@ -33,4 +33,8 @@ RCT_EXTERN_METHOD(noteAppState:(NSString *)state
 RCT_EXTERN_METHOD(getLifecycleStatus:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(registerWorkspaceDirectoryGrant:(NSDictionary *)input
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end

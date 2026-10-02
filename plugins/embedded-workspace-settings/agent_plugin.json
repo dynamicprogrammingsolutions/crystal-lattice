@@ -2,9 +2,11 @@
   "module": "embedded_workspace_settings",
   "subdirectory": ".",
   "entries": [
-    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature"
+    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature",
+    "embedded_workspace_settings.workspace_app_plugin.EmbeddedWorkspaceAppPlugin"
   ],
   "kinds": {
-    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature": "features"
+    "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature": "features",
+    "embedded_workspace_settings.workspace_app_plugin.EmbeddedWorkspaceAppPlugin": "application"
   }
 }

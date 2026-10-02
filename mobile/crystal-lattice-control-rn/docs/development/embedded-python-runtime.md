@@ -126,18 +126,53 @@ writes, search, enumeration, and patches are bounded UTF-8 text operations.
 Session snapshots, selected-snapshot state, application settings, and
 session-owned attachments stay under the app-support root.
 
-The workspace root is fixed for the application. Each session may select the
-root or an existing descendant as its own working directory from **Session
-settings → Working directory**. The directory picker shows relative names
-such as `projects/alpha`, while the persisted override uses the canonical
-app-container path. Different sessions retain independent choices.
+The app-owned workspace remains available, but **Session settings → Working
+directory** now presents opaque workspace choices:
+
+- **Private** workspaces created for and listed only to the current session;
+- **Shared** app workspaces, including the existing workspace root and named
+  directories reusable by other sessions; and
+- **Files** folders selected directly from iOS Files or another available file
+  provider.
+
+The workspace plugin places **Use a new private workspace**, **New shared
+workspace…**, and **Choose folder from Files…** action buttons directly under
+the setting. Known choices save immediately. Creation and Files authorization
+run through normal plugin actions and refresh the setting after success.
+
+The Files picker requests persistent read/write access. Native code retains
+the security-scoped bookmark and supplies the embedded runtime only an opaque
+grant ID and active resolved root. The selected folder is used in place; its
+contents are not copied into the app sandbox.
 
 The in-process override adapter delegates to `AgentApplication`, which rejects
-attempts to override the workspace root or allowed paths and rejects a working
-directory outside the root. The shared Claude-like and Codex-like tool engine
-performs the same containment check before tool execution. Arbitrary
-Files/iCloud directory selection and security-scoped bookmarks are not part of
-this version.
+unknown workspace IDs, another session's private workspace, traversal,
+unregistered external paths, and attempts to override fixed authorization
+fields. The shared Claude-like and Codex-like tool engine repeats the
+effective-root boundary check before tool execution.
+
+### Manual Files-folder verification in the simulator
+
+After building and installing the Release app:
+
+1. Open the on-device connection and create a session using a configured
+   provider.
+2. Open **Session settings → Working directory**.
+3. Confirm **Workspace root** remains available.
+4. Run **Use a new private workspace** and confirm the value changes to
+   **Private**.
+5. Run **New shared workspace…**, enter a name, and confirm another session can
+   select it under **Shared**.
+6. Run **Choose folder from Files…**. In the native picker, create or select a
+   simulator folder and approve it.
+7. Ask the agent to write and read a marker file. Inspect the selected Files
+   folder to confirm the marker is there and was not copied into the app-owned
+   workspace.
+8. Terminate and relaunch the app, reopen the same session, and confirm the
+   **Files** workspace remains selected and the marker can still be read.
+9. Move or remove the folder, relaunch, and confirm the setting reports
+   **Unavailable** and offers **Restore access…** rather than silently
+   switching workspaces.
 
 Prepare the runtime and CocoaPods dependencies from the mobile package:
 

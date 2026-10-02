@@ -617,19 +617,21 @@ def test_fixed_runtime_config_loads_separate_tool_families(
             element.get("id") == "show_compiled_system_message"
             for element in ui_elements
         )
+        application_ui = runtime.application.get_session_application_ui_schema(
+            default_session.session_id
+        )
         working_directory_element = next(
             element
-            for element in ui_elements
-            if element.get("key") == "working_directory"
+            for element in application_ui
+            if element.get("key") == "workspace_id"
         )
-        assert working_directory_element["type"] == "directory"
-        assert working_directory_element["options"][0] == {
-            "value": str(runtime.workspace_dir.resolve()),
-            "label": "Workspace root",
-        }
+        assert working_directory_element["type"] == "workspace"
+        assert working_directory_element["options"][0]["value"] == "shared:root"
+        assert working_directory_element["options"][0]["label"] == "Workspace root"
         assert {
             plugin["id"] for plugin in runtime.application.list_application_plugins()
         } == {
+            "embedded_workspace_app",
             "chatgpt_auth",
             "generate_title",
             "session_actions",
@@ -803,6 +805,48 @@ def test_sessions_select_independent_contained_working_directories(
             ) == content
 
         assert not (alpha / "session.txt").samefile(beta / "session.txt")
+    finally:
+        runtime.application.close()
+
+
+def test_external_workspace_grant_is_selectable_without_copying(
+    tmp_path: Path,
+) -> None:
+    module = load_runtime_module()
+    external = tmp_path / "files-provider" / "project"
+    external.mkdir(parents=True)
+    marker = external / "marker.txt"
+    marker.write_text("external-marker", encoding="utf-8")
+    runtime = module.MobileRuntime(
+        str(tmp_path / "runtime"),
+        {
+            "workspace_grants": {
+                "grant-1": {
+                    "path": str(external),
+                    "display_name": "Project",
+                    "available": True,
+                }
+            }
+        },
+    )
+    try:
+        session = runtime.create_session(agent_id="local")
+        result = runtime.application.execute_action(
+            "embedded_workspace_app",
+            "select_external_workspace",
+            {
+                "session_id": session.session_id,
+                "grant_id": "grant-1",
+            },
+            action_owner="application",
+            context={"session_id": session.session_id},
+        )
+        assert result["mutations"]["updated_session_ids"] == [session.session_id]
+        overrides = runtime.application.get_session_settings(session.session_id)
+        assert overrides["workspace_id"] == "external:grant-1"
+        assert overrides["working_directory"] == str(external.resolve())
+        assert marker.read_text(encoding="utf-8") == "external-marker"
+        assert not (runtime.workspace_dir / "marker.txt").exists()
     finally:
         runtime.application.close()
 
@@ -1168,6 +1212,99 @@ def test_application_plugins_actions_snapshots_and_settings_routes(
             and element.get("id") == "fork_session_at_message"
             for element in session_ui
             if isinstance(element, dict)
+        )
+        workspace_element = next(
+            element
+            for element in session_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("key") == "workspace_id"
+        )
+        assert workspace_element["type"] == "workspace"
+        assert {
+            element.get("id")
+            for element in session_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("ui_type") == "session_action"
+        } == {
+            "create_private_workspace",
+            "create_shared_workspace",
+            "select_external_workspace",
+        }
+
+        private_result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/actions",
+            {
+                "plugin": "embedded_workspace_app",
+                "action_id": "create_private_workspace",
+                "action_owner": "application",
+                "inputs": {"session_id": session_id},
+            },
+        )
+        assert private_result["status"] == "ok"
+        private_overrides = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{session_id}/overrides",
+        )["overrides"]
+        assert private_overrides["workspace_id"].startswith(
+            f"private:{session_id}:"
+        )
+        assert Path(private_overrides["working_directory"]).is_dir()
+
+        shared_result = call(
+            module,
+            tmp_path,
+            "POST",
+            f"/sessions/{session_id}/actions",
+            {
+                "plugin": "embedded_workspace_app",
+                "action_id": "create_shared_workspace",
+                "action_owner": "application",
+                "inputs": {
+                    "session_id": session_id,
+                    "name": "shared-matrix",
+                },
+            },
+        )
+        assert shared_result["status"] == "ok"
+        shared_overrides = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{session_id}/overrides",
+        )["overrides"]
+        assert shared_overrides["workspace_id"] == "shared:shared-matrix"
+
+        other_session = call(
+            module,
+            tmp_path,
+            "POST",
+            "/sessions",
+            {"agent_id": "local"},
+        )["session"]
+        other_ui = call(
+            module,
+            tmp_path,
+            "GET",
+            f"/sessions/{other_session['session_id']}/application/ui-schema",
+        )["elements"]
+        other_workspace = next(
+            element
+            for element in other_ui
+            if element.get("plugin") == "embedded_workspace_app"
+            and element.get("key") == "workspace_id"
+        )
+        other_values = {
+            option["value"] for option in other_workspace["options"]
+        }
+        assert "shared:shared-matrix" in other_values
+        assert not any(
+            value.startswith(f"private:{session_id}:")
+            for value in other_values
         )
 
         title_result = call(

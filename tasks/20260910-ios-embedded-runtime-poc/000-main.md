@@ -60,6 +60,9 @@ session-management parity, then add the next research-oriented capabilities.
 - [x] Each session can select a working directory contained by the fixed
   application workspace through a dedicated directory setting without
   expanding filesystem access.
+- [ ] A session can create or select an app-private sandbox, create or reuse
+  an app-owned workspace shared with other sessions, or select an authorized
+  folder from iOS Files without copying its contents.
 - [x] Consumer-facing connection names, profile labels, agent names, default
   selection, profile order, and exposure of the proof-of-concept smoke agent
   are treated as provisional until explicitly approved.
@@ -161,12 +164,18 @@ the embedded implementation and its staged tool/provider enhancements.
   execution.
 - Subtask `019` owns the approved workspace-internal per-session working
   directory selector and filesystem-boundary enforcement.
+- Subtask `022` owns the approved reusable plugin contract for placing actions
+  next to fields in session settings, including client-assisted directory
+  selection.
+- Subtask `025` owns the proposed user-selectable workspace UX, internal
+  directory creation, and persistent security-scoped iOS Files access on top
+  of the settings-action contract.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
 - ChatGPT authorization settings and the corrected production reviewer
-  Responses path are in approved subtask `017`. Local-model fallback, email, arbitrary
-  workspace roots, and polished cross-platform credential hardening remain
-  outside this task.
+  Responses path are in approved subtask `017`. Local-model fallback, email,
+  cross-platform external workspace support, and polished cross-platform
+  credential hardening remain outside this task.
 
 ## Subtasks
 
@@ -176,4 +185,6 @@ the embedded implementation and its staged tool/provider enhancements.
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/018-embedded-json-config-plugin-parity-and-product-review.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/019-session-working-directory-selector.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/022-plugin-driven-session-settings-actions.md`
+- [ ] `tasks/20260910-ios-embedded-runtime-poc/025-user-selectable-ios-workspaces.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`

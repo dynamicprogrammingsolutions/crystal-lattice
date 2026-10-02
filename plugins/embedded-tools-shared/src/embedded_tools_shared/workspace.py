@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -29,6 +30,22 @@ def resolve_workspace_boundaries(config: Mapping[str, Any]) -> tuple[Path, ...]:
                 for value in raw_allowed_paths
                 if isinstance(value, str) and value.strip()
             )
+
+    raw_grants = config.get("workspace_grants")
+    if isinstance(raw_grants, str):
+        try:
+            raw_grants = json.loads(raw_grants)
+        except json.JSONDecodeError:
+            raw_grants = {}
+    if isinstance(raw_grants, Mapping):
+        for record in raw_grants.values():
+            if (
+                isinstance(record, Mapping)
+                and record.get("available") is True
+                and isinstance(record.get("path"), str)
+                and record["path"].strip()
+            ):
+                configured.append(record["path"])
 
     boundaries: list[Path] = []
     for raw_path in configured:

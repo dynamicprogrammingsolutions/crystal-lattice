@@ -6,6 +6,7 @@ export type {
   SessionSettingSource,
   SessionSettingTagLabel,
   SessionSettingsActions,
+  SessionSettingsAfterItemRenderer,
   SessionSettingsFrameRenderer,
   SessionSettingsRenderers,
 } from './types';

@@ -148,6 +148,11 @@ def _normalized_runtime_configuration(
         "default_agent": default_agent,
         "reviewer_visible": bool(source.get("reviewer_visible", False)),
         "providers": profiles,
+        "workspace_grants": (
+            source.get("workspace_grants")
+            if isinstance(source.get("workspace_grants"), dict)
+            else {}
+        ),
     }
 
 
@@ -240,6 +245,10 @@ def _embedded_config_environment(
         ),
         "EMBEDDED_COST_TRACKING_DB_PATH": str(
             workspace_root.parent / "cost-tracking" / "cost-tracking.sqlite3"
+        ),
+        "EMBEDDED_WORKSPACE_GRANTS_JSON": json.dumps(
+            configuration.get("workspace_grants") or {},
+            sort_keys=True,
         ),
     }
 

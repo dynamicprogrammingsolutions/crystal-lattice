@@ -401,6 +401,7 @@ export { SessionApplicationUiSchemaController } from "./uiSchema/sessionApplicat
 
 export type {
   ChatRichUiPlacement,
+  SessionSettingsActionAnchor,
   ConfigCustomValue,
   ConfigDropdownPresentation,
   ConfigDropdownSuggestion,
@@ -423,6 +424,7 @@ export {
   createConfigDropdownSuggestionEngine,
   getDefaultPinnedConfigRichUiKeys,
   getSessionActionRichUiPlacements,
+  getSessionSettingsActionAnchor,
   isSessionActionPlacedAt,
   normalizeConfigDropdownPresentation,
   normalizeConfigRichUiElement,

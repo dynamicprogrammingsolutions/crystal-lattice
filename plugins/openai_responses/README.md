@@ -378,7 +378,8 @@ When prompt cache key support is enabled:
 - older sessions missing a key are repaired on first request
 - forked sessions keep the same key by default
 - users can manually edit the key through normal session settings
-- users can regenerate the key through the `regenerate_prompt_cache_key` session action
+- users can regenerate the key from the action button placed directly below
+  the cache-key field in session settings
 
 By default, prompt cache key support is enabled when this extension is loaded.
 Set `enable_prompt_cache_key: false` if you want to turn off automatic
@@ -685,7 +686,9 @@ details.
 
 It exposes a session action with id `regenerate_prompt_cache_key` that replaces
 the current session-owned prompt cache key without changing the visible
-transcript.
+transcript. Its UI element uses the `session_settings` placement and anchors
+the button after `prompt_cache_key`, so frontends supporting settings actions
+do not also place it in the ordinary session-action bar.
 
 ## Capabilities and caveats
 

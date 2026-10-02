@@ -125,6 +125,10 @@ interface EmbeddedPythonRuntimeModule {
   getConfiguration(): Promise<EmbeddedRuntimePublicConfiguration>;
   noteAppState(state: string): Promise<EmbeddedRuntimeLifecycleStatus>;
   getLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus>;
+  registerWorkspaceDirectoryGrant(input: {
+    uri: string;
+    bookmark?: string;
+  }): Promise<{ grantId: string; displayName: string }>;
 }
 
 const nativeRuntime =
@@ -183,6 +187,13 @@ export async function noteEmbeddedPythonRuntimeAppState(
 
 export async function getEmbeddedPythonRuntimeLifecycleStatus(): Promise<EmbeddedRuntimeLifecycleStatus> {
   return requireNativeRuntime().getLifecycleStatus();
+}
+
+export async function registerEmbeddedWorkspaceDirectoryGrant(input: {
+  uri: string;
+  bookmark?: string;
+}): Promise<{ grantId: string; displayName: string }> {
+  return requireNativeRuntime().registerWorkspaceDirectoryGrant(input);
 }
 
 export interface EmbeddedRuntimeApplicationActionResult {

@@ -23,6 +23,7 @@ final class CrystalLatticePythonRuntime: NSObject {
     "clcEmbeddedProviderSettingsV2"
   private static let providerKeychainService =
     "com.dynamicprogrammingsolutions.crystallattice.embedded-provider-key"
+  private static var activeWorkspaceGrantURLs: [String: URL] = [:]
   private static let embeddedSettings: [String: Any] = {
     guard
       let resourcesURL = Bundle.main.url(
@@ -300,6 +301,56 @@ final class CrystalLatticePythonRuntime: NSObject {
     Self.queue.async {
       _ = reject
       resolve(Self.publicConfiguration())
+    }
+  }
+
+  @objc(registerWorkspaceDirectoryGrant:resolver:rejecter:)
+  func registerWorkspaceDirectoryGrant(
+    _ input: NSDictionary,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Self.queue.async {
+      do {
+        guard
+          let uri = input["uri"] as? String,
+          let selectedURL = URL(string: uri),
+          selectedURL.isFileURL,
+          let bookmark = input["bookmark"] as? String,
+          Data(base64Encoded: bookmark) != nil
+        else {
+          throw RuntimeError.invalidWorkspaceGrant
+        }
+        let records = try Self.loadWorkspaceGrantRecords()
+        let existing = records.first { _, record in
+          record["uri"] as? String == uri
+        }
+        let grantId = existing?.key ?? UUID().uuidString.lowercased()
+        var nextRecords = records
+        nextRecords[grantId] = [
+          "uri": uri,
+          "bookmark": bookmark,
+          "displayName": selectedURL.lastPathComponent.isEmpty
+            ? "Selected folder"
+            : selectedURL.lastPathComponent,
+        ]
+        try Self.saveWorkspaceGrantRecords(nextRecords)
+        let active = try Self.restoreWorkspaceGrant(
+          grantId: grantId,
+          record: nextRecords[grantId] ?? [:]
+        )
+        resolve([
+          "grantId": grantId,
+          "displayName": active["display_name"] as? String
+            ?? "Selected folder",
+        ])
+      } catch {
+        reject(
+          "workspace_grant_failed",
+          error.localizedDescription,
+          error
+        )
+      }
     }
   }
 
@@ -810,6 +861,7 @@ final class CrystalLatticePythonRuntime: NSObject {
         ?? configuredDefaultAgent,
       "reviewer_visible": normalized["reviewerVisible"] as? Bool ?? false,
       "providers": providers,
+      "workspace_grants": (try? activeWorkspaceGrants()) ?? [:],
     ]
   }
 
@@ -884,6 +936,101 @@ final class CrystalLatticePythonRuntime: NSObject {
 
   private static func nowMs() -> Double {
     Date().timeIntervalSince1970 * 1000
+  }
+
+  private static func workspaceGrantsURL() throws -> URL {
+    try runtimeRoot()
+      .appendingPathComponent("config", isDirectory: true)
+      .appendingPathComponent("workspace-grants.json", isDirectory: false)
+  }
+
+  private static func loadWorkspaceGrantRecords() throws
+    -> [String: [String: Any]]
+  {
+    let url = try workspaceGrantsURL()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      return [:]
+    }
+    let data = try Data(contentsOf: url)
+    return try JSONSerialization.jsonObject(with: data)
+      as? [String: [String: Any]] ?? [:]
+  }
+
+  private static func saveWorkspaceGrantRecords(
+    _ records: [String: [String: Any]]
+  ) throws {
+    let url = try workspaceGrantsURL()
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    let data = try JSONSerialization.data(
+      withJSONObject: records,
+      options: [.prettyPrinted, .sortedKeys]
+    )
+    try data.write(to: url, options: .atomic)
+    try? FileManager.default.setAttributes(
+      [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+      ofItemAtPath: url.path
+    )
+  }
+
+  private static func restoreWorkspaceGrant(
+    grantId: String,
+    record: [String: Any]
+  ) throws -> [String: Any] {
+    guard
+      let encodedBookmark = record["bookmark"] as? String,
+      let bookmarkData = Data(base64Encoded: encodedBookmark)
+    else {
+      throw RuntimeError.invalidWorkspaceGrant
+    }
+    var stale = false
+    let url = try URL(
+      resolvingBookmarkData: bookmarkData,
+      options: [.withoutUI],
+      relativeTo: nil,
+      bookmarkDataIsStale: &stale
+    )
+    if Self.activeWorkspaceGrantURLs[grantId] == nil {
+      guard url.startAccessingSecurityScopedResource() else {
+        throw RuntimeError.workspaceGrantUnavailable
+      }
+      Self.activeWorkspaceGrantURLs[grantId] = url
+    }
+    let storedDisplayName =
+      (record["displayName"] as? String)?.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+    return [
+      "path": url.path,
+      "display_name": storedDisplayName?.isEmpty == false
+        ? storedDisplayName!
+        : url.lastPathComponent,
+      "available": true,
+      "stale": stale,
+    ]
+  }
+
+  private static func activeWorkspaceGrants() throws -> [String: Any] {
+    let records = try loadWorkspaceGrantRecords()
+    var result: [String: Any] = [:]
+    for (grantId, record) in records {
+      do {
+        result[grantId] = try restoreWorkspaceGrant(
+          grantId: grantId,
+          record: record
+        )
+      } catch {
+        result[grantId] = [
+          "display_name": record["displayName"] as? String
+            ?? "Selected folder",
+          "available": false,
+          "stale": false,
+        ]
+      }
+    }
+    return result
   }
 
   private static func ensureLifecycleInitialized() {
@@ -1105,6 +1252,8 @@ final class CrystalLatticePythonRuntime: NSObject {
     case invalidConfiguration
     case invalidResponse
     case keychainFailure(OSStatus)
+    case invalidWorkspaceGrant
+    case workspaceGrantUnavailable
     case validationFailed(String)
 
     var errorDescription: String? {
@@ -1125,6 +1274,10 @@ final class CrystalLatticePythonRuntime: NSObject {
         return "The embedded runtime returned an invalid response."
       case .keychainFailure(let status):
         return "The provider API key could not be saved (Keychain status \(status))."
+      case .invalidWorkspaceGrant:
+        return "The selected workspace grant is invalid."
+      case .workspaceGrantUnavailable:
+        return "The selected workspace permission is unavailable."
       case .validationFailed(let detail):
         return detail
       }

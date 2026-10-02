@@ -63,6 +63,7 @@
     "embedded_agent_defaults": {
       "workspace_root": "${env:EMBEDDED_WORKSPACE_DIR}",
       "working_directory": "${env:EMBEDDED_WORKSPACE_DIR}",
+      "workspace_grants": "${env:EMBEDDED_WORKSPACE_GRANTS_JSON}",
       "allowed_paths": [
         "${env:EMBEDDED_WORKSPACE_DIR}"
       ],
@@ -167,6 +168,7 @@
     "timestamp_extension.duration_extension.DurationExtension",
     "cost_tracking_plugins.cost_tracking_extension.CostTrackingExtension",
     "embedded_workspace_settings.workspace_settings_feature.EmbeddedWorkspaceSettingsFeature",
+    "embedded_workspace_settings.workspace_app_plugin.EmbeddedWorkspaceAppPlugin",
     "chatgpt_auth_app.ChatGPTAuthAppPlugin",
     "generate_title_app.GenerateTitleAppPlugin",
     "session_actions_app.SessionActionsAppPlugin",
