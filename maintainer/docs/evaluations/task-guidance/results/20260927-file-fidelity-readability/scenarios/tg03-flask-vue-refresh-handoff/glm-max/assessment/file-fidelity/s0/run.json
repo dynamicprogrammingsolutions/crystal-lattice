@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-glm-max-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194511.212535Z-task-guidance-file-fidelity-tg03-flask-vue-refresh-handoff-glm-max-s0-d1a799ac",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "0da740a5944803f16275fe75abf3aaa0127bc20cff45ef86d08b986a1ce390fe",
+    "original_sha256": "e649d0fd5730b5be7d3badf09b0f153590d52a84481bf94af3190a4983b234d6",
+    "path": "shared/system-messages/glm-assessor-0da740a59448.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

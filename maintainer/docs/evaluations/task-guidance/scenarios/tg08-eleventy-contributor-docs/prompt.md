@@ -1,0 +1,1 @@
+New contributors keep asking how to add a post. Create the task for writing the contributor guide section in `CONTRIBUTING.md`: creating a post file, the front matter every post needs (title, date, description, tags), how drafts work, and how to preview the site locally. A maintainer review against the checklist in the task is the acceptance — no product behavior changes.

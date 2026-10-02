@@ -1,0 +1,26 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260919T222231.804778Z-task-guidance-tg06-eleventy-author-migration-decomposition-max-87113c80",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "05f158ec2b3d5e3e89ef58122f158d1b8e69897b65c3dbf34bfb26e0ed1dfc63",
+    "original_sha256": "935d7111fbcefd741fdf2416c64552db9b922daa714ca58329e9351bb1954ec7",
+    "path": "shared/system-messages/glm-05f158ec2b3d.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260920-post-author-migration/000-main.md",
+    "task-files/tasks/20260920-post-author-migration/010-multi-author-model-and-compat.md",
+    "task-files/tasks/20260920-post-author-migration/020-content-and-tooling-migration.md",
+    "task-files/tasks/20260920-post-author-migration/030-evidence-gate-and-legacy-rejection.md"
+  ],
+  "valid": true
+}

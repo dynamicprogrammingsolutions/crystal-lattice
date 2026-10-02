@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg07-eleventy-decided-work-tracking",
+  "category": "kind",
+  "project": {
+    "fixture_id": "tg01-eleventy-archive",
+    "title": "Track the decided archive page-size change"
+  },
+  "title": "Track the decided archive page-size change",
+  "task_summary": "Record the decided fifteen-posts-per-page archive change as a task without planning the implementation.",
+  "approved_outcomes": [
+    {
+      "id": "TRACK-1",
+      "outcome": "The archive shows fifteen posts per page."
+    },
+    {
+      "id": "TRACK-2",
+      "outcome": "`/blog/` remains the archive entry page."
+    },
+    {
+      "id": "TRACK-3",
+      "outcome": "Newest-first post order is preserved."
+    },
+    {
+      "id": "TRACK-4",
+      "outcome": "Deeper pagination is recorded as an open question, not a requirement."
+    }
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "TRACK-RECORD",
+      "title": "Record the decided change",
+      "outcomes": [
+        "TRACK-1",
+        "TRACK-2",
+        "TRACK-3",
+        "TRACK-4"
+      ],
+      "independent_value": "One decision record; nothing is implementable until the design conversation happens.",
+      "dependencies": []
+    }
+  ],
+  "acceptable_partition_sizes": [
+    1
+  ],
+  "acceptable_alternatives": [],
+  "fragmentation_examples": [],
+  "overpacking_examples": [],
+  "important_crossings": [],
+  "open_questions": [],
+  "task_kind": "tracking",
+  "applicable_sections": [
+    "Requirements checklist",
+    "Supporting details",
+    "Questions and decisions",
+    "Implementation plan only as an explicit draft"
+  ],
+  "acceptance_evidence": "None beyond the recorded decision: the file prepares a future planning conversation.",
+  "execution_plan": {
+    "expected": "absent-or-draft"
+  }
+}

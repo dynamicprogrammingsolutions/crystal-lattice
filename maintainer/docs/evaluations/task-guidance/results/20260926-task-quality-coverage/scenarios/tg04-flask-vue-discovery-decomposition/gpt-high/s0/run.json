@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T220947.063821Z-task-guidance-tg04-flask-vue-discovery-decomposition-high-b010420a",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "b11b60a31b4ab8dc6a18e512d30c2fa851ec2ffda5e8d57444a0d954a0be7823",
+    "original_sha256": "c3842577322be97edd15caf91fcb2d1f177cff1bafee77d426ee9be28495cc34",
+    "path": "shared/system-messages/gpt-b11b60a31b4a.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-books-discovery.md"
+  ],
+  "valid": true
+}

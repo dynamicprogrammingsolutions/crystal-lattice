@@ -1,0 +1,5 @@
+---
+permalink: /feed/feed.xml
+layout: false
+---
+<feed>{% for post in collections.posts %}<entry><author>{{ post.data.author }}</author></entry>{% endfor %}</feed>

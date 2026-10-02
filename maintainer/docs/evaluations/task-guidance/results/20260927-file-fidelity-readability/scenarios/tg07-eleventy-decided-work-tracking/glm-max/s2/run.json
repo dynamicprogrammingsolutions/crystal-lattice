@@ -1,0 +1,25 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [
+    "execution-plan expectation violated: tasks/20260926-blog-archive-page-size.md: execution plan present without a draft status"
+  ],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260926T154126.295681Z-task-guidance-tg07-eleventy-decided-work-tracking-max-0eb2985d",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b940ffcd2153d3bae6b86faa769391597be7ccbcf4a817cb64c23ef13e4dd9e8",
+    "original_sha256": "e4f706753e15ad7a070b96025bd0b0425801ecd6ae30e1e8ae826c1a44a2885a",
+    "path": "shared/system-messages/glm-b940ffcd2153.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-blog-archive-page-size.md"
+  ],
+  "valid": false
+}

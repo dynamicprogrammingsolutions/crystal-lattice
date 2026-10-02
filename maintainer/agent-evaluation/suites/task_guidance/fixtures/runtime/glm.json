@@ -1,0 +1,158 @@
+{
+  "agents": {
+    "glm-ollama": {
+      "mcp_enabled": false,
+      "mcp_fail_on_startup_error": false,
+      "mcp_reuse_runtime": true,
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive"
+      ],
+      "model": "glm-5.3-flash",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "provider": "zai",
+      "request_options": {
+        "reasoning_effort": "max"
+      }
+    }
+  },
+  "application": {
+    "application_config": {
+      "env_file": "${env:CONFIG_DIR}/.env",
+      "provider_env_keys": {
+        "zai": "ZAI_API_KEY"
+      }
+    }
+  },
+  "mixins": {
+    "claude_bash_permissive": {
+      "$merge": {
+        "deep": [
+          "system_message"
+        ],
+        "default": "shallow"
+      },
+      "bash_cwd_persistence": true,
+      "bash_include_cwd_in_result": false,
+      "bash_permissive_cd_guidance": true,
+      "system_message": {
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}"
+      }
+    },
+    "claude_system_message": {
+      "system_message": {
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "variables": {
+          "AGENTS_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
+          },
+          "CONTEXT_MANAGEMENT": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/context-management.md"
+            ]
+          },
+          "ENVIRONMENT_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_environment_section.py"
+          },
+          "INTRODUCTION": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/introduction.md"
+            ]
+          },
+          "MEMORY": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/memory.md"
+            ]
+          },
+          "TASKS": {
+            "condition": {
+              "inline_code": "include_tasks()"
+            },
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+          },
+          "TONE_AND_STYLE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tone-and-style.md"
+            ]
+          },
+          "TOOL_USAGE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd.md"
+            ]
+          },
+          "TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage-permissive-cd-no-persistence.md"
+            ]
+          },
+          "WORKFLOW": {
+            "files": [
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/workflow.md"
+            ]
+          }
+        }
+      },
+      "system_message_enabled": true
+    },
+    "provider_defaults": {
+      "allowed_paths": [
+        ".",
+        ".."
+      ],
+      "enable_reasoning": true,
+      "max_file_size": 5242880,
+      "max_output_chars": 10000,
+      "reasoning_effort": "medium",
+      "timeout": 300,
+      "working_directory": "."
+    }
+  },
+  "plugins": [
+    "plugins.tool_gating_feature.ToolGatingFeature",
+    "path:${env:BUILTIN_PLUGINS}/feature-request-options",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+    "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
+    "path:${env:BUILTIN_PLUGINS}/claude-tools"
+  ],
+  "providers": {
+    "ollama": {
+      "base_url": "http://localhost:11434/v1",
+      "mixin_refs": [
+        "provider_defaults"
+      ],
+      "model": "glm-5.3-flash:cloud",
+      "provider": "reference_openai_compatible",
+      "reasoning_field": "reasoning"
+    },
+    "zai": {
+      "api_key": "${env:ZAI_API_KEY}",
+      "base_url": "https://api.z.ai/api/coding/paas/v4",
+      "mixin_refs": [
+        "provider_defaults"
+      ],
+      "model": "glm-5.3-flash",
+      "provider": "reference_openai_compatible",
+      "retry_on_status": {
+        "500": [
+          0,
+          5,
+          30
+        ]
+      },
+      "retry_on_timeout": [
+        0,
+        5,
+        30
+      ]
+    }
+  }
+}

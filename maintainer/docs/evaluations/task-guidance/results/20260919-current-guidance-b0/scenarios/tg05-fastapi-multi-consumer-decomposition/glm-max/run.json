@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260919T153658.546502Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-max-13d32ab6",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "24bb7ea9fdf995627657c73ebe5ca70b571eb0ad9c07949dc8daeba8df81af34",
+    "original_sha256": "d53b62f4bcdb29a5c4fa66dcafd2538944144962ffb22aeb2228631bcb4decfe",
+    "path": "shared/system-messages/glm-24bb7ea9fdf9.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-notes-query-capability/000-main.md",
+    "task-files/tasks/20260919-notes-query-capability/010-query-contract.md",
+    "task-files/tasks/20260919-notes-query-capability/020-api-query-capability.md",
+    "task-files/tasks/20260919-notes-query-capability/030-client-query-capability.md",
+    "task-files/tasks/20260919-notes-query-capability/040-cli-query-capability.md"
+  ],
+  "valid": true
+}

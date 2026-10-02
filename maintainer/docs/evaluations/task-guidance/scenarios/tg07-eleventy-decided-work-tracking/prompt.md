@@ -1,0 +1,1 @@
+We just decided: the blog archive will show fifteen posts per page instead of one long list, `/blog/` stays the archive entry, newest-first order stays, and we deliberately defer deeper pagination until we see how this feels. Track this as a task file for whoever implements it. Do not plan the implementation now — that comes after the design conversation we scheduled.

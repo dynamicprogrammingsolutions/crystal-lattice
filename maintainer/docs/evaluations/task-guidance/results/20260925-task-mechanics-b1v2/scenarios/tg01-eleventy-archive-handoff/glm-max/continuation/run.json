@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 31
+    },
+    "parent_run_id": "20260925T204324.913807Z-task-guidance-tg01-eleventy-archive-handoff-max-65d79dc3"
+  },
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T204329.642728Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-d38f663f",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "a7bfadce849ddddc889998b5455d964447de9551de9e3e117f7a2c6b771ce401",
+    "original_sha256": "54f9d81c2908ae5dd0c9fb6ff220367628a122d9f0386124bbe963070785bc55",
+    "path": "shared/system-messages/glm-a7bfadce849d.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

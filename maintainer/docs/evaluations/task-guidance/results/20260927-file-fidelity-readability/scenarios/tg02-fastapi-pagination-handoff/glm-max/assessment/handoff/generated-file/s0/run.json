@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "handoff-assessment-glm-max-generated-file-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260926T124343.281522Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-generated-file-glm-max-s0-978ac7de",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "d057e08a60fb72b11d28028d06c03a48a53f8506a477f4988f343b4fe1c99bd0",
+    "original_sha256": "b0d7a2f4bc8379c1a792d966aafca5a3127f195a12bbc52e42ae3a301d6c146f",
+    "path": "shared/system-messages/glm-assessor-d057e08a60fb.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

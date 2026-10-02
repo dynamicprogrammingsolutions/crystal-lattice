@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "scenario_id": "tg09-flask-vue-deployment-runbook",
+  "category": "kind",
+  "project": {
+    "fixture_id": "tg03-flask-vue-refresh",
+    "title": "Write the deployment procedure"
+  },
+  "title": "Write the deployment procedure",
+  "task_summary": "Write the repeatable build, run, health-verify, and rollback deployment procedure for the books app, accepted by executing it end to end.",
+  "approved_outcomes": [
+    {
+      "id": "OPS-1",
+      "outcome": "The procedure documents building and running the app with environment-variable configuration."
+    },
+    {
+      "id": "OPS-2",
+      "outcome": "The procedure verifies a deployment through the health endpoint."
+    },
+    {
+      "id": "OPS-3",
+      "outcome": "The procedure rolls back to the previous deployment when verification fails."
+    },
+    {
+      "id": "OPS-4",
+      "outcome": "Acceptance is one executed end-to-end deployment and rollback on a clean checkout."
+    },
+    {
+      "id": "OPS-5",
+      "outcome": "No product code changes."
+    }
+  ],
+  "coherent_deliverables": [
+    {
+      "id": "OPS-RUNBOOK",
+      "title": "Deliver the deployment procedure",
+      "outcomes": [
+        "OPS-1",
+        "OPS-2",
+        "OPS-3",
+        "OPS-4",
+        "OPS-5"
+      ],
+      "independent_value": "One operational capability verified as a whole; the rollback is part of the same procedure.",
+      "dependencies": []
+    }
+  ],
+  "acceptable_partition_sizes": [
+    1
+  ],
+  "acceptable_alternatives": [],
+  "fragmentation_examples": [],
+  "overpacking_examples": [],
+  "important_crossings": [],
+  "open_questions": [],
+  "task_kind": "operations",
+  "applicable_sections": [
+    "Requirements checklist",
+    "Supporting details",
+    "Implementation plan",
+    "Questions and decisions"
+  ],
+  "acceptance_evidence": "One executed deployment with health verification and one executed rollback on a clean checkout."
+}

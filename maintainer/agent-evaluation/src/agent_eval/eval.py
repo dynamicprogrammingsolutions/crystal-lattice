@@ -78,6 +78,8 @@ class AgentEval(Generic[ContextT]):
         continue_from: Run[object] | None = None,
         workspace: Path | WorkspaceFactory | None = None,
         cache_key: str | None = None,
+        cache_read: bool = True,
+        cache_publish: Callable[[Run[ResultT]], bool] | None = None,
     ) -> Run[ResultT]:
         if self._closed:
             raise RuntimeError("AgentEval is closed")
@@ -218,7 +220,7 @@ class AgentEval(Generic[ContextT]):
 
         lock = self.cache.lock(cache_hash) if self.cache and cache_hash else nullcontext()
         with lock:
-            if self.cache is not None and cache_hash is not None:
+            if self.cache is not None and cache_hash is not None and cache_read:
                 try:
                     cached = self.cache.load(cache_hash)
                 except BaseException as exc:
@@ -336,6 +338,7 @@ class AgentEval(Generic[ContextT]):
                 self.cache is not None
                 and cache_hash is not None
                 and run.error is None
+                and (cache_publish is None or cache_publish(run))
             ):
                 observation = observe_workspace(prepared_workspace)
                 untracked_root = run_dir / "raw" / "workspace" / "untracked"

@@ -39,7 +39,11 @@ docs/development/
 └── specifications/<capability>/
 
 plugins/docs/                         shared plugin-authoring guidance
-maintainer/specifications/            targets for guidance and workflow maintenance
+maintainer/docs/                      cross-cutting maintainer concepts and results
+maintainer/docs/development/specifications/
+                                      cross-cutting guidance targets
+maintainer/<tool>/docs/development/specifications/
+                                      package-owned maintainer-tool targets
 docs_site/packages.toml               public package-documentation registry
 docs_site/prepared/                   generated site input
 docs_site/dist/                       generated site output
@@ -94,11 +98,15 @@ Cross-package specifications live at:
 docs/development/specifications/<capability>/
 ```
 
-Guidance and workflow maintenance specifications live at:
+Cross-cutting guidance and workflow specifications live at:
 
 ```text
-maintainer/specifications/<capability>/
+maintainer/docs/development/specifications/<capability>/
 ```
+
+Specifications for a maintainer tool live with that tool, for example under
+`maintainer/agent-evaluation/docs/development/specifications/` or
+`maintainer/guidance/docs/development/specifications/`.
 
 The complete multi-file shape is optional. Use one specification page,
 requirements, a testing strategy, separate product and technical pages, or
@@ -120,6 +128,31 @@ repeating them in every row.
 Tasks under `tasks/` own approval, execution plans, dependencies, findings, and
 completion. A task links relevant requirement IDs without becoming a second
 specification.
+
+`maintainer/guidance/current/sections/tasks-v7.md` is the maintained
+task-guidance source. Compilation writes the repository/runtime canonical
+`agents/TASKS-v7.md`. Check or explicitly write current compiled guidance
+with:
+
+```bash
+python -m maintainer.guidance check \
+  --bundle maintainer/guidance/current \
+  --target maintainer/guidance/targets/crystal-lattice \
+  --destination .
+python -m maintainer.guidance write \
+  --bundle maintainer/guidance/current \
+  --target maintainer/guidance/targets/crystal-lattice \
+  --destination .
+```
+
+The application ships a synchronized copy at
+`application/python/agent_terminal_app/default_config/TASKS_v7.md`. Update or
+check it with:
+
+```bash
+python scripts/sync_tasks_v7.py
+python scripts/sync_tasks_v7.py --check
+```
 
 Published user and developer documentation describes available behavior.
 Target-only user text may be drafted on a development branch with a visible
@@ -143,15 +176,16 @@ the page, reader, and maintained source are already clear.
 When changing these conventions, task guidance, publication rules, or their
 behavioral evaluation, additionally read:
 
-- `maintainer/specifications/documentation-and-specification-standard/index.md`;
-- `maintainer/specifications/documentation-and-specification-standard/requirements.md`;
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`;
+- `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`;
 - the active task.
 
-`maintainer/` contains specifications, requirements, evaluation tooling,
-fixtures, and review material used to develop repository-wide guidance and
-agent workflows. It is not required reading for package users and is excluded
-from public documentation by default. Production and package tests remain with
-their owning packages.
+`maintainer/docs/` contains cross-cutting concepts, workflows, current status,
+and interpreted evaluation results. Reusable maintainer tools keep their
+documentation and specifications with the package. Suite scenarios and frozen
+records stay with their owning suite. This domain is not required reading for
+package users and is excluded from public documentation by default.
+Production and package tests remain with their owning packages.
 
 ## Publication and generated documentation
 

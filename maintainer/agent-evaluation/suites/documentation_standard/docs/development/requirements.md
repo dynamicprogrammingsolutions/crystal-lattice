@@ -1,0 +1,21 @@
+# Documentation-guidance suite requirements
+
+These requirements define the documentation-guidance consumer suite. They are
+not requirements of the reusable evaluation kernel.
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| AEVAL-016 | The first consumer tests exercise all `DOCGEN-*` and `DOCREP-*` documentation-standard instruction requirements through narrow cached task-family base runs and clean continuations. | Implemented | Automated | Documented | Twenty-one executable consumers with nine reusable seeds cover every current `DOCGEN-*` and `DOCREP-*` requirement |
+| AEVAL-020 | The documentation-guidance suite preserves a 21-consumer legacy comparison and provides a revised routine/extended matrix that excludes obsolete cases, adds requirement/testing/reporting behavior, and runs all current requirements on at least one supported model before final verification. | Implemented | Automated | Documented | [September 12 guidance rewrite results](../../../../../docs/evaluations/documentation-guidance/20260912-guidance-rewrite-results.md) |
+| AEVAL-021 | Consumer suites can select and identify explicit historical, previous-develop, current-worktree, and directory-backed guidance sources with source-specific path sets while reusing guidance-neutral seed caches and preserving guidance hashes and paired results. | Implemented | Automated | Documented | guidance-source adapter and 27 deterministic documentation-suite tests |
+| AEVAL-022 | Every GLM documentation-guidance seed and branch uses the explicitly configured `glm-5.3-flash:cloud` model, including low, high, and max reasoning-effort requirement-restraint branches. | Implemented | Automated | Documented | model preflight and all four matrices; Test 22 passes at all three efforts |
+| DSEVAL-001 | Every run records maintained source, effective content hash, delivery role and strategy, availability or discovery mode, and observed file reads separately. | Implemented | Automated partial | Documented | Producer delivery records and frozen September 18 matrix; routed-read tests; instruction-delivery documentation; task-mode layered profile remains pending |
+| DSEVAL-002 | Root-only and task-mode matrices count semantic and pairwise evidence only when the expected producer output and evaluator record exist. | Implemented | Automated | Documented | Compiled-matrix freezer and frozen-result tests; September 18 report; subtask 080 |
+| DSEVAL-003 | Every Crystal Lattice-backed documentation-guidance model test uses a reduced projection of the normal default configuration that preserves the selected standard Codex or Claude system-message mixin and matching default tool package, loads workspace AGENTS and conditional canonical TASKS through the production system-message feature, verifies the effective shell schema, and reserves suite-owned direct injection for cases explicitly testing that delivery. Dependent semantic and pairwise stages accept only repeat-pinned upstream records whose deterministic findings pass. | Implemented | Automated | Documented | Common runner contract; message/tool preflights; producer/semantic input gates; [corrected default-runner results](../../../../../docs/evaluations/documentation-guidance/20260918-default-runner-results.md) |
+
+## Compiled-guidance evaluation
+
+| ID | Requirement | Implementation | Verification | Documentation | Evidence |
+|---|---|---|---|---|---|
+| GCOMP-011 | The complete September 17 old-context matrix remains frozen and explicitly labeled legacy rather than current portable-guidance evidence. | Implemented | Automated | Documented | [Legacy full matrix](../../../../../docs/evaluations/documentation-guidance/20260917-legacy-root-guidance-full-matrix.md); 84 producers and 84 semantic assessments |
+| GCOMP-012 | Current and candidate portable guidance can be compared with fixture-owned or consuming-project targets, effort-aware requirement/testing assessment, and pairwise quality review where justified. | Implemented | Automated | Documented | [Corrected default-runner results](../../../../../docs/evaluations/documentation-guidance/20260918-default-runner-results.md); 84 producers, 84 semantic assessments, and 42 pairwise reviews |

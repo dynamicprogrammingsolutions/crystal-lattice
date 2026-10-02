@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-high-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194523.044388Z-task-guidance-file-fidelity-tg05-fastapi-multi-consumer-decomposition-gpt-high-s0-25a1a3f4",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "212fe0c95304ca4cd20128cef677f80c8778bdf2399b91c51cb18672698de8f4",
+    "original_sha256": "014bc956a201a09d1ceec2b9f41ec80e22a53f8fff3da2381f68131227960fb8",
+    "path": "shared/system-messages/glm-assessor-212fe0c95304.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

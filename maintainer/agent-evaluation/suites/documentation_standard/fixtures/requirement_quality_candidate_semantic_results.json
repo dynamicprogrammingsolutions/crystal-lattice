@@ -1,0 +1,3447 @@
+{
+  "dataset_id": "candidate-task-guidance-20260915",
+  "description": "Calibrated semantic requirement/testing results for the September 15 candidate documentation and TASKS-v7 guidance.",
+  "results": [
+    {
+      "candidate_sources": [
+        {
+          "candidate_id": "glm-low",
+          "source_record_sha256": "0eed8a5ab308233a784c302b89f3322de3d08e3d751cea29bf2ed8aa9d690883",
+          "source_run_id": "20260915T111645.369367Z-requirement-task-candidate-33-eleventy-archive-pagination-low-d8137138"
+        },
+        {
+          "candidate_id": "glm-high",
+          "source_record_sha256": "8ef99027691082cdb86922b2b86c2e8895a82885d463a3a461042b7e51b9d17e",
+          "source_run_id": "20260915T111646.896692Z-requirement-task-candidate-33-eleventy-archive-pagination-high-61be30fb"
+        },
+        {
+          "candidate_id": "glm-max",
+          "source_record_sha256": "3eb2749202f7df75fcc1231913e58f921b294f4edda929d770ee54a0f7c3ee0a",
+          "source_run_id": "20260915T115738.559867Z-requirement-task-candidate-33-eleventy-archive-pagination-max-b30d185e"
+        },
+        {
+          "candidate_id": "gpt-medium",
+          "source_record_sha256": "2ad7409a93b5d18d3d7637b672403e9c8f4b2915c2b4a7016db506cc8d6e5d66",
+          "source_run_id": "20260915T111646.540766Z-requirement-task-candidate-33-eleventy-archive-pagination-medium-50e97770"
+        },
+        {
+          "candidate_id": "gpt-high",
+          "source_record_sha256": "9e1da4cc955d0ca68f80408d74e853e1d7043e5cc44f18b8739f4e85f34d0cd7",
+          "source_run_id": "20260915T111901.839223Z-requirement-task-candidate-33-eleventy-archive-pagination-high-5648da35"
+        },
+        {
+          "candidate_id": "gpt-xhigh",
+          "source_record_sha256": "198a5932a5b362729f3461132b1327bbd250621c031a48b0b26b3973cb5ae87d",
+          "source_run_id": "20260915T112207.917476Z-requirement-task-candidate-33-eleventy-archive-pagination-xhigh-67c42e16"
+        },
+        {
+          "candidate_id": "gpt-max",
+          "source_record_sha256": "393a6f12b377201b41961e6c244e5faf73096aaa3e655ffbe9ecc1a0782fe7eb",
+          "source_run_id": "20260915T112612.906950Z-requirement-task-candidate-33-eleventy-archive-pagination-max-8cb58ea4"
+        }
+      ],
+      "dataset_id": "candidate-task-guidance-20260915",
+      "dataset_sha256": "22f142365d9da1bc8f5a289d0291fe12f045f2008dadbe0a77973036794e29a4",
+      "evaluator": {
+        "agent_id": "glm-ollama",
+        "model": "glm-5.3-flash:cloud",
+        "profile": "glm",
+        "prompt_version": "v2",
+        "reasoning_effort": "max"
+      },
+      "findings": [
+        {
+          "detail": "completed",
+          "name": "run completed",
+          "passed": true
+        },
+        {
+          "detail": "29632 characters",
+          "name": "assistant response",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "provider errors",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "semantic evaluator did not mutate its workspace",
+          "passed": true
+        },
+        {
+          "detail": "glm-ollama at low reasoning effort still produced complete coverage of all seven outcomes with acceptable grouping. Only additions are an exact rel/aria navigation mechanism in R4 and the permitted URL-pattern selection; documentation is explicitly kept out of requirements.",
+          "name": "glm-low covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Build-based verification covers all three expectations at the generated-output boundary with the production config; minor markup coupling and restatement between the Verification section and the requirement-verification table.",
+          "name": "glm-low testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "Build-based verification covers all three expectations at the generated-output boundary with the production config; minor markup coupling and restatement between the Verification section and the requirement-verification table.",
+          "name": "glm-low testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Build-based verification covers all three expectations at the generated-output boundary with the production config; minor markup coupling and restatement between the Verification section and the requirement-verification table.",
+          "name": "glm-low testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[\"Spot-check that site nav shows a single 'Archive' entry verifies a self-imposed internal navigation-key behavior; no required evidence depends on it.\"]",
+          "name": "glm-low testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[\"Spot-check that site nav shows a single 'Archive' entry verifies a self-imposed internal navigation-key behavior; no required evidence depends on it.\"]",
+          "name": "glm-low testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"Post-count evidence keys off `_includes/postslist.njk`'s `<li>` markup, and navigation evidence keys off `rel`/`aria-label` attributes.\"]",
+          "name": "glm-low testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Build-based verification covers all three expectations at the generated-output boundary with the production config; minor markup coupling and restatement between the Verification section and the requirement-verification table.",
+          "name": "glm-low verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "glm-ollama at high effort produced complete, well-grouped coverage with accurate source facts. Additions are limited to a rel/aria markup constraint inside ARCH-004's acceptance evidence and the permitted later-page URL choice; synthetic-post baseline and cleanup steps stay in the plan, not the completion contract.",
+          "name": "glm-high covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Representative 45-post build plus exact-multiple-of-20 and under-20 boundary builds cover all expectations; checks stay at the generated-output boundary with one markup-mechanism coupling and modest overlap between approach steps and the verification table.",
+          "name": "glm-high testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "Representative 45-post build plus exact-multiple-of-20 and under-20 boundary builds cover all expectations; checks stay at the generated-output boundary with one markup-mechanism coupling and modest overlap between approach steps and the verification table.",
+          "name": "glm-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Representative 45-post build plus exact-multiple-of-20 and under-20 boundary builds cover all expectations; checks stay at the generated-output boundary with one markup-mechanism coupling and modest overlap between approach steps and the verification table.",
+          "name": "glm-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "['ARCH-004 acceptance requires `rel` attributes and `aria-label`s, coupling evidence to the chosen markup mechanism.']",
+          "name": "glm-high testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Representative 45-post build plus exact-multiple-of-20 and under-20 boundary builds cover all expectations; checks stay at the generated-output boundary with one markup-mechanism coupling and modest overlap between approach steps and the verification table.",
+          "name": "glm-high verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "glm-ollama run at max reasoning effort did not complete: run completed=false, zero-character response, and no task file produced. Requirement coverage is missing because nothing was generated; no semantic expansion exists to assess, and the empty result is kept separate from any expansion judgment.",
+          "name": "glm-max covers the approved requirements",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "No execution plan exists because the producer run failed (empty response, no files); testing coverage is marked missing rather than inferred, and the run failure is kept separate from any semantic-expansion judgment.",
+          "name": "glm-max testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "No execution plan exists because the producer run failed (empty response, no files); testing coverage is marked missing rather than inferred, and the run failure is kept separate from any semantic-expansion judgment.",
+          "name": "glm-max testing uses appropriate layers",
+          "passed": false
+        },
+        {
+          "detail": "No execution plan exists because the producer run failed (empty response, no files); testing coverage is marked missing rather than inferred, and the run failure is kept separate from any semantic-expansion judgment.",
+          "name": "glm-max testing includes the important crossing",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "No execution plan exists because the producer run failed (empty response, no files); testing coverage is marked missing rather than inferred, and the run failure is kept separate from any semantic-expansion judgment.",
+          "name": "glm-max verification remains focused",
+          "passed": false
+        },
+        {
+          "detail": "codex-openai at medium effort covered all seven outcomes; the unaffected-surfaces outcome is spread across four per-surface rows (minor fragmentation), and the later-page URL is properly raised with a permitted recommendation. Conditional documentation notes stay out of the requirements.",
+          "name": "gpt-medium covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "All three expectations verified through real builds and generated-output inspection with representative boundary counts; only minor restatement between plan prose, the verification table, and the additional-verification items.",
+          "name": "gpt-medium testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "All three expectations verified through real builds and generated-output inspection with representative boundary counts; only minor restatement between plan prose, the verification table, and the additional-verification items.",
+          "name": "gpt-medium testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "All three expectations verified through real builds and generated-output inspection with representative boundary counts; only minor restatement between plan prose, the verification table, and the additional-verification items.",
+          "name": "gpt-medium testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "All three expectations verified through real builds and generated-output inspection with representative boundary counts; only minor restatement between plan prose, the verification table, and the additional-verification items.",
+          "name": "gpt-medium verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "codex-openai at high effort covered all outcomes with tight grouping; the only additions are a landmark/label markup constraint reaching ARC-003's acceptance evidence and the properly raised URL convention. Build-environment gaps are recorded honestly rather than claimed as evidence.",
+          "name": "gpt-high covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Plan targets real builds with representative content and generated-output checks for every expectation; it records that dependency setup must exist before build evidence counts instead of treating template inspection as proof.",
+          "name": "gpt-high testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "Plan targets real builds with representative content and generated-output checks for every expectation; it records that dependency setup must exist before build evidence counts instead of treating template inspection as proof.",
+          "name": "gpt-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Plan targets real builds with representative content and generated-output checks for every expectation; it records that dependency setup must exist before build evidence counts instead of treating template inspection as proof.",
+          "name": "gpt-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "['ARC-003 evidence checks semantic landmark and link names, coupling acceptance to the chosen navigation markup.']",
+          "name": "gpt-high testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Plan targets real builds with representative content and generated-output checks for every expectation; it records that dependency setup must exist before build evidence counts instead of treating template inspection as proof.",
+          "name": "gpt-high verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "codex-openai at xhigh effort produced complete, tightly grouped coverage; additions are the mandated nav markup/labels and the raised URL convention. Documentation updates are kept conditional and out of the product requirements.",
+          "name": "gpt-xhigh covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "A single representative 41-post build plus regression inspection covers all expectations at the generated-output boundary; the missing Eleventy dependency setup is flagged as a prerequisite rather than glossed over.",
+          "name": "gpt-xhigh testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "A single representative 41-post build plus regression inspection covers all expectations at the generated-output boundary; the missing Eleventy dependency setup is flagged as a prerequisite rather than glossed over.",
+          "name": "gpt-xhigh testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "A single representative 41-post build plus regression inspection covers all expectations at the generated-output boundary; the missing Eleventy dependency setup is flagged as a prerequisite rather than glossed over.",
+          "name": "gpt-xhigh testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"Navigation evidence checks labels per the plan's mandated 'Previous'/'Next' text and rel attributes.\"]",
+          "name": "gpt-xhigh testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "A single representative 41-post build plus regression inspection covers all expectations at the generated-output boundary; the missing Eleventy dependency setup is flagged as a prerequisite rather than glossed over.",
+          "name": "gpt-xhigh verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "codex-openai at max effort produced the most elaborate task file: complete coverage with traceable content, but navigation markup specifics reach the acceptance contract, the unaffected surfaces are spread over three rows, and the longer matrix and raised questions add review load. URL and sitemap interpretations are properly surfaced for confirmation.",
+          "name": "gpt-max covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Verification is decisive-output focused: a representative large build, one-page and exact-20 boundary builds, a two-build stability check, and baseline regressions cover all three expectations, with the unavailable runtime honestly recorded as a verification gap rather than substituted.",
+          "name": "gpt-max testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "Verification is decisive-output focused: a representative large build, one-page and exact-20 boundary builds, a two-build stability check, and baseline regressions cover all three expectations, with the unavailable runtime honestly recorded as a verification gap rather than substituted.",
+          "name": "gpt-max testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Verification is decisive-output focused: a representative large build, one-page and exact-20 boundary builds, a two-build stability check, and baseline regressions cover all three expectations, with the unavailable runtime honestly recorded as a verification gap rather than substituted.",
+          "name": "gpt-max testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"ARCH-003 evidence expects the plan's 'semantic previous/next anchors', coupling acceptance to the mandated landmark/label markup.\"]",
+          "name": "gpt-max testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Verification is decisive-output focused: a representative large build, one-page and exact-20 boundary builds, a two-build stability check, and baseline regressions cover all three expectations, with the unavailable runtime honestly recorded as a verification gap rather than substituted.",
+          "name": "gpt-max verification remains focused",
+          "passed": true
+        }
+      ],
+      "response_repairs": [
+        "inserted missing final candidate-closing brace before character 29630"
+      ],
+      "result": {
+        "assessments": [
+          {
+            "candidate_id": "glm-low",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "implementation_constraint",
+                  "rationale": "Exact relation attributes and labeling markup are required in a product requirement beyond the accessibility outcome; navigation labels/mechanisms are not prescribed by the target.",
+                  "severity": "minor",
+                  "source_excerpt": "accessible previous/next links (screen-reader-labeled, `rel=\"prev\"`/`rel=\"next\"`)",
+                  "summary": "Mandates screen-reader labels and rel=prev/rel=next attributes on archive navigation beyond the accessible-navigation outcome"
+                },
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Supporting details grant the specification latitude to choose and document a reasonable later-page URL pattern; the choice is documented in the requirement.",
+                  "severity": "minor",
+                  "source_excerpt": "subsequent pages use stable addresses (`/blog/1/`, `/blog/2/`, \u2026, matching Eleventy's default pagination permalink pattern)",
+                  "summary": "Selects the /blog/1/, /blog/2/, \u2026 later-page URL pattern"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "R2 \u2014 first archive page keeps `/blog/`; subsequent pages use stable addresses (`/blog/1/`, `/blog/2/`, \u2026)",
+                  "notes": "Later-page pattern is a permitted, documented specification choice; route continuity and stability both covered.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R1 \u2014 The archive is paginated at 20 posts per page",
+                  "notes": "Page-size bound stated directly.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R1 \u2014 every post appears on exactly one archive page; R3 \u2014 posts appear newest-first across and within archive pages",
+                  "notes": "Order and exactly-once coverage both present across R1/R3.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R4 \u2014 accessible previous/next links; first page has no previous link, last page no next link",
+                  "notes": "Boundary-only-when-exists behavior covered; adds rel/aria markup specifics beyond the outcome.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R5 \u2014 Home page (`content/index.njk`, latest 3 posts) \u2026 keep their current behavior",
+                  "notes": "Grouped with other unaffected surfaces \u2014 permitted grouping.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R5 \u2014 tag pages, feed, sitemap, and individual-post previous/next navigation keep their current behavior",
+                  "notes": "All four protected surfaces in one row with home \u2014 matches permitted grouping.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "R6 \u2014 Output remains static HTML with zero client-side JavaScript",
+                  "notes": "Static zero-JS constraint stated directly.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "valid_decomposition",
+                  "severity": "minor",
+                  "summary": "Six rows cover the seven outcomes: page size plus exactly-once combined in R1, ordering in R3, and all unaffected surfaces grouped in R5 \u2014 consistent with permitted groupings."
+                }
+              ],
+              "review_burden": "low",
+              "signals": [
+                "exact_accessibility_mechanism"
+              ],
+              "summary": "glm-ollama at low reasoning effort still produced complete coverage of all seven outcomes with acceptable grouping. Only additions are an exact rel/aria navigation mechanism in R4 and the permitted URL-pattern selection; documentation is explicitly kept out of requirements."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "minor",
+              "implementation_coupling": [
+                "Post-count evidence keys off `_includes/postslist.njk`'s `<li>` markup, and navigation evidence keys off `rel`/`aria-label` attributes."
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "`npm run build`; `_site/blog/index.html` has exactly 20 newest-first entries; `/blog/1/`\u2026 later pages \u226420; union of titles equals `collections.posts` exactly once",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Page 1 next-only, last page prev-only, middle pages both, checked in generated output",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Home/tag/feed/sitemap/sample post byte-comparable in behavior; grep for `<script` in new archive pages",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Build-based verification covers all three expectations at the generated-output boundary with the production config; minor markup coupling and restatement between the Verification section and the requirement-verification table.",
+              "unnecessary_tests": [
+                "Spot-check that site nav shows a single 'Archive' entry verifies a self-imposed internal navigation-key behavior; no required evidence depends on it."
+              ],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-high",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "implementation_constraint",
+                  "rationale": "The requirement-verification row makes specific markup mechanisms part of the completed-state evidence; not prescribed by the target.",
+                  "severity": "minor",
+                  "source_excerpt": "Inspect generated HTML \u2026 for correct prev/next links, `rel` attributes, and `aria-label`s",
+                  "summary": "Bakes rel attributes and aria-labels into ARCH-004 acceptance evidence beyond the accessibility outcome"
+                },
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Target grants the specification latitude for the later-page pattern; the recommendation is recorded and to be confirmed from build output.",
+                  "severity": "minor",
+                  "source_excerpt": "use Eleventy's default pagination addressing (first page at `/blog/`, later pages at numbered URLs below `/blog/`)",
+                  "summary": "Selects Eleventy default numbered URLs below /blog/ for later pages"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "ARCH-002 first archive page served at existing `/blog/`; ARCH-003 later pages have stable, deterministic addresses",
+                  "notes": "Default-numbering choice recorded as a design decision to confirm from build output; stability covered.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-001 \u2014 public archive paginated at 20 posts per page",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-005 newest-first on every archive page; ARCH-006 every post exactly once (no gaps, no duplicates)",
+                  "notes": "Order and exactly-once coverage separated into two rows \u2014 valid.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-004 accessible previous/next, next-only on first, previous-only on last, both on middle pages, usable without JavaScript",
+                  "notes": "Boundary behavior matches; acceptance evidence adds rel/aria specifics.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-007 Home page \u2026 keep their current behavior",
+                  "notes": "Grouped with other unaffected surfaces \u2014 permitted.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-007 tag pages, feed, sitemap, and individual-post previous/next navigation keep their current behavior",
+                  "notes": "Sitemap gaining new archive URLs is flagged as a consequence for confirmation rather than silently normative.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-008 \u2014 site output remains fully static with no client-side JavaScript",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "valid_decomposition",
+                  "severity": "minor",
+                  "summary": "ARCH-002/003 split the address outcome and ARCH-005/006 split ordering from exactly-once coverage; all unaffected surfaces grouped in ARCH-007 \u2014 consistent with permitted groupings."
+                }
+              ],
+              "review_burden": "low",
+              "signals": [
+                "exact_accessibility_mechanism"
+              ],
+              "summary": "glm-ollama at high effort produced complete, well-grouped coverage with accurate source facts. Additions are limited to a rel/aria markup constraint inside ARCH-004's acceptance evidence and the permitted later-page URL choice; synthetic-post baseline and cleanup steps stay in the plan, not the completion contract."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "minor",
+              "implementation_coupling": [
+                "ARCH-004 acceptance requires `rel` attributes and `aria-label`s, coupling evidence to the chosen markup mechanism."
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "45-post baseline build; page 1 exactly 20 newest-first links; later pages advance by 20; union equals the post set exactly once (steps 1, 2, 4, 7)",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Prev/next correct on middle pages and correctly absent on first/last boundaries; ARCH-004 row inspects first, middle, and last HTML",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Regression diff of home, tag pages, feed XML, sitemap, and post pages; grep `_site` for `<script>`/client assets",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "complete"
+                }
+              ],
+              "summary": "Representative 45-post build plus exact-multiple-of-20 and under-20 boundary builds cover all expectations; checks stay at the generated-output boundary with one markup-mechanism coupling and modest overlap between approach steps and the verification table.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-max",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "producer_result.completed is false and generated_files is empty; no content inferred.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "Run completed=false with a zero-character assistant response.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "No task file exists to assess.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "No content inferred from the target.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "No content inferred from the target.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "No content inferred from the target.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 producer run failed before any task file was produced.",
+                  "notes": "No content inferred from the target.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "missing"
+                }
+              ],
+              "coverage_status": "missing",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "glm-ollama run at max reasoning effort did not complete: run completed=false, zero-character response, and no task file produced. Requirement coverage is missing because nothing was generated; no semantic expansion exists to assess, and the empty result is kept separate from any expansion judgment."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "missing",
+              "layer_selection": "poor",
+              "missing_tests": [
+                "No verification content exists; all three required-evidence expectations are unaddressed because the producer run failed."
+              ],
+              "overall_coverage": "missing",
+              "required_evidence": [
+                {
+                  "evidence": "None \u2014 no task file or execution plan was produced.",
+                  "expectation_index": 0,
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 no task file or execution plan was produced.",
+                  "expectation_index": 1,
+                  "status": "missing"
+                },
+                {
+                  "evidence": "None \u2014 no task file or execution plan was produced.",
+                  "expectation_index": 2,
+                  "status": "missing"
+                }
+              ],
+              "summary": "No execution plan exists because the producer run failed (empty response, no files); testing coverage is marked missing rather than inferred, and the run failure is kept separate from any semantic-expansion judgment.",
+              "unnecessary_tests": [],
+              "verification_focus": "mixed"
+            }
+          },
+          {
+            "candidate_id": "gpt-medium",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Supporting details grant the specification latitude to choose and document a reasonable later-page pattern; the candidate selects one and raises it rather than silently fixing it.",
+                  "severity": "minor",
+                  "source_excerpt": "Recommendation: use `/blog/2/`, `/blog/3/`, and so on\u2026 Confirm before implementation because the later-page URL is a new public contract.",
+                  "summary": "Selects /blog/2/, /blog/3/, \u2026 as the later-page URL pattern and asks for confirmation"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "First archive page keeps the existing `/blog/` address; archive pages after the first have stable, linked public addresses",
+                  "notes": "`/blog/2/` pattern raised as a requirement question with a recommendation \u2014 permitted closure properly surfaced.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "The public archive displays no more than 20 posts on any archive page",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Archive pages preserve the existing newest-first post ordering; every post appears exactly once across the paginated archive",
+                  "notes": "Both halves of the outcome present.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Accessible previous and next navigation, with the appropriate boundary link omitted or disabled on the first and last pages",
+                  "notes": "'omitted or disabled' is slightly broader than 'only when the destination exists' but compatible with no dead links.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "The home page keeps its current latest-post behavior",
+                  "notes": "Own row \u2014 acceptable.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Separate rows: tag pages keep current behavior; feed keeps current behavior and limit; sitemap keeps current behavior; individual-post previous/next keeps current behavior",
+                  "notes": "One row per protected surface without an independent tracking reason \u2014 fragmentation.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "The generated result remains static and requires no JavaScript",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "fragmentation",
+                  "severity": "minor",
+                  "summary": "ARCHIVE-6's four protected surfaces are split into separate tag, feed, sitemap, and post-navigation checklist rows with no independent acceptance, deferral, or ownership reason."
+                }
+              ],
+              "review_burden": "low",
+              "signals": [
+                "compatibility_fragmentation"
+              ],
+              "summary": "codex-openai at medium effort covered all seven outcomes; the unaffected-surfaces outcome is spread across four per-surface rows (minor fragmentation), and the later-page URL is properly raised with a permitted recommendation. Conditional documentation notes stay out of the requirements."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "minor",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "Builds with fewer than 20, exactly 20, and more than 40 posts; URL extraction compared with the source sequence and 20-item boundaries asserted",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "First, middle, and last archive pages inspected for accessible previous/next markup and links",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Home page, tag page, feed, sitemap, and representative posts inspected; generated assets searched for pagination JavaScript; per-surface verification rows",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "All three expectations verified through real builds and generated-output inspection with representative boundary counts; only minor restatement between plan prose, the verification table, and the additional-verification items.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-high",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "implementation_constraint",
+                  "rationale": "Exact labels and a landmark element are required beyond the accessible-navigation outcome; verification row checks semantic landmark and link names.",
+                  "severity": "minor",
+                  "source_excerpt": "Render the links in a semantic navigation landmark with an accessible label and clear 'Previous'/'Next' names",
+                  "summary": "Mandates a semantic navigation landmark, accessible label, and exact 'Previous'/'Next' link names, reaching ARC-003 acceptance evidence"
+                },
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Latitude for the later-page pattern is granted by the supporting details; the choice is raised rather than silently normative.",
+                  "severity": "minor",
+                  "source_excerpt": "Confirm whether the recommended `/blog/2/`, `/blog/3/`, `/blog/4/`, \u2026 convention is acceptable before implementation.",
+                  "summary": "Selects the /blog/2/, /blog/3/, \u2026 convention for later pages, raised for confirmation"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "ARC-002 \u2014 first archive page remains available at `/blog/`, and each later page has a stable, distinct address",
+                  "notes": "`/blog/2/` convention raised for confirmation \u2014 permitted closure.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-001 \u2014 public archive displays at most 20 posts per page",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-004 \u2014 archive posts remain newest-first and every post appears exactly once",
+                  "notes": "Combined in one row \u2014 acceptable.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-003 \u2014 accessible previous and next navigation, with correct boundary behavior on the first and last pages",
+                  "notes": "Plan and ARC-003 evidence require a semantic landmark and specific link names beyond the outcome.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-005 \u2014 home page, tag pages, feed, sitemap, and individual-post previous/next navigation retain their current behavior",
+                  "notes": "All unaffected surfaces in one row \u2014 permitted grouping.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-005 \u2014 tag pages, feed, sitemap, and individual-post previous/next navigation retain their current behavior",
+                  "notes": "Same grouped row as home \u2014 permitted.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-006 \u2014 pagination generated at build time and output contains no client-side JavaScript for archive navigation",
+                  "notes": "Static zero-JS constraint stated directly.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "valid_decomposition",
+                  "severity": "minor",
+                  "summary": "Six rows map the seven outcomes; ARC-005 groups all unaffected surfaces and ARC-004 combines ordering with exactly-once coverage, matching permitted groupings."
+                }
+              ],
+              "review_burden": "low",
+              "signals": [
+                "exact_accessibility_mechanism"
+              ],
+              "summary": "codex-openai at high effort covered all outcomes with tight grouping; the only additions are a landmark/label markup constraint reaching ARC-003's acceptance evidence and the properly raised URL convention. Build-environment gaps are recorded honestly rather than claimed as evidence."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "ARC-003 evidence checks semantic landmark and link names, coupling acceptance to the chosen navigation markup."
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "Build with more than 20 representative posts; inspect generated `/blog/` and later paths and page sizes; ARC-004 row extracts URLs across pages for order, duplicates, and omissions",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-003 row inspects first, middle, and final pages including missing-direction boundaries",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-005 regression-build inspects home, tag, feed, sitemap, and post output; ARC-006 row confirms no pagination script",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Plan targets real builds with representative content and generated-output checks for every expectation; it records that dependency setup must exist before build evidence counts instead of treating template inspection as proof.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-xhigh",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "implementation_constraint",
+                  "rationale": "Exact markup techniques and label text are required beyond the accessible-navigation outcome; not prescribed by the target.",
+                  "severity": "minor",
+                  "source_excerpt": "Use a labeled `nav`, visible 'Previous' and 'Next' link text, and `rel=\"prev\"`/`rel=\"next\"` where applicable.",
+                  "summary": "Mandates a labeled nav element, visible 'Previous'/'Next' text, and rel=prev/rel=next attributes beyond the accessibility outcome"
+                },
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Granted latitude for the later-page pattern exercised openly as an open requirement question.",
+                  "severity": "minor",
+                  "source_excerpt": "Recommended convention: \u2026 `/blog/page/2/`, `/blog/page/3/` \u2026 Confirm this convention before implementation",
+                  "summary": "Selects the /blog/page/2/ convention for later pages, raised for confirmation"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "ARC-002 \u2014 first archive page keeps the existing `/blog/` URL and every later archive page has a deterministic, unique, stable URL",
+                  "notes": "`/blog/page/2/` recommended and raised for confirmation \u2014 permitted closure.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-001 \u2014 no more than 20 posts on each generated page",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-004 \u2014 the complete archive remains newest-first and every post appears exactly once",
+                  "notes": "Combined in one row \u2014 acceptable.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-003 \u2014 accessible server-rendered previous and next navigation with correct boundary behavior on first, middle, and last pages",
+                  "notes": "Plan mandates a labeled `nav`, exact link text, and rel attributes beyond the outcome.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-005 \u2014 home page, tag pages, feed, sitemap, and individual-post previous/next navigation retain their current behavior",
+                  "notes": "All unaffected surfaces grouped \u2014 permitted.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-005 \u2014 tag pages, feed, sitemap, and individual-post previous/next navigation retain their current behavior",
+                  "notes": "Same grouped row \u2014 permitted.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARC-006 \u2014 pagination represented entirely in generated HTML and requires no client-side JavaScript",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "valid_decomposition",
+                  "severity": "minor",
+                  "summary": "ARC-005 groups all unaffected surfaces and ARC-004 combines ordering with exactly-once coverage, matching the permitted groupings."
+                }
+              ],
+              "review_burden": "low",
+              "signals": [
+                "exact_accessibility_mechanism"
+              ],
+              "summary": "codex-openai at xhigh effort produced complete, tightly grouped coverage; additions are the mandated nav markup/labels and the raised URL convention. Documentation updates are kept conditional and out of the product requirements."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "Navigation evidence checks labels per the plan's mandated 'Previous'/'Next' text and rel attributes."
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "41-post build verifies 20/20/1 page sizes, first and later URLs, newest-first across boundaries, and URL cardinality with no duplicates",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "First/middle/last navigation links, labels, and boundaries verified in generated HTML (step 5 and ARC-003 row)",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Same-build regression checks for home latest-three, tag pages, feed ten posts, sitemap source, and post neighbors; ARC-006 confirms no script",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "A single representative 41-post build plus regression inspection covers all expectations at the generated-output boundary; the missing Eleventy dependency setup is flagged as a prerequisite rather than glossed over.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-max",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "implementation_constraint",
+                  "rationale": "Exact landmark, labels, and anchor text are mandated beyond the accessibility outcome; verification expects those specific anchors.",
+                  "severity": "minor",
+                  "source_excerpt": "Add semantic, server-rendered archive navigation in a labeled `nav` landmark. Render meaningful 'Previous page' and 'Next page' anchors\u2026",
+                  "summary": "Mandates a labeled nav landmark and exact 'Previous page'/'Next page' anchor text, reaching ARCH-003 acceptance evidence"
+                },
+                {
+                  "classification": "permissible_design_closure",
+                  "rationale": "Later-page pattern latitude is granted by the supporting details; recorded as an open question rather than silently normative.",
+                  "severity": "minor",
+                  "source_excerpt": "Recommendation: use `/blog/page/2/`, `/blog/page/3/`, and so on\u2026 needs confirmation before execution.",
+                  "summary": "Selects the /blog/page/2/ convention for later pages, recorded as needing confirmation"
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "ARCH-002 \u2014 first archive page keeps `/blog/`; every later page has a deterministic, stable address; navigation links use those addresses",
+                  "notes": "`/blog/page/2/` recorded as an unresolved requirement question \u2014 permitted closure properly raised.",
+                  "outcome_id": "ARCHIVE-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-001 \u2014 at most 20 posts per page, full pages of 20 and only the final page smaller",
+                  "notes": "Page-size mechanics elaborated but traceable.",
+                  "outcome_id": "ARCHIVE-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-004 globally newest-first with page-boundary continuity; ARCH-005 every post exactly once, no omissions or duplicates",
+                  "notes": "Split into order and coverage rows \u2014 valid.",
+                  "outcome_id": "ARCHIVE-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-003 \u2014 build-time, keyboard-accessible previous/next; no previous on first, no next on last, both in between",
+                  "notes": "Plan mandates a labeled `nav` landmark and specific 'Previous page'/'Next page' anchors beyond the outcome.",
+                  "outcome_id": "ARCHIVE-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-006 \u2014 home page and tag pages keep current post sets, ordering, and rendering; must not inherit archive pagination",
+                  "notes": "Home grouped with tag pages \u2014 acceptable.",
+                  "outcome_id": "ARCHIVE-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-007 feed and sitemap keep current behavior (feed limit, all-pages sitemap source); ARCH-008 individual-post previous/next keeps the full collection and relationships",
+                  "notes": "Protected surfaces spread across three rows without independent tracking reasons \u2014 minor fragmentation.",
+                  "outcome_id": "ARCHIVE-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-009 \u2014 pagination and navigation entirely pre-rendered; static site with no client-side JavaScript",
+                  "notes": "Direct match.",
+                  "outcome_id": "ARCHIVE-7",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [
+                {
+                  "kind": "fragmentation",
+                  "severity": "minor",
+                  "summary": "The unaffected-surfaces outcome is split across ARCH-006 (home+tag), ARCH-007 (feed+sitemap), and ARCH-008 (post navigation) without independent acceptance, deferral, or ownership reasons."
+                }
+              ],
+              "review_burden": "medium",
+              "signals": [
+                "exact_accessibility_mechanism",
+                "compatibility_fragmentation"
+              ],
+              "summary": "codex-openai at max effort produced the most elaborate task file: complete coverage with traceable content, but navigation markup specifics reach the acceptance contract, the unaffected surfaces are spread over three rows, and the longer matrix and raised questions add review load. URL and sitemap interpretations are properly surfaced for confirmation."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "minor",
+              "implementation_coupling": [
+                "ARCH-003 evidence expects the plan's 'semantic previous/next anchors', coupling acceptance to the mandated landmark/label markup."
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "41+ post fixture build verifies 20/20/1 counts, first-page address, stable later paths, newest-first flattening, and exact set equality (ARCH-001, 002, 004, 005 rows)",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-003 row: first, middle, and last pages contain expected anchors with absent endpoint directions and no placeholder controls",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "ARCH-006\u2013009 rows: baseline comparison of home/tag, feed/sitemap, and post neighbors plus script-absence inspection of generated output",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Verification is decisive-output focused: a representative large build, one-page and exact-20 boundary builds, a two-build stability check, and baseline regressions cover all three expectations, with the unavailable runtime honestly recorded as a verification gap rather than substituted.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          }
+        ],
+        "dataset_id": "candidate-task-guidance-20260915",
+        "scenario_id": "33-eleventy-archive-pagination",
+        "schema_version": 1
+      },
+      "scenario_id": "33-eleventy-archive-pagination",
+      "schema_version": 1,
+      "source_record_sha256": "11988b762c75f4e7777ed788de18d35f1b4ba78c51427700e569fdb798a426c6",
+      "source_run_id": "20260915T121740.214163Z-requirement-semantic-candidate-task-guidance-20260915-33-eleventy-archive-pagination-6d2c5397"
+    },
+    {
+      "candidate_sources": [
+        {
+          "candidate_id": "glm-low",
+          "source_record_sha256": "7fc4d66747f1c2d4bbe90ffd5ddf390a88a59016b321c0f05782267b68113847",
+          "source_run_id": "20260915T112740.841035Z-requirement-task-candidate-34-fastapi-notes-pagination-low-51f29a84"
+        },
+        {
+          "candidate_id": "glm-high",
+          "source_record_sha256": "a749b28f5b3f00692a7692fe31c6df082442c1a037bf7e64374a98964ec37c00",
+          "source_run_id": "20260915T112757.792392Z-requirement-task-candidate-34-fastapi-notes-pagination-high-7f9d37cc"
+        },
+        {
+          "candidate_id": "glm-max",
+          "source_record_sha256": "102d56f553f065ea40344335448e95ead6a4ca1cf5cb55f5e11079280caeef5f",
+          "source_run_id": "20260915T112832.255564Z-requirement-task-candidate-34-fastapi-notes-pagination-max-a40fe7c5"
+        },
+        {
+          "candidate_id": "gpt-medium",
+          "source_record_sha256": "dba8fb052145a4cc54eb9aecc9778e5102d964f888c194b58bcf7901389feafb",
+          "source_run_id": "20260915T113248.380191Z-requirement-task-candidate-34-fastapi-notes-pagination-medium-cc79fbd5"
+        },
+        {
+          "candidate_id": "gpt-high",
+          "source_record_sha256": "68021e66305f3a890bb5842ea3f9f4e4c2638e881017c0c391dcd316e83e7c77",
+          "source_run_id": "20260915T113445.601105Z-requirement-task-candidate-34-fastapi-notes-pagination-high-941ee116"
+        },
+        {
+          "candidate_id": "gpt-xhigh",
+          "source_record_sha256": "5be052865a19f3c465404fbf0424a607dafbdaa3e970378edcafadd15f04d0d4",
+          "source_run_id": "20260915T113721.974767Z-requirement-task-candidate-34-fastapi-notes-pagination-xhigh-53d8dce0"
+        },
+        {
+          "candidate_id": "gpt-max",
+          "source_record_sha256": "18db1972902334ce2205cdb03792aa3aff9481b94146f8f81ff1fe6c2639e5e7",
+          "source_run_id": "20260915T114008.197000Z-requirement-task-candidate-34-fastapi-notes-pagination-max-3bd91a0e"
+        }
+      ],
+      "dataset_id": "candidate-task-guidance-20260915",
+      "dataset_sha256": "0bde1d9244bba22c533777f81dbb82e28ed702d390692fab07b9e4dfa06a44eb",
+      "evaluator": {
+        "agent_id": "glm-ollama",
+        "model": "glm-5.3-flash:cloud",
+        "profile": "glm",
+        "prompt_version": "v2",
+        "reasoning_effort": "max"
+      },
+      "findings": [
+        {
+          "detail": "completed",
+          "name": "run completed",
+          "passed": true
+        },
+        {
+          "detail": "26734 characters",
+          "name": "assistant response",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "provider errors",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "semantic evaluator did not mutate its workspace",
+          "passed": true
+        },
+        {
+          "detail": "All eight outcomes covered by a tight six-row checklist with sensible merges (query+compatibility, bounds+validation). SQL specifics, README work, and tests stay in the plan rather than the contract. One minor defect: the offset-only effective bound is silently selected in the approach instead of being raised as the user-visible ambiguity it is; low-effort producer output is otherwise clean but least self-critical.",
+          "name": "glm-low covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Route-level plan covers compatibility, pagination, header, and representative 422/valid boundaries, but the ordering/count evidence is vacuous through mocked crud and the limitation is not acknowledged; other-endpoint regression evidence is nominal.",
+          "name": "glm-low testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Route-level plan covers compatibility, pagination, header, and representative 422/valid boundaries, but the ordering/count evidence is vacuous through mocked crud and the limitation is not acknowledged; other-endpoint regression evidence is nominal.",
+          "name": "glm-low testing uses appropriate layers",
+          "passed": false
+        },
+        {
+          "detail": "Route-level plan covers compatibility, pagination, header, and representative 422/valid boundaries, but the ordering/count evidence is vacuous through mocked crud and the limitation is not acknowledged; other-endpoint regression evidence is nominal.",
+          "name": "glm-low testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Route-level plan covers compatibility, pagination, header, and representative 422/valid boundaries, but the ordering/count evidence is vacuous through mocked crud and the limitation is not acknowledged; other-endpoint regression evidence is nominal.",
+          "name": "glm-low verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Complete coverage in six traceable rows. The offset-only question is raised as an open question with a recommendation and an explicit ruling required before approval \u2014 correct handling rather than silent normative selection, though the drafted plan mechanics assume the recommendation. SQL mechanics, README work, and the spot-check stay in the plan; no obligations added beyond the target.",
+          "name": "glm-high covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Route-level tests cover the five public behaviors with an honestly recorded SQL-boundary gap and a conditional live-database check; boundary-acceptance and four-endpoint regression coverage remain incomplete.",
+          "name": "glm-high testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Route-level tests cover the five public behaviors with an honestly recorded SQL-boundary gap and a conditional live-database check; boundary-acceptance and four-endpoint regression coverage remain incomplete.",
+          "name": "glm-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Route-level tests cover the five public behaviors with an honestly recorded SQL-boundary gap and a conditional live-database check; boundary-acceptance and four-endpoint regression coverage remain incomplete.",
+          "name": "glm-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Route-level tests cover the five public behaviors with an honestly recorded SQL-boundary gap and a conditional live-database check; boundary-acceptance and four-endpoint regression coverage remain incomplete.",
+          "name": "glm-high verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Complete coverage; two requirement questions raised with recommendations and gated on approval (RQ-1 single-parameter semantics is a genuine ambiguity; RQ-2 recommends the conservative, request-scoped header behavior). Checklist stays mechanism-free; SQL specifics, offset-past-end behavior (derived from the slicing contract), and documentation work remain plan-level. No obligations added.",
+          "name": "glm-max covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Well-layered plan: route tests for validation/header/body plus a planned CRUD-level real-database test for ordering/slicing/counting, honestly handling the mock limitation; both valid and invalid boundaries covered; four-endpoint regression is the only thin spot.",
+          "name": "glm-max testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Well-layered plan: route tests for validation/header/body plus a planned CRUD-level real-database test for ordering/slicing/counting, honestly handling the mock limitation; both valid and invalid boundaries covered; four-endpoint regression is the only thin spot.",
+          "name": "glm-max testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Well-layered plan: route tests for validation/header/body plus a planned CRUD-level real-database test for ordering/slicing/counting, honestly handling the mock limitation; both valid and invalid boundaries covered; four-endpoint regression is the only thin spot.",
+          "name": "glm-max testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Well-layered plan: route tests for validation/header/body plus a planned CRUD-level real-database test for ordering/slicing/counting, honestly handling the mock limitation; both valid and invalid boundaries covered; four-endpoint regression is the only thin spot.",
+          "name": "glm-max verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Complete coverage in a notably tight four-row grouping that mirrors the target's grouping latitude (query contract with validation, compatibility, paginated behavior, body+endpoints). Claims 'No unresolved requirement questions are identified' and does not surface the genuinely unspecified offset-only bound that most other candidates flagged, though it also silently selects no concrete behavior; the CRUD split is explicitly left open. No obligations added.",
+          "name": "gpt-medium covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Focused API-level tests plus a referenced data-access test; missing valid-boundary acceptance and fuller endpoint regression, and the planned single-parameter test lacks a defined offset-only expectation.",
+          "name": "gpt-medium testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Focused API-level tests plus a referenced data-access test; missing valid-boundary acceptance and fuller endpoint regression, and the planned single-parameter test lacks a defined offset-only expectation.",
+          "name": "gpt-medium testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Focused API-level tests plus a referenced data-access test; missing valid-boundary acceptance and fuller endpoint regression, and the planned single-parameter test lacks a defined offset-only expectation.",
+          "name": "gpt-medium testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Focused API-level tests plus a referenced data-access test; missing valid-boundary acceptance and fuller endpoint regression, and the planned single-parameter test lacks a defined offset-only expectation.",
+          "name": "gpt-medium verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Complete coverage with traceable bullets. The offset-only ambiguity is raised with a bounded default-limit recommendation and execution is explicitly gated on its resolution; scope decisions (no header/ordering change on the legacy path, count independent of the page query) trace to the compatibility and header outcomes. Documentation and query mechanics stay in the plan; no obligations added.",
+          "name": "gpt-high covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Behavior-focused route/data-access evidence including empty-page and unsorted-seed ordering checks, but the optional additional verification adds internal-mechanism assertions (query ordering/limit/offset placement, count-query absence) that the target does not prescribe; boundary-acceptance and four-endpoint regression coverage incomplete.",
+          "name": "gpt-high testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Behavior-focused route/data-access evidence including empty-page and unsorted-seed ordering checks, but the optional additional verification adds internal-mechanism assertions (query ordering/limit/offset placement, count-query absence) that the target does not prescribe; boundary-acceptance and four-endpoint regression coverage incomplete.",
+          "name": "gpt-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Behavior-focused route/data-access evidence including empty-page and unsorted-seed ordering checks, but the optional additional verification adds internal-mechanism assertions (query ordering/limit/offset placement, count-query absence) that the target does not prescribe; boundary-acceptance and four-endpoint regression coverage incomplete.",
+          "name": "gpt-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"'Verify the paginated query applies ORDER BY id ASC, LIMIT, and OFFSET at the database boundary rather than fetching the complete collection into application memory' \u2014 asserts internal query mechanics the target leaves unprescribed\", \"'Verify the count query is not introduced into the no-parameter legacy path' \u2014 asserts internal count-query placement\"]",
+          "name": "gpt-high testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Behavior-focused route/data-access evidence including empty-page and unsorted-seed ordering checks, but the optional additional verification adds internal-mechanism assertions (query ordering/limit/offset placement, count-query absence) that the target does not prescribe; boundary-acceptance and four-endpoint regression coverage incomplete.",
+          "name": "gpt-high verification remains focused",
+          "passed": false
+        },
+        {
+          "detail": "Complete coverage; the one-parameter default question is raised with a recommendation and gated ('Confirm this before approving execution'), with tests and documentation made contingent on the ruling. Ordering trigger, header scoping, and endpoint scope all trace to the required outcomes. No obligations added.",
+          "name": "gpt-xhigh covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Appropriate split of route-level validation/header checks and data-access integration for ordering/slicing/counting, with explicit gap-recording when fixtures are unavailable; boundary-acceptance and endpoint-regression coverage remain thin.",
+          "name": "gpt-xhigh testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Appropriate split of route-level validation/header checks and data-access integration for ordering/slicing/counting, with explicit gap-recording when fixtures are unavailable; boundary-acceptance and endpoint-regression coverage remain thin.",
+          "name": "gpt-xhigh testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Appropriate split of route-level validation/header checks and data-access integration for ordering/slicing/counting, with explicit gap-recording when fixtures are unavailable; boundary-acceptance and endpoint-regression coverage remain thin.",
+          "name": "gpt-xhigh testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Appropriate split of route-level validation/header checks and data-access integration for ordering/slicing/counting, with explicit gap-recording when fixtures are unavailable; boundary-acceptance and endpoint-regression coverage remain thin.",
+          "name": "gpt-xhigh verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Complete coverage in five rows. The offset-only question is raised with a recommendation and explicitly resolved before execution; legacy-path sentinel, count independence, and scope exclusions all trace to required outcomes. Query mechanics, documentation placement, and test work stay in the plan; no obligations added.",
+          "name": "gpt-max covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Strongest layering: database-backed ordering/count evidence with unsorted seeds across representative request shapes, route-level valid and invalid boundaries, and header checks on partial and empty pages; four-endpoint regression remains conditional and one legacy-path evidence item is mildly call-coupled.",
+          "name": "gpt-max testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Strongest layering: database-backed ordering/count evidence with unsorted seeds across representative request shapes, route-level valid and invalid boundaries, and header checks on partial and empty pages; four-endpoint regression remains conditional and one legacy-path evidence item is mildly call-coupled.",
+          "name": "gpt-max testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Strongest layering: database-backed ordering/count evidence with unsorted seeds across representative request shapes, route-level valid and invalid boundaries, and header checks on partial and empty pages; four-endpoint regression remains conditional and one legacy-path evidence item is mildly call-coupled.",
+          "name": "gpt-max testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"NOTES-PAG-001 evidence asserts 'the unchanged legacy data-access call' \u2014 a mock-call assertion coupled to the internal call shape (minor)\"]",
+          "name": "gpt-max testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Strongest layering: database-backed ordering/count evidence with unsorted seeds across representative request shapes, route-level valid and invalid boundaries, and header checks on partial and empty pages; four-endpoint regression remains conditional and one legacy-path evidence item is mildly call-coupled.",
+          "name": "gpt-max verification remains focused",
+          "passed": true
+        }
+      ],
+      "response_repairs": [
+        "inserted missing final candidate-closing brace before character 26731"
+      ],
+      "result": {
+        "assessments": [
+          {
+            "candidate_id": "glm-low",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "unresolved_design_choice",
+                  "rationale": "The request does not specify page size when limit is omitted and grants no design latitude; the approach makes 'no limit' operative without raising it, unlike other candidates that gate this on approval.",
+                  "severity": "minor",
+                  "source_excerpt": "apply `.limit()` / `.offset()` only when given",
+                  "summary": "Plan silently fixes the effective bound for offset-only requests (limit omitted \u2192 no limit applied, unbounded remainder) without raising the user-visible choice."
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "REQ-001: 'GET /notes/ accepts optional limit and offset query parameters'",
+                  "notes": "Directly restates the approved control.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-001: requests without either parameter 'return the current full list response (same body, no new headers required)'",
+                  "notes": "Covers body/headers; status retention implied by unchanged response.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-002: 'results are in stable ascending note-ID order' when pagination is requested",
+                  "notes": "Matches; plan applies order_by before limit/offset.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-005: 'limit must satisfy 1 \u2264 limit \u2264 100 and offset must be \u2265 0'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-005: invalid values 'produce FastAPI's normal 422 validation response'",
+                  "notes": "Preserves validation convention.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-004: 'response body remains the existing JSON array of note objects (no envelope/wrapper)'",
+                  "notes": "Explicit no-envelope.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-003: 'X-Total-Count header with the total number of notes', scoped to paginated responses only",
+                  "notes": "Collection-total semantics stated in supporting details; pre-pagination timing implied by count helper.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-006: 'Other note endpoints (GET /notes/{id}/, POST /notes/, PUT /notes/{id}/, DELETE /notes/{id}/) remain unchanged'",
+                  "notes": "One row for all four endpoints; no per-surface splitting.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [
+                "missing_parameter_default_choice"
+              ],
+              "summary": "All eight outcomes covered by a tight six-row checklist with sensible merges (query+compatibility, bounds+validation). SQL specifics, README work, and tests stay in the plan rather than the contract. One minor defect: the offset-only effective bound is silently selected in the approach instead of being raised as the user-visible ambiguity it is; low-effort producer output is otherwise clean but least self-critical."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "mixed",
+              "missing_tests": [
+                "Real data-access/query-boundary verification for ascending ordering and total count (ordering asserted only via mocked crud pass-through)",
+                "Regression tests for create, item-read, update, and delete endpoints (relies on a nonexistent existing suite)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "Plans a no-parameter full-list test and a paginated test asserting the ascending-ID window body and X-Total-Count in src/tests/test_notes.py; ordering/count sit behind the mocked crud boundary with no real query-boundary check or acknowledgment of the limitation.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "'Boundary tests: limit=0, limit=101, offset=-1 return 422; limit=1 and limit=100 are accepted.'",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-006 evidence: 'Existing tests for other endpoints continue to pass; handlers untouched' \u2014 its own supporting details show only test_read_all_notes exists.",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Route-level plan covers compatibility, pagination, header, and representative 422/valid boundaries, but the ordering/count evidence is vacuous through mocked crud and the limitation is not acknowledged; other-endpoint regression evidence is nominal.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-high",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "PAG-001: 'GET /notes/ accepts optional limit and offset query parameters'",
+                  "notes": "Restated directly.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-001: omitting both 'preserves the current full-list response exactly (same body shape, no added headers, no ordering change)'",
+                  "notes": "Traceable; header/ordering clauses derive from unchanged-behavior compatibility.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-002: 'results are in stable ascending note-ID order' when either parameter is present",
+                  "notes": "Trigger matches the approved supporting detail.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'limit must be between 1 and 100 and offset must be zero or greater'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: out-of-range values 'produce FastAPI's normal 422 validation response'",
+                  "notes": "Approved validation convention.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-004: 'The response body remains the existing JSON array of note objects in both paginated and unpaginated modes'",
+                  "notes": "Explicit.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-005: 'X-Total-Count header carrying the total number of notes in the collection'; supporting fact: 'total... means all notes in the collection, not the count of the returned page'",
+                  "notes": "Pre-pagination semantics recorded.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-006: 'Other note endpoints... remain unchanged'",
+                  "notes": "One grouped row; no fragmentation.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage in six traceable rows. The offset-only question is raised as an open question with a recommendation and an explicit ruling required before approval \u2014 correct handling rather than silent normative selection, though the drafted plan mechanics assume the recommendation. SQL mechanics, README work, and the spot-check stay in the plan; no obligations added beyond the target."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "Valid boundary acceptance tests (limit=1/100, offset=0)",
+                "Regression tests covering all four mutation/item endpoints (single spot-check only)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "Existing unpaginated test stays green; 'Paginated request asserts ascending-ID body and X-Total-Count value'; SQL-level gap explicitly recorded with a conditional real-database check.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Invalid values (limit=0, limit=101, offset=-1) assert 422'; no valid boundary acceptance cases (limit=1/100, offset=0).",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "'Existing suite for other endpoints passes untouched; one spot-check request confirms identical response' \u2014 the fixture has only the single list test.",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Route-level tests cover the five public behaviors with an honestly recorded SQL-boundary gap and a conditional live-database check; boundary-acceptance and four-endpoint regression coverage remain incomplete.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-max",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "PAG-001: 'accepts optional integer query parameters limit and offset'",
+                  "notes": "Restated; integer typing is the natural parameter contract.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-001: 'a request providing neither returns the same full-list response as today'",
+                  "notes": "Plus recorded fact that the no-parameter path must stay untouched.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-002: 'results are returned in stable ascending note-ID order'",
+                  "notes": "Matches.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'limit accepts integers from 1 through 100 and offset accepts zero-or-greater integers'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: violations 'rejected with FastAPI's normal validation response (422), not a custom error'",
+                  "notes": "Preserves framework convention.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-004: 'Paginated responses keep the existing JSON array of note objects as the response body (no envelope object)'",
+                  "notes": "Explicit.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-005: 'expose the total note count of the collection through the X-Total-Count response header'; assumption recorded that total is the collection, not the page",
+                  "notes": "Pre-pagination semantics captured.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-006: 'All other note endpoints... keep their current behavior, signatures, and responses'",
+                  "notes": "Single grouped row.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage; two requirement questions raised with recommendations and gated on approval (RQ-1 single-parameter semantics is a genuine ambiguity; RQ-2 recommends the conservative, request-scoped header behavior). Checklist stays mechanism-free; SQL specifics, offset-past-end behavior (derived from the slicing contract), and documentation work remain plan-level. No obligations added."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "New regression tests for create, item-read, update, and delete endpoints (evidence relies on an existing suite the fixture lacks, plus inspection)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "Route tests for the no-param branch, plain-array body, and header presence/absence; CRUD-level real-database test planned for ORDER BY/slicing/count with explicit gap-recording fallback.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'422 for limit=0, limit=101, limit=abc, offset=-1, offset=abc... plus boundary acceptances (limit=1, limit=100, offset=0 \u2192 200).'",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Full existing suite passes; inspection confirms no edits to the other handlers' \u2014 no new regression tests for the four endpoints.",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Well-layered plan: route tests for validation/header/body plus a planned CRUD-level real-database test for ordering/slicing/counting, honestly handling the mock limitation; both valid and invalid boundaries covered; four-endpoint regression is the only thin spot.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-medium",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "PAG-001: 'accepts optional limit and offset query parameters'",
+                  "notes": "Restated.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-002: 'Requests that omit both parameters continue to return the existing full array of note objects'",
+                  "notes": "Matches.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'returns the requested slice in stable ascending note-ID order' when either parameter is supplied",
+                  "notes": "Trigger matches the approved supporting detail.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-001: 'limit constrained to 1\u2013100 and offset constrained to zero or greater'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-001: 'invalid values use FastAPI's normal validation response'",
+                  "notes": "Convention preserved.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-004: 'The response body remains an array of note objects'",
+                  "notes": "Explicit.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'includes the total number of notes in X-Total-Count'; decision: total computed independently of the page query, header only on paginated responses",
+                  "notes": "Pre-pagination semantics captured.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-004: 'all other note endpoints retain their current behavior'",
+                  "notes": "Grouped with body shape in one row.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage in a notably tight four-row grouping that mirrors the target's grouping latitude (query contract with validation, compatibility, paginated behavior, body+endpoints). Claims 'No unresolved requirement questions are identified' and does not surface the genuinely unspecified offset-only bound that most other candidates flagged, though it also silently selects no concrete behavior; the CRUD split is explicitly left open. No obligations added."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "Valid boundary acceptance cases (limit=1/100, offset=0)",
+                "Regression tests for all four item/mutation endpoints (representative only)",
+                "Expected page content for offset-only requests is undefined despite a planned single-parameter test"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "API tests for the no-parameter full array, an ascending-ID page, array shape, and X-Total-Count; verification table cites 'Paginated API test and data-access test' with a record-the-gap fallback for unverified query behavior.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'invalid limit and offset values returning FastAPI validation errors'; no valid boundary acceptance cases.",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "'representative non-collection endpoint behavior remaining unchanged' \u2014 representative only, not all four endpoints.",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Focused API-level tests plus a referenced data-access test; missing valid-boundary acceptance and fuller endpoint regression, and the planned single-parameter test lacks a defined offset-only expectation.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-high",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "'GET /notes/ accepts optional limit and offset query parameters.'",
+                  "notes": "Restated.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'A request without either query parameter continues to return the current full list as the existing array of note objects.'",
+                  "notes": "Plus legacy path kept separate with no new header.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'When pagination is requested, notes are returned in stable ascending id order.'",
+                  "notes": "Matches.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'limit, when supplied, accepts only integers from 1 through 100'; 'offset... accepts only integers greater than or equal to zero'",
+                  "notes": "Split across two bullets expressing one outcome.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Invalid pagination values receive FastAPI's normal validation response.'",
+                  "notes": "Framework's ordinary 422 via query constraints.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'A paginated response keeps the existing array-of-note-objects body'",
+                  "notes": "Same NoteDB list body in both branches.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'includes X-Total-Count containing the total number of notes before pagination is applied'",
+                  "notes": "Pre-pagination total made explicit.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Other note endpoints retain their current behavior.'",
+                  "notes": "Plus explicit scope decision not to expand pagination to item/mutation endpoints.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage with traceable bullets. The offset-only ambiguity is raised with a bounded default-limit recommendation and execution is explicitly gated on its resolution; scope decisions (no header/ordering change on the legacy path, count independent of the page query) trace to the compatibility and header outcomes. Documentation and query mechanics stay in the plan; no obligations added."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "'Verify the paginated query applies ORDER BY id ASC, LIMIT, and OFFSET at the database boundary rather than fetching the complete collection into application memory' \u2014 asserts internal query mechanics the target leaves unprescribed",
+                "'Verify the count query is not introduced into the no-parameter legacy path' \u2014 asserts internal count-query placement"
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "Valid boundary acceptance cases (limit=1/100, offset=0)",
+                "Unconditional regression tests for create, item-read, update, and delete endpoints"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "'Route/data-access test with deliberately unsorted source rows and a nonzero offset'; endpoint test asserting the NoteDB array body and X-Total-Count including an empty page; legacy exact-JSON test.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Endpoint tests for limit=0, limit=101, and offset=-1, asserting FastAPI's 422 response'; no valid boundary acceptance cases.",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "'Existing item and mutation tests, if available in the repository/runtime, plus focused inspection showing no edits to those handlers.'",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Behavior-focused route/data-access evidence including empty-page and unsorted-seed ordering checks, but the optional additional verification adds internal-mechanism assertions (query ordering/limit/offset placement, count-query absence) that the target does not prescribe; boundary-acceptance and four-endpoint regression coverage incomplete.",
+              "unnecessary_tests": [],
+              "verification_focus": "mixed"
+            }
+          },
+          {
+            "candidate_id": "gpt-xhigh",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "'GET /notes/ accepts optional limit and offset query parameters.'",
+                  "notes": "Restated.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'A request without either parameter continues to return the current full list as an array of note objects.'",
+                  "notes": "Plus header emitted only on paginated responses to preserve the unparameterized response.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'notes are selected in stable ascending id order and the requested slice is returned' when either parameter is supplied",
+                  "notes": "Trigger matches the approved supporting detail.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'limit, when supplied, accepts only values from 1 through 100; offset, when supplied, accepts only values greater than or equal to zero.'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Invalid pagination values use FastAPI's normal validation response.'",
+                  "notes": "No custom error handling.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'the requested slice is returned in the same array-of-objects response shape'",
+                  "notes": "Grouped with ordering in one row; envelope explicitly avoided.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Every paginated response includes X-Total-Count containing the total number of notes before pagination.'",
+                  "notes": "Pre-pagination total explicit.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'Existing note detail, create, update, and delete endpoints remain unchanged.'",
+                  "notes": "Single grouped row.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage; the one-parameter default question is raised with a recommendation and gated ('Confirm this before approving execution'), with tests and documentation made contingent on the ruling. Ordering trigger, header scoping, and endpoint scope all trace to the required outcomes. No obligations added."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "Explicit valid boundary acceptance cases (limit=1/100, offset=0)",
+                "Unconditional regression tests for detail, create, update, and delete endpoints"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "'Integration test against the notes data-access boundary using multiple notes in non-ID input order' for ordering; route tests retained with exact JSON-array compatibility, page contents, and header value.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'validation cases for non-integer values, limit values below 1 or above 100, and negative offsets' asserting 422; pagination coverage exercises valid values but no explicit boundary acceptance cases.",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "'Existing endpoint regression tests, if present in the execution environment, plus inspection that only list-route/data-access list code changed.'",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Appropriate split of route-level validation/header checks and data-access integration for ordering/slicing/counting, with explicit gap-recording when fixtures are unavailable; boundary-acceptance and endpoint-regression coverage remain thin.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-max",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "PAG-002 paginated requests plus plan step 1: 'Extend the collection route with optional FastAPI query parameters'",
+                  "notes": "Parameter acceptance carried by the paginated-request row and the route step.",
+                  "outcome_id": "NOTES-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-001: 'GET /notes/ with neither limit nor offset returns the existing full array of note objects'",
+                  "notes": "Plus scope decision: legacy path gains no header or ordering guarantee.",
+                  "outcome_id": "NOTES-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-002: 'returns an array of note objects in stable ascending id order, with the requested offset and limit applied'",
+                  "notes": "Matches, including ordering before slicing.",
+                  "outcome_id": "NOTES-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'a supplied limit is an integer from 1 through 100, a supplied offset is an integer greater than or equal to zero'",
+                  "notes": "Exact ranges.",
+                  "outcome_id": "NOTES-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-003: 'invalid values receive FastAPI's normal validation response'",
+                  "notes": "Parsing/range failures via framework validation.",
+                  "outcome_id": "NOTES-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-005: 'The response body remains the existing array shape'",
+                  "notes": "No envelope; response model retained.",
+                  "outcome_id": "NOTES-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-004: 'Every paginated response includes X-Total-Count containing the total number of notes before offset and limit are applied.'",
+                  "notes": "Exact restatement; count kept independent of the page slice.",
+                  "outcome_id": "NOTES-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "PAG-005: 'the individual-read, create, update, and delete note endpoints retain their current behavior'",
+                  "notes": "Grouped with body shape; shared-data-access caveat is necessary.",
+                  "outcome_id": "NOTES-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Complete coverage in five rows. The offset-only question is raised with a recommendation and explicitly resolved before execution; legacy-path sentinel, count independence, and scope exclusions all trace to required outcomes. Query mechanics, documentation placement, and test work stay in the plan; no obligations added."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "NOTES-PAG-001 evidence asserts 'the unchanged legacy data-access call' \u2014 a mock-call assertion coupled to the internal call shape (minor)"
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "New regression tests for read-one, create, update, and delete endpoints (evidence conditional on fixture availability)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "'A database-backed collection test seeds notes whose storage/insertion order differs from ID order, then asserts ascending IDs for limit-only, offset-only, and combined requests'; route test asserts the exact full-list array; header asserted for partial and empty pages.",
+                  "expectation_index": 0,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'TestClient requests at limit=1, limit=100, and offset=0 establish accepted boundaries; requests with limit=0, limit=101, negative values, and non-integers assert FastAPI's standard 422 validation response.'",
+                  "expectation_index": 1,
+                  "notes": "",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'the existing tests for read-one, create, update, and delete (when available in the runtime fixture) must continue to pass' \u2014 conditional; no new regression tests planned.",
+                  "expectation_index": 2,
+                  "notes": "",
+                  "status": "partial"
+                }
+              ],
+              "summary": "Strongest layering: database-backed ordering/count evidence with unsorted seeds across representative request shapes, route-level valid and invalid boundaries, and header checks on partial and empty pages; four-endpoint regression remains conditional and one legacy-path evidence item is mildly call-coupled.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          }
+        ],
+        "dataset_id": "candidate-task-guidance-20260915",
+        "scenario_id": "34-fastapi-notes-pagination",
+        "schema_version": 1
+      },
+      "scenario_id": "34-fastapi-notes-pagination",
+      "schema_version": 1,
+      "source_record_sha256": "d2cb349c377dc7aab82d5f6c5aacd231279fc70f7ba45915f7ecac18702b025d",
+      "source_run_id": "20260915T122714.955360Z-requirement-semantic-candidate-task-guidance-20260915-34-fastapi-notes-pagination-cf48338d"
+    },
+    {
+      "candidate_sources": [
+        {
+          "candidate_id": "glm-low",
+          "source_record_sha256": "6f84adc0a129fca048f43a7e79b1c81b06a2b97caa47093a876c448e2e667c2f",
+          "source_run_id": "20260915T112953.855280Z-requirement-task-candidate-35-flask-vue-book-filter-low-24d36ed9"
+        },
+        {
+          "candidate_id": "glm-high",
+          "source_record_sha256": "0e1eb4b9f8793b25b53c5ebae434ad64c2a459713127e9864d3bafe69303ae6a",
+          "source_run_id": "20260915T113015.444428Z-requirement-task-candidate-35-flask-vue-book-filter-high-67ed1944"
+        },
+        {
+          "candidate_id": "glm-max",
+          "source_record_sha256": "d610f1ef88f361d9f017ca8b63dbf022fcce63f58446e458a2e89c265504450c",
+          "source_run_id": "20260915T113035.406964Z-requirement-task-candidate-35-flask-vue-book-filter-max-509950b4"
+        },
+        {
+          "candidate_id": "gpt-medium",
+          "source_record_sha256": "366c79e5634b9caee00b9630ee9985a4d2e8163c26a0499fb409d4e014872f31",
+          "source_run_id": "20260915T114438.194929Z-requirement-task-candidate-35-flask-vue-book-filter-medium-4b7782c5"
+        },
+        {
+          "candidate_id": "gpt-high",
+          "source_record_sha256": "080397e587de4cd72c8f0addac5a590619536457ac0ec3d53aa57da6b104bd10",
+          "source_run_id": "20260915T114626.907306Z-requirement-task-candidate-35-flask-vue-book-filter-high-f471e8dc"
+        },
+        {
+          "candidate_id": "gpt-xhigh",
+          "source_record_sha256": "ba48780ea4dda5d1cc28d624271ad38f89e433a6a8a0adba8acdec49fac16dc3",
+          "source_run_id": "20260915T114818.340439Z-requirement-task-candidate-35-flask-vue-book-filter-xhigh-91962692"
+        },
+        {
+          "candidate_id": "gpt-max",
+          "source_record_sha256": "28a7c4a9c7e6e0879a7553a6b7403d51117f45df87469d340452049a2535e480",
+          "source_run_id": "20260915T115116.449763Z-requirement-task-candidate-35-flask-vue-book-filter-max-949515ae"
+        }
+      ],
+      "dataset_id": "candidate-task-guidance-20260915",
+      "dataset_sha256": "62cb509160ce71539dcad8e7ede1b34225b9bd5268623d78a1ce45613054f601",
+      "evaluator": {
+        "agent_id": "glm-ollama",
+        "model": "glm-5.3-flash:cloud",
+        "profile": "glm",
+        "prompt_version": "v2",
+        "reasoning_effort": "max"
+      },
+      "findings": [
+        {
+          "detail": "completed",
+          "name": "run completed",
+          "passed": true
+        },
+        {
+          "detail": "31673 characters",
+          "name": "assistant response",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "provider errors",
+          "passed": true
+        },
+        {
+          "detail": "()",
+          "name": "semantic evaluator did not mutate its workspace",
+          "passed": true
+        },
+        {
+          "detail": "Low-effort glm run produced a compact 7-row checklist (one plan-section ordering check failed in the producer result) that traces cleanly to all outcomes with sensible client/server splits and no fragmentation. One material addition: the invented lenient contract for unrecognized read values becomes REQ-007 with dedicated verification. BOOKS-1 is only partially covered because visible active-choice identification is never required or verified.",
+          "name": "glm-low covers the approved requirements",
+          "passed": false
+        },
+        {
+          "detail": "[{'summary': 'A normative all-books fallback contract for invalid or unrecognized read values, with its own requirement row and verification row.', 'classification': 'unresolved_design_choice', 'severity': 'material', 'source_excerpt': 'REQ-007 \u2014 Invalid or unrecognized `read` parameter values do not change the all-books response (documented behavior decision, see Execution decisions).', 'rationale': 'The target fixes only omission-as-All and grants latitude for supported encodings; behavior for unsupported values is unspecified public behavior that was selected and promoted into the requirements checklist rather than left as a raised question, even though a 400 alternative is flagged.'}]",
+          "name": "glm-low avoids material semantic expansion",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-low keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are addressed at real boundaries and the browser check supplies the crossing, but everything is manual, the active state is unverified, and the mutation-refresh check cannot be driven from the fixture's UI as written.",
+          "name": "glm-low testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "All three evidence layers are addressed at real boundaries and the browser check supplies the crossing, but everything is manual, the active state is unverified, and the mutation-refresh check cannot be driven from the fixture's UI as written.",
+          "name": "glm-low testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are addressed at real boundaries and the browser check supplies the crossing, but everything is manual, the active state is unverified, and the mutation-refresh check cannot be driven from the fixture's UI as written.",
+          "name": "glm-low testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "['GET /books?read=bogus check exists only to verify the invented REQ-007 invalid-value contract']",
+          "name": "glm-low testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "['GET /books?read=bogus check exists only to verify the invented REQ-007 invalid-value contract']",
+          "name": "glm-low testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"Parameter-less GET asserted 'byte-for-byte' equal to the current response, stricter than the required shape contract\"]",
+          "name": "glm-low testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "All three evidence layers are addressed at real boundaries and the browser check supplies the crossing, but everything is manual, the active state is unverified, and the mutation-refresh check cannot be driven from the fixture's UI as written.",
+          "name": "glm-low verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "High-effort glm run: six rows trace to all outcomes with clean grouping and no fragmentation; the only additions are the recommended (properly raised, non-normative) invalid-value fallback and case-insensitive parsing. BOOKS-1 again lacks explicit active-choice identification.",
+          "name": "glm-high covers the approved requirements",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Focused manual verification at the real HTTP and browser boundaries with the crossing present, but no automated Flask API or Vue component tests, and the mutation-refresh step cannot be driven from the fixture's UI.",
+          "name": "glm-high testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Focused manual verification at the real HTTP and browser boundaries with the crossing present, but no automated Flask API or Vue component tests, and the mutation-refresh step cannot be driven from the fixture's UI.",
+          "name": "glm-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Focused manual verification at the real HTTP and browser boundaries with the crossing present, but no automated Flask API or Vue component tests, and the mutation-refresh step cannot be driven from the fixture's UI.",
+          "name": "glm-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "['Additional curl of an unrecognized read value verifies only the optional fallback decision, not a required outcome']",
+          "name": "glm-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "['Additional curl of an unrecognized read value verifies only the optional fallback decision, not a required outcome']",
+          "name": "glm-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-high testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Focused manual verification at the real HTTP and browser boundaries with the crossing present, but no automated Flask API or Vue component tests, and the mutation-refresh step cannot be driven from the fixture's UI.",
+          "name": "glm-high verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Max-effort glm run: the five-row checklist covers every outcome with good grouping (end-to-end filter contract, compatibility, persistence, and empty state each observable), and control/wording choices are permissible closures. The material addition is the documentation set promoted into scope (new spec file plus index and README updates); Q1 selects a default for invalid values while properly raising it.",
+          "name": "glm-max covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[{'summary': 'Producing a new specification file (docs/development/specifications/book-filter.md), updating docs/development/index.md, and a README sentence are declared in scope and in the task checklist as deliverables of the change.', 'classification': 'wrong_record_role', 'severity': 'material', 'source_excerpt': 'In scope: ... server tests at the HTTP boundary; specification and README updates listed in the plan.', 'rationale': \"Documentation production is unrequested work promoted into the task's delivered scope and completion checklist; the scenario reserves documentation work from product requirements. The FLT checklist itself stays clean.\"}]",
+          "name": "glm-max avoids material semantic expansion",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Strong automated server coverage at the real HTTP boundary including shape and CRUD regression, but client requirements default to inspection-only evidence, the required crossing is not planned, and the curl smoke test repeats the pytest cases.",
+          "name": "glm-max testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Strong automated server coverage at the real HTTP boundary including shape and CRUD regression, but client requirements default to inspection-only evidence, the required crossing is not planned, and the curl smoke test repeats the pytest cases.",
+          "name": "glm-max testing uses appropriate layers",
+          "passed": false
+        },
+        {
+          "detail": "Strong automated server coverage at the real HTTP boundary including shape and CRUD regression, but client requirements default to inspection-only evidence, the required crossing is not planned, and the curl smoke test repeats the pytest cases.",
+          "name": "glm-max testing includes the important crossing",
+          "passed": false
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "glm-max testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Strong automated server coverage at the real HTTP boundary including shape and CRUD regression, but client requirements default to inspection-only evidence, the required crossing is not planned, and the curl smoke test repeats the pytest cases.",
+          "name": "glm-max verification remains focused",
+          "passed": false
+        },
+        {
+          "detail": "Medium-effort gpt run: five traceable rows cover all outcomes with sensible merges and no fragmentation. Minor additions only: proposed empty-state wording, controls staying available when empty, and a confirmation gate for the read=true/false encoding even though the supporting details already grant that choice.",
+          "name": "gpt-medium covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Server route tests and client checks at appropriate layers with the crossing present; the gaps are the missing rendered-results assertion and mild axios-configuration inspection in the additional verification.",
+          "name": "gpt-medium testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Server route tests and client checks at appropriate layers with the crossing present; the gaps are the missing rendered-results assertion and mild axios-configuration inspection in the additional verification.",
+          "name": "gpt-medium testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Server route tests and client checks at appropriate layers with the crossing present; the gaps are the missing rendered-results assertion and mild axios-configuration inspection in the additional verification.",
+          "name": "gpt-medium testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-medium testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[\"Additional verification inspects 'generated request URLs or Axios query configuration', bordering on the internal axios-mechanism checks the scenario says to avoid\"]",
+          "name": "gpt-medium testing avoids implementation coupling",
+          "passed": false
+        },
+        {
+          "detail": "Server route tests and client checks at appropriate layers with the crossing present; the gaps are the missing rendered-results assertion and mild axios-configuration inspection in the additional verification.",
+          "name": "gpt-medium verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "High-effort gpt run: five traceable rows cover all outcomes with clean grouping. The malformed-read-value question is properly raised (client error, other rejection, or out of contract) rather than made normative, and the encoding is held pending confirmation despite granted latitude. No material additions.",
+          "name": "gpt-high covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Route-level integration checks plus browser checks with the crossing present; rendered filtered results and active-choice visibility are not explicitly asserted.",
+          "name": "gpt-high testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Route-level integration checks plus browser checks with the crossing present; rendered filtered results and active-choice visibility are not explicitly asserted.",
+          "name": "gpt-high testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Route-level integration checks plus browser checks with the crossing present; rendered filtered results and active-choice visibility are not explicitly asserted.",
+          "name": "gpt-high testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-high testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Route-level integration checks plus browser checks with the crossing present; rendered filtered results and active-choice visibility are not explicitly asserted.",
+          "name": "gpt-high verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Xhigh-effort gpt run: six rows trace cleanly, with shape preservation as its own observable row and client request/persistence combined without losing visibility. Invalid values are deliberately left outside the contract pending approval; control and copy choices are raised as proposed decisions rather than made normative. No material additions.",
+          "name": "gpt-xhigh covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "Focused Flask test-client checks with exact keys plus request-sequence/network checks that supply the crossing; rendered filtered results are not explicitly verified.",
+          "name": "gpt-xhigh testing covers decisive evidence",
+          "passed": false
+        },
+        {
+          "detail": "Focused Flask test-client checks with exact keys plus request-sequence/network checks that supply the crossing; rendered filtered results are not explicitly verified.",
+          "name": "gpt-xhigh testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "Focused Flask test-client checks with exact keys plus request-sequence/network checks that supply the crossing; rendered filtered results are not explicitly verified.",
+          "name": "gpt-xhigh testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-xhigh testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "Focused Flask test-client checks with exact keys plus request-sequence/network checks that supply the crossing; rendered filtered results are not explicitly verified.",
+          "name": "gpt-xhigh verification remains focused",
+          "passed": true
+        },
+        {
+          "detail": "Max-effort gpt run: five rows cover all outcomes, folding CRUD compatibility into the persistence row while keeping both obligations visible. Invalid values are explicitly excluded from the contract pending separate approval; control and copy choices are recommendations, and the plan avoids pagination, loading redesign, and documentation expansion. No material additions.",
+          "name": "gpt-max covers the approved requirements",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max avoids material semantic expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max keeps requirement grouping proportionate",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are covered, including a real browser-to-Flask crossing and every client aspect; the only deduction is browser CRUD flows exercised with each filter selected (a 3x3 spread) where representative cases would prove refresh persistence.",
+          "name": "gpt-max testing covers decisive evidence",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are covered, including a real browser-to-Flask crossing and every client aspect; the only deduction is browser CRUD flows exercised with each filter selected (a 3x3 spread) where representative cases would prove refresh persistence.",
+          "name": "gpt-max testing uses appropriate layers",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are covered, including a real browser-to-Flask crossing and every client aspect; the only deduction is browser CRUD flows exercised with each filter selected (a 3x3 spread) where representative cases would prove refresh persistence.",
+          "name": "gpt-max testing includes the important crossing",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids material duplication",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids combinatorial expansion",
+          "passed": true
+        },
+        {
+          "detail": "[]",
+          "name": "gpt-max testing avoids implementation coupling",
+          "passed": true
+        },
+        {
+          "detail": "All three evidence layers are covered, including a real browser-to-Flask crossing and every client aspect; the only deduction is browser CRUD flows exercised with each filter selected (a 3x3 spread) where representative cases would prove refresh persistence.",
+          "name": "gpt-max verification remains focused",
+          "passed": true
+        }
+      ],
+      "response_repairs": [],
+      "result": {
+        "assessments": [
+          {
+            "candidate_id": "glm-low",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "unresolved_design_choice",
+                  "rationale": "The target fixes only omission-as-All and grants latitude for supported encodings; behavior for unsupported values is unspecified public behavior that was selected and promoted into the requirements checklist rather than left as a raised question, even though a 400 alternative is flagged.",
+                  "severity": "material",
+                  "source_excerpt": "REQ-007 \u2014 Invalid or unrecognized `read` parameter values do not change the all-books response (documented behavior decision, see Execution decisions).",
+                  "summary": "A normative all-books fallback contract for invalid or unrecognized read values, with its own requirement row and verification row."
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "REQ-001 \u2014 The Books page shows a visible filter control to switch between All, Read, and Unread views, with All as the initial view on load.",
+                  "notes": "Choices and initial view are covered, but neither REQ-001 nor any verification addresses visibly identifying the active choice.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "REQ-001 (All initial view) plus REQ-002 'selecting All fetches GET /books without the parameter'.",
+                  "notes": "Initial All state and the unfiltered request are both stated.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-002 \u2014 Selecting Read or Unread fetches the server-filtered collection from GET /books?read=true or GET /books?read=false.",
+                  "notes": "Boundary-crossing request required; the true/false encoding is latitude the supporting details grant.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-003 \u2014 GET /books accepts an optional read query parameter... Valid values filter the list by the book's read field.",
+                  "notes": "Server-side interpretation and boolean filtering are explicit.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-003 \u2014 The JSON response shape ({\"status\": ..., \"books\": [...]}) is preserved in all cases.",
+                  "notes": "Covers filtered and unfiltered responses.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-005 \u2014 When no books match the selected filter, the page shows a clear empty-result indication (not just an empty table).",
+                  "notes": "Empty state explicit; filtered rendering follows from REQ-002/003.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-004 \u2014 The selected filter stays active after add, update, or delete: the post-mutation refresh re-fetches using the currently selected filter.",
+                  "notes": "Direct restatement.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-006 \u2014 Existing CRUD behavior remains compatible: POST /books behavior, PUT/DELETE /books/<id> endpoints, and the all-books response for a parameter-less GET are unchanged.",
+                  "notes": "Compatibility surfaces enumerated.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "partial",
+              "expansion_severity": "medium",
+              "grouping": [],
+              "review_burden": "medium",
+              "signals": [
+                "unknown_filter_value_behavior"
+              ],
+              "summary": "Low-effort glm run produced a compact 7-row checklist (one plan-section ordering check failed in the producer result) that traces cleanly to all outcomes with sensible client/server splits and no fragmentation. One material addition: the invented lenient contract for unrecognized read values becomes REQ-007 with dedicated verification. BOOKS-1 is only partially covered because visible active-choice identification is never required or verified."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "Parameter-less GET asserted 'byte-for-byte' equal to the current response, stricter than the required shape contract"
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "No automated Flask API tests; server verification is manual requests",
+                "No check that the active choice remains visibly identified",
+                "Mutation-refresh step is not executable as written: the inspected template has no add/update/delete UI wiring, and the candidate concedes update/delete coverage limits due to stubs"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "Direct requests against the running Flask app: GET /books returns all books with the existing shape; ?read=true and ?read=false filter; POST unchanged \u2014 manual, not automated tests.",
+                  "expectation_index": 0,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Manual browser/mounted checks: All shown initially; switching issues ?read=true|false and 'only read books render'; add under Read keeps the refresh filtered; empty message shows. No active-selection check.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Browser against the running server: 'switch to Read and confirm the network request is GET /books?read=true and only read books render.'",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "All three evidence layers are addressed at real boundaries and the browser check supplies the crossing, but everything is manual, the active state is unverified, and the mutation-refresh check cannot be driven from the fixture's UI as written.",
+              "unnecessary_tests": [
+                "GET /books?read=bogus check exists only to verify the invented REQ-007 invalid-value contract"
+              ],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-high",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "unresolved_design_choice",
+                  "rationale": "Unsupported-value behavior is unspecified public behavior; it is raised as an open question rather than made a checklist requirement, so only the recommended default and its verification add minor scope.",
+                  "severity": "minor",
+                  "source_excerpt": "an unrecognizable value falls back to the unfiltered list rather than erroring (a local, reversible choice \u2014 see decisions)",
+                  "summary": "Lenient fallback for unrecognized read values plus case-insensitive parsing are baked into the approach and given an extra curl check, flagged as a reversible open question with a 400 alternative."
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "REQ-1: The Books page offers three filter choices \u2014 All, Read, Unread \u2014 and All is the view shown initially.",
+                  "notes": "Choices and initial view are covered; visible identification of the active choice is not required or verified (recommended control is plain buttons).",
+                  "outcome_id": "BOOKS-1",
+                  "status": "partial"
+                },
+                {
+                  "evidence": "REQ-1 (All shown initially) plus REQ-3 'GET /books without the read parameter keeps the current all-books response'.",
+                  "notes": "Client omission behavior is fixed in the plan; the outcome is observable via REQ-1/REQ-3.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-2: Selecting Read or Unread fetches the corresponding server-filtered collection via the optional read query parameter on GET /books (read=true for Read, read=false for Unread).",
+                  "notes": "Crossing required; encoding is granted latitude.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-2 server-filtered collection; verification: 'GET /books?read=true returns only read books; ?read=false only unread'.",
+                  "notes": "Server filtering by boolean read state covered.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-3: the existing JSON response shape ({\"status\": \"success\", \"books\": [...]}) is preserved for filtered and unfiltered requests.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-5: When no books match the active filter, the page shows a clear empty result instead of a bare table.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-4: The selected filter stays active when the list refreshes after adding, updating, or deleting a book, and each of those operations still refetches the list as it does today.",
+                  "notes": "Direct; the refetch clause is compatible with existing behavior.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "REQ-6: Existing CRUD behavior remains compatible: the POST/PUT/DELETE endpoints and their current client calls work unchanged.",
+                  "notes": "Combined with REQ-3 for the unfiltered list.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "partial",
+              "expansion_severity": "low",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "High-effort glm run: six rows trace to all outcomes with clean grouping and no fragmentation; the only additions are the recommended (properly raised, non-normative) invalid-value fallback and case-insensitive parsing. BOOKS-1 again lacks explicit active-choice identification."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "No automated tests at all; all verification is manual in a repo with no suite",
+                "No check that the active choice is visibly identified",
+                "Delete-based refresh check is not executable via the UI (no mutation form wiring; PUT/DELETE are stubs per the shared inspection findings)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "Manual curl: 'GET /books?read=true returns only read books; ?read=false only unread; GET /books returns both books under {\"status\": \"success\", \"books\": [...]}' \u2014 cases covered, no automated tests.",
+                  "expectation_index": 0,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Manual browser: 'Load page, confirm All shown without interaction'; 'Under Read filter, delete a book; list refetches still filtered'; empty-bucket message shown. No active-selection check.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Manual (browser + curl): 'client shows the same' filtered results; REQ-4 observes the refetch staying filtered under the real server.",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Focused manual verification at the real HTTP and browser boundaries with the crossing present, but no automated Flask API or Vue component tests, and the mutation-refresh step cannot be driven from the fixture's UI.",
+              "unnecessary_tests": [
+                "Additional curl of an unrecognized read value verifies only the optional fallback decision, not a required outcome"
+              ],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "glm-max",
+            "requirement_assessment": {
+              "added_obligations": [
+                {
+                  "classification": "wrong_record_role",
+                  "rationale": "Documentation production is unrequested work promoted into the task's delivered scope and completion checklist; the scenario reserves documentation work from product requirements. The FLT checklist itself stays clean.",
+                  "severity": "material",
+                  "source_excerpt": "In scope: ... server tests at the HTTP boundary; specification and README updates listed in the plan.",
+                  "summary": "Producing a new specification file (docs/development/specifications/book-filter.md), updating docs/development/index.md, and a README sentence are declared in scope and in the task checklist as deliverables of the change."
+                },
+                {
+                  "classification": "unresolved_design_choice",
+                  "rationale": "Unspecified public behavior receives a default resolution; minor because it is explicitly raised as an open question and kept out of the checklist.",
+                  "severity": "minor",
+                  "source_excerpt": "Recommendation: treat it as if omitted and return all books",
+                  "summary": "Q1 defaults unrecognized read values to the all-books fallback ('the executor applies the recommendation unless you choose otherwise'), raised with a 400 alternative."
+                }
+              ],
+              "coverage": [
+                {
+                  "evidence": "FLT-001 \u2014 ...All is the active view when the page first loads; D2: 'three buttons above the table with a visible active state'.",
+                  "notes": "Active-choice visibility is explicitly decided.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-002: 'Omitting the parameter keeps the current all-books response'; plan: getBooks() requests bare /books for All; FLT-001 gives the initial All view.",
+                  "notes": "Initial All plus unfiltered request behavior covered.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-002 \u2014 the client requests GET /books with the optional read query parameter (no client-side filtering).",
+                  "notes": "Crossing required explicitly; client-side filtering excluded.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-002 \u2014 the server returns only books whose read status matches.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-002 \u2014 every response keeps the existing {\"status\": \"success\", \"books\": [...]} shape.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-005 \u2014 When no books match the selected view, the page shows a clear empty result.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-004 \u2014 After adding, updating, or deleting a book, the list refreshes and the selected filter remains active.",
+                  "notes": "Direct and clearly observable.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-003 \u2014 unfiltered GET /books, POST /books, and PUT/DELETE /books/<book_id> responses and behavior are unchanged.",
+                  "notes": "Dedicated compatibility row.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "medium",
+              "grouping": [],
+              "review_burden": "medium",
+              "signals": [
+                "documentation_as_requirement"
+              ],
+              "summary": "Max-effort glm run: the five-row checklist covers every outcome with good grouping (end-to-end filter contract, compatibility, persistence, and empty state each observable), and control/wording choices are permissible closures. The material addition is the documentation set promoted into scope (new spec file plus index and README updates); Q1 selects a default for invalid values while properly raising it."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "minor",
+              "implementation_coupling": [],
+              "important_crossing": "missing",
+              "layer_selection": "mixed",
+              "missing_tests": [
+                "No executable Vue component tests; client evidence is inspection-only by default with the browser check conditional",
+                "No production client-transport-to-Flask crossing test planned",
+                "Browser CRUD flows would depend on mutation triggers the fixture template lacks (no form wiring per the shared inspection findings)"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "pytest via Flask test client against the real app (no mocks): ?read=true, ?read=false, omitted; shape asserted; POST-added book appears under the matching filter; PUT/DELETE and unfiltered GET regression.",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "FLT-001/004/005 verified by 'Component inspection plus manual browser check (when harness available); gap recorded otherwise' \u2014 no executable component tests.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Server checks use the Flask test client and client requirements default to inspection; the browser check is only conditional, so no planned verification crosses the production client transport to Flask.",
+                  "expectation_index": 2,
+                  "status": "missing"
+                }
+              ],
+              "summary": "Strong automated server coverage at the real HTTP boundary including shape and CRUD regression, but client requirements default to inspection-only evidence, the required crossing is not planned, and the curl smoke test repeats the pytest cases.",
+              "unnecessary_tests": [],
+              "verification_focus": "mixed"
+            }
+          },
+          {
+            "candidate_id": "gpt-medium",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 The Books page provides All, Read, and Unread choices, with All selected on the initial page load.",
+                  "notes": "Selected-state language covers active identification implicitly, though visible identification is not spelled out.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002 (All selected initially) plus BOOK-FILTER-001 'omitting the parameter returns the current all-books collection'.",
+                  "notes": "Initial state and unfiltered behavior stated; plan fixes All's request to omit the parameter.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 The Read and Unread choices request their corresponding server-filtered collection through the optional read query parameter.",
+                  "notes": "Crossing required; plan adds 'The client must not fetch all books and filter locally', which is the target's own boundary.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 A Read request returns only books whose read value is true, an Unread request returns only books whose read value is false.",
+                  "notes": "Server interpretation explicit.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 Every response keeps the existing {\"status\": \"success\", \"books\": [...]} JSON shape.",
+                  "notes": "Direct, including the empty-books case.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 the page clearly communicates that no books match the active filter.",
+                  "notes": "Direct; controls remaining available when empty is a plan-level derived detail.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003 \u2014 refreshes the collection using the currently selected filter rather than silently returning to All.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-005 \u2014 Existing CRUD endpoints and client CRUD flows remain compatible, including the existing response contract used by the client.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "low",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Medium-effort gpt run: five traceable rows cover all outcomes with sensible merges and no fragmentation. Minor additions only: proposed empty-state wording, controls staying available when empty, and a confirmation gate for the read=true/false encoding even though the supporting details already grant that choice."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [
+                "Additional verification inspects 'generated request URLs or Axios query configuration', bordering on the internal axios-mechanism checks the scenario says to avoid"
+              ],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "No explicit assertion that filtered results render (BOOK-FILTER-002/003 evidence is request-level)",
+                "Automated client tests are contingent on tooling; manual fallback acknowledged"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "BOOK-FILTER-001: 'Flask route-level tests or Flask test-client checks showing omitted, true, and false requests and exact status/books response structure.'",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Client/component checks for 'initial All, request parameters, filter selection, CRUD refresh retention, and the empty result' with a recorded manual fallback \u2014 rendered filtered results are not explicitly asserted.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002: 'Vue component test or browser observation showing All initially selected and Read/Unread issuing the corresponding query parameter' against the real stack.",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Server route tests and client checks at appropriate layers with the crossing present; the gaps are the missing rendered-results assertion and mild axios-configuration inspection in the additional verification.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-high",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 The Books page offers All, Read, and Unread filters, with All selected for the initial view.",
+                  "notes": "Selected-state language implies active identification, though visibility is not explicit.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 plus BOOK-FILTER-002 'Omitting it returns all books' plus BOOK-FILTER-005 'existing all-books behavior when no filter is selected'.",
+                  "notes": "Plan and decisions fix All to omit the parameter.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 the read and unread selections request the corresponding server-filtered collections.",
+                  "notes": "Crossing required; canonical values raised for confirmation rather than silently fixed.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Plan step 1: 'filtering by the existing boolean read field'; BOOK-FILTER-002 requests the server-filtered collections.",
+                  "notes": "Server boolean filtering covered end to end.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 Every successful response keeps the existing { \"status\": \"success\", \"books\": [...] } shape.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 The Books page clearly communicates when the active filter has no matching books.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003 \u2014 The selected filter remains in effect when the list refreshes after adding, updating, or deleting a book.",
+                  "notes": "Direct and clearly observable.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-005 \u2014 Existing CRUD endpoints and client operations remain compatible, including the existing all-books behavior when no filter is selected.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "High-effort gpt run: five traceable rows cover all outcomes with clean grouping. The malformed-read-value question is properly raised (client error, other rejection, or out of contract) rather than made normative, and the encoding is held pending confirmation despite granted latitude. No material additions."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "No explicit rendered-results assertion for filtered views (checks emphasize query construction)",
+                "Automated client tests are implied rather than committed; the manual browser path is the realistic path given no harness"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "BOOK-FILTER-002: 'Flask route-level integration checks compare omitted, read=true, and read=false results and assert the unchanged response envelope.'",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "'client/component or browser checks for initial selection, query construction, CRUD refresh persistence, and the empty state' \u2014 rendered filtered results are not explicitly asserted.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "Browser checks confirm the three choices and query construction against the real app; BOOK-FILTER-003 verifies refresh requests retain the filter.",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Route-level integration checks plus browser checks with the crossing present; rendered filtered results and active-choice visibility are not explicitly asserted.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-xhigh",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 The Books page lets a reader choose All, Read, or Unread, with All selected on the initial page load.",
+                  "notes": "Selected-state language; control choice raised as a proposed decision, not normative.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 plus BOOK-FILTER-002 'Omitting it returns all books' plus BOOK-FILTER-006 'existing unfiltered GET /books behavior remain compatible'.",
+                  "notes": "Plan fixes getBooks() to send no query parameter for All.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 The Vue client requests the selected collection from the server...",
+                  "notes": "Crossing explicit; client-side filtering excluded.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 read=true returns only books whose read value is true; and read=false returns only books whose read value is false.",
+                  "notes": "Server boolean filtering explicit.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003 \u2014 Every filtered and unfiltered API response keeps the existing JSON shape, including the status field and books array.",
+                  "notes": "Kept as its own observable row.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-005 \u2014 The Books page clearly states that no books match the active filter when the returned collection is empty.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 ...keeps the selected filter when refreshing after adding, updating, or deleting a book.",
+                  "notes": "Direct and clearly observable.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-006 \u2014 Existing CRUD endpoint behavior and the existing unfiltered GET /books behavior remain compatible.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Xhigh-effort gpt run: six rows trace cleanly, with shape preservation as its own observable row and client request/persistence combined without losing visibility. Invalid values are deliberately left outside the contract pending approval; control and copy choices are raised as proposed decisions rather than made normative. No material additions."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "none",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "No explicit rendered-results assertion for the filtered table (read-status display preservation is only a plan note)",
+                "Automated client coverage is contingent on a harness; manual fallback acknowledged"
+              ],
+              "overall_coverage": "partial",
+              "required_evidence": [
+                {
+                  "evidence": "'focused API checks using the Flask test client... for omitted, true, and false queries, exact response keys, and representative matching/non-matching books'; BOOK-FILTER-003 asserts the shape fields.",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Client checks for 'the initial All request, query mapping, filter retention after each CRUD refresh, and the empty state'; BOOK-FILTER-001 covers three selectable states \u2014 rendered filtered results not explicitly asserted.",
+                  "expectation_index": 1,
+                  "status": "partial"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004: 'Client request-sequence test or network inspection showing the active query on initial load and after add, update, and delete refreshes.'",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "Focused Flask test-client checks with exact keys plus request-sequence/network checks that supply the crossing; rendered filtered results are not explicitly verified.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          },
+          {
+            "candidate_id": "gpt-max",
+            "requirement_assessment": {
+              "added_obligations": [],
+              "coverage": [
+                {
+                  "evidence": "BOOK-FILTER-002 \u2014 The Books page gives readers All, Read, and Unread choices, with All selected on the initial load.",
+                  "notes": "Selected-state language; control presentation raised as an open question, not normative.",
+                  "outcome_id": "BOOKS-1",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003 \u2014 All requests omit read; BOOK-FILTER-001 'Omitting it returns all books'; BOOK-FILTER-002 gives the initial All state.",
+                  "notes": "Initial All and unfiltered request/response covered together.",
+                  "outcome_id": "BOOKS-2",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003 \u2014 Read and Unread request the matching server-filtered collection through read=true and read=false.",
+                  "notes": "Crossing explicit; mapping stated as settled by the request.",
+                  "outcome_id": "BOOKS-3",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 read=true returns only books whose read value is true, and read=false returns only books whose read value is false.",
+                  "notes": "Server filtering explicit.",
+                  "outcome_id": "BOOKS-4",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-001 \u2014 Every GET response keeps the existing {\"status\": \"success\", \"books\": [...]} shape.",
+                  "notes": "Direct, including the empty-books case.",
+                  "outcome_id": "BOOKS-5",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-005 \u2014 the page shows a clear empty-result message instead of only an empty table.",
+                  "notes": "Direct.",
+                  "outcome_id": "BOOKS-6",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 After adding, updating, or deleting a book, the refresh uses the currently selected filter instead of resetting to All.",
+                  "notes": "Direct and the row's headline obligation.",
+                  "outcome_id": "BOOKS-7",
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-004 \u2014 Existing CRUD endpoint behavior and client mutation flows remain compatible.",
+                  "notes": "Folded into the persistence row but still explicit and observable.",
+                  "outcome_id": "BOOKS-8",
+                  "status": "complete"
+                }
+              ],
+              "coverage_status": "complete",
+              "expansion_severity": "none",
+              "grouping": [],
+              "review_burden": "low",
+              "signals": [],
+              "summary": "Max-effort gpt run: five rows cover all outcomes, folding CRUD compatibility into the persistence row while keeping both obligations visible. Invalid values are explicitly excluded from the contract pending separate approval; control and copy choices are recommendations, and the plan avoids pagination, loading redesign, and documentation expansion. No material additions."
+            },
+            "testing_plan_assessment": {
+              "combinatorial_expansion": "minor",
+              "duplication": "none",
+              "implementation_coupling": [],
+              "important_crossing": "present",
+              "layer_selection": "appropriate",
+              "missing_tests": [
+                "Automated Vue component tests are deferred pending harness approval; the committed client path is manual browser verification"
+              ],
+              "overall_coverage": "complete",
+              "required_evidence": [
+                {
+                  "evidence": "BOOK-FILTER-001: 'Flask test-client requests with no parameter, read=true, and read=false, asserting the returned books and exact status/books envelope', including an empty books list for a valid no-match filter.",
+                  "expectation_index": 0,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "Browser checks cover three choices, initial All, 'the selected control remains unchanged', 'the refreshed collection is filtered', and the empty message (BOOK-FILTER-002/004/005).",
+                  "expectation_index": 1,
+                  "status": "complete"
+                },
+                {
+                  "evidence": "BOOK-FILTER-003: 'Flask request assertions plus browser network inspection confirming All omits read and the other choices send the matching value.'",
+                  "expectation_index": 2,
+                  "status": "complete"
+                }
+              ],
+              "summary": "All three evidence layers are covered, including a real browser-to-Flask crossing and every client aspect; the only deduction is browser CRUD flows exercised with each filter selected (a 3x3 spread) where representative cases would prove refresh persistence.",
+              "unnecessary_tests": [],
+              "verification_focus": "focused"
+            }
+          }
+        ],
+        "dataset_id": "candidate-task-guidance-20260915",
+        "scenario_id": "35-flask-vue-book-filter",
+        "schema_version": 1
+      },
+      "scenario_id": "35-flask-vue-book-filter",
+      "schema_version": 1,
+      "source_record_sha256": "aec4b70cd716d155a01f7fe7a77332c86fa0bcbed2061686f1f93bd32b41119c",
+      "source_run_id": "20260915T122016.806525Z-requirement-semantic-candidate-task-guidance-20260915-35-flask-vue-book-filter-fd36f055"
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,22 @@
+format = 1
+id = "task-guidance-flask-vue"
+kind = "fixture"
+
+[outputs]
+"AGENTS.md" = "AGENTS.md.in"
+
+[slots.project-context]
+source = "target"
+path = "sections/project-context.md"
+
+[slots.documentation]
+source = "bundle"
+section = "documentation"
+
+[slots.requirements]
+source = "bundle"
+section = "requirements"
+
+[slots.testing-strategy]
+source = "bundle"
+section = "testing-strategy"

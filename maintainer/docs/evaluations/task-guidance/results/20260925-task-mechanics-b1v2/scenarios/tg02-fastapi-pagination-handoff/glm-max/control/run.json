@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "control",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T203244.086983Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-incomplete-45001810",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "61009f3cd5421124d8f38788aa2c8090032aa1f5636ef00e5b92dfd0dbc197a9",
+    "original_sha256": "23c809f83077dcdf45bcd77d1e22ebad931ba31194535cf0fb8dfc4f781d3422",
+    "path": "shared/system-messages/glm-61009f3cd542.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md"
+  ],
+  "valid": true
+}

@@ -1,0 +1,2623 @@
+{
+  "counts": {
+    "missing_pairwise_quality": 0,
+    "missing_semantic_assessments": 0,
+    "pairwise_quality_errors": 0,
+    "pairwise_quality_records": 42,
+    "producer_failures": 8,
+    "producer_records": 84,
+    "semantic_assessments": 84,
+    "semantic_errors": 0
+  },
+  "dataset_id": "compiled-guidance-default-runner-matrix-20260918",
+  "effort_policies": {
+    "high": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "low": {
+      "description": "Completeness shortfalls are descriptive; material scope invention and unusable testing remain failures.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": false,
+      "require_complete_testing": false,
+      "require_real_crossing": false
+    },
+    "max": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "medium": {
+      "description": "Requirements should be complete and safe; testing may be partial but should select the real boundary.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": true,
+      "require_complete_testing": false,
+      "require_real_crossing": true
+    },
+    "xhigh": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    }
+  },
+  "paired_score_deltas": [
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 75,
+      "testing_delta": 21
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 52,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 80,
+      "testing_delta": -18
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 30,
+      "testing_delta": 20
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -5,
+      "testing_delta": -1
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -10,
+      "testing_delta": 4
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 80,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 33,
+      "testing_delta": 8
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -65,
+      "testing_delta": 13
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 15,
+      "testing_delta": 6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 10,
+      "testing_delta": 21
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 20,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": -15,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 18,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 15,
+      "testing_delta": 31
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 100,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 100,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -5,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 65,
+      "testing_delta": 13
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 57,
+      "testing_delta": 31
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 13,
+      "testing_delta": 1
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 40,
+      "testing_delta": -19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 8,
+      "testing_delta": -24
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 20,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -10,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 20,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 0,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 20,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 20,
+      "testing_delta": 38
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 1
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 20,
+      "testing_delta": 2
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": 3
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 0,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 5,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 90,
+      "testing_delta": 18
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": -19
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 3,
+      "testing_delta": 1
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 40,
+      "effort": "max",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": 31
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 20,
+      "testing_delta": 35
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 0,
+      "testing_delta": 51
+    }
+  ],
+  "pairwise_quality": {
+    "groups": [
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.0,
+            "overall_quality": 3.5,
+            "plan_usability": 4.17,
+            "scope_discipline": 3.67,
+            "target_fidelity": 3.83,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.17
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 4.17,
+            "scope_discipline": 4.5,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.67
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "glm-high"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 3,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 4,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 3,
+          "tie": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.0,
+            "plan_usability": 3.33,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 2.5,
+            "testing_proportionality": 3.33
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.17,
+            "target_fidelity": 4.67,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "glm-low"
+        ],
+        "overall_preferences": {
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "combined-v2": 6
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.83,
+            "overall_quality": 3.5,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.33,
+            "testing_proportionality": 3.67
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.0,
+            "plan_usability": 4.0,
+            "scope_discipline": 4.0,
+            "target_fidelity": 4.17,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "glm-max"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 3,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 3,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "baseline": 3,
+          "combined-v2": 3
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.33,
+            "overall_quality": 3.5,
+            "plan_usability": 4.0,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.17,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 3.83
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.33,
+            "target_fidelity": 4.83,
+            "testing_decisiveness": 4.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "gpt-high"
+        ],
+        "overall_preferences": {
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 4,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "combined-v2": 5,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "combined-v2": 5,
+          "tie": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.33,
+            "overall_quality": 3.83,
+            "plan_usability": 4.33,
+            "scope_discipline": 3.83,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.67
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 4.17,
+            "scope_discipline": 4.17,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 4.0,
+            "testing_proportionality": 4.17
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "gpt-max"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 1,
+          "tie": 3
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.17,
+            "overall_quality": 3.5,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 2.83,
+            "testing_proportionality": 3.83
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.83,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.83,
+            "testing_proportionality": 4.5
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "gpt-medium"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 2,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.17,
+            "overall_quality": 3.67,
+            "plan_usability": 4.17,
+            "scope_discipline": 3.83,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.17
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.5,
+            "target_fidelity": 4.5,
+            "testing_decisiveness": 4.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "candidate",
+          "gpt-xhigh"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 3,
+          "combined-v2": 3
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.17,
+            "overall_quality": 3.5,
+            "plan_usability": 4.08,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.58,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.58,
+            "overall_quality": 4.25,
+            "plan_usability": 4.25,
+            "scope_discipline": 4.42,
+            "target_fidelity": 4.58,
+            "testing_decisiveness": 4.08,
+            "testing_proportionality": 4.5
+          }
+        },
+        "cells": 12,
+        "group": [
+          "effort",
+          "high"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 10
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 7,
+          "tie": 3
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 9,
+          "tie": 2
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 8,
+          "tie": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.0,
+            "plan_usability": 3.33,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 2.5,
+            "testing_proportionality": 3.33
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.17,
+            "target_fidelity": 4.67,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "effort",
+          "low"
+        ],
+        "overall_preferences": {
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "combined-v2": 6
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.08,
+            "overall_quality": 3.67,
+            "plan_usability": 4.08,
+            "scope_discipline": 3.42,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.17
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.08,
+            "plan_usability": 4.08,
+            "scope_discipline": 4.08,
+            "target_fidelity": 4.25,
+            "testing_decisiveness": 3.75,
+            "testing_proportionality": 4.25
+          }
+        },
+        "cells": 12,
+        "group": [
+          "effort",
+          "max"
+        ],
+        "overall_preferences": {
+          "baseline": 4,
+          "combined-v2": 8
+        },
+        "plan_usability_preferences": {
+          "baseline": 4,
+          "combined-v2": 4,
+          "tie": 4
+        },
+        "requirements_preferences": {
+          "baseline": 4,
+          "combined-v2": 7,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "baseline": 5,
+          "combined-v2": 7
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.17,
+            "overall_quality": 3.5,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 2.83,
+            "testing_proportionality": 3.83
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.17,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.83,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.83,
+            "testing_proportionality": 4.5
+          }
+        },
+        "cells": 6,
+        "group": [
+          "effort",
+          "medium"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 2,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.17,
+            "overall_quality": 3.67,
+            "plan_usability": 4.17,
+            "scope_discipline": 3.83,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.17
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.5,
+            "target_fidelity": 4.5,
+            "testing_decisiveness": 4.5,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 6,
+        "group": [
+          "effort",
+          "xhigh"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 3,
+          "combined-v2": 3
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 4
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.81,
+            "overall_quality": 3.14,
+            "plan_usability": 3.81,
+            "scope_discipline": 2.95,
+            "target_fidelity": 3.48,
+            "testing_decisiveness": 2.9,
+            "testing_proportionality": 3.76
+          },
+          "combined-v2": {
+            "clarity": 4.71,
+            "overall_quality": 4.19,
+            "plan_usability": 4.14,
+            "scope_discipline": 4.05,
+            "target_fidelity": 4.19,
+            "testing_decisiveness": 3.76,
+            "testing_proportionality": 4.29
+          }
+        },
+        "cells": 21,
+        "group": [
+          "mode",
+          "root-only"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 20
+        },
+        "plan_usability_preferences": {
+          "baseline": 3,
+          "combined-v2": 12,
+          "tie": 6
+        },
+        "requirements_preferences": {
+          "baseline": 3,
+          "combined-v2": 17,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "baseline": 3,
+          "combined-v2": 18
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.33,
+            "overall_quality": 3.86,
+            "plan_usability": 4.1,
+            "scope_discipline": 4.1,
+            "target_fidelity": 4.14,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.14
+          },
+          "combined-v2": {
+            "clarity": 4.38,
+            "overall_quality": 4.19,
+            "plan_usability": 4.19,
+            "scope_discipline": 4.38,
+            "target_fidelity": 4.62,
+            "testing_decisiveness": 4.1,
+            "testing_proportionality": 4.48
+          }
+        },
+        "cells": 21,
+        "group": [
+          "mode",
+          "task"
+        ],
+        "overall_preferences": {
+          "baseline": 7,
+          "combined-v2": 14
+        },
+        "plan_usability_preferences": {
+          "baseline": 8,
+          "combined-v2": 10,
+          "tie": 3
+        },
+        "requirements_preferences": {
+          "baseline": 8,
+          "combined-v2": 11,
+          "tie": 2
+        },
+        "testing_preferences": {
+          "baseline": 7,
+          "combined-v2": 12,
+          "tie": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.21,
+            "overall_quality": 3.86,
+            "plan_usability": 4.14,
+            "scope_discipline": 3.64,
+            "target_fidelity": 3.79,
+            "testing_decisiveness": 4.0,
+            "testing_proportionality": 3.93
+          },
+          "combined-v2": {
+            "clarity": 4.64,
+            "overall_quality": 4.14,
+            "plan_usability": 4.21,
+            "scope_discipline": 4.21,
+            "target_fidelity": 4.29,
+            "testing_decisiveness": 3.79,
+            "testing_proportionality": 4.21
+          }
+        },
+        "cells": 14,
+        "group": [
+          "scenario",
+          "33-eleventy-archive-pagination"
+        ],
+        "overall_preferences": {
+          "baseline": 5,
+          "combined-v2": 9
+        },
+        "plan_usability_preferences": {
+          "baseline": 4,
+          "combined-v2": 5,
+          "tie": 5
+        },
+        "requirements_preferences": {
+          "baseline": 5,
+          "combined-v2": 9
+        },
+        "testing_preferences": {
+          "baseline": 7,
+          "combined-v2": 6,
+          "tie": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.93,
+            "overall_quality": 3.29,
+            "plan_usability": 3.64,
+            "scope_discipline": 3.36,
+            "target_fidelity": 3.71,
+            "testing_decisiveness": 3.07,
+            "testing_proportionality": 3.79
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.29,
+            "plan_usability": 4.07,
+            "scope_discipline": 4.0,
+            "target_fidelity": 4.36,
+            "testing_decisiveness": 4.07,
+            "testing_proportionality": 4.64
+          }
+        },
+        "cells": 14,
+        "group": [
+          "scenario",
+          "34-fastapi-notes-pagination"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 13
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 10,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "baseline": 4,
+          "combined-v2": 9,
+          "tie": 1
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 12
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.07,
+            "overall_quality": 3.36,
+            "plan_usability": 4.07,
+            "scope_discipline": 3.57,
+            "target_fidelity": 3.93,
+            "testing_decisiveness": 2.79,
+            "testing_proportionality": 4.14
+          },
+          "combined-v2": {
+            "clarity": 4.5,
+            "overall_quality": 4.14,
+            "plan_usability": 4.21,
+            "scope_discipline": 4.43,
+            "target_fidelity": 4.57,
+            "testing_decisiveness": 3.93,
+            "testing_proportionality": 4.29
+          }
+        },
+        "cells": 14,
+        "group": [
+          "scenario",
+          "35-flask-vue-book-filter"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 12
+        },
+        "plan_usability_preferences": {
+          "baseline": 5,
+          "combined-v2": 7,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 10,
+          "tie": 2
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 12,
+          "tie": 1
+        }
+      }
+    ],
+    "likely_cause_counts": {
+      "dedicated_requirements_section": 3,
+      "evidence_not_requirement": 19,
+      "existing_coverage_must_prove_behavior": 16,
+      "internal_mechanism_not_authorized": 20,
+      "mock_bypass_not_decisive": 19,
+      "other": 3,
+      "producer_variance": 11,
+      "real_crossing_rule": 13,
+      "removed_testing_detail": 7,
+      "smallest_reliable_evidence": 23,
+      "task_guidance_interaction": 20,
+      "unapproved_behavior_remains_question": 31
+    },
+    "overall_preferences": {
+      "baseline": 8,
+      "combined-v2": 34
+    },
+    "plan_usability_preferences": {
+      "baseline": 11,
+      "combined-v2": 22,
+      "tie": 9
+    },
+    "requirements_preferences": {
+      "baseline": 11,
+      "combined-v2": 28,
+      "tie": 3
+    },
+    "testing_preferences": {
+      "baseline": 10,
+      "combined-v2": 30,
+      "tie": 2
+    }
+  },
+  "producer_failures": [
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "[-1, 5048, 5597, 6289]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "tasks/20260918-fastapi-notes-list-pagination.md",
+          "name": "planning output has no implementation or completion notes",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "[-1, -1, -1, -1]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "[5992, -1, -1, 6947]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "[8887, -1, -1, -1]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "[-1, 5837, 6297, 6943]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "[-1, 6041, -1, -1]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "[5642, 6063, -1, -1]",
+          "name": "plan closing sections are present and ordered",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    }
+  ],
+  "schema_version": 1,
+  "score_groups": {
+    "variant": [
+      {
+        "average_coverage_score": 94.3,
+        "average_scope_score": 42.9,
+        "average_testing_score": 75.5,
+        "cells": 42,
+        "coverage_statuses": {
+          "complete": 36,
+          "partial": 6
+        },
+        "effort_expectation_met": 11,
+        "expansion_severities": {
+          "high": 8,
+          "low": 14,
+          "medium": 16,
+          "none": 4
+        },
+        "group": [
+          "baseline"
+        ],
+        "important_crossings": {
+          "missing": 11,
+          "present": 31
+        },
+        "requirement_expectation_met": 17,
+        "testing_coverage": {
+          "complete": 14,
+          "partial": 28
+        },
+        "testing_expectation_met": 21,
+        "testing_layers": {
+          "appropriate": 25,
+          "mixed": 17
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 66.7,
+        "average_testing_score": 86.5,
+        "cells": 42,
+        "coverage_statuses": {
+          "complete": 35,
+          "partial": 7
+        },
+        "effort_expectation_met": 18,
+        "expansion_severities": {
+          "high": 1,
+          "low": 15,
+          "medium": 12,
+          "none": 14
+        },
+        "group": [
+          "combined-v2"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 41
+        },
+        "requirement_expectation_met": 25,
+        "testing_coverage": {
+          "complete": 18,
+          "partial": 24
+        },
+        "testing_expectation_met": 27,
+        "testing_layers": {
+          "appropriate": 37,
+          "mixed": 5
+        }
+      }
+    ],
+    "variant_candidate": [
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 28.2,
+        "average_testing_score": 72.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 2,
+          "low": 2,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 3
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 41.2,
+        "average_testing_score": 67.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 3,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 4
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 14.5,
+        "average_testing_score": 78.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "high": 4,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 3
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 56.5,
+        "average_testing_score": 83.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 3,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 57.5,
+        "average_testing_score": 79.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 1,
+          "low": 4,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 38.7,
+        "average_testing_score": 74.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 63.7,
+        "average_testing_score": 72.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 2,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 55.0,
+        "average_testing_score": 82.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 3,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 77.3,
+        "average_testing_score": 75.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "partial": 6
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 86.7,
+        "average_scope_score": 51.7,
+        "average_testing_score": 81.0,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 4,
+          "partial": 2
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 3,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 5,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 66.2,
+        "average_testing_score": 96.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 2,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 1
+        },
+        "testing_expectation_met": 5,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 72.5,
+        "average_testing_score": 86.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 4,
+          "medium": 1,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 64.0,
+        "average_testing_score": 90.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 80.0,
+        "average_testing_score": 93.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 2
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      }
+    ],
+    "variant_effort": [
+      {
+        "average_coverage_score": 96.7,
+        "average_scope_score": 42.3,
+        "average_testing_score": 78.1,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 11,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 2,
+          "low": 4,
+          "medium": 5,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "high"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 10
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 8
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 8,
+          "mixed": 4
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 41.2,
+        "average_testing_score": 67.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 3,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "low"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 4
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 36.0,
+        "average_testing_score": 78.8,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 10,
+          "partial": 2
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 5,
+          "low": 5,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 3,
+          "present": 9
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 6,
+          "partial": 6
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 7,
+          "mixed": 5
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 38.7,
+        "average_testing_score": 74.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "medium"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 63.7,
+        "average_testing_score": 72.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 2,
+          "none": 2
+        },
+        "group": [
+          "baseline",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 5
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 96.7,
+        "average_scope_score": 60.6,
+        "average_testing_score": 89.5,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 11,
+          "partial": 1
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 4,
+          "medium": 5,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "high"
+        ],
+        "important_crossings": {
+          "present": 12
+        },
+        "requirement_expectation_met": 7,
+        "testing_coverage": {
+          "complete": 7,
+          "partial": 5
+        },
+        "testing_expectation_met": 7,
+        "testing_layers": {
+          "appropriate": 10,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 77.3,
+        "average_testing_score": 75.3,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "low"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "partial": 6
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 90.0,
+        "average_scope_score": 62.1,
+        "average_testing_score": 83.8,
+        "cells": 12,
+        "coverage_statuses": {
+          "complete": 9,
+          "partial": 3
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 6,
+          "medium": 4,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 11
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 8
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 11,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 64.0,
+        "average_testing_score": 90.2,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "medium"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 80.0,
+        "average_testing_score": 93.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "present": 6
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 4,
+          "partial": 2
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 6
+        }
+      }
+    ],
+    "variant_mode": [
+      {
+        "average_coverage_score": 90.5,
+        "average_scope_score": 21.3,
+        "average_testing_score": 69.4,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 16,
+          "partial": 5
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 7,
+          "low": 3,
+          "medium": 11
+        },
+        "group": [
+          "baseline",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 7,
+          "present": 14
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 18
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 11,
+          "mixed": 10
+        }
+      },
+      {
+        "average_coverage_score": 98.1,
+        "average_scope_score": 64.4,
+        "average_testing_score": 81.7,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 20,
+          "partial": 1
+        },
+        "effort_expectation_met": 9,
+        "expansion_severities": {
+          "high": 1,
+          "low": 11,
+          "medium": 5,
+          "none": 4
+        },
+        "group": [
+          "baseline",
+          "task"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 17
+        },
+        "requirement_expectation_met": 15,
+        "testing_coverage": {
+          "complete": 11,
+          "partial": 10
+        },
+        "testing_expectation_met": 13,
+        "testing_layers": {
+          "appropriate": 14,
+          "mixed": 7
+        }
+      },
+      {
+        "average_coverage_score": 88.6,
+        "average_scope_score": 52.3,
+        "average_testing_score": 84.8,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 15,
+          "partial": 6
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "high": 1,
+          "low": 8,
+          "medium": 9,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 20
+        },
+        "requirement_expectation_met": 7,
+        "testing_coverage": {
+          "complete": 7,
+          "partial": 14
+        },
+        "testing_expectation_met": 12,
+        "testing_layers": {
+          "appropriate": 19,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 98.1,
+        "average_scope_score": 81.0,
+        "average_testing_score": 88.3,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 20,
+          "partial": 1
+        },
+        "effort_expectation_met": 13,
+        "expansion_severities": {
+          "low": 7,
+          "medium": 3,
+          "none": 11
+        },
+        "group": [
+          "combined-v2",
+          "task"
+        ],
+        "important_crossings": {
+          "present": 21
+        },
+        "requirement_expectation_met": 18,
+        "testing_coverage": {
+          "complete": 11,
+          "partial": 10
+        },
+        "testing_expectation_met": 15,
+        "testing_layers": {
+          "appropriate": 18,
+          "mixed": 3
+        }
+      }
+    ],
+    "variant_scenario": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 41.8,
+        "average_testing_score": 92.1,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 6,
+        "expansion_severities": {
+          "high": 2,
+          "low": 4,
+          "medium": 7,
+          "none": 1
+        },
+        "group": [
+          "baseline",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 9,
+          "partial": 5
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 14
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 42.8,
+        "average_testing_score": 78.4,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "high": 3,
+          "low": 3,
+          "medium": 5,
+          "none": 3
+        },
+        "group": [
+          "baseline",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 11
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 9,
+          "mixed": 5
+        }
+      },
+      {
+        "average_coverage_score": 82.9,
+        "average_scope_score": 44.1,
+        "average_testing_score": 56.1,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 8,
+          "partial": 6
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 3,
+          "low": 7,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 11,
+          "present": 3
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 12
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 12
+        }
+      },
+      {
+        "average_coverage_score": 97.1,
+        "average_scope_score": 69.9,
+        "average_testing_score": 91.3,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 13,
+          "partial": 1
+        },
+        "effort_expectation_met": 9,
+        "expansion_severities": {
+          "low": 7,
+          "medium": 3,
+          "none": 4
+        },
+        "group": [
+          "combined-v2",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 11,
+        "testing_coverage": {
+          "complete": 8,
+          "partial": 6
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 14
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 53.9,
+        "average_testing_score": 89.1,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 14
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "high": 1,
+          "medium": 7,
+          "none": 6
+        },
+        "group": [
+          "combined-v2",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "present": 14
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 8,
+          "partial": 6
+        },
+        "testing_expectation_met": 10,
+        "testing_layers": {
+          "appropriate": 11,
+          "mixed": 3
+        }
+      },
+      {
+        "average_coverage_score": 82.9,
+        "average_scope_score": 76.2,
+        "average_testing_score": 79.2,
+        "cells": 14,
+        "coverage_statuses": {
+          "complete": 8,
+          "partial": 6
+        },
+        "effort_expectation_met": 5,
+        "expansion_severities": {
+          "low": 8,
+          "medium": 2,
+          "none": 4
+        },
+        "group": [
+          "combined-v2",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 13
+        },
+        "requirement_expectation_met": 8,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 12
+        },
+        "testing_expectation_met": 6,
+        "testing_layers": {
+          "appropriate": 12,
+          "mixed": 2
+        }
+      }
+    ]
+  }
+}

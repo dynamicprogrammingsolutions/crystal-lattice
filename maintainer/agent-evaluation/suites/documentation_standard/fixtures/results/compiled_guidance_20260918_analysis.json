@@ -1,0 +1,2861 @@
+{
+  "counts": {
+    "missing_pairwise_quality": 21,
+    "missing_semantic_assessments": 42,
+    "pairwise_quality_errors": 0,
+    "pairwise_quality_records": 21,
+    "producer_failures": 42,
+    "producer_records": 84,
+    "semantic_assessments": 42,
+    "semantic_errors": 0
+  },
+  "dataset_id": "compiled-guidance-portable-matrix-20260918",
+  "effort_policies": {
+    "high": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "low": {
+      "description": "Completeness shortfalls are descriptive; material scope invention and unusable testing remain failures.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": false,
+      "require_complete_testing": false,
+      "require_real_crossing": false
+    },
+    "max": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    },
+    "medium": {
+      "description": "Requirements should be complete and safe; testing may be partial but should select the real boundary.",
+      "maximum_expansion": "medium",
+      "require_complete_requirements": true,
+      "require_complete_testing": false,
+      "require_real_crossing": true
+    },
+    "xhigh": {
+      "description": "Complete, focused requirements and decisive verification are expected.",
+      "maximum_expansion": "low",
+      "require_complete_requirements": true,
+      "require_complete_testing": true,
+      "require_real_crossing": true
+    }
+  },
+  "paired_score_deltas": [
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 75,
+      "testing_delta": 9
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": -67,
+      "testing_delta": -19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 75,
+      "testing_delta": 9
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 65,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 60,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 8,
+      "testing_delta": -6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "scope_delta": 3,
+      "testing_delta": 21
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 85,
+      "testing_delta": -13
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 65,
+      "testing_delta": -13
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 100,
+      "testing_delta": 0
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": -32
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": -32
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": true,
+      "coverage_delta": 0,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "scope_delta": 80,
+      "testing_delta": 19
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 25,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": true,
+      "candidate_id": "glm-low",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "low",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -20,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "glm-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 80,
+      "testing_delta": 33
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-high",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "high",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -22,
+      "testing_delta": -6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-max",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "max",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 23,
+      "testing_delta": -6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-medium",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": 0,
+      "effort": "medium",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": 23,
+      "testing_delta": -6
+    },
+    {
+      "baseline_expectation_met": false,
+      "candidate_id": "gpt-xhigh",
+      "combined_v2_expectation_met": false,
+      "coverage_delta": -40,
+      "effort": "xhigh",
+      "mode": "root-only",
+      "scenario_id": "35-flask-vue-book-filter",
+      "scope_delta": -60,
+      "testing_delta": -6
+    }
+  ],
+  "pairwise_quality": {
+    "groups": [
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.33,
+            "overall_quality": 3.0,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 3.33
+          },
+          "combined-v2": {
+            "clarity": 4.33,
+            "overall_quality": 4.33,
+            "plan_usability": 4.0,
+            "scope_discipline": 5.0,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 4.0,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "glm-high"
+        ],
+        "overall_preferences": {
+          "combined-v2": 3
+        },
+        "plan_usability_preferences": {
+          "combined-v2": 2,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "combined-v2": 3
+        },
+        "testing_preferences": {
+          "combined-v2": 3
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.33,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.33,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 3.67
+          },
+          "combined-v2": {
+            "clarity": 4.0,
+            "overall_quality": 3.67,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.33,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 2.67,
+            "testing_proportionality": 3.67
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "glm-low"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 1,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.33,
+            "overall_quality": 3.0,
+            "plan_usability": 3.67,
+            "scope_discipline": 2.0,
+            "target_fidelity": 3.0,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 3.67
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.67,
+            "plan_usability": 4.67,
+            "scope_discipline": 4.33,
+            "target_fidelity": 4.67,
+            "testing_decisiveness": 4.33,
+            "testing_proportionality": 4.67
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "glm-max"
+        ],
+        "overall_preferences": {
+          "combined-v2": 3
+        },
+        "plan_usability_preferences": {
+          "combined-v2": 3
+        },
+        "requirements_preferences": {
+          "combined-v2": 3
+        },
+        "testing_preferences": {
+          "combined-v2": 3
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.0,
+            "overall_quality": 3.33,
+            "plan_usability": 4.0,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.33,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.0,
+            "overall_quality": 3.67,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 3.67
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "gpt-high"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "tie": 2
+        },
+        "requirements_preferences": {
+          "combined-v2": 3
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.67,
+            "plan_usability": 4.33,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.33
+          },
+          "combined-v2": {
+            "clarity": 5.0,
+            "overall_quality": 4.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 4.33,
+            "target_fidelity": 5.0,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 4.33
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "gpt-max"
+        ],
+        "overall_preferences": {
+          "combined-v2": 3
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 1,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "combined-v2": 3
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "tie": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.67,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.0,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.33,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.0,
+            "plan_usability": 3.67,
+            "scope_discipline": 4.0,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.0
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "gpt-medium"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.0,
+            "overall_quality": 3.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 2.67,
+            "testing_proportionality": 3.33
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.0,
+            "plan_usability": 4.67,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 4.33,
+            "testing_proportionality": 4.0
+          }
+        },
+        "cells": 3,
+        "group": [
+          "candidate",
+          "gpt-xhigh"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "combined-v2": 3
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.17,
+            "plan_usability": 3.83,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.17,
+            "testing_proportionality": 3.67
+          },
+          "combined-v2": {
+            "clarity": 4.17,
+            "overall_quality": 4.0,
+            "plan_usability": 3.83,
+            "scope_discipline": 4.33,
+            "target_fidelity": 4.17,
+            "testing_decisiveness": 3.5,
+            "testing_proportionality": 4.0
+          }
+        },
+        "cells": 6,
+        "group": [
+          "effort",
+          "high"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 2,
+          "tie": 3
+        },
+        "requirements_preferences": {
+          "combined-v2": 6
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.33,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.33,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.0,
+            "testing_proportionality": 3.67
+          },
+          "combined-v2": {
+            "clarity": 4.0,
+            "overall_quality": 3.67,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.33,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 2.67,
+            "testing_proportionality": 3.67
+          }
+        },
+        "cells": 3,
+        "group": [
+          "effort",
+          "low"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 1,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.5,
+            "overall_quality": 3.33,
+            "plan_usability": 4.0,
+            "scope_discipline": 2.5,
+            "target_fidelity": 3.33,
+            "testing_decisiveness": 3.33,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.83,
+            "overall_quality": 4.5,
+            "plan_usability": 4.5,
+            "scope_discipline": 4.33,
+            "target_fidelity": 4.83,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.5
+          }
+        },
+        "cells": 6,
+        "group": [
+          "effort",
+          "max"
+        ],
+        "overall_preferences": {
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 4,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "combined-v2": 6
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 3,
+          "tie": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.67,
+            "plan_usability": 3.67,
+            "scope_discipline": 3.0,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 3.33,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.0,
+            "plan_usability": 3.67,
+            "scope_discipline": 4.0,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 3.67,
+            "testing_proportionality": 4.0
+          }
+        },
+        "cells": 3,
+        "group": [
+          "effort",
+          "medium"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.0,
+            "overall_quality": 3.33,
+            "plan_usability": 4.33,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.67,
+            "testing_decisiveness": 2.67,
+            "testing_proportionality": 3.33
+          },
+          "combined-v2": {
+            "clarity": 4.67,
+            "overall_quality": 4.0,
+            "plan_usability": 4.67,
+            "scope_discipline": 3.67,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 4.33,
+            "testing_proportionality": 4.0
+          }
+        },
+        "cells": 3,
+        "group": [
+          "effort",
+          "xhigh"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 2
+        },
+        "testing_preferences": {
+          "combined-v2": 3
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.67,
+            "overall_quality": 3.33,
+            "plan_usability": 3.9,
+            "scope_discipline": 2.9,
+            "target_fidelity": 3.48,
+            "testing_decisiveness": 3.14,
+            "testing_proportionality": 3.76
+          },
+          "combined-v2": {
+            "clarity": 4.48,
+            "overall_quality": 4.1,
+            "plan_usability": 4.1,
+            "scope_discipline": 4.05,
+            "target_fidelity": 4.33,
+            "testing_decisiveness": 3.57,
+            "testing_proportionality": 4.1
+          }
+        },
+        "cells": 21,
+        "group": [
+          "mode",
+          "root-only"
+        ],
+        "overall_preferences": {
+          "baseline": 4,
+          "combined-v2": 17
+        },
+        "plan_usability_preferences": {
+          "baseline": 6,
+          "combined-v2": 10,
+          "tie": 5
+        },
+        "requirements_preferences": {
+          "baseline": 3,
+          "combined-v2": 18
+        },
+        "testing_preferences": {
+          "baseline": 6,
+          "combined-v2": 13,
+          "tie": 2
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.71,
+            "overall_quality": 3.43,
+            "plan_usability": 3.86,
+            "scope_discipline": 3.0,
+            "target_fidelity": 3.43,
+            "testing_decisiveness": 3.57,
+            "testing_proportionality": 3.71
+          },
+          "combined-v2": {
+            "clarity": 4.57,
+            "overall_quality": 4.14,
+            "plan_usability": 4.14,
+            "scope_discipline": 3.86,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 4.0,
+            "testing_proportionality": 3.86
+          }
+        },
+        "cells": 7,
+        "group": [
+          "scenario",
+          "33-eleventy-archive-pagination"
+        ],
+        "overall_preferences": {
+          "baseline": 2,
+          "combined-v2": 5
+        },
+        "plan_usability_preferences": {
+          "baseline": 3,
+          "combined-v2": 3,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "baseline": 2,
+          "combined-v2": 5
+        },
+        "testing_preferences": {
+          "baseline": 2,
+          "combined-v2": 4,
+          "tie": 1
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 3.29,
+            "overall_quality": 3.14,
+            "plan_usability": 3.86,
+            "scope_discipline": 2.43,
+            "target_fidelity": 3.0,
+            "testing_decisiveness": 3.43,
+            "testing_proportionality": 4.0
+          },
+          "combined-v2": {
+            "clarity": 4.57,
+            "overall_quality": 4.29,
+            "plan_usability": 4.14,
+            "scope_discipline": 4.43,
+            "target_fidelity": 4.57,
+            "testing_decisiveness": 3.57,
+            "testing_proportionality": 4.57
+          }
+        },
+        "cells": 7,
+        "group": [
+          "scenario",
+          "34-fastapi-notes-pagination"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "baseline": 1,
+          "combined-v2": 3,
+          "tie": 3
+        },
+        "requirements_preferences": {
+          "combined-v2": 7
+        },
+        "testing_preferences": {
+          "baseline": 3,
+          "combined-v2": 4
+        }
+      },
+      {
+        "average_scores": {
+          "baseline": {
+            "clarity": 4.0,
+            "overall_quality": 3.43,
+            "plan_usability": 4.0,
+            "scope_discipline": 3.29,
+            "target_fidelity": 4.0,
+            "testing_decisiveness": 2.43,
+            "testing_proportionality": 3.57
+          },
+          "combined-v2": {
+            "clarity": 4.29,
+            "overall_quality": 3.86,
+            "plan_usability": 4.0,
+            "scope_discipline": 3.86,
+            "target_fidelity": 4.43,
+            "testing_decisiveness": 3.14,
+            "testing_proportionality": 3.86
+          }
+        },
+        "cells": 7,
+        "group": [
+          "scenario",
+          "35-flask-vue-book-filter"
+        ],
+        "overall_preferences": {
+          "baseline": 1,
+          "combined-v2": 6
+        },
+        "plan_usability_preferences": {
+          "baseline": 2,
+          "combined-v2": 4,
+          "tie": 1
+        },
+        "requirements_preferences": {
+          "baseline": 1,
+          "combined-v2": 6
+        },
+        "testing_preferences": {
+          "baseline": 1,
+          "combined-v2": 5,
+          "tie": 1
+        }
+      }
+    ],
+    "likely_cause_counts": {
+      "dedicated_requirements_section": 3,
+      "evidence_not_requirement": 15,
+      "existing_coverage_must_prove_behavior": 7,
+      "internal_mechanism_not_authorized": 12,
+      "mock_bypass_not_decisive": 3,
+      "producer_variance": 4,
+      "real_crossing_rule": 6,
+      "removed_testing_detail": 3,
+      "smallest_reliable_evidence": 11,
+      "task_guidance_interaction": 9,
+      "unapproved_behavior_remains_question": 18
+    },
+    "overall_preferences": {
+      "baseline": 4,
+      "combined-v2": 17
+    },
+    "plan_usability_preferences": {
+      "baseline": 6,
+      "combined-v2": 10,
+      "tie": 5
+    },
+    "requirements_preferences": {
+      "baseline": 3,
+      "combined-v2": 18
+    },
+    "testing_preferences": {
+      "baseline": 6,
+      "combined-v2": 13,
+      "tie": 2
+    }
+  },
+  "producer_failures": [
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-eleventy-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-public-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('src/tests/__pycache__/test_notes.cpython-311-pytest-7.4.3.pyc', 'tasks/20260918-notes-list-pagination.md')",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-fastapi-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-list-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-book-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-page-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-unread-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-page-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-book-filters.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "baseline"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-paginate-blog-archive.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-blog-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-archive-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "33-eleventy-archive-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('src/tests/__pycache__/test_notes.cpython-311-pytest-7.4.3.pyc', 'tasks/20260918-fastapi-notes-pagination.md')",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-list-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-fastapi-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-notes-pagination.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "34-fastapi-notes-pagination",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-low",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-unread-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "glm-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-book-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-high",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-max",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-page-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-medium",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    },
+    {
+      "candidate_id": "gpt-xhigh",
+      "failed_findings": [
+        {
+          "detail": "()",
+          "name": "exactly one task file produced",
+          "passed": false
+        },
+        {
+          "detail": "('tasks/20260918-books-page-read-filter.md',)",
+          "name": "mutation remains one task file",
+          "passed": false
+        }
+      ],
+      "mode": "task",
+      "scenario_id": "35-flask-vue-book-filter",
+      "variant": "combined-v2"
+    }
+  ],
+  "schema_version": 1,
+  "score_groups": {
+    "variant": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 25.7,
+        "average_testing_score": 73.4,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 21
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 8,
+          "low": 5,
+          "medium": 8
+        },
+        "group": [
+          "baseline"
+        ],
+        "important_crossings": {
+          "missing": 7,
+          "present": 14
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 16
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 14,
+          "mixed": 7
+        }
+      },
+      {
+        "average_coverage_score": 96.2,
+        "average_scope_score": 65.6,
+        "average_testing_score": 76.0,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 19,
+          "partial": 2
+        },
+        "effort_expectation_met": 7,
+        "expansion_severities": {
+          "low": 10,
+          "medium": 6,
+          "none": 5
+        },
+        "group": [
+          "combined-v2"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 17
+        },
+        "requirement_expectation_met": 14,
+        "testing_coverage": {
+          "complete": 7,
+          "partial": 14
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 12,
+          "mixed": 9
+        }
+      }
+    ],
+    "variant_candidate": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 30.0,
+        "average_testing_score": 73.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 0,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 42.3,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 0.0,
+        "average_testing_score": 73.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 3
+        },
+        "group": [
+          "baseline",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 0,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 0,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 19.0,
+        "average_testing_score": 76.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 0,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 30.7,
+        "average_testing_score": 82.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 1
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 28.0,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 29.7,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 0,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 86.7,
+        "average_scope_score": 91.7,
+        "average_testing_score": 83.0,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 2,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "glm-high"
+        ],
+        "important_crossings": {
+          "present": 3
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 35.0,
+        "average_testing_score": 69.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "combined-v2",
+          "glm-low"
+        ],
+        "important_crossings": {
+          "present": 3
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 1,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 85.0,
+        "average_testing_score": 87.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "glm-max"
+        ],
+        "important_crossings": {
+          "present": 3
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 3
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 60.0,
+        "average_testing_score": 70.0,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "medium": 1
+        },
+        "group": [
+          "combined-v2",
+          "gpt-high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 1,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 85.0,
+        "average_testing_score": 70.0,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 2,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "gpt-max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 1,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 65.0,
+        "average_testing_score": 71.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 1,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "gpt-medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 86.7,
+        "average_scope_score": 37.3,
+        "average_testing_score": 80.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 2,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "combined-v2",
+          "gpt-xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 1
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      }
+    ],
+    "variant_effort": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 24.5,
+        "average_testing_score": 74.8,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 2,
+          "low": 1,
+          "medium": 3
+        },
+        "group": [
+          "baseline",
+          "high"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 42.3,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "low"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 15.3,
+        "average_testing_score": 78.0,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 4,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 2,
+          "present": 4
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 3
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 28.0,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 29.7,
+        "average_testing_score": 69.3,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 1,
+          "low": 1,
+          "medium": 1
+        },
+        "group": [
+          "baseline",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 0,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 93.3,
+        "average_scope_score": 75.8,
+        "average_testing_score": 76.5,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 1
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 3,
+          "medium": 1,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "high"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 3
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 35.0,
+        "average_testing_score": 69.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "combined-v2",
+          "low"
+        ],
+        "important_crossings": {
+          "present": 3
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "partial": 3
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 1,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 85.0,
+        "average_testing_score": 78.7,
+        "cells": 6,
+        "coverage_statuses": {
+          "complete": 6
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "low": 4,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "max"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 5
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 4
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 4,
+          "mixed": 2
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 65.0,
+        "average_testing_score": 71.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 3
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 1,
+          "none": 1
+        },
+        "group": [
+          "combined-v2",
+          "medium"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 2,
+        "testing_coverage": {
+          "complete": 1,
+          "partial": 2
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 86.7,
+        "average_scope_score": 37.3,
+        "average_testing_score": 80.7,
+        "cells": 3,
+        "coverage_statuses": {
+          "complete": 2,
+          "partial": 1
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 2
+        },
+        "group": [
+          "combined-v2",
+          "xhigh"
+        ],
+        "important_crossings": {
+          "missing": 1,
+          "present": 2
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 1
+        },
+        "testing_expectation_met": 2,
+        "testing_layers": {
+          "appropriate": 2,
+          "mixed": 1
+        }
+      }
+    ],
+    "variant_mode": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 25.7,
+        "average_testing_score": 73.4,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 21
+        },
+        "effort_expectation_met": 2,
+        "expansion_severities": {
+          "high": 8,
+          "low": 5,
+          "medium": 8
+        },
+        "group": [
+          "baseline",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 7,
+          "present": 14
+        },
+        "requirement_expectation_met": 6,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 16
+        },
+        "testing_expectation_met": 8,
+        "testing_layers": {
+          "appropriate": 14,
+          "mixed": 7
+        }
+      },
+      {
+        "average_coverage_score": 96.2,
+        "average_scope_score": 65.6,
+        "average_testing_score": 76.0,
+        "cells": 21,
+        "coverage_statuses": {
+          "complete": 19,
+          "partial": 2
+        },
+        "effort_expectation_met": 7,
+        "expansion_severities": {
+          "low": 10,
+          "medium": 6,
+          "none": 5
+        },
+        "group": [
+          "combined-v2",
+          "root-only"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 17
+        },
+        "requirement_expectation_met": 14,
+        "testing_coverage": {
+          "complete": 7,
+          "partial": 14
+        },
+        "testing_expectation_met": 11,
+        "testing_layers": {
+          "appropriate": 12,
+          "mixed": 9
+        }
+      }
+    ],
+    "variant_scenario": [
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 17.3,
+        "average_testing_score": 85.7,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 7
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "high": 2,
+          "low": 1,
+          "medium": 4
+        },
+        "group": [
+          "baseline",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "present": 7
+        },
+        "requirement_expectation_met": 1,
+        "testing_coverage": {
+          "complete": 3,
+          "partial": 4
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 7
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 4.3,
+        "average_testing_score": 86.4,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 7
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "high": 5,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "present": 7
+        },
+        "requirement_expectation_met": 0,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 5
+        },
+        "testing_expectation_met": 4,
+        "testing_layers": {
+          "appropriate": 7
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 55.4,
+        "average_testing_score": 48.0,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 7
+        },
+        "effort_expectation_met": 1,
+        "expansion_severities": {
+          "high": 1,
+          "low": 4,
+          "medium": 2
+        },
+        "group": [
+          "baseline",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 7
+        },
+        "requirement_expectation_met": 5,
+        "testing_coverage": {
+          "partial": 7
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "mixed": 7
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 48.6,
+        "average_testing_score": 90.4,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 7
+        },
+        "effort_expectation_met": 4,
+        "expansion_severities": {
+          "low": 4,
+          "medium": 3
+        },
+        "group": [
+          "combined-v2",
+          "33-eleventy-archive-pagination"
+        ],
+        "important_crossings": {
+          "present": 7
+        },
+        "requirement_expectation_met": 4,
+        "testing_coverage": {
+          "complete": 5,
+          "partial": 2
+        },
+        "testing_expectation_met": 7,
+        "testing_layers": {
+          "appropriate": 6,
+          "mixed": 1
+        }
+      },
+      {
+        "average_coverage_score": 100.0,
+        "average_scope_score": 85.7,
+        "average_testing_score": 79.0,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 7
+        },
+        "effort_expectation_met": 3,
+        "expansion_severities": {
+          "low": 5,
+          "none": 2
+        },
+        "group": [
+          "combined-v2",
+          "34-fastapi-notes-pagination"
+        ],
+        "important_crossings": {
+          "present": 7
+        },
+        "requirement_expectation_met": 7,
+        "testing_coverage": {
+          "complete": 2,
+          "partial": 5
+        },
+        "testing_expectation_met": 3,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 4
+        }
+      },
+      {
+        "average_coverage_score": 88.6,
+        "average_scope_score": 62.4,
+        "average_testing_score": 58.7,
+        "cells": 7,
+        "coverage_statuses": {
+          "complete": 5,
+          "partial": 2
+        },
+        "effort_expectation_met": 0,
+        "expansion_severities": {
+          "low": 1,
+          "medium": 3,
+          "none": 3
+        },
+        "group": [
+          "combined-v2",
+          "35-flask-vue-book-filter"
+        ],
+        "important_crossings": {
+          "missing": 4,
+          "present": 3
+        },
+        "requirement_expectation_met": 3,
+        "testing_coverage": {
+          "partial": 7
+        },
+        "testing_expectation_met": 1,
+        "testing_layers": {
+          "appropriate": 3,
+          "mixed": 4
+        }
+      }
+    ]
+  }
+}

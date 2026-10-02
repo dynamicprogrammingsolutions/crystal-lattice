@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 23
+    },
+    "parent_run_id": "20260926T053440.197188Z-task-guidance-tg02-fastapi-pagination-handoff-high-8ec92c9d"
+  },
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260926T053442.856561Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-3a051644",
+  "system_message": {
+    "availability": {
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
+    },
+    "normalized_sha256": "818f4bf8bc2b6e2dcc5d163ae20fd76f8a73403a968ba2d70e33338cc98cda2b",
+    "original_sha256": "ff25ba59c77d0874243288f8531f91e174484e7aec948d6162478705b474efe2",
+    "path": "shared/system-messages/gpt-818f4bf8bc2b.md",
+    "source": "inherited-from-producer-run"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-notes-pagination.md"
+  ],
+  "valid": true
+}

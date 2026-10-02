@@ -1,0 +1,35 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [
+    "run failure: None, (\"OpenAI Responses stream failed: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-svcac***********************************************************************************************************************************************************fvMA. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}\",)"
+  ],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 20
+    },
+    "parent_run_id": "20260925T224337.764438Z-task-guidance-tg01-eleventy-archive-handoff-high-92f179b9"
+  },
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20260925T224339.971889Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-5bae8b14",
+  "system_message": {
+    "availability": {
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
+    },
+    "normalized_sha256": "06e58964b23184976e4f88b6d615ba96c0696698eece9cad70352c67915d0a93",
+    "original_sha256": "0a250395e7101c33b14a9992c2d74e2cc4211de4893dbefccd93b2b35d913904",
+    "path": "shared/system-messages/gpt-06e58964b231.md",
+    "source": "inherited-from-producer-run"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-blog-archive-pagination.md"
+  ],
+  "valid": false
+}

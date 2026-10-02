@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "scenario_id": "35-flask-vue-book-filter",
+  "title": "Flask/Vue read-status filter",
+  "task_summary": "Specify a user-facing All/Read/Unread filter implemented across the Vue client and Flask API while preserving CRUD behavior.",
+  "project": {
+    "name": "Flask-Vue CRUD",
+    "kind": "user-facing full-stack web application",
+    "upstream": "https://github.com/testdrivenio/flask-vue-crud",
+    "revision": "be91da59a10d07384537c2f76f4505eb344d1682"
+  },
+  "required_outcomes": [
+    {
+      "id": "BOOKS-1",
+      "outcome": "The Books page presents visible All, Read, and Unread filter choices and visibly identifies the active choice.",
+      "why_required": "The requested user-facing capability needs understandable selectable states."
+    },
+    {
+      "id": "BOOKS-2",
+      "outcome": "All is the initial filter and requests the existing unfiltered `GET /books` behavior.",
+      "why_required": "The request preserves the current list as the default view."
+    },
+    {
+      "id": "BOOKS-3",
+      "outcome": "Read and Unread request server-filtered collections through the optional `read` query parameter on `GET /books`.",
+      "why_required": "The task explicitly crosses the frontend/backend boundary instead of filtering only an already downloaded collection."
+    },
+    {
+      "id": "BOOKS-4",
+      "outcome": "The Flask route interprets the supported read-filter values and returns only books with the requested boolean read state.",
+      "why_required": "The server owns the requested filtering behavior."
+    },
+    {
+      "id": "BOOKS-5",
+      "outcome": "Filtered and unfiltered responses retain the existing success object and `books` array shape.",
+      "why_required": "The request explicitly preserves the public JSON contract."
+    },
+    {
+      "id": "BOOKS-6",
+      "outcome": "The table reflects the selected filter and shows a clear empty result when no books match.",
+      "why_required": "Users need observable filtered and empty states."
+    },
+    {
+      "id": "BOOKS-7",
+      "outcome": "Refreshing the collection after add, update, or delete retains and reapplies the selected filter.",
+      "why_required": "The request explicitly protects filter state across existing mutations."
+    },
+    {
+      "id": "BOOKS-8",
+      "outcome": "Existing add, update, delete, and unfiltered-list behavior remains compatible.",
+      "why_required": "The new full-stack behavior must not break existing CRUD workflows."
+    }
+  ],
+  "compatibility_constraints": [
+    "Omitting the read parameter returns all books as before.",
+    "The response object and book fields remain unchanged.",
+    "Existing CRUD requests and success behavior remain available."
+  ],
+  "acceptable_grouping": [
+    "BOOKS-1 and BOOKS-2 may be one UI filter-state requirement.",
+    "BOOKS-3 and BOOKS-4 may be one end-to-end filter-contract requirement.",
+    "BOOKS-5 and BOOKS-8 may be one compatibility requirement.",
+    "BOOKS-6 and BOOKS-7 should remain clearly observable even when grouped."
+  ],
+  "supporting_details": [
+    "The specification may choose reasonable encoded values for the boolean read query while keeping omission as All.",
+    "The active filter can remain component state; URL persistence is not required."
+  ],
+  "optional_adjacent_work": [
+    "Client-only filtering",
+    "Search",
+    "Pagination",
+    "URL or browser-history persistence",
+    "Debouncing",
+    "A state-management library",
+    "Database replacement",
+    "Authentication",
+    "UI redesign"
+  ],
+  "not_prescribed": [
+    "Exact control component or CSS",
+    "Exact boolean query spelling beyond a documented supported contract",
+    "Loading-state redesign",
+    "Tests or documentation work as product requirements"
+  ],
+  "open_questions": [],
+  "task_scope": [
+    "Create specification and requirements only.",
+    "Do not change Vue, Flask, tests, or current user documentation."
+  ],
+  "task_file_scope": [
+    "Create one task file with a Draft execution plan.",
+    "Do not implement the Vue or Flask change."
+  ],
+  "testing_expectations": {
+    "required_evidence": [
+      "Flask API tests verify omitted, read, and unread collection behavior and the preserved response shape.",
+      "Vue component tests verify visible filter choices, active selection, rendered results, empty state, and representative mutation refresh persistence.",
+      "A realistic frontend/backend or production-adapter crossing verifies that a selected UI filter produces the matching server request and rendered response."
+    ],
+    "important_crossing": "At least one test crosses the production client transport and Flask HTTP boundary for the filter flow.",
+    "avoid": [
+      "Testing every add, update, and delete operation under every filter and collection state when representative cases prove refresh persistence.",
+      "Exact internal component state shape, axios call sequence, or incidental object-key assertions outside the public response contract.",
+      "Replacing the required layer crossing with separate mocked frontend and direct route-function tests."
+    ]
+  }
+}

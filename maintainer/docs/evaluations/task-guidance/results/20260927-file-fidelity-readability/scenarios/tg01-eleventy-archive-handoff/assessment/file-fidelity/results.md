@@ -1,0 +1,80 @@
+# Task-file fidelity assessment
+
+- Assessor: `glm-5.3-flash:cloud` (effort max) · run `20260928T194503.388444Z-task-guidance-file-fidelity-tg01-eleventy-archive-handoff-glm-max-s0-11040a93`
+- Assessor config: [glm-assessor-max.json](../../../../shared/configs/glm-assessor-max.json)
+- Assessor system message: [glm-assessor-0dde304fbbcf.md](../../../../shared/system-messages/glm-assessor-0dde304fbbcf.md) (original SHA-256 `b0b2558aefbdeebd…`)
+- First judgment's full transcript: [session.md](../../glm-max/assessment/file-fidelity/s0/session.md) — includes the exact prompt and the raw response; every judgment's transcript lives beside its subject (`<cell>/assessment/file-fidelity/…`)
+- Reviewed target: [tg01-eleventy-archive-handoff](../../target.md)
+- Rubric: five fidelity dimensions (complete/partial/poor; justified/not_applicable/fabricated; fits/forced/missing); every grade carries {where, quote, why} findings, non-top grades require them, and every response harvests mistakes.
+
+## Judgments
+
+### glm · max (sample 0)
+
+| Dimension | Grade | Findings |
+|---|---|---:|
+| plan_design_completeness | complete | 5 |
+| durable_context_preservation | complete | 5 |
+| section_appropriateness | complete | 4 |
+| plan_justification | justified | 4 |
+| task_kind_fit | fits | 3 |
+
+**Findings**
+
+- durable_context_preservation — Open questions and decisions → D1: The response's decision, recommendation, alternative, and rationale are preserved in compressed form, not dropped. (`Recommendation: '/blog/page/2/', '/blog/page/3/', … (clearly navigational, conve`)
+- durable_context_preservation — Supporting facts: The response's environment caveat reaches the executor with added specificity (dependency version), placed where it will be acted on. (`'node_modules' is not installed in this workspace; the executor must run 'npm in`)
+- durable_context_preservation — Requirement verification → R1, R2, R3, R10: The response's 'URL stability across a content change' acceptance item survives compression into a concrete assertion. (`a follow-up build with one more post still uses the '/blog/page/N/' scheme (URL `)
+- durable_context_preservation — Scope: The response's exclusions ('no HTML head/title work; no tag pagination or per-post nav') are preserved in the boundary section a continuing agent checks. (`Out of scope: tag page pagination, per-post previous/next links, adding an HTML `)
+- durable_context_preservation — Task file header and Execution plan status: The response's 'nothing was implemented' and 'execution waits for your approval' gating is preserved (Status: Draft, D1/D2 'Awaiting approval', empty Completion Notes). (`Planning only — implementation is not authorized yet.`)
+- plan_design_completeness — Execution plan → Design (pagination frontmatter): The concrete mechanism (data source, 20-post chunk, pre-chunk ordering, collections behavior) is stated, so the design is reconstructible from the plan alone rather than from an ordered step list. (`pagination: data: collections.posts size: 20 reverse: true addAllPagesToCollecti`)
+- plan_design_completeness — Execution plan → Design (permalink): Defines the page-one/later-page URL contract explicitly, including the still-pending D1 scheme, so the interface state is unambiguous. (`permalink: /blog/{% if pagination.pageNumber > 0 %}page/{{ pagination.pageNumber`)
+- plan_design_completeness — Design → Why each choice: States the compatibility/dependency condition protecting ARCHIVE-5's surfaces, tying the mechanism to the preservation requirements. (`Blog pages stay untagged, so tag pages and the feed are structurally unaffected.`)
+- plan_design_completeness — Design → fallback note: The design carries its own contingency and verification, so a reader knows both the assumption and how it is checked. (`the booleans 'pagination.page.first'/'pagination.page.last' are the documented f`)
+- plan_design_completeness — Requirement verification → R1, R2, R3, R10: Verification for ARCHIVE-3's ordering and exactly-once semantics is designed up front and mapped to the requirement, completing the design→verification chain. (`concatenated page order equals the full post set newest-first`)
+- plan_justification — Design (chunk wiring): Restates the response's approach item for item (frontmatter, permalink, nav guards, addAllPagesToCollections rationale), organizing rather than inventing. (`'pagination.items | reverse' feeds the chunk to the shared include in ascending `)
+- plan_justification — Task checklist → step 3: Mirrors the response's test design (20/20/5 pages, tag sanity post, real-content 2-post case) exactly. (`a generated fixture of 45 posts (dated/titled incrementally, one post carrying a`)
+- plan_justification — Implementation decisions and open questions: Detail beyond the response's summary (link text, h1 retention, aria-label) is explicitly labeled reversible rather than passed off as decided, keeping the plan anchored to the conversation's actual planning state. (`Resolved local choices (reversible, no approval needed)`)
+- plan_justification — Implementation decisions and open questions → D1/D2: Matches the response's 'Material decisions needing your approval' list one-to-one, with both left open pending approval. (`D1 (open, material): later-page URL scheme — recommendation '/blog/page/N/'; alt`)
+- section_appropriateness — Requirements checklist (R5–R9): ARCHIVE-5's protected surfaces decompose into requirement items where outcomes and constraints belong; the finer split is within the excerpt's permitted grouping latitude. (`R5 Home page behavior is preserved (three newest posts, newest first).`)
+- section_appropriateness — Supporting facts: Learned workspace facts sit in the supporting-details section with their sources recorded. (`fixture adapted from Eleventy Base Blog at '26b26106d7fbb30b7b40d9ef52589d10ddbc`)
+- section_appropriateness — Open questions and decisions → D2: Unresolved items live with the other unresolved items and are cross-referenced from the plan (checklist steps 1–2) rather than buried in it. (`D2 (material, minor): include a visible "Page X of Y" indicator inside the nav. `)
+- section_appropriateness — Execution plan (Design, Task checklist, Requirement verification): Direction — approach, ordered steps, and per-requirement evidence — lives in the implementation plan where a continuing executor looks for it. (`Status: Draft`)
+- task_kind_fit — Requirements checklist → R12 and Requirement verification: Code-kind acceptance via real-build assertions (hrefs resolving to generated files, concatenated order, no-'<script' check, exit-0 runs) instead of mocked checks. (`R12 Tests provide build-level evidence for R1–R11`)
+- task_kind_fit — Requirements checklist → R13 and Requirement verification → R13: The documentation slice carries review-style acceptance appropriate to a doc change inside the same reviewed delivery. (`R13: README sentence reviewed in the same change as the code.`)
+- task_kind_fit — Execution plan status and Completion Notes: The handoff kind is honored: plan pending D1/D2 approval, completion notes left for post-execution, and no inapplicable sections (e.g., rollback machinery for a non-operations change) are mechanically filled. (`Status: Draft`)
+
+The single task file is a faithful, well-sectioned rendering of the conversation's durable context. The Design section reconstructs the decided design — pagination frontmatter, the page-one/later-page permalink contract, ordering semantics across page boundaries, the untagged-pages compatibility argument, and the nav guards with a documented field fallback — with verification mapped per requirement. Every durable element of the response survives compression: D1/D2 with recommendations and alternatives, the npm-install environment caveat, the 45-post/2-post fixture design, per-requirement build-output assertions, exclusions, and the approval gate (Draft status, empty completion notes). Content sits where a continuing agent looks for it (outcomes in the checklist, facts with sources in Supporting facts, direction in the plan, open decisions under questions and decisions). The plan restates the response's planning, and its additions are explicitly labeled reversible local choices rather than fabricated decisions; the README item is attributed to cited workspace documentation guidance and tightly scoped. Acceptance evidence fits the work's kind: real-build test assertions for code plus same-change README review for docs. No dropped facts, invented scope, misplaced content, or missing evidence found.
+
+
+### gpt · high (sample 0)
+
+| Dimension | Grade | Findings |
+|---|---|---:|
+| plan_design_completeness | complete | 4 |
+| durable_context_preservation | complete | 4 |
+| section_appropriateness | complete | 4 |
+| plan_justification | justified | 3 |
+| task_kind_fit | fits | 3 |
+
+**Findings**
+
+- durable_context_preservation — ## Requirements checklist: The approved first-page, stable-later-page, and twenty-post outcomes appear compressed as unchecked acceptance items. (`Keep '/blog/' as the first archive page, without a '/blog/1/' alias. / Generate `)
+- durable_context_preservation — ### Unresolved requirement questions and design decisions: Carries the conversation's recommended URL convention together with its approval-gated status, matching the response's 'implementation should wait for approval'. (`Design decision to confirm before execution: use '/blog/2/', '/blog/3/', and so `)
+- durable_context_preservation — ### Implementation decisions and open questions: The fixture limitation the response explicitly flagged 'for verification' is preserved with its verification implication rather than dropped. (`No current source file exposes individual-post navigation markup. Treat post-rou`)
+- durable_context_preservation — ### Requirement verification: The response's preservation-check list (home, tags, feed, sitemap, post output/navigation, ordering, zero-JavaScript) reappears as a concrete verification approach, and the production-build integration test with a full/partial-page fixture is restated in the plan. (`the same real build asserts the existing home selection/order, tag output and UR`)
+- plan_design_completeness — ## Execution plan: States the core component split and data flow: the archive becomes a paginated view while every other consumer keeps the unpaginated collection — the architecture is reconstructable from the plan alone. (`Use Eleventy pagination for the archive source while keeping the existing 'colle`)
+- plan_design_completeness — ## Execution plan — ### Implementation decisions and open questions: The later-page URL interface is stated concretely, including the page-one reservation and numbering start, so the permalink design survives without the conversation. (`Recommended archive URL contract: '/blog/' for page one and '/blog/<page-number>`)
+- plan_design_completeness — ## Execution plan: A material rendering decision with its rationale (avoiding double reversal of the reversed shared include) is recorded, not merely an ordered step list. (`give the archive its own small rendering boundary rather than changing the share`)
+- plan_design_completeness — ## Execution plan — ### Requirement verification: Every decided outcome is mapped to a named verification method with concrete assertions, so the plan also explains how the design is proven. (`asserts the concatenated pages contain each post once in the original archive or`)
+- plan_justification — ## Execution plan: Restates the response's 'a real production-build integration test using an isolated fixture large enough to exercise full and partial pages' — planning that actually happened, organized into execution direction. (`The test should use a temporary copy or equivalent isolated fixture containing e`)
+- plan_justification — ### Implementation decisions and open questions: Matches the response's 'recommended stable '/blog/2/', '/blog/3/', etc.' — the plan restates the conversation's recommendation rather than inventing one. (`Recommended archive URL contract: '/blog/' for page one and '/blog/<page-number>`)
+- plan_justification — ## Execution plan — Status: Mirrors the response's 'The execution plan remains 'Draft'', and the confirm-before-execution framing preserves the wait-for-approval condition on the URL convention and navigation direction. (`Status: Draft`)
+- section_appropriateness — ## Research and supporting facts: Learned facts with their source files sit in the supporting-details section where a continuing agent looks for them. (`'_includes/postslist.njk' reverses its input while rendering, which gives the cu`)
+- section_appropriateness — ### Unresolved requirement questions and design decisions: The unresolved navigation-presentation approval sits in the questions/decisions section instead of being buried in plan prose. (`Design decision to confirm before execution: label links according to archive ch`)
+- section_appropriateness — ## Scope: Constraints and non-goals sit with the requirements rather than inside the execution plan. (`It does not redesign the home page, tag URLs, feed format, sitemap format, post `)
+- section_appropriateness — ## Requirements checklist — ## Execution plan: The requirement side names the evidence deliverable and points into the plan's verification sections, so direction lives in the plan while the demand stays with the outcomes. (`Add production-build evidence for pagination and regression coverage for every p`)
+- task_kind_fit — ### Requirement verification: Code-kind acceptance evidence: executable checks against real generated output (build test, per-page counts, order and uniqueness assertions) instead of generic review language. (`the generated public HTML/XML is searched for script elements or injected runtim`)
+- task_kind_fit — ### Documentation — ### Requirement verification: The documentation deliverable gets documentation-style acceptance (claims verified against behavior in the same reviewed change), fitting its own kind. (`inspect 'docs/development/index.md' after the implementation and confirm its URL`)
+- task_kind_fit — ### Additional implementation verification: Operational safeguards around the build/test run fit what this work actually needs; no inapplicable sections (rollback, style brief) are filled mechanically. (`Confirm the temporary large-post fixture is isolated and cleaned up so test data`)
+
+The single task handoff file carries the full decided design and the conversation's durable context. A reader of the Execution plan alone can reconstruct the architecture: Eleventy pagination as a view over the intact `collections.posts` collection, the numbered `/blog/<page-number>/` contract with `/blog/` reserved for page one, explicit newest-first pagination with the double-reversal hazard on the shared include called out, boundary-aware accessible navigation, and a real production-build integration test over an isolated full/partial-page fixture. Every element of the producer's final response appears in the file — the URL recommendation and 20-post limit as acceptance items, preservation of home/tags/feed/sitemap/post-navigation/ordering/zero-JS as checklist items and as a concrete verification pass, the docs update to `docs/development/index.md`, and the fixture's missing post-navigation markup preserved as a limitation with a human-check fallback; the planning-only status survives compression as 'Status: Draft' with an unchecked checklist. Content sits where a continuing agent looks for it: facts with sources in Research and supporting facts, approval-gated decisions in the unresolved-questions section, constraints in Scope, direction and verification under the plan. The plan organizes the conversation's stated planning rather than asserting invented design, and its acceptance evidence matches the work's kind — executable build/test assertions for the code, claim-vs-generated-output inspection for the documentation. The explicit mistake hunt (dropped facts, invented scope, misplaced content, missing acceptance evidence) found nothing to list.

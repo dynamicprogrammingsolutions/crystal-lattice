@@ -1,0 +1,26 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260925T222155.946230Z-task-guidance-tg06-eleventy-author-migration-decomposition-max-beb3cc47",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b940ffcd2153d3bae6b86faa769391597be7ccbcf4a817cb64c23ef13e4dd9e8",
+    "original_sha256": "7fdd4699b69f0d2023819f204b2cde1e00ee2feb875fc7c2613e1f2f2d59719d",
+    "path": "shared/system-messages/glm-b940ffcd2153.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260926-author-metadata-migration/000-main.md",
+    "task-files/tasks/20260926-author-metadata-migration/010-structured-authors-adoption.md",
+    "task-files/tasks/20260926-author-metadata-migration/020-content-migration.md",
+    "task-files/tasks/20260926-author-metadata-migration/030-legacy-rejection.md"
+  ],
+  "valid": true
+}

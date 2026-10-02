@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-gpt-max-s0",
+  "model": "glm-5.3-flash:cloud",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20260928T194519.569909Z-task-guidance-file-fidelity-tg04-flask-vue-discovery-decomposition-gpt-max-s0-6745692f",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "084c0418e15b5657ab64363742886f611682ccf14b2e28083e6fc44818310a1e",
+    "original_sha256": "390d2543a243a9fb86e82effcf341a36333ab4c604ddd3ca14a11e5eba9b77e1",
+    "path": "shared/system-messages/glm-assessor-084c0418e15b.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

@@ -6,7 +6,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCREP-004`, `DOCMIG-001`, `DOCPUB-006`
@@ -233,7 +233,7 @@ already part of this baseline. Any later 065 follow-up is expected to own
 package documentation.
 
 Likely shared bookkeeping files are the parent task and
-`maintainer/specifications/documentation-and-specification-standard/requirements.md`.
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`.
 Re-read them immediately before narrow evidence updates, preserve concurrent
 changes, and do not edit the 065 task file. Recheck `main` before integration;
 do not silently absorb unrelated changes into this task branch.

@@ -1,0 +1,26 @@
+{
+  "config": "shared/configs/gpt-xhigh.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-5.6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "xhigh",
+  "run_id": "20260925T200550.230594Z-task-guidance-tg04-flask-vue-discovery-decomposition-xhigh-671bd49f",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "fd7aa37060bef3274e61c4cda078617ee3cfaa78abf4a61b5d8c416ac5d449f7",
+    "original_sha256": "483c366e897e4abcf0c58594410c7ef238ed49d1756c4dd486fdef95f9384c51",
+    "path": "shared/system-messages/gpt-fd7aa37060be.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260925-books-discovery/000-main.md",
+    "task-files/tasks/20260925-books-discovery/010-api-discovery-contract.md",
+    "task-files/tasks/20260925-books-discovery/020-books-page-discovery.md"
+  ],
+  "valid": true
+}

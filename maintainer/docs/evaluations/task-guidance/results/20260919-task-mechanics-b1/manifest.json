@@ -1,0 +1,3052 @@
+{
+  "files": {
+    "collected": {
+      "aggregate.json": {
+        "bytes": 46737,
+        "provenance": {
+          "path": "maintainer/tmp/agent-evaluation/task-guidance/consolidated/task_guidance_b1_results.json",
+          "sha256": "7aa2bbbfa80b0a03b6c22431374395f981de380f7e6d25b75031aade0d9e9cb9",
+          "source": "frozen consolidated dataset"
+        },
+        "sha256": "6a4e605daf9ee970dd391b1896b15d7dfe51389b058aa2f8c0bbcc20ecacc5a8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+        "bytes": 775,
+        "provenance": null,
+        "sha256": "6b99006083b849d5de8ee835ed0d85b611b90efd03e2810b34476f2cbcbc1f1f"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+        "bytes": 28797,
+        "provenance": null,
+        "sha256": "09ee610b1ba8033020072cc0839906b210395614b1c2e018f612b448c9121100"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+        "bytes": 755,
+        "provenance": null,
+        "sha256": "eff5f0406c5515fd9b260a3952273e630678113c5eca69737263755cbbc70051"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+        "bytes": 16333,
+        "provenance": null,
+        "sha256": "20d5ef2b3da51142a172d5e782def253949417ed6d7d8aa09deaa3892f12b2ac"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+        "bytes": 759,
+        "provenance": null,
+        "sha256": "26f10699782627881b37df61ac7e5b4e2c7efc6a0f4cb77d5163e8f21052fc5a"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+        "bytes": 20108,
+        "provenance": null,
+        "sha256": "8d2fc6997bdb8081637a20bc611b9fe64af1d27dc47dc52c0bb8d86deb1d992f"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-task/s0/run.json": {
+        "bytes": 777,
+        "provenance": null,
+        "sha256": "e17b6c7bc9d71c4aecea029dda52fc469aecfdcecb1938baf35541e0a3121536"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/generated-task/s0/session.md": {
+        "bytes": 18104,
+        "provenance": null,
+        "sha256": "12a1dbbb957ef112d444dae74c9cf0be0406f6124c9c6212252d538e521beffc"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "58a022e8daae3b441187430ecf4e159820d659b5a6c27b1220945540369c4525"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
+        "bytes": 16437,
+        "provenance": null,
+        "sha256": "b084cbfac32482308b4602ac788197667501057670c6b6c51fa0dd8e42b4c62a"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
+        "bytes": 761,
+        "provenance": null,
+        "sha256": "2fb2c5ce4532ae77103cff2ee5312667da29f7f4362c14bab2aeb04ab3998146"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
+        "bytes": 18743,
+        "provenance": null,
+        "sha256": "c05950830185138172fd4d0538dc9024807e979508277090b33e0840f43a78af"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/handoff/results.md": {
+        "bytes": 14048,
+        "provenance": null,
+        "sha256": "0bf97889c29a979ae47c567ac4b732bba19a77daf89adf84d3492bf6345be4e8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 743,
+        "provenance": null,
+        "sha256": "2df65bfbb0e8f27cac3a553038d4b5961d2539c066e01c78a8ae55f4a7f8e450"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 30544,
+        "provenance": null,
+        "sha256": "54b5a7a19f13c915c862828f933866e1f3f7ff318af118436af550761ddc6813"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "66e1776efa1f65d4617fd88e839fb0eabc9fc184645e044f03eadc52c108dbf8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 23452,
+        "provenance": null,
+        "sha256": "5be22ab005c6f1a161d7be0a5246e06069555df22f99c1170de29fc3373020f3"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/assessment/task-creation/results.md": {
+        "bytes": 5476,
+        "provenance": null,
+        "sha256": "031edfa31fc9d1fd2471600ee26ec41c43efe97c81f35653a1d8862b6234cf55"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/run.json": {
+        "bytes": 1097,
+        "provenance": null,
+        "sha256": "41d9a7136d19c8f965019939885874a1f1ea6730a20bdb3b28c7cae0b93bf2a4"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/session.md": {
+        "bytes": 8762,
+        "provenance": null,
+        "sha256": "315a80989178948af81106e53b259683abf342a28fa3c5a55ecd51d9e0a38be8"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/continuation/task-files/tasks/20260919-blog-archive-pagination.md": {
+        "bytes": 13624,
+        "provenance": null,
+        "sha256": "e196bb971c52d20611405c6f392dcf6358492465984cdc5b03b4abc6b417840b"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/run.json": {
+        "bytes": 802,
+        "provenance": null,
+        "sha256": "a121c008a7ab464965f227c922f1dcc67d2a3d22e988912aab2c9e9580a49321"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/session.md": {
+        "bytes": 11953,
+        "provenance": null,
+        "sha256": "d8550c54969ef115a2cb0ca75d1fcbe7975b5e0d2a9513355d67ce07b418dc61"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+        "bytes": 1092,
+        "provenance": null,
+        "sha256": "892c6576b49ad050ab70395a262ef6b7b3baa84a10e0f2424a5145d0e4391a02"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/run.json": {
+        "bytes": 806,
+        "provenance": null,
+        "sha256": "8dbf5be65df60493c12a98868135ce89596dfc04e92178166551c4aee0702b0b"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/session.md": {
+        "bytes": 12690,
+        "provenance": null,
+        "sha256": "3e46cd0fbf4e8adac329adf0079503b12a88b20e9217a9c469b73e675d9e82e1"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+        "bytes": 2363,
+        "provenance": null,
+        "sha256": "5af32c2a07194942163904dc9947ba8e78eb06a44e3012828cd1132d7a018fe9"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/run.json": {
+        "bytes": 791,
+        "provenance": null,
+        "sha256": "3899e5bd068bea69e9c32053192ff1a5c75a68bef3cbec2c74ae52f6cfa4e0f1"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/session.md": {
+        "bytes": 8174,
+        "provenance": null,
+        "sha256": "1bf322d85d283507c47f0b0ef884c7305a85eb0cf135909a03cb50c1cfbca8a9"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/task-files/tasks/20260920-blog-archive-pagination.md": {
+        "bytes": 14198,
+        "provenance": null,
+        "sha256": "ec18327cd137044ea4a03961da6e9da6172b1a34cc94f005d4499972b7d5aca1"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/run.json": {
+        "bytes": 1154,
+        "provenance": null,
+        "sha256": "40ea66f847f01abe19d700668a30536cb817950a62b34774d86ad2595ac5d451"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/session.md": {
+        "bytes": 4345,
+        "provenance": null,
+        "sha256": "9438f97a22c677df62b33f22e6d9a7c7acce725f90e403e8b6acc815239268b6"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/continuation/task-files/tasks/20260920-blog-archive-pagination.md": {
+        "bytes": 7804,
+        "provenance": null,
+        "sha256": "ec9d54f2bd9d25bbb517ac29abbd6e769a510c4419df6770f6ce9fecd03b0b24"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/run.json": {
+        "bytes": 902,
+        "provenance": null,
+        "sha256": "9ec8496a115b1086238be1dd2c9d31eeeca76b934ed5ba1007f756c22c5ca3ac"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/session.md": {
+        "bytes": 15329,
+        "provenance": null,
+        "sha256": "50432d1b9c9f8b82bfb8977823b03166507caf97308cd0c8c4c6beebb0eb2885"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+        "bytes": 1092,
+        "provenance": null,
+        "sha256": "892c6576b49ad050ab70395a262ef6b7b3baa84a10e0f2424a5145d0e4391a02"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/run.json": {
+        "bytes": 906,
+        "provenance": null,
+        "sha256": "2853a849c177c7c97a178887cd18eb1677aefa610fd0397bf0813d2f5c33c0e5"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/session.md": {
+        "bytes": 14696,
+        "provenance": null,
+        "sha256": "e16a3108ee2e19edf51a48b602b45ce478d9747eca825011d6c23118ac649b65"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg01-eleventy-archive-handoff.md": {
+        "bytes": 2363,
+        "provenance": null,
+        "sha256": "5af32c2a07194942163904dc9947ba8e78eb06a44e3012828cd1132d7a018fe9"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/run.json": {
+        "bytes": 892,
+        "provenance": null,
+        "sha256": "0a0df6715c66ebe57af1bf01b249ccdc4508ef3dca7c4363d66d75925fa18cf4"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/session.md": {
+        "bytes": 5743,
+        "provenance": null,
+        "sha256": "bee328f7b6ed56cea087869b919b2db04218ab720a0fbd1ab9130cbc164d3ec7"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/task-files/tasks/20260920-blog-archive-pagination.md": {
+        "bytes": 9246,
+        "provenance": null,
+        "sha256": "4676014c95d2d5ed7c0c7e0f1e81a1bc3916a64962df447f6c8e6aa673204c6c"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/target.md": {
+        "bytes": 2041,
+        "provenance": null,
+        "sha256": "b9aa27ecfa3f9ddaf43f61ed6860f28930bab63e6321009822d54a1ab2af7ac2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+        "bytes": 777,
+        "provenance": null,
+        "sha256": "94347b5a63ce9112cb64f521fa025a4ddfa18997274db5cde8f1c50e64d08dab"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+        "bytes": 24604,
+        "provenance": null,
+        "sha256": "f474a82966ba5fa990677cc167d5f84047506c6674397423b0b6ca33b1264f0a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/incomplete/s0/run.json": {
+        "bytes": 769,
+        "provenance": null,
+        "sha256": "cdb14e5b8aa0ca85bf4b32a050495970fceade8f1f5f78ee53f9c98e03be1d24"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/incomplete/s0/session.md": {
+        "bytes": 20251,
+        "provenance": null,
+        "sha256": "7f41cffb5b37c33a845ae433f02e8f238c439c0feffb6f023e81f7d86ace966e"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "d8fd7abc87c0a2c35b4b397e380224a89e207267fa274b9efe58c63c99fb030b"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+        "bytes": 16556,
+        "provenance": null,
+        "sha256": "55a325b6d59f957262fc2583a192ddd5a701cb4c015d14c966cc124c725a02bb"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+        "bytes": 761,
+        "provenance": null,
+        "sha256": "06a7f6788ae25c7fbc3bd71c131603a45a20bd85105f02795852d3f4741294c7"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+        "bytes": 13814,
+        "provenance": null,
+        "sha256": "f06b542b3aedeb816c156948f3eb2518ad1e7c3bdcf4c153c265ffa6aa02eb7a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-task/s0/run.json": {
+        "bytes": 779,
+        "provenance": null,
+        "sha256": "280af786470ebb425e3143d43a806423b625701d83906a295deeba33f5986a46"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/generated-task/s0/session.md": {
+        "bytes": 18397,
+        "provenance": null,
+        "sha256": "413f88876b1909ce23ca7aea9e4409f1ee1431621341621204b8d471166ab6cd"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
+        "bytes": 759,
+        "provenance": null,
+        "sha256": "d1ae44afcefce4b78952e5c80b44c75fff91182c6a373ad4965dc2a74ea3aee2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
+        "bytes": 15410,
+        "provenance": null,
+        "sha256": "3513d22d31bb0e4f9e58a2253fa79e49dfeb21b31b760fc406b45e0760815ac3"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
+        "bytes": 763,
+        "provenance": null,
+        "sha256": "4f45332f36dba2bfda562344450720f3ce7a7b0ea3ce5bb637b9139be7eeb5d2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
+        "bytes": 15323,
+        "provenance": null,
+        "sha256": "6eb6223e9c45a45a33228da44a056c2089578673ec83201751f04ba728806765"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/handoff/results.md": {
+        "bytes": 17881,
+        "provenance": null,
+        "sha256": "70ca4f03eb1748cbd32afaf1d3b32985e901b54da0f6718a64e9f1a8280d402a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 745,
+        "provenance": null,
+        "sha256": "5b105b2dee29d6cc31555864bce433622b0caa0c4f32626f329588fbc1480477"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 26711,
+        "provenance": null,
+        "sha256": "998554b610f0c65e5521adf3c353a8a0d931144e49170b19f85647263364c0eb"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 747,
+        "provenance": null,
+        "sha256": "1d37a4f96c4304aae27e6b32a699eee77cb55828d68fbf8724bbf6221fdadc3a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 20719,
+        "provenance": null,
+        "sha256": "dfc3db6bbd1be85c60ee4161db1e2261665023a5ce04986d8a8c7e9724ebf991"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/assessment/task-creation/results.md": {
+        "bytes": 5558,
+        "provenance": null,
+        "sha256": "fde04f16fcdc8e442aa0e76069208732537d2439f150b89430528ff76f8c5d2d"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/run.json": {
+        "bytes": 1105,
+        "provenance": null,
+        "sha256": "8fd4c57378be92a72ec611f9b725c53fd362d2d1d7eee533eb59895fc4dc5c0a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/session.md": {
+        "bytes": 6591,
+        "provenance": null,
+        "sha256": "b21574478fccc4728737814c7c8b89697bbfebf1d41b660ffd4fcb8e277e0194"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/continuation/task-files/tasks/20260920-notes-collection-pagination.md": {
+        "bytes": 11081,
+        "provenance": null,
+        "sha256": "44eb6d91cd9c87b81506d25cc37d46d0360c4edbec7565fde6a0c8ed0bd9b6a2"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/run.json": {
+        "bytes": 810,
+        "provenance": null,
+        "sha256": "48665d22c12e12cd090a353889e8af2b8ad860c449b3478b836d16c32e26d5e4"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/session.md": {
+        "bytes": 14847,
+        "provenance": null,
+        "sha256": "063b4c3e8bd323f5dde5f5a599b08d485c694bf65073336b24adc6d4e861f370"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/control/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+        "bytes": 695,
+        "provenance": null,
+        "sha256": "326edf9b43d750bbf23de6e5c2be782dd7ef0781173a2df85e923e04b1317f4c"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/run.json": {
+        "bytes": 806,
+        "provenance": null,
+        "sha256": "03534d31cf29a10230c410751f0d3259b5ff3d7a270ea5ce02b1d3ec0b03cf27"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/session.md": {
+        "bytes": 10550,
+        "provenance": null,
+        "sha256": "83fd5266dffc00516bd3dbe327f50d781409b2f400475c289b589157594ede18"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+        "bytes": 985,
+        "provenance": null,
+        "sha256": "22918f7b6ddf71f04c674d8b6835f212b7f8d284c67367dcb6ee556db0bf53bc"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/run.json": {
+        "bytes": 810,
+        "provenance": null,
+        "sha256": "a66cfeca214b18c3f3cf26275a354ae9f8e29c0bdfbaa7220c36be44f70fc8af"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/session.md": {
+        "bytes": 5806,
+        "provenance": null,
+        "sha256": "c018625f55117412a62615df03b2464bc8995ea12ade8d5e8907729b6389cd37"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+        "bytes": 2124,
+        "provenance": null,
+        "sha256": "4e25b7d3c18357766443009301dbda8a4efa40e600ff4de594045e51cdcc3f58"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/run.json": {
+        "bytes": 791,
+        "provenance": null,
+        "sha256": "199f76da9f6b61b2ad71636bc210ac62abfafdf1c2c6a570962a47ed6bc695b0"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/session.md": {
+        "bytes": 6142,
+        "provenance": null,
+        "sha256": "837e0916a9cfbf6b880fc76553dcc48eb450642310b632b11c9b0b132308ee13"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/task-files/tasks/20260919-notes-list-pagination.md": {
+        "bytes": 10961,
+        "provenance": null,
+        "sha256": "9085bfce488a482fc9d9ca63108f2127923a3443f1416cc753baaa9bc163468f"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/run.json": {
+        "bytes": 1151,
+        "provenance": null,
+        "sha256": "1604e584614afcccfdf8ed222bc470e88ceff761e5df5ef39ff669dff75214ab"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/session.md": {
+        "bytes": 5279,
+        "provenance": null,
+        "sha256": "37e0080119a3c6919006cd21b0ea3da01ab2a13d20bb4954d7488b7581df1fd8"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/continuation/task-files/tasks/20260919-notes-pagination.md": {
+        "bytes": 6591,
+        "provenance": null,
+        "sha256": "ed07d9d50a4c198d0017b318cd0ab46c2c1c81fa3a4900633d232e67f50c0218"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/run.json": {
+        "bytes": 906,
+        "provenance": null,
+        "sha256": "a41acde3916ccce0b03b3569078ecb69ae59e2b8bbc24b1238f252cc9a4dd4d9"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/session.md": {
+        "bytes": 11625,
+        "provenance": null,
+        "sha256": "5d6e9e6c636b4d8cb6a24678f6a2871e3430bf2208e0b75d24fba1b390433932"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+        "bytes": 985,
+        "provenance": null,
+        "sha256": "22918f7b6ddf71f04c674d8b6835f212b7f8d284c67367dcb6ee556db0bf53bc"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/run.json": {
+        "bytes": 910,
+        "provenance": null,
+        "sha256": "aedda57ae1bdd20296302b30bd0a69a10c4dbea7a7a7eea89c9b174e02629ceb"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/session.md": {
+        "bytes": 10269,
+        "provenance": null,
+        "sha256": "e39d3205b0a03a5ce788f2d88136ea865567edce8db708bb2c559cea2807ed69"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md": {
+        "bytes": 2124,
+        "provenance": null,
+        "sha256": "4e25b7d3c18357766443009301dbda8a4efa40e600ff4de594045e51cdcc3f58"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/run.json": {
+        "bytes": 887,
+        "provenance": null,
+        "sha256": "8bedea3ac817d2323d24b612cd39738f89dc7215d0d584208bcf3e2f2ff7a88b"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/session.md": {
+        "bytes": 5835,
+        "provenance": null,
+        "sha256": "9c727a6f133a16a66b0ba92aa344ce861951e6c4a38454401192f44a9f7f167d"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/task-files/tasks/20260920-notes-pagination.md": {
+        "bytes": 6479,
+        "provenance": null,
+        "sha256": "77a40973363dae78af685a83c31ac4ebfa56b41c01625932248ad3433bbcb69c"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/target.md": {
+        "bytes": 1976,
+        "provenance": null,
+        "sha256": "42185a6042a983b62d1f8c580ca873a78ef0754895b4c8b038dbe207ab22199a"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-task/s0/run.json": {
+        "bytes": 776,
+        "provenance": null,
+        "sha256": "2e7f6180503a9de15201b0c9558f3c7cbd26ebccae286bf668ff677edb88f0e1"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/generated-task/s0/session.md": {
+        "bytes": 20704,
+        "provenance": null,
+        "sha256": "e664a0ecd7ea62f17fcde8eb753f69d7f65938732ac0d2f734b2d3624af0a8ce"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/omit/s0/run.json": {
+        "bytes": 756,
+        "provenance": null,
+        "sha256": "d87ff1e91ba3ce2c9162f28578310a653605cce35ae17d0f79d782d8bed3ec8e"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/omit/s0/session.md": {
+        "bytes": 17557,
+        "provenance": null,
+        "sha256": "97bd4c8c1cb8a7d99279ff2a8956fecae485b200ebe14b3d2a47e318558c8b07"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/retain/s0/run.json": {
+        "bytes": 760,
+        "provenance": null,
+        "sha256": "71c05c921074972a4cf4a37e4428eb190077b2d83a85a4421cc338665f4263b3"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/glm-max/retain/s0/session.md": {
+        "bytes": 13500,
+        "provenance": null,
+        "sha256": "e6393dfe53bebc14dc8681bb002accb03345d50c70bd152859d079dff85c0f37"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/omit/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "cf1f268f9cb5ebe87ce54ee08bd980755dac825199a03d193f734b82f1592186"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/omit/s0/session.md": {
+        "bytes": 12980,
+        "provenance": null,
+        "sha256": "03c0ec76c13c65d4a556c97ff2edcdd4adedbc38784ebf520cf7d2baba1132c6"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/retain/s0/run.json": {
+        "bytes": 762,
+        "provenance": null,
+        "sha256": "f624095acd97a21c02ce272d7e012b2c1b02582ba83b3fc5978ecce78f71b1a1"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/gpt-high/retain/s0/session.md": {
+        "bytes": 15827,
+        "provenance": null,
+        "sha256": "173cfc9ed0dc118f88cadbeefed0e562a969bd44933354cf9e4f1553e47a6c6d"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/handoff/results.md": {
+        "bytes": 12017,
+        "provenance": null,
+        "sha256": "ad50837647de94a44924aed8ab65836937d90d71b3cb98d2e0d71a2ff9545512"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 744,
+        "provenance": null,
+        "sha256": "34911902a6eef04092d8544f41c7621d5130f0a7bab2bb7f0bd7d703821e0bce"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 24925,
+        "provenance": null,
+        "sha256": "603c7a8c9421b9d984b6533ba7cc9fd794d7dd9c826469c1910aefdb39e70831"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 746,
+        "provenance": null,
+        "sha256": "6943cdeef04ac677bfa73e2243e6a79ac082f653f56609354c2ecd7fac7c7267"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 20108,
+        "provenance": null,
+        "sha256": "b7a4cb7f3a08d2639b528c519cc2a309c9e92012fec9b1ee548d52e33f143d56"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/assessment/task-creation/results.md": {
+        "bytes": 6042,
+        "provenance": null,
+        "sha256": "5557b3618d01f4a1874294ba650f468c7e046c2d0267e4239339028c0021a205"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/run.json": {
+        "bytes": 1107,
+        "provenance": null,
+        "sha256": "29f7c7dfb823c8eafc0a4f703e37c80cba3fb5d66dfb52d90a7e0f0776afbba3"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/session.md": {
+        "bytes": 6049,
+        "provenance": null,
+        "sha256": "7c36b6dd16eb56ac8b8b653b6b7d6c6e598896904f1a6253ac920820767d0acc"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/continuation/task-files/tasks/20260920-books-crud-refresh-keeps-filter.md": {
+        "bytes": 8879,
+        "provenance": null,
+        "sha256": "38d042a19969b4a7a43f45781a6b3839fe828025fe8e00e1b3a8e44967ca2457"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/run.json": {
+        "bytes": 804,
+        "provenance": null,
+        "sha256": "4c141a47cef5e5a72e7ca08307d45a2b1ee7fa108a0169b228a53d521be3d3f8"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/session.md": {
+        "bytes": 11282,
+        "provenance": null,
+        "sha256": "187c82e237dcccee286f0cbbb99321ad4eeb96881bb5ec49df949ecaed9b5ff3"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-omit/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+        "bytes": 944,
+        "provenance": null,
+        "sha256": "5ca27b0ab9354d3e9c43e2e434a543401a0cd5b2f289be587742820a42fd1e97"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/run.json": {
+        "bytes": 808,
+        "provenance": null,
+        "sha256": "768a143e9e5267d13de3de899a817f83b2f6956ae016628bff43145da33ca427"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/session.md": {
+        "bytes": 7071,
+        "provenance": null,
+        "sha256": "a66e61db1e916623069e0be47cf985182052ba542713b3c38858b03dffc1bf54"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/plan-retain/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+        "bytes": 1907,
+        "provenance": null,
+        "sha256": "ac5034c5ffedaaf816bf918ec5819cc64ba8e896675f4ddb7b6e707e4df3c872"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/run.json": {
+        "bytes": 803,
+        "provenance": null,
+        "sha256": "2ba653b5e0e5d294076538775547076ada0227b6db1543d15ed722e32ef9bf08"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/session.md": {
+        "bytes": 8066,
+        "provenance": null,
+        "sha256": "ced953ef3d92718124c02bbbc0851277a147c9cd506c2f482f445061ab15a2b1"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/task-files/tasks/20260920-books-filter-persists-through-crud.md": {
+        "bytes": 9222,
+        "provenance": null,
+        "sha256": "efbcdf8f501f58bb61d0009835602ad7af84ccfe50c91a42cdfb745e0b40d287"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/run.json": {
+        "bytes": 1058,
+        "provenance": null,
+        "sha256": "539e7a74e31c49e82b307a38a7f7bc40a10f5fc1bbc2ec6b6a8ca135aacba411"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/continuation/session.md": {
+        "bytes": 2719,
+        "provenance": null,
+        "sha256": "aae05ad206878467e321e8f2d2bed692f5a58a4bc602f1c91a058363af7f6670"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/run.json": {
+        "bytes": 904,
+        "provenance": null,
+        "sha256": "0e3f0b011399f25ebe28ae091ead56dc5fab975759baa2107ca38168d2a3acbd"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/session.md": {
+        "bytes": 9504,
+        "provenance": null,
+        "sha256": "158dd93d55c2c69bb1987d0dbdf9993893f23bbb2aeee6e7cf38798ba0d48bd8"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-omit/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+        "bytes": 944,
+        "provenance": null,
+        "sha256": "5ca27b0ab9354d3e9c43e2e434a543401a0cd5b2f289be587742820a42fd1e97"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/run.json": {
+        "bytes": 908,
+        "provenance": null,
+        "sha256": "d15fa9fe7602ebb785453e0a3b8b0c15212d50337620ef2c183b9b867c4b099a"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/session.md": {
+        "bytes": 12064,
+        "provenance": null,
+        "sha256": "eebc423cf58f044af12fe17894eb0caa717a04bb8dcaf4448fe324e239f5d699"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/plan-retain/task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md": {
+        "bytes": 1907,
+        "provenance": null,
+        "sha256": "ac5034c5ffedaaf816bf918ec5819cc64ba8e896675f4ddb7b6e707e4df3c872"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/run.json": {
+        "bytes": 907,
+        "provenance": null,
+        "sha256": "e3065200dc7496dd98b0a78f346366632b588460f315dbd9fa6bbdc35152a819"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/session.md": {
+        "bytes": 5696,
+        "provenance": null,
+        "sha256": "6e4f6ab12b65d793dcccc7892f99a63e48fbc519994677bb2dae2a7fb9746d9b"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/task-files/tasks/20260920-preserve-books-filter-on-crud-refresh.md": {
+        "bytes": 5859,
+        "provenance": null,
+        "sha256": "102f4325a6075bf824af231669cca5310f1a9a5d8bcb58b9bedf2df17b8439c4"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/target.md": {
+        "bytes": 1785,
+        "provenance": null,
+        "sha256": "eef31367c0a55fe66baaea6e504100cb3e9a9b9de512b13df86d28ce8fd7c62b"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 752,
+        "provenance": null,
+        "sha256": "e9c9bbf8f00aef8086a9eaa5b3b101ceb89a3aae5514052076bbd4b48be53300"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 63827,
+        "provenance": null,
+        "sha256": "773bf8d62ab725e0fd8100772947a45f23dcb3c6330938d0fa848152ed16750a"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 754,
+        "provenance": null,
+        "sha256": "d814f8bc263c04a1866c30549a7bc4053e288e21c186eb6a0e631e221eaf06b7"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 40479,
+        "provenance": null,
+        "sha256": "ba1ea5085665f65037731a9baf1726b7f7b35854b144adf3ddc514175f8b8f35"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
+        "bytes": 752,
+        "provenance": null,
+        "sha256": "fc3ec2daf7ae32cb5baf19bbe0c53567aea1cddd7b7e6c7aaf4cc8fe338ef252"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
+        "bytes": 46275,
+        "provenance": null,
+        "sha256": "ede95627bb3ef271fc685b1df1d3b0a6d3ce9843b77834ea47373101ad53b920"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
+        "bytes": 756,
+        "provenance": null,
+        "sha256": "a9c1b2a8e7d7f5b11e4c30038d8368627dc09fdc5beb994b25f42f0110f4e833"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
+        "bytes": 43154,
+        "provenance": null,
+        "sha256": "1be06b8b66f6759e674d45ba85a6e66721cc1f96d4496aaaa4e0d79b89fcdb4e"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/assessment/task-creation/results.md": {
+        "bytes": 25322,
+        "provenance": null,
+        "sha256": "16fd6309ec1e9128aa439b3ae0abd51224702227b6c1576b46ffe320f19ec246"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/run.json": {
+        "bytes": 1139,
+        "provenance": null,
+        "sha256": "1293245a6577530e2e08f281b7a6654d70936fbb96ba5311be2645bbc5495126"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/session.md": {
+        "bytes": 10166,
+        "provenance": null,
+        "sha256": "90b308e8956f66ea9b527e21471f642637b8beb8bc199cd397e0d8b842fb76bd"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260920-books-page-discovery/000-main.md": {
+        "bytes": 13424,
+        "provenance": null,
+        "sha256": "cf5622ce8f739703680a0ad7719e687277448ae7c2ce8edaf64841967e415dc9"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260920-books-page-discovery/010-read-status-filter.md": {
+        "bytes": 6812,
+        "provenance": null,
+        "sha256": "7b1ffc51b6cdf6fd210162659d440815208f5119a7ac449d18a7b913b3a9ee88"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260920-books-page-discovery/020-title-author-search.md": {
+        "bytes": 5228,
+        "provenance": null,
+        "sha256": "5cf96dc3ff537c430efee782ab4101c50ca37b0807dfc297ccd1ae47f1c986c1"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260920-books-page-discovery/030-bounded-pagination.md": {
+        "bytes": 5487,
+        "provenance": null,
+        "sha256": "98c4eafa5f2a07dca4fb5bdf76f9e74d5160ef337460c18b9bb0ce403a2178ef"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/task-files/tasks/20260920-books-page-discovery/040-url-state-and-view-consistency.md": {
+        "bytes": 6874,
+        "provenance": null,
+        "sha256": "cf102087eec644e56a5aeb8045509b75bb5e211eb61a1a160b9db51590da3fee"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/run.json": {
+        "bytes": 1058,
+        "provenance": null,
+        "sha256": "0ec61b7bd3bfa0407fc71e8f8f51a38e8644058e8e254b9f66379d8be024b27e"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/session.md": {
+        "bytes": 9954,
+        "provenance": null,
+        "sha256": "3f7f4b46ec580b38ea1274ee5c24ce879501c3acdc38e28ec1c621e325ea10a5"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/task-files/tasks/20260920-books-discovery/000-main.md": {
+        "bytes": 8011,
+        "provenance": null,
+        "sha256": "c2844912d6357128584df433f752f5b013db2b6b3520ba938cf77e7e60ec8612"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/task-files/tasks/20260920-books-discovery/010-api-discovery-contract.md": {
+        "bytes": 4305,
+        "provenance": null,
+        "sha256": "9bef6e61fd70a33299bcdbf410c8623d1d29e7d7cf5802d18bdac72f8798d9c2"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/task-files/tasks/20260920-books-discovery/020-books-page-url-state.md": {
+        "bytes": 5702,
+        "provenance": null,
+        "sha256": "bbc95522849cbf3650abcc8732f0f866b0a0597d63996f39678ec312e70f3176"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/run.json": {
+        "bytes": 1055,
+        "provenance": null,
+        "sha256": "9e0a0fc790c0ed370abe7ce7505887687b83c77ed3f609a256201eeb4e910f36"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/session.md": {
+        "bytes": 7887,
+        "provenance": null,
+        "sha256": "b40f61759d211b5d55e8df621fe3888dfe53ca4b818ec736c27e1c9fe461d94e"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/task-files/tasks/20260920-books-discovery/000-main.md": {
+        "bytes": 10467,
+        "provenance": null,
+        "sha256": "e162a41b3c417571bed8ad4678e49aa443de9d8f0a9095aebb09ea5f490047f8"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/task-files/tasks/20260920-books-discovery/010-server-discovery-query.md": {
+        "bytes": 4681,
+        "provenance": null,
+        "sha256": "e8d93c49b63bba12d622c7d5fe260de23f56f95faca8b9e7bb45ab707bf3d3a7"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/task-files/tasks/20260920-books-discovery/020-books-page-discovery.md": {
+        "bytes": 6197,
+        "provenance": null,
+        "sha256": "7f9def2abc9f558957453e8e5a4521e6a33a80f1083ceb51fd60dcdf56f57f8f"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/run.json": {
+        "bytes": 1063,
+        "provenance": null,
+        "sha256": "bce25eb72bb711011312eb479b762905ec7a6f3bd52a6e5a0489a72a0ab83e99"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/session.md": {
+        "bytes": 11425,
+        "provenance": null,
+        "sha256": "164962debd1650d3a84b7d81be5806d3732f469b9d03e2befa908e7ca39d7379"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260920-books-discovery/000-main.md": {
+        "bytes": 8046,
+        "provenance": null,
+        "sha256": "b359797c2feb8d75c5ab7c5370d5350c91a2e0d659dadbb81ba5b7c1b7f7d956"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260920-books-discovery/010-api-query-contract.md": {
+        "bytes": 4807,
+        "provenance": null,
+        "sha256": "14a5dacbb1f238e776ab87fd8c2758e48ec76a64d705774e762a1415d9991730"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/task-files/tasks/20260920-books-discovery/020-books-page-discovery-state.md": {
+        "bytes": 6301,
+        "provenance": null,
+        "sha256": "0fb0c458b22562176c490c3b0ef313ec1334e4f4df6cc42614ab488aec6fe891"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/target.md": {
+        "bytes": 3193,
+        "provenance": null,
+        "sha256": "3b1b3c7cdf1d1fb1a13e291e7fe75eb823588090f5e8a70410a4b58c5ebd3895"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 755,
+        "provenance": null,
+        "sha256": "7676bf33a87f499230e6e7ba2caf6c326c855b4c9154cf963120187439fa5dfa"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 59092,
+        "provenance": null,
+        "sha256": "91789df26e0a129881640aa7573dee41803043832f0373cc24e1f031a07e24d2"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 757,
+        "provenance": null,
+        "sha256": "326a782c8b869c63acf48efc4fd6e0dad00f0b03797857949b98c6733e5ead6b"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 40160,
+        "provenance": null,
+        "sha256": "d35cff2f94a8d9bc302aaee3ecd3199d438757abcb9090814e73e7f12fe6cc6d"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
+        "bytes": 755,
+        "provenance": null,
+        "sha256": "30d9f7d9fb4dcbc892f4bbaeb491d5647d315901d858c0d6f7d505393f2ba8b6"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
+        "bytes": 45285,
+        "provenance": null,
+        "sha256": "c671c34b42b80889eef5097606b56921f4bc84fb55ef8cd233c0e4f773bca0ce"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
+        "bytes": 759,
+        "provenance": null,
+        "sha256": "0d9c2fed5f9ee3e06598a10689f1b0c7c622733b021addb450ab3b4d614edb13"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
+        "bytes": 41357,
+        "provenance": null,
+        "sha256": "10444ea3b217d4ebf219c5560b5a8c0ccd7d04aa30f45450b0b57a68163494d3"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/assessment/task-creation/results.md": {
+        "bytes": 13176,
+        "provenance": null,
+        "sha256": "9c7a69000529be2391e4affb1551f1d3b171dc81d987df8c55a37770fedd6c50"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/run.json": {
+        "bytes": 1057,
+        "provenance": null,
+        "sha256": "7b1f6a8377400858776caca8e8fc1b6954631f2e15c3002890aa175d14975b6b"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/session.md": {
+        "bytes": 11595,
+        "provenance": null,
+        "sha256": "ce4761051d087ca56d28df616b61d83ae4f2dcabac09e3f10fd635c1b4f1f813"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260920-notes-query-capability/000-main.md": {
+        "bytes": 16409,
+        "provenance": null,
+        "sha256": "346b1551bcbdff16f6231f3a0fca89480c889abfc68de56bfb2d459d528f045e"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260920-notes-query-capability/010-service-query-api.md": {
+        "bytes": 7548,
+        "provenance": null,
+        "sha256": "a7391df84f4f09883d34f102f448ca9f3ce1993e5f548fbb9e4055bc34eb2113"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260920-notes-query-capability/020-client-query-support.md": {
+        "bytes": 5722,
+        "provenance": null,
+        "sha256": "26ef55700809fd6f4ea55d563454f19b23fd2e0ae044c86ac74e95ae6092f60f"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/task-files/tasks/20260920-notes-query-capability/030-cli-query-command.md": {
+        "bytes": 6279,
+        "provenance": null,
+        "sha256": "56ff638b4b0e69c45f437a2fe8a6872233a57141ff4997e3d36b097f92d0ba66"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/run.json": {
+        "bytes": 1118,
+        "provenance": null,
+        "sha256": "25b3973e2e1d3028da9c4762fbbfb721fd33f2ebd47f9b4f926ef7f63c251d42"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/session.md": {
+        "bytes": 8306,
+        "provenance": null,
+        "sha256": "c609e9ce409a307cfa2517d6409440214e015df56bb55b7a8e5316a30e3f7ce0"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260919-notes-query/000-main.md": {
+        "bytes": 8168,
+        "provenance": null,
+        "sha256": "477d068cf2689c9a20a97a3d0ac3eeee02992a3a607e24ffd13c4ab36686629a"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260919-notes-query/010-service-contract-and-api.md": {
+        "bytes": 4302,
+        "provenance": null,
+        "sha256": "cb6174ed5eca2e4a7b68a950843e5de986345724321b57d167a88c219bb89570"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260919-notes-query/020-reusable-client.md": {
+        "bytes": 4047,
+        "provenance": null,
+        "sha256": "71f4e16f0478b78a921f4fbe7d47a360e0b14765693f9a6f5fc93e3f29d158d3"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/task-files/tasks/20260919-notes-query/030-cli-production-path.md": {
+        "bytes": 4316,
+        "provenance": null,
+        "sha256": "333542b3e5e808d020619ed02b0632a86c06afed05413cd14f89bc854c79a9b6"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/run.json": {
+        "bytes": 1106,
+        "provenance": null,
+        "sha256": "6a7b1c30d30bf2a336ec3a59d6dc6a40fdd655b559a786e29f3ecc5f835a91ea"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/session.md": {
+        "bytes": 11811,
+        "provenance": null,
+        "sha256": "12516a6f2be5260b90c9647ef64b82660a65c95339a1c929883e356ff52f847a"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260920-notes-query/000-main.md": {
+        "bytes": 9538,
+        "provenance": null,
+        "sha256": "8f338acfe28c7ee871cf69c7166dd44c30049a6e2a4fdc48b85a7b3845a7a09e"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260920-notes-query/010-public-api-contract.md": {
+        "bytes": 4844,
+        "provenance": null,
+        "sha256": "f65bb1932560d49268543f4c0032eb2c7491be8d5f7f72cd430c760dfe5756f8"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260920-notes-query/020-reusable-client.md": {
+        "bytes": 4674,
+        "provenance": null,
+        "sha256": "4937f9824451ed4bfaa6e29b81c2d495aa4e04cc861fdf32e24bf4a897cf1b39"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/task-files/tasks/20260920-notes-query/030-cli-integration.md": {
+        "bytes": 4737,
+        "provenance": null,
+        "sha256": "0caf3a09d02dc9ce78035b3e9a61f37315dfa7def2074b5eb1a4db9f92dba51d"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/run.json": {
+        "bytes": 1093,
+        "provenance": null,
+        "sha256": "ffc02fc833918e712adf7ef9d8b56ff4eb71a0d80fddafaab2f7b725bdbab884"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/session.md": {
+        "bytes": 9703,
+        "provenance": null,
+        "sha256": "77210b96f358303eed8e30fd9bec1c123e96fa447108280856d31df8ade46196"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260920-notes-query/000-main.md": {
+        "bytes": 7771,
+        "provenance": null,
+        "sha256": "477d969ba516cfbaae7c3937f0c88ccf7494e15c02573542af6306471dd30cb1"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260920-notes-query/010-api-contract.md": {
+        "bytes": 4958,
+        "provenance": null,
+        "sha256": "05a11ea33ae61fdc06e8eb8051bfb9daf34b728954bcb58c1af9ae3e1522b5e0"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260920-notes-query/020-reusable-client.md": {
+        "bytes": 4161,
+        "provenance": null,
+        "sha256": "d07beb8e663eefd8bd9e181fa8e2fc83deceee61c056e39e937d1b178c5ac2e1"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/task-files/tasks/20260920-notes-query/030-cli.md": {
+        "bytes": 4506,
+        "provenance": null,
+        "sha256": "8d4a31b275b3f4c2749e9f9cb28512aa6b78d8a53a83881c243fd0c20ade7701"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/target.md": {
+        "bytes": 3065,
+        "provenance": null,
+        "sha256": "8649ddc660e51010b47f0f268ea9745c4502afefcd6f1886b04203023abf6812"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/glm-max/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "4a63735d3a1e4a3b69b70d603db2e59851ea0c8333964865f521db20b267d445"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/glm-max/s0/session.md": {
+        "bytes": 52406,
+        "provenance": null,
+        "sha256": "c3957715f145a852046bda31c3015a86d8300577bb792ef5be5e926568fc6eec"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-high/s0/run.json": {
+        "bytes": 760,
+        "provenance": null,
+        "sha256": "f5f10ae3ae98925235848480f6e593644773fe9cd95f248cc6d13b753c2c725d"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-high/s0/session.md": {
+        "bytes": 47579,
+        "provenance": null,
+        "sha256": "c35376abf7b3d87847bf714e7022a188dd71620bca45894dd03b47eefc147732"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-max/s0/run.json": {
+        "bytes": 758,
+        "provenance": null,
+        "sha256": "96ab734aa29f0b4c07c419247f82cc5ff6624a14bb95ce934d7f8596e9977934"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-max/s0/session.md": {
+        "bytes": 51583,
+        "provenance": null,
+        "sha256": "6e0ef64ed13a87f25f7ce16e78fc4c79a78f9d75a254e7d2e1738c495eb0e4ce"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-xhigh/s0/run.json": {
+        "bytes": 762,
+        "provenance": null,
+        "sha256": "f0e565f4b6caed673181b0ab7d6e7b8fc19ec0dd791d1093eee0823dc39a4d3d"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/gpt-xhigh/s0/session.md": {
+        "bytes": 45254,
+        "provenance": null,
+        "sha256": "13f6bdd902daefd71dc09f8abbcc2215d16306652ba7af5c0e258b5cd8eecda5"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/assessment/task-creation/results.md": {
+        "bytes": 17475,
+        "provenance": null,
+        "sha256": "93fe41189765a9add71a6379b9bd69687e6be3df3d512627c5436828400ddcf6"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/run.json": {
+        "bytes": 1094,
+        "provenance": null,
+        "sha256": "af0b92d67cbc5e6b1e0a822ab8edd9b40a2c599fb47be259b84b0561b7ab85cc"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/session.md": {
+        "bytes": 10072,
+        "provenance": null,
+        "sha256": "b8ea59cff2c66af2605e8501706c6a25ba5661b2eea48a321c09bfda9536c7da"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260920-post-author-migration/000-main.md": {
+        "bytes": 11557,
+        "provenance": null,
+        "sha256": "072be56d0b8501f1097e9b3db1d395af04b282684985f24e0abd50025cd6b2c3"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260920-post-author-migration/010-multi-author-model-and-compat.md": {
+        "bytes": 6851,
+        "provenance": null,
+        "sha256": "32ea4658a94b6d7be80baab392206b5ef6cddb81bd4d128949c949f62bd438d7"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260920-post-author-migration/020-content-and-tooling-migration.md": {
+        "bytes": 4638,
+        "provenance": null,
+        "sha256": "490e5cfa2098ce43e173af4418a6107d67874a23c7abc93d70ca38ce996b15e7"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/task-files/tasks/20260920-post-author-migration/030-evidence-gate-and-legacy-rejection.md": {
+        "bytes": 6493,
+        "provenance": null,
+        "sha256": "ef5f6212e3c9cbf88d45c1cd82304ca4e587710a64aabe691abb94f77e2a3732"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/run.json": {
+        "bytes": 1270,
+        "provenance": null,
+        "sha256": "bb7186760dd9e0d9596685263c25658fed186915508e20206e3a484ad3e1dc11"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/session.md": {
+        "bytes": 7904,
+        "provenance": null,
+        "sha256": "27d7f8841d4cebd1db093526aa0d520e45d08f441afe149a39d0e04ab99d901e"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260919-author-metadata-migration/000-main.md": {
+        "bytes": 7931,
+        "provenance": null,
+        "sha256": "c68b86ec663bad44f441ca096381d102da40f8a066497b8ac378e5b53698fc29"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260919-author-metadata-migration/010-schema-and-content-migration.md": {
+        "bytes": 4012,
+        "provenance": null,
+        "sha256": "a4683da79cd3ac353df049f5db33a64bcf9dc31db0a21699b49fe2482efafb99"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260919-author-metadata-migration/020-generated-consumers.md": {
+        "bytes": 4264,
+        "provenance": null,
+        "sha256": "9cbd93f053d0b78a9fc9bf9af1659cdb3ebd253bd302028245706025e4cac55e"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260919-author-metadata-migration/030-authoring-tool.md": {
+        "bytes": 3643,
+        "provenance": null,
+        "sha256": "8babb2af764981477db1ce7a25968156d4f2c23f52191669913216c8990a047b"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/task-files/tasks/20260919-author-metadata-migration/040-legacy-cutover-evidence.md": {
+        "bytes": 5273,
+        "provenance": null,
+        "sha256": "c5e02a7539afbb69596ef853cd8c1dfec0b7b821ec36a083dc07c6b653bd8742"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/run.json": {
+        "bytes": 1304,
+        "provenance": null,
+        "sha256": "cbc90c5d4589265ee84601d6fe64921d5714791517882faf8db5fcafea7c480f"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/session.md": {
+        "bytes": 9862,
+        "provenance": null,
+        "sha256": "ec6a38eeb2634d0eacee1712d622ac56ba8a176299caf2f50e209061cf24a18a"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260920-author-metadata-migration/000-main.md": {
+        "bytes": 9677,
+        "provenance": null,
+        "sha256": "026bfb754eaacef42372fc1357f8547c750903fb2951d78a878e1e6ba227a118"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260920-author-metadata-migration/010-author-contract-and-authoring.md": {
+        "bytes": 4209,
+        "provenance": null,
+        "sha256": "f3eb5c14deafd51d0318e463f4fae7b533d8c6eb1805a9f37b322fa1a736164a"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260920-author-metadata-migration/020-rendering-and-archive-consumers.md": {
+        "bytes": 4466,
+        "provenance": null,
+        "sha256": "82a9f0269b38dbc60dab11e7b44a28506a6e42bd814471e85748e6c94c495a4e"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260920-author-metadata-migration/030-source-content-migration.md": {
+        "bytes": 4093,
+        "provenance": null,
+        "sha256": "b9202d053862ed459bffccde3134a3b7d3eadb74511c74e3672495cb49ac3b9d"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/task-files/tasks/20260920-author-metadata-migration/040-output-evidence-and-legacy-retirement.md": {
+        "bytes": 5285,
+        "provenance": null,
+        "sha256": "978d73d6d65d155dd9676b0e9dda9cb809a9c6ccf8fd6e0c73fced8b04ff9209"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/run.json": {
+        "bytes": 1225,
+        "provenance": null,
+        "sha256": "8f4caeda44ce2b8f3232908536e6fc6d100e7ba56e11c7550bc9ab400671c405"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/session.md": {
+        "bytes": 5848,
+        "provenance": null,
+        "sha256": "2069502b205b6a272d23d86e0f2af4831b7400d759c0993ea53e96fe9841c4c0"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260920-author-metadata-migration/000-main.md": {
+        "bytes": 8615,
+        "provenance": null,
+        "sha256": "826518555397e894fa9226a14a7951ee5570eecc5dec52396ec947088486af0e"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260920-author-metadata-migration/010-source-contract-and-content-migration.md": {
+        "bytes": 4544,
+        "provenance": null,
+        "sha256": "2c091709915a70aff52c486c3481e88e1c80d9889c61c98d9baa8b412ba81ce0"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260920-author-metadata-migration/020-rendering-and-output-surfaces.md": {
+        "bytes": 5091,
+        "provenance": null,
+        "sha256": "6a2b9d7ed8f64f124d113f1828f9be9367cc7e15557794d9672485073a57762a"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/task-files/tasks/20260920-author-metadata-migration/030-cutover-evidence-and-legacy-rejection.md": {
+        "bytes": 5470,
+        "provenance": null,
+        "sha256": "d87f0928cd2ba0801a06b2ec612b850a13f96f92ca17489923b81fd0b59471d6"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/target.md": {
+        "bytes": 3171,
+        "provenance": null,
+        "sha256": "2cd448c6c996fdd069ec20c498031a99808eee4ece2472ac31d993481e24b4db"
+      },
+      "shared/configs/glm-assessor-max.json": {
+        "bytes": 35254,
+        "provenance": null,
+        "sha256": "687d8bc1d29ccae2e92d09e61471d29597902b03c6bd1820647beb8d40e1a19c"
+      },
+      "shared/configs/glm-max.json": {
+        "bytes": 35253,
+        "provenance": null,
+        "sha256": "7d84047c4f955c46d1a20b017dff3dc80bdaa6ca2c5b482704b9f9541fd8cb78"
+      },
+      "shared/configs/gpt-high.json": {
+        "bytes": 35056,
+        "provenance": null,
+        "sha256": "b5857a074d86b0389162f34d0c8c4b4be4fb42cfb255b8574314598bdff0394f"
+      },
+      "shared/configs/gpt-max.json": {
+        "bytes": 35054,
+        "provenance": null,
+        "sha256": "b935f2029b8d84d611ec3d2d3acbf9715b647f95c47e5446311fe3766a8dc3f2"
+      },
+      "shared/configs/gpt-xhigh.json": {
+        "bytes": 35058,
+        "provenance": null,
+        "sha256": "ae111826975c87e844d101749da4d6f5b6de1349630614ca269d221e1e80cbd6"
+      },
+      "shared/system-messages/glm-05f158ec2b3d.md": {
+        "bytes": 18568,
+        "provenance": null,
+        "sha256": "05f158ec2b3d5e3e89ef58122f158d1b8e69897b65c3dbf34bfb26e0ed1dfc63"
+      },
+      "shared/system-messages/glm-88363f845d60.md": {
+        "bytes": 18587,
+        "provenance": null,
+        "sha256": "88363f845d60be2845e0ef86f863e6eebcfd240042fe35c044228fce54f71fb3"
+      },
+      "shared/system-messages/glm-assessor-3d0be6dc03e9.md": {
+        "bytes": 4770,
+        "provenance": null,
+        "sha256": "3d0be6dc03e9399646a3940209a72874c526fe31cad0f9426f6e9b89a00f28a6"
+      },
+      "shared/system-messages/glm-f7acbd8a2b1b.md": {
+        "bytes": 18587,
+        "provenance": null,
+        "sha256": "f7acbd8a2b1b8ede0bc1199452e0094a7af6e9d8998354c5b073f00144c91dca"
+      },
+      "shared/system-messages/gpt-900ec1942094.md": {
+        "bytes": 30471,
+        "provenance": null,
+        "sha256": "900ec1942094e0d0ac855fa2ec5e5147821acc754854908ab60c5918285f61fd"
+      },
+      "shared/system-messages/gpt-a9b1cb646367.md": {
+        "bytes": 30471,
+        "provenance": null,
+        "sha256": "a9b1cb646367391dae45353838061e2ad46cee8c614387a95cdf2de15b0e7c24"
+      },
+      "shared/system-messages/gpt-c45a9def3e33.md": {
+        "bytes": 30452,
+        "provenance": null,
+        "sha256": "c45a9def3e33b098d0bb357ce7d77b0e8a5a325db3ce5fa1ec04220d4b67f1cb"
+      }
+    },
+    "generated": {
+      "costs.csv": {
+        "bytes": 23549,
+        "sha256": "cf1d59cccd2db512ef3cf325d1af0dc24c6f94bb58116a51a78ac44ac5293030"
+      },
+      "costs.md": {
+        "bytes": 23602,
+        "sha256": "602c3fab7c7f5a0226b4780f6d8d505ac8bf5bf220794630b7723a5b67efdaf0"
+      },
+      "index.md": {
+        "bytes": 1590,
+        "sha256": "e66f1866ad3cae781e9215e535271c6883dfb8a2fa90a30b017e37743495564a"
+      },
+      "matrix.md": {
+        "bytes": 15553,
+        "sha256": "7dc3c18c5eded0ec29fffc71a4713b3711729aa001172998d7f8b10d47119dfd"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/glm-max/index.md": {
+        "bytes": 2035,
+        "sha256": "d364054926d3abfc77a0cbdaa8763b5265d4125d712ced1a3f8523a9fc05a95a"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/gpt-high/index.md": {
+        "bytes": 2051,
+        "sha256": "592616892f357ec84c6da403347b4091b6e1f8984c16736eef6419c4f84d6457"
+      },
+      "scenarios/tg01-eleventy-archive-handoff/index.md": {
+        "bytes": 642,
+        "sha256": "ebcea309ef2fbb82ef29810de39368cf7dc979c2884b97f7f0214dafea3cf75e"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/glm-max/index.md": {
+        "bytes": 2467,
+        "sha256": "ecbd8c44071e4727de3ca488095a7fdc9ad401e19bef0602be4f3b0e10bbe146"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/gpt-high/index.md": {
+        "bytes": 2035,
+        "sha256": "b3377815aa811cd15de4b716f2bc88fc1b5cf6cafd6c3f3f26b1b906ff27970a"
+      },
+      "scenarios/tg02-fastapi-pagination-handoff/index.md": {
+        "bytes": 655,
+        "sha256": "9871af4639212258963fd5a2cf4d2b69e4028412254b8a6b18fbc7d00356228f"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/glm-max/index.md": {
+        "bytes": 2079,
+        "sha256": "c85cf397acc6fe98e58af6882ab8fa79d1936cd15ed5d610cfd8ac67747348c2"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/gpt-high/index.md": {
+        "bytes": 1953,
+        "sha256": "cdbf6d1d15ad6fc2b25971a942af3e66f7f4a30c9e85f06633d12f521af44128"
+      },
+      "scenarios/tg03-flask-vue-refresh-handoff/index.md": {
+        "bytes": 643,
+        "sha256": "18dfc121660fd4143e3eecc8a8937a0f7d5f7f12e9cf48d30de79793d3f4cbb2"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/glm-max/index.md": {
+        "bytes": 1086,
+        "sha256": "52f83a21ea2fba07546b1dab9275db7aa26fc5ff4667eb3e326c925e30d06025"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-high/index.md": {
+        "bytes": 826,
+        "sha256": "77351e8400eb7df281edc8a9579ba3fe06fa5a6fa9c37f1bfa688a28d65f6249"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-max/index.md": {
+        "bytes": 823,
+        "sha256": "db3288104dec437c9cd825759f8db24247b3e4a03e71a03dd0ffe905ac5cdc36"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/gpt-xhigh/index.md": {
+        "bytes": 833,
+        "sha256": "18fa8883605ce9fdcdb2d212c3d62fcb6f78fce3294fc2f15207b9a36b2cac0d"
+      },
+      "scenarios/tg04-flask-vue-discovery-decomposition/index.md": {
+        "bytes": 520,
+        "sha256": "f99b6474fc8cce236d9ed8b7c75e60d49093652d31b561ff6326d35cf1f22ed6"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/glm-max/index.md": {
+        "bytes": 955,
+        "sha256": "4e510765206aff815b831a3d2221428763994dd55f1c2f3068366edead15e5c6"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-high/index.md": {
+        "bytes": 920,
+        "sha256": "eaa438972ec17dda51c584d16bd9ed6a03ef2f1ec8dba699ba29c1b45fd550d5"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-max/index.md": {
+        "bytes": 899,
+        "sha256": "9e754aea8bd6ec828f7a0d58f7ed27b24b03aaff2195135972a507b8bf17d9ac"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/gpt-xhigh/index.md": {
+        "bytes": 867,
+        "sha256": "3def857ba90dd970aaee6fa89d2ce2e235b799cc187ec750f28a245f3d3d5283"
+      },
+      "scenarios/tg05-fastapi-multi-consumer-decomposition/index.md": {
+        "bytes": 523,
+        "sha256": "bb9f3d5c00f93b520495f786851f2a6d33674e1176b7cdb3f727f37ca1d5d51e"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/glm-max/index.md": {
+        "bytes": 1030,
+        "sha256": "380f1ac4b9cd8b47eacb268f4feaf9d88edee73189c1b8eb4f8472ed46a94254"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-high/index.md": {
+        "bytes": 1116,
+        "sha256": "022ed831f39e0042a1c78e092ca430091a655ccdf60c8f32717a4d5b81c809d5"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-max/index.md": {
+        "bytes": 1187,
+        "sha256": "5a0c2b7095742ee99f85375b6057375396d3c7355947a8b575fb40fb9c269455"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/gpt-xhigh/index.md": {
+        "bytes": 1072,
+        "sha256": "e73a68c90e05e7d3305b096b4c3e084ec1fee4e005b82d57d5a55862daaf0f99"
+      },
+      "scenarios/tg06-eleventy-author-migration-decomposition/index.md": {
+        "bytes": 526,
+        "sha256": "ec7b57483df8d58df8a5825730c096e9efea6c1b2c13fd45da09f7728e2e511f"
+      }
+    }
+  },
+  "generator_version": "task-guidance-result-package-v4",
+  "identity": {
+    "dataset_id": "task-guidance-b1-20260919",
+    "label": "task-mechanics candidate",
+    "labels": [
+      "b1-v1-r1"
+    ],
+    "name": "20260919-task-mechanics-b1",
+    "partial": false,
+    "scenario_count": 6,
+    "suite": "task-guidance"
+  },
+  "report_config": {
+    "path": "report-config.toml",
+    "sha256": "930db91a98d8ada2351a31b380e4ba16c545268bc1af3ea8e5e6629e7c396b01"
+  },
+  "runs": [
+    {
+      "kind": "task-creation",
+      "label": "tg01-eleventy-archive-handoff task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222225.414764Z-task-guidance-tg01-eleventy-archive-handoff-max-314b94c0",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg01-eleventy-archive-handoff plan-retain glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223859.120072Z-task-guidance-handoff-tg01-eleventy-archive-handoff-retain-32d19064",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg01-eleventy-archive-handoff plan-omit glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224202.114510Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-58b67509",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg01-eleventy-archive-handoff continuation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224646.143534Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-5c65735a",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg01-eleventy-archive-handoff task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T222218.192471Z-task-guidance-tg01-eleventy-archive-handoff-high-4245f421",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 58222,
+        "input_tokens": 74249,
+        "output_tokens": 5638,
+        "provider_reported_cost": 0.0556772,
+        "provider_reported_cost_cumulative": 0.0556772,
+        "reasoning_tokens": 1753
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg01-eleventy-archive-handoff plan-retain gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T223903.204779Z-task-guidance-handoff-tg01-eleventy-archive-handoff-retain-1b0eab07",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 54561,
+        "input_tokens": 67478,
+        "output_tokens": 7740,
+        "provider_reported_cost": 0.06481310000000001,
+        "provider_reported_cost_cumulative": 0.06481310000000001,
+        "reasoning_tokens": 3850
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg01-eleventy-archive-handoff plan-omit gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224205.964049Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-88d5d9a0",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 68334,
+        "input_tokens": 86357,
+        "output_tokens": 6750,
+        "provider_reported_cost": 0.0653564,
+        "provider_reported_cost_cumulative": 0.0653564,
+        "reasoning_tokens": 3271
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg01-eleventy-archive-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224516.118010Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-8321a8e7",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 38232,
+        "input_tokens": 40550,
+        "output_tokens": 837,
+        "provider_reported_cost": 0.0111632,
+        "provider_reported_cost_cumulative": 0.08680359999999998,
+        "reasoning_tokens": 265
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg01-eleventy-archive-handoff task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T191731.150822Z-task-guidance-semantic-tg01-eleventy-archive-handoff-glm-max-s0-ff07cbca",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg01-eleventy-archive-handoff task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T191840.165244Z-task-guidance-semantic-tg01-eleventy-archive-handoff-gpt-high-s0-e64521b8",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-retain-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-glm-max-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T191759.807435Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-retain-glm-max-s0-e972cfc6",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-retain-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-gpt-high-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T191850.995048Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-retain-gpt-high-s0-bb304ba5",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-omit-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-glm-max-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T195941.955046Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-omit-glm-max-s0-6b63e24e",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-omit-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-gpt-high-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192104.241226Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-omit-gpt-high-s0-ded11072",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-generated-task-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-glm-max-generated-task-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192257.169161Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-generated-task-glm-max-s0-9b32b68d",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-generated-task-s0",
+      "label": "tg01-eleventy-archive-handoff handoff-assessment-gpt-high-generated-task-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192327.087661Z-task-guidance-handoff-semantic-tg01-eleventy-archive-handoff-generated-task-gpt-high-s0-fb98e09e",
+      "scenario_id": "tg01-eleventy-archive-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg02-fastapi-pagination-handoff task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222226.610019Z-task-guidance-tg02-fastapi-pagination-handoff-max-82af7faf",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg02-fastapi-pagination-handoff plan-retain glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223900.955597Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-retain-ce8cb20e",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg02-fastapi-pagination-handoff plan-omit glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223940.350859Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-7f049a33",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg02-fastapi-pagination-handoff continuation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224528.158757Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-72b9848c",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "control",
+      "label": "tg02-fastapi-pagination-handoff control glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224558.400583Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-incomplete-7eedb7ab",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg02-fastapi-pagination-handoff task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T223250.587663Z-task-guidance-tg02-fastapi-pagination-handoff-high-efad6140",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 57708,
+        "input_tokens": 72153,
+        "output_tokens": 4795,
+        "provider_reported_cost": 0.0489858,
+        "provider_reported_cost_cumulative": 0.0489858,
+        "reasoning_tokens": 1469
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg02-fastapi-pagination-handoff plan-retain gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T223904.406847Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-retain-4c5e5b19",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 63047,
+        "input_tokens": 77089,
+        "output_tokens": 5724,
+        "provider_reported_cost": 0.054690699999999995,
+        "provider_reported_cost_cumulative": 0.054690699999999995,
+        "reasoning_tokens": 3037
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg02-fastapi-pagination-handoff plan-omit gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224135.907284Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-e5513bba",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 41704,
+        "input_tokens": 53436,
+        "output_tokens": 5759,
+        "provider_reported_cost": 0.0504564,
+        "provider_reported_cost_cumulative": 0.0504564,
+        "reasoning_tokens": 2528
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg02-fastapi-pagination-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224354.101727Z-task-guidance-same-agent-tg02-fastapi-pagination-handoff-e8f96922",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 28786,
+        "input_tokens": 30736,
+        "output_tokens": 968,
+        "provider_reported_cost": 0.010636600000000001,
+        "provider_reported_cost_cumulative": 0.056513200000000006,
+        "reasoning_tokens": 148
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg02-fastapi-pagination-handoff task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192000.059836Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-glm-max-s0-5ba7ecca",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg02-fastapi-pagination-handoff task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192037.329867Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-gpt-high-s0-23c38b13",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-retain-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-glm-max-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192408.659820Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-retain-glm-max-s0-bd383a93",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-retain-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-gpt-high-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192443.058683Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-retain-gpt-high-s0-375c15a4",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-omit-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-glm-max-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192547.604568Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-omit-glm-max-s0-fca3ff68",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-omit-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-gpt-high-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192646.017984Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-omit-gpt-high-s0-d7ce631e",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-generated-task-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-glm-max-generated-task-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192816.525684Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-generated-task-glm-max-s0-d3171062",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-generated-task-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-gpt-high-generated-task-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192850.278430Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-generated-task-gpt-high-s0-002c5ddf",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-incomplete-s0",
+      "label": "tg02-fastapi-pagination-handoff handoff-assessment-glm-max-incomplete-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192927.632895Z-task-guidance-handoff-semantic-tg02-fastapi-pagination-handoff-incomplete-glm-max-s0-41a7d0d2",
+      "scenario_id": "tg02-fastapi-pagination-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg03-flask-vue-refresh-handoff task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222228.066200Z-task-guidance-tg03-flask-vue-refresh-handoff-max-4cf8f58f",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg03-flask-vue-refresh-handoff plan-retain glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223902.287276Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-a4ebd4d1",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg03-flask-vue-refresh-handoff plan-omit glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224000.396486Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-36ec60c0",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg03-flask-vue-refresh-handoff continuation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T224446.306567Z-task-guidance-same-agent-tg03-flask-vue-refresh-handoff-f3bb9ac2",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg03-flask-vue-refresh-handoff task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T222219.891372Z-task-guidance-tg03-flask-vue-refresh-handoff-high-33cfbf4c",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 58867,
+        "input_tokens": 73414,
+        "output_tokens": 4395,
+        "provider_reported_cost": 0.046803700000000004,
+        "provider_reported_cost_cumulative": 0.046803700000000004,
+        "reasoning_tokens": 1241
+      }
+    },
+    {
+      "kind": "plan-retain",
+      "label": "tg03-flask-vue-refresh-handoff plan-retain gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T223905.676397Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-retain-20c6f50b",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 67085,
+        "input_tokens": 83125,
+        "output_tokens": 5920,
+        "provider_reported_cost": 0.058268499999999994,
+        "provider_reported_cost_cumulative": 0.058268499999999994,
+        "reasoning_tokens": 2256
+      }
+    },
+    {
+      "kind": "plan-omit",
+      "label": "tg03-flask-vue-refresh-handoff plan-omit gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224139.074780Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-60444df4",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 54327,
+        "input_tokens": 67676,
+        "output_tokens": 5792,
+        "provider_reported_cost": 0.0535337,
+        "provider_reported_cost_cumulative": 0.0535337,
+        "reasoning_tokens": 2891
+      }
+    },
+    {
+      "kind": "continuation",
+      "label": "tg03-flask-vue-refresh-handoff continuation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T224200.137038Z-task-guidance-tg03-flask-vue-refresh-handoff-high-695ca194",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "inherited prefix length unknown; per-run usage cannot be bounded",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg03-flask-vue-refresh-handoff task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192122.187002Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-glm-max-s0-ec18fdea",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg03-flask-vue-refresh-handoff task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192257.208712Z-task-guidance-semantic-tg03-flask-vue-refresh-handoff-gpt-high-s0-cb7ed68b",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-retain-s0",
+      "label": "tg03-flask-vue-refresh-handoff handoff-assessment-glm-max-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193016.327847Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-retain-glm-max-s0-3382324d",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-retain-s0",
+      "label": "tg03-flask-vue-refresh-handoff handoff-assessment-gpt-high-retain-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193047.106977Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-retain-gpt-high-s0-117abf21",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-omit-s0",
+      "label": "tg03-flask-vue-refresh-handoff handoff-assessment-glm-max-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193110.353689Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-omit-glm-max-s0-4f810b90",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-gpt-high-omit-s0",
+      "label": "tg03-flask-vue-refresh-handoff handoff-assessment-gpt-high-omit-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193139.212376Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-omit-gpt-high-s0-2528a07e",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "handoff-assessment-glm-max-generated-task-s0",
+      "label": "tg03-flask-vue-refresh-handoff handoff-assessment-glm-max-generated-task-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193222.266868Z-task-guidance-handoff-semantic-tg03-flask-vue-refresh-handoff-generated-task-glm-max-s0-2df85548",
+      "scenario_id": "tg03-flask-vue-refresh-handoff",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222229.077269Z-task-guidance-tg04-flask-vue-discovery-decomposition-max-2c665ce8",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T223251.537697Z-task-guidance-tg04-flask-vue-discovery-decomposition-high-6abe61d2",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 159154,
+        "input_tokens": 180658,
+        "output_tokens": 10983,
+        "provider_reported_cost": 0.10331739999999999,
+        "provider_reported_cost_cumulative": 0.10331739999999999,
+        "reasoning_tokens": 3313
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation gpt max",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223252.550427Z-task-guidance-tg04-flask-vue-discovery-decomposition-max-39b6050d",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 124611,
+        "input_tokens": 153244,
+        "output_tokens": 14649,
+        "provider_reported_cost": 0.1289881,
+        "provider_reported_cost_cumulative": 0.1289881,
+        "reasoning_tokens": 6815
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation gpt xhigh",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "xhigh",
+      "run_id": "20260919T222250.579655Z-task-guidance-tg04-flask-vue-discovery-decomposition-xhigh-13c0997c",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 146106,
+        "input_tokens": 172332,
+        "output_tokens": 12898,
+        "provider_reported_cost": 0.11822459999999999,
+        "provider_reported_cost_cumulative": 0.11822459999999999,
+        "reasoning_tokens": 4104
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192343.141384Z-task-guidance-semantic-tg04-flask-vue-discovery-decomposition-glm-max-s0-3039ac42",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192537.637496Z-task-guidance-semantic-tg04-flask-vue-discovery-decomposition-gpt-high-s0-036d8277",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-xhigh-s0",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation-assessment-gpt-xhigh-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T192849.086387Z-task-guidance-semantic-tg04-flask-vue-discovery-decomposition-gpt-xhigh-s0-5d90ac4f",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-max-s0",
+      "label": "tg04-flask-vue-discovery-decomposition task-creation-assessment-gpt-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193120.111230Z-task-guidance-semantic-tg04-flask-vue-discovery-decomposition-gpt-max-s0-4879edfc",
+      "scenario_id": "tg04-flask-vue-discovery-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222230.317008Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-max-ae2b7283",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T222222.626724Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-high-f5a4942f",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 91880,
+        "input_tokens": 114740,
+        "output_tokens": 12486,
+        "provider_reported_cost": 0.106964,
+        "provider_reported_cost_cumulative": 0.106964,
+        "reasoning_tokens": 4141
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation gpt max",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223245.549922Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-max-88ba279a",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 237879,
+        "input_tokens": 273298,
+        "output_tokens": 18147,
+        "provider_reported_cost": 0.16808890000000004,
+        "provider_reported_cost_cumulative": 0.16808890000000004,
+        "reasoning_tokens": 7457
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation gpt xhigh",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "xhigh",
+      "run_id": "20260919T222659.527617Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-xhigh-7a72675f",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 145781,
+        "input_tokens": 177688,
+        "output_tokens": 14854,
+        "provider_reported_cost": 0.13560909999999998,
+        "provider_reported_cost_cumulative": 0.13560909999999998,
+        "reasoning_tokens": 5642
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193336.848942Z-task-guidance-semantic-tg05-fastapi-multi-consumer-decomposition-glm-max-s0-2e604f8f",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193506.427569Z-task-guidance-semantic-tg05-fastapi-multi-consumer-decomposition-gpt-high-s0-95b8c82d",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-xhigh-s0",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation-assessment-gpt-xhigh-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193556.324741Z-task-guidance-semantic-tg05-fastapi-multi-consumer-decomposition-gpt-xhigh-s0-50375278",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-max-s0",
+      "label": "tg05-fastapi-multi-consumer-decomposition task-creation-assessment-gpt-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193711.030138Z-task-guidance-semantic-tg05-fastapi-multi-consumer-decomposition-gpt-max-s0-e6ad2cef",
+      "scenario_id": "tg05-fastapi-multi-consumer-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260919T222231.804778Z-task-guidance-tg06-eleventy-author-migration-decomposition-max-87113c80",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation gpt high",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "high",
+      "run_id": "20260919T222223.796015Z-task-guidance-tg06-eleventy-author-migration-decomposition-high-da1d776b",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 65469,
+        "input_tokens": 87024,
+        "output_tokens": 10795,
+        "provider_reported_cost": 0.0928719,
+        "provider_reported_cost_cumulative": 0.0928719,
+        "reasoning_tokens": 2739
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation gpt max",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "max",
+      "run_id": "20260919T223114.817321Z-task-guidance-tg06-eleventy-author-migration-decomposition-max-e885e3d1",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 135100,
+        "input_tokens": 166547,
+        "output_tokens": 21120,
+        "provider_reported_cost": 0.17167700000000002,
+        "provider_reported_cost_cumulative": 0.17167700000000002,
+        "reasoning_tokens": 10355
+      }
+    },
+    {
+      "kind": "task-creation",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation gpt xhigh",
+      "model": "gpt-5.6-luna",
+      "provider": "gpt",
+      "reasoning_effort": "xhigh",
+      "run_id": "20260919T222618.829309Z-task-guidance-tg06-eleventy-author-migration-decomposition-xhigh-be657254",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "provider usage metadata retained by the saved session",
+          "state": "captured"
+        },
+        "cache_write_tokens": 0,
+        "cached_input_estimated": true,
+        "cached_input_tokens": 54815,
+        "input_tokens": 79707,
+        "output_tokens": 11964,
+        "provider_reported_cost": 0.1021575,
+        "provider_reported_cost_cumulative": 0.1021575,
+        "reasoning_tokens": 5012
+      }
+    },
+    {
+      "kind": "task-creation-assessment-glm-max-s0",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation-assessment-glm-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193857.151710Z-task-guidance-semantic-tg06-eleventy-author-migration-decomposition-glm-max-s0-a9d6e4da",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-high-s0",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation-assessment-gpt-high-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T193958.613671Z-task-guidance-semantic-tg06-eleventy-author-migration-decomposition-gpt-high-s0-19ed98dc",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-xhigh-s0",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation-assessment-gpt-xhigh-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T194142.737223Z-task-guidance-semantic-tg06-eleventy-author-migration-decomposition-gpt-xhigh-s0-ee2a0c41",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "kind": "task-creation-assessment-gpt-max-s0",
+      "label": "tg06-eleventy-author-migration-decomposition task-creation-assessment-gpt-max-s0 glm max",
+      "model": "glm-5.3-flash:cloud",
+      "provider": "glm",
+      "reasoning_effort": "max",
+      "run_id": "20260924T194334.626494Z-task-guidance-semantic-tg06-eleventy-author-migration-decomposition-gpt-max-s0-1bc8b960",
+      "scenario_id": "tg06-eleventy-author-migration-decomposition",
+      "usage": {
+        "availability": {
+          "detail": "saved session contains no provider usage metadata",
+          "state": "unavailable"
+        },
+        "cache_write_tokens": null,
+        "cached_input_estimated": null,
+        "cached_input_tokens": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "provider_reported_cost": null,
+        "provider_reported_cost_cumulative": null,
+        "reasoning_tokens": null
+      }
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,842 @@
+Parent Task:
+tasks/20260728-package-local-documentation-standard/000-main.md
+
+Depends On:
+
+- `tasks/20260728-package-local-documentation-standard/015-agent-evaluation-framework.md`
+- `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
+- `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
+
+Uses completed evidence from:
+
+- `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+
+Owning specifications to update:
+
+- `maintainer/agent-evaluation/docs/development/specifications/result-packages/index.md`
+- `maintainer/agent-evaluation/docs/development/specifications/crystal-lattice-environment/index.md`
+- `maintainer/agent-evaluation/suites/task_guidance/docs/development/specification.md`
+
+Boundary correction:
+
+- `maintainer/agent-evaluation/docs/development/specifications/framework/requirements.md`
+
+Requirement IDs:
+
+- `ERPKG-001`–`ERPKG-006`
+- `CLEVAL-001`–`CLEVAL-004`
+- `TGEVAL-012`–`TGEVAL-017`
+
+# Evaluation Result Review Packages
+
+Create a small reusable system for committing completed evaluation results as
+regenerable, human-readable and machine-readable result packages. Move actual
+task-guidance baseline and candidate results out of suite test fixtures,
+preserve the inputs and outputs needed to diagnose model behavior, and support
+changing report presentation or included metadata without rerunning models.
+
+## Requirements checklist
+
+### Shared evaluation result packages
+
+- [ ] Completed evaluations can be preserved as compact, self-contained result
+  packages that are useful to both human reviewers and machine consumers.
+- [ ] Human-readable views can be regenerated deterministically from committed
+  result data without rerunning models.
+- [ ] Result packages can represent different suites' inputs, stages, outputs,
+  and assessments without imposing domain-specific concepts on those suites.
+- [ ] Result packages preserve enough provenance to understand how each
+  included result was produced and clearly identify unavailable or
+  reconstructed information.
+- [ ] Result packages remain safe and proportionate: they exclude secrets and
+  unnecessary diagnostic volume while retaining the information needed to
+  understand significant execution or evaluation problems.
+- [ ] Reviewers can compare available usage and estimated cost across
+  evaluation runs, while incomplete usage or pricing remains visibly
+  incomplete.
+
+### Crystal Lattice evaluation adapter
+
+- [ ] Crystal Lattice evaluation consumers can obtain an accurate review
+  representation of delivered instructions, effective configuration, visible
+  conversation, tool activity, execution failures, and available provider
+  usage.
+- [ ] Crystal Lattice review representations are lean, human-readable, safe to
+  retain, and sufficiently detailed to diagnose relevant model or execution
+  behavior.
+- [ ] The Crystal Lattice representation is reusable by multiple evaluation
+  suites and does not contain task-guidance, documentation-guidance, or other
+  suite-specific semantics.
+- [ ] The representation distinguishes information captured directly from
+  information reconstructed or unavailable after the run.
+
+### Task-guidance evaluation suite
+
+- [ ] A task-guidance result package preserves the reviewed scenario context,
+  model-produced plans and task files, continuation outputs, semantic
+  assessments, and relationships needed to evaluate handoff and decomposition
+  behavior.
+- [ ] A reviewer can move from an aggregate task-guidance result to the exact
+  relevant model output, generated task file, execution context, and semantic
+  assessment without reconstructing the evaluation through command-line
+  queries.
+- [ ] Aggregate reports present the approved task-guidance quality dimensions
+  clearly and summarize recurring execution concerns only when they materially
+  affect interpretation.
+- [ ] Usage and cost information supplied by the shared and Crystal Lattice
+  layers is presented in the context of the relevant task-guidance run without
+  changing task-quality judgments.
+
+### Repository migration and durable results
+
+- [ ] The completed current-guidance and task-mechanics evaluations are
+  converted into durable, discoverable result packages without rerunning
+  producer or assessor models.
+- [ ] The migrated packages preserve the selected runs, generated task
+  content, semantic results, and known historical limitations of the existing
+  frozen records.
+- [ ] Completed evaluation datasets no longer serve as suite test fixtures;
+  focused synthetic data covers deterministic result-package behavior.
+- [ ] Existing evaluation reports and navigation continue to lead maintainers
+  to the migrated results.
+
+## Scope
+
+This task owns:
+
+- reusable result-package collection and presentation support separate from
+  the generic evaluation-kernel contract;
+- a reusable Crystal Lattice review projection owned by the Crystal Lattice
+  environment integration;
+- the task-guidance result adapter and per-evaluation report configuration;
+- lean Crystal Lattice session and input/output review exports;
+- run-level usage and cost summaries;
+- human indexes and machine manifests;
+- migration of the completed task-guidance current-guidance and
+  task-mechanics result sets;
+- removal of completed evaluation datasets from suite fixture ownership after
+  parity is proven.
+
+This task does not own task-guidance wording, semantic scoring rules, model
+calibration, or promotion decisions. Those remain in task 090. It also does
+not add session, message, request, tool, provider, or presentation semantics to
+the generic `agent_eval` kernel.
+
+## Non-goals
+
+- Rerunning producer, handoff, continuation, or semantic model requests.
+- Building a web application, result database, benchmark service, or
+  leaderboard.
+- Committing complete successful tool output, provider stream events, cache
+  entries, binary snapshots, pickles, temporary workspaces, or encrypted
+  reasoning.
+- Guessing historical GLM token usage or pricing when the saved provider
+  session does not contain enough evidence.
+- Maintaining two competing cost calculations or repricing historical reports
+  automatically when a repository price table changes.
+- Creating request-level cost tables or separate cost rollups by model,
+  vendor, or provider.
+- Hardcoding task files, plans, semantic dimensions, Crystal Lattice sessions,
+  or provider usage semantics into the generic evaluation kernel.
+
+## Verified ownership facts
+
+- The generic `RunEnvironment` exchanges opaque snapshots and observations.
+  The kernel does not define or inspect sessions, messages, prompts, tools,
+  providers, or assessment semantics.
+- Generic `agent_eval` modules import neither `agent_core` nor `agent_app`.
+  Those dependencies and the `Session` type begin in the optional
+  `agent_eval.crystal_lattice` integration.
+- The generic kernel already owns run identity, lifecycle, workspace, cache,
+  continuation, opaque evidence persistence, result location, and structured
+  errors. This task does not expand that stable execution contract.
+- The former `AEVAL-017` requirement combined generic persistence, Crystal
+  Lattice provenance, and suite presentation. The owning specifications split
+  those responsibilities rather than replacing them with a new kernel
+  requirement.
+
+## Approved decisions
+
+- September 21, 2026: completed evaluation records belong with the interpreted
+  evaluation under `maintainer/docs/evaluations/`, not in a suite fixture
+  directory.
+- Use a result directory per named evaluation and keep the existing dated
+  summary page as an entry point during migration.
+- Store canonical machine records and generated human views together, with a
+  manifest identifying source hashes, generator version, report config, and
+  generated files.
+- Specify reusable result-package support separately from the generic
+  evaluation-kernel specification.
+- Put reusable Crystal Lattice session/request/configuration/usage review
+  projection in the Crystal Lattice environment integration; task-guidance
+  semantics remain in the task-guidance suite.
+- Preserve visible messages and tool-call intent but omit full tool results
+  from the committed lean session view.
+- Keep recurring diagnostic findings only in an aggregate table when they are
+  demonstrated and useful.
+- Use one price table selected by the report config and one run-level cost
+  calculation.
+- Use one row per run for usage and cost. Include model and provider columns
+  for filtering, but do not add request-level rows or separate model/vendor
+  aggregate tables.
+- Generate the task-mechanics package first, review one representative failing
+  cell, adjust the report config, then generate the complete candidate and
+  current-guidance packages.
+
+## Supporting facts
+
+- Current task-guidance raw run directories occupy approximately 720 MB, while
+  the committed frozen result files occupy approximately 3.7 MB.
+- A sampled GPT session is approximately 650 KB in raw JSON and approximately
+  67 KB after normalizing messages and omitting full tool results.
+- Saved GPT sessions include reported input, output, reasoning, estimated
+  cached-input, cumulative token, and estimated cost metadata.
+- Saved GLM task-guidance sessions do not contain equivalent usage or cost
+  fields, so those historical runs must be marked unknown unless another
+  verified source is identified.
+- GLM sessions retain the exact compiled system message in
+  `compiled_content`. GPT task-guidance runs retain its hash but not the full
+  compiled text even though the runner computed it before the request.
+- GPT system messages can be reconstructed without a model request from the
+  recorded fixture, guidance source, runtime config, and compiler path, then
+  accepted as verified only when the reconstructed SHA-256 matches.
+- Projected configs are not sufficient presentation by themselves because the
+  model and effort are changed by runtime profile overrides. The package needs
+  a sanitized effective-config view.
+- Semantic assessor sessions preserve the exact user prompt and response.
+  Human review still benefits from a separately rendered concise rubric
+  because the exact prompt may embed several complete subjects.
+- The GPT price snapshot and saved cost metadata demonstrate why a result
+  package must pin its own price table instead of depending on whatever
+  table the repository uses later. The maintained snapshot is
+  `plugins/openai_responses/src/openai_responses_plugins/data/openai_model_pricing.json`
+  (fetched 2026-07-18); its gpt-5.6-luna standard-tier rates are input
+  $1.00/1M, cached input $0.10/1M, cache write $1.25/1M, output $6.00/1M.
+  The saved per-turn cost metadata was computed from this same snapshot, so
+  a pinned copy reproduces the historical estimates exactly.
+- Verified September 21, 2026: each raw run directory contains
+  `result.json` (including `parent_run_id`), `records/<record>.json`,
+  `raw/environment/crystal-lattice-session.json`,
+  `raw/environment/crystal-lattice-observation.json`, and
+  `raw/workspace/git-diff.patch`.
+- Verified: GLM sessions retain the full compiled system message in
+  `compiled_content` (about 18 KB with exactly one machine-specific absolute
+  path, the run workspace) but no usage metadata; GPT sessions retain no
+  system message but carry per-assistant-message usage (input, output,
+  reasoning, cached, and cache-write tokens, per-turn and cumulative
+  provider-reported cost; one sampled producer run totals 91,279 input and
+  8,823 output tokens, $0.0789 cumulative).
+- Verified: same-agent continuation sessions contain the complete inherited
+  parent history (sample: 62 messages where the parent has 28), so
+  `parent_run_id` plus the parent session is required to bound the inherited
+  prefix and avoid counting inherited history as new usage.
+- Verified: no deterministic test reads the frozen fixture result JSONs;
+  `test_documentation.py` checks the review page set and link integrity,
+  and `freeze_b0.py` defaults its output to the fixture results path.
+- Verified: the raw runtime configs used by the runs are preserved under
+  `tmp/agent-evaluation/task-guidance/runtime-config/<hash>/` (config,
+  system-message sources, TASKS copies) with projected configs under
+  `projected-config/`, and the guidance sources have not changed since the
+  runs, so hash-verified reconstruction of GPT system messages is plausible.
+
+## Approved result and scenario layout
+
+September 22, 2026: after reviewing both generated packages, the user approved
+a structure revision with two separate exports. The word "case" is dropped
+entirely in favor of the suite's own vocabulary ("scenario", "cell").
+
+```text
+maintainer/docs/evaluations/task-guidance/
+├── scenarios/                                # definitions export (extract-scenarios)
+│   ├── index.md
+│   ├── templates/                            # suite-level prompt templates
+│   │   ├── handoff-plan-prompt.md
+│   │   ├── task-creation-assessment-prompt.md
+│   │   └── handoff-assessment-prompt.md
+│   └── <scenario-id>/
+│       ├── target.md                         # readable reviewed target
+│       └── prompt.md                         # exact producer prompt
+│
+└── results/
+    └── <evaluation>/
+        ├── index.md  matrix.md  costs.md  costs.csv
+        ├── manifest.json  aggregate.json  report-config.toml
+        ├── shared/
+        │   ├── configs/                      # <profile>-<effort>.json, glm-assessor-max.json
+        │   └── system-messages/              # <provider>-<sha>.md, glm-assessor-<sha>.md
+        └── scenarios/<scenario-id>/
+            ├── target.md                     # self-contained copy (duplicated from
+            │                                 #   scenarios/ export by design)
+            ├── index.md
+            ├── assessment/
+            │   ├── task-creation/            # assessor runs, same shape as cell runs
+            │   │   ├── run.json
+            │   │   ├── session.md            # exact prompt + raw response transcript
+            │   │   └── results.md            # readable judgment rendering
+            │   └── handoff/{run.json, session.md, results.md}
+            └── <cell>/
+                ├── index.md  run.json  session.md  task-files/
+                └── plan-retain/  plan-omit/  continuation/  control/
+```
+
+Approved decisions for this revision:
+
+- The two exports are fully independent: packages are self-contained and do
+  not cross-reference the scenarios export. The only natural cross-reference
+  (the reviewed target next to judgments) is resolved by an in-package
+  `target.md` copy; every prompt already sits verbatim in its session
+  transcript. The manifest keeps covering in-package files only.
+- Scenario definitions may change between evaluations; git tracks their
+  evolution in the scenarios export while each package freezes its own copies.
+- System messages are named `<provider>-<content-sha>.md` (assessor:
+  `glm-assessor-<sha>.md`) — no effort component, because the compiled message
+  never depends on effort (12 files per package collapse to 7). Configs keep
+  `<profile>-<effort>.json` because they genuinely differ by effort.
+- Assessment runs get the same structure as subject runs: `run.json` plus a
+  full `session.md` transcript (header with config and system-message links,
+  exact prompt as the user turn, raw JSON response as the assistant turn,
+  usage line) with `results.md` as the readable rendering. Separate
+  `*-prompt.md` files and the `assessment_result/` split are dropped.
+- The continuation prompt template is not extracted to the scenarios export
+  (the instruction is visible in each continuation session); the results
+  package index does not link to the scenarios export.
+
+## Open questions
+
+- Should full compiled system messages retain safe absolute workspace paths,
+  or should paths be normalized while preserving the exact original hash and
+  a replacement map? Recommendation: normalize machine-specific paths and
+  preserve the original hash plus classification.
+- Should the old dated report become the directory's `index.md` immediately,
+  or remain a compatibility entry point until both existing result sets are
+  migrated? Recommendation: retain the current page as a short entry point
+  during the first migration.
+- What approved price or billing representation, if any, should be supplied
+  for historical GLM cloud runs without saved token usage? Recommendation:
+  keep usage and cost unknown rather than infer them from characters or a
+  different model tokenizer.
+- The exact generic protocol and command names are local, reversible
+  implementation choices. Prefer `collect`, `render`, and `check` semantics
+  unless existing `agent_eval` conventions suggest smaller names.
+
+## Execution plan
+
+Status: Approved
+
+The user approved this plan and the four open-question resolutions on
+September 21, 2026.
+
+### 1. Generic result-package support
+
+Add an optional reusable library module, `src/agent_eval/result_packages.py`,
+separate from the kernel contract and free of Crystal Lattice imports. Split
+collection from rendering: collection reads suite-selected records plus
+environment-owned review projections and writes committed source records and
+a manifest; rendering reads only the committed package and its report
+configuration and regenerates every human or machine view; checking verifies
+manifest hashes and byte-for-byte regeneration. The module defines only
+structural contracts — package identity, run references, stage shapes,
+availability states (`captured`, `reconstructed` with verification, and
+`unavailable`), redaction hooks, normalized-path classification, and one
+configured usage/cost presentation. Suite and environment records remain
+opaque named values, so layout, metadata selection, and cost presentation can
+change later without invoking a model or requiring temporary raw directories.
+
+### 2. Crystal Lattice review projection
+
+Add `src/agent_eval/crystal_lattice/review.py`. It projects a saved session,
+observation, and effective configuration into lean review material:
+delivered instructions with provenance, visible user and assistant messages,
+tool-call intent with concise status and failures (no full tool results, no
+encrypted reasoning), request boundaries, runtime errors, and aggregate
+provider usage. It redacts secret values and normalizes machine-specific
+paths while recording the original hash, classification, and replacement map;
+bounds an inherited continuation prefix using the parent run's session; and
+classifies every important field as captured, reconstructed, or unavailable.
+It contains no task-guidance, documentation-guidance, or other suite
+semantics.
+
+### 3. Task-guidance adapter and report configuration
+
+Implement the suite result adapter and a `collect`/`render`/`check`
+command-line entry point under `suites/task_guidance/`. The adapter selects
+the frozen b0/b1 consolidated records plus raw run directories; maps
+producer, handoff, continuation, control, and assessment stages onto the
+scenario/cell layout; exports generated task files; deduplicates scenario
+targets; maps semantic judgments to their subject runs; reconstructs GPT
+system messages from the preserved runtime-config sources with SHA-256
+verification against the recorded `compiled_sha256`; and supplies sanitized
+effective-config views. The committed `report-config.toml` pins the price
+table — the gpt-5.6-luna standard-tier rates copied from the maintained
+OpenAI pricing snapshot (fetched 2026-07-18) with source provenance — so
+later repository snapshot refreshes cannot reprice these reports. Historical
+GLM usage and cost remain unknown. Future runs record the compiled system
+message and sanitized effective config directly so historical reconstruction
+is unnecessary.
+
+### 4. Representative cell review gate
+
+Collect one representative failing cell — the GPT-xhigh Flask/Vue
+book-discovery producer from the task-mechanics dataset — and pause for human
+review of its input, generated task files, normalized session, assessment,
+effective config, system-message provenance, and run-level cost row. Adjust
+the package schema and report configuration from that review before
+generating any complete package.
+
+### 5. Complete migration and parity
+
+Generate the complete `20260919-task-mechanics-b1` package, then the
+`20260919-current-guidance-b0` package, both under
+`maintainer/docs/evaluations/task-guidance/results/`, without model requests.
+Prove parity automatically: selected identities, task-file text, prompts,
+responses, scores, occurrence counts, invalid records, and run-level
+usage and cost must agree with the frozen records and saved sessions, and
+regeneration must be byte-for-byte deterministic across two consecutive
+runs. Exercise one invalid or retried cell and one continuation chain
+explicitly so selection, lineage, and run-level usage remain reviewable.
+
+### 6. Documentation and navigation
+
+Update the task-guidance evaluation index, both dated reports, and the
+maintainer evaluations index to lead to the packages; rewrite the
+command-heavy inspection section of the reproduction guide into package
+navigation while keeping the reproduction commands; add package-local user
+and development documentation for the new modules; and update the owning
+requirement ledgers (`ERPKG-*`, `CLEVAL-*`, `TGEVAL-012`–`TGEVAL-017`) as
+implementation, verification, and documentation progress.
+
+### 7. Fixture replacement
+
+After parity and link checks pass, replace completed-result suite fixtures
+with focused synthetic data covering collection, rendering, checking,
+projection, and adapter behavior, point `freeze_b0.py`'s default output away
+from fixture ownership, and remove the old fixture result copies.
+
+### Implementation decisions and open questions
+
+- Do not begin collection or migration until this Draft plan is approved.
+- Collection may use current raw run directories for the initial migration,
+  but committed packages must be sufficient for later `render` and `check`
+  operations.
+- Future runs should record the full compiled system message and sanitized
+  effective config directly so historical reconstruction is unnecessary.
+- The reusable result-package component consumes opaque suite records and
+  environment-owned projections; it does not define a session contract.
+- The Crystal Lattice integration owns the shared lean-session and request
+  projection used by any Crystal Lattice-backed suite.
+- The report config owns its price table. Cost rendering uses only that table
+  and the run's aggregated usage fields. The pinned table copies the
+  gpt-5.6-luna standard-tier rates from the maintained OpenAI pricing
+  snapshot (fetched 2026-07-18) with source provenance; provider-reported
+  cost metadata remains captured provenance, and the parity check compares
+  it with the pinned-table calculation.
+- Cost totals are per run. Continuation lineage must avoid counting inherited
+  session history as newly consumed usage.
+- Missing usage, price, system-message text, or config fields use explicit
+  availability states.
+- Proposed resolutions for the open questions, pending plan approval:
+  normalize machine-specific paths while preserving the exact original hash,
+  a path classification, and a replacement map; keep the dated reports as
+  short entry points linking to the generated package indexes during the
+  first migration; keep historical GLM usage and cost unknown rather than
+  inferred; and use `collect`, `render`, and `check` command semantics.
+- The semantic assessment batches are scenario-level records; the adapter
+  places them so each cell links to its own judgments without duplicating
+  the batch. Exact stage and assessment file names are adapter-owned and
+  finalized at the representative-cell review.
+
+### Documentation
+
+- Add a separate package-local result-package specification and development
+  documentation without presenting it as part of the kernel API.
+- Correct the former generic `AEVAL-017` provenance requirement and link its
+  environment- and suite-owned replacements.
+- Update the Crystal Lattice environment specification with its reusable
+  review-projection outcomes and boundaries.
+- Update task-guidance suite documentation with its report adapter, package
+  contents, generation commands, and historical limitations.
+- Replace the current command-heavy inspection guide with the generated result
+  package navigation once migration is complete.
+- Link the two migrated packages from the task-guidance evaluation index and
+  dated reports.
+
+### Task checklist
+
+- [x] Approve this execution plan and resolve the material open questions.
+- [x] Add the separate result-package specification and correct the former
+  framework provenance requirement.
+- [x] Add Crystal Lattice and task-guidance requirements to their owning
+  specifications.
+- [x] Define the result-package manifest, availability, redaction, usage,
+  cost, and suite-adapter contracts without a generic session schema.
+- [x] Define the reusable Crystal Lattice review projection.
+- [x] Implement collection, rendering, and deterministic check support.
+- [x] Add synthetic unit/integration fixtures for package generation.
+- [x] Implement the task-guidance result adapter and report configuration.
+- [x] Export the representative GPT-xhigh book-discovery cell (human review
+  pending).
+- [x] Adjust the package schema/config after human review.
+- [x] Generate the complete task-mechanics candidate package without model
+  requests.
+- [x] Generate the current-guidance package with the same structure.
+- [x] Verify task files, selected identities, scores, prompts, and run-level
+  usage/cost against saved records.
+- [x] Restructure to the approved scenarios/results layout: extract the
+  scenarios definitions export, profile-hash system-message naming,
+  assessment runs with session transcripts, in-package target copies, and
+  self-contained packages without cross-references.
+- [x] Regenerate both packages under the approved layout and re-verify parity,
+  determinism, checks, and secret safety.
+- [x] Review round 2 (user-approved September 23, 2026): continuation runs
+  reference the producer's system message as `inherited`; `matrix.md` gains
+  per-assessment detail and per-scenario breakdown tables; the scenarios
+  definitions export gains `shared/` (configs, system messages, all
+  workspace-added files) and per-stage `input.md` files with canonical
+  handoff copies, generated per guidance bundle.
+- [x] Regenerate both packages and the scenarios export for review round 2 and
+  re-verify parity, determinism, checks, and secret safety.
+- [x] Update evaluation indexes, reports, running guidance, and package docs.
+- [x] Replace completed-result suite fixtures with synthetic test data.
+- [x] Remove the old task-guidance fixture result copies after parity and link
+  checks pass.
+- [x] Record historical missing-data limitations and completion evidence.
+
+### Requirement verification
+
+| Requirement group | Acceptance evidence |
+|---|---|
+| Ownership boundaries | Kernel behavior and imports remain unchanged; generic result packaging consumes opaque records, the Crystal Lattice integration owns session/request projection, and task-guidance types remain suite-owned. |
+| Canonical package | A collected evaluation package validates against the manifest/schema, records source and generated hashes, and can be copied to a clean checkout. |
+| Regeneration | Delete generated Markdown/CSV views, run `render`, and reproduce them byte-for-byte from committed machine records and `report-config.toml` without raw runs or model access. |
+| Task-dependent stages | Synthetic coverage and the task-guidance adapter export different stage shapes without changing the generic schema. |
+| Inputs and configuration | Representative subject and assessment cells expose system message, prompt, target, effective config, tools, fixture/guidance provenance, and availability classification. |
+| Outputs and sessions | The Crystal Lattice projection and representative cell expose assistant responses, generated task files, lean session commentary/tool calls, concise failures, and no full tool results or encrypted reasoning. |
+| Semantic review | The exact assessment prompt and a complete readable rendering of the response's judgments (rubric, assessor context, reviewed target, scores, occurrences, reasons, subject links) agree with the saved semantic record. |
+| Usage and cost | One row per run reports available token categories and one configured-price cost; estimated cached input is used; missing GLM usage remains unknown; continuation history is not double-counted. |
+| Historical migration | Both task-guidance packages reproduce current selected identities, generated task text, outcome coverage, issue metrics, and invalid/retry status without model requests. |
+| Ownership migration | Completed evaluation records no longer live under suite fixtures; deterministic suite tests use synthetic result data and maintained links resolve. |
+| Security and focus | Secret scanning and fixture inspection find no credentials, auth headers, secret environment values, full tool-result dumps, encrypted reasoning, cache data, or binary snapshots in committed packages. |
+| Human review | From the package index, a reviewer can reach a failed dimension, exact generated file, session timeline, system message, prompt, config, assessment, and cost row without command-line extraction. |
+
+### Additional implementation verification
+
+- Compare package size with the current frozen JSON and raw directories; report
+  any unexpectedly large generated section before committing it.
+- Run generation twice and compare hashes to prove deterministic ordering and
+  rendering.
+- Verify the generic kernel source and API do not acquire Crystal Lattice,
+  session, message, provider, task-guidance, or report-presentation semantics.
+- Verify path normalization does not remove instruction content or break the
+  recorded compiled-message hash classification.
+- Exercise one invalid/retried cell and one continuation chain so selection,
+  lineage, and run-level usage remain reviewable.
+- Run the generic `agent_eval`, task-guidance suite, documentation-link, and
+  guidance-compiler tests affected by the migration.
+
+## Implementation Notes
+
+- September 21, 2026: the user approved the execution plan and the four
+  open-question resolutions (path normalization with original hash and
+  replacement map; dated reports retained as entry points; GLM usage and cost
+  kept unknown; `collect`/`render`/`check` command semantics). The pinned price
+  table copies the gpt-5.6-luna standard-tier rates from the maintained
+  OpenAI pricing snapshot fetched 2026-07-18. Implementation began after
+  approval.
+- Implemented `agent_eval.result_packages` (collect/render/check, manifest,
+  availability states, redaction, path-normalization bookkeeping, pinned-price
+  cost presentation) with 17 deterministic tests, and the Crystal Lattice
+  review projection (`agent_eval.crystal_lattice.review`) with 8 tests.
+  The projection was validated against real saved GLM and GPT sessions
+  (12–20x size reduction, exact usage extraction).
+- Verified the cost formula reproduces the provider-reported cost exactly:
+  the plugin substitutes its turn-aware estimated cached tokens into the
+  cost calculation, so the projection extracts `usage_estimated_cached_tokens`
+  as the cached bucket. Sampled producer run: pinned-table estimate
+  $0.0789112 == provider-reported cumulative cost.
+- Verified every run has a distinct compiled-message hash because the
+  compiled message embeds the run's absolute workspace path. GPT
+  reconstruction therefore recreates the pristine fixture workspace at its
+  original recorded path (guarded: the target must be `<run-dir>/workspace`
+  and the run directory must still contain `result.json`), recompiles through
+  the production `show_compiled_system_message` action with the preserved
+  runtime-config sources, verifies the SHA-256 against the recorded
+  `delivery.compiled_sha256`, and removes the workspace again. Proven on a
+  real GPT producer run with an exact hash match.
+- Incident, September 21, 2026: a reconstruction probe passed a run directory
+  itself (not its `workspace` child) to the git workspace factory, whose
+  target semantics delete the target directory. The raw directory for GPT
+  tg01-high producer run `20260919T200213.745556Z-…-9de6e1e9` was overwritten.
+  It was restored from the run cache entry
+  `0d36cefda408dd00394db59d8813c860a8a6474cbf23817eb92ebf3d003db3c6`
+  (session, observation, untracked task files) and the frozen b0 dataset
+  (producer record), with a `restored_note` in its rebuilt `result.json`.
+  Permanently lost for that one run: the raw workspace diff/status capture,
+  `raw/evidence.json`, `result.md`, and the generated record summary — all
+  non-essential or derivable. The adapter now guards workspace recreation
+  explicitly.
+- Extended the shared sensitive-key redaction in `agent_eval.services` to
+  match plural `credentials` keys (`chatgpt_credentials_path` was previously
+  retained in sanitized config views).
+- Model-produced content (prompts, responses, task files, frozen semantic
+  records) is committed byte-identical to the frozen records for parity;
+  path normalization applies to projected review material (session reviews,
+  effective-config views, compiled system messages). Model responses may
+  therefore still contain the absolute workspace paths the model itself
+  wrote, as the already-committed frozen datasets do.
+- The representative GPT-xhigh book-discovery cell was exported to
+  `tmp/result-package-review/20260919-task-mechanics-b1` and awaits human
+  review at the Phase 4 gate. Its system message is reconstructed-verified,
+  its pinned-table cost ($0.1182246) matches the provider-reported cost
+  exactly, and its package check passes.
+- September 21, 2026 (review gate outcome): the user reviewed the
+  representative cell and approved a flatter, review-first package redesign.
+  Approved decisions:
+  - Keep the full sanitized effective config, committed once per
+    profile/effort and shared across runs.
+  - Keep the exact full assessor prompt.
+  - Replace the JSON session review with a concise full-session Markdown
+    transcript (`session.md`) that includes the prompt and response
+    verbatim as user/assistant turns; drop separate prompt/response files
+    and the session JSON.
+  - Replace the raw assessor response and judgment records with one
+    readable `assessment/results.md` that folds in the rubric, assessor
+    context, the reviewed target, per-cell judgments with reasons, and
+    excluded records.
+  - Drop cell.json, stage.json delivery blocks, per-file provenance
+    boilerplate, aggregate summary text, matrix.json, and the assessor
+    session review; keep one slim `run.json` per run (identity, kind,
+    validity, model/effort, system-message reference with availability,
+    config reference, task-file list, lineage).
+  - Flatten run directories: the producer run sits directly in the cell
+    directory; additional runs use `plan-retain/`, `plan-omit/`,
+    `continuation/`, and `control/` subdirectories. The stage vocabulary
+    survives only as `kind` in run.json.
+  - Machine-readable material is limited to manifest.json (registry and
+    usage/cost inventory), run.json, aggregate.json (matrix source),
+    configs, and report-config.toml.
+  Two documentation revisions follow from this: the result-packages
+  technical spec gains a clarification that collected source records may
+  themselves be human-readable while the deterministic-regeneration
+  guarantee applies to generated views, and this task's acceptance table
+  now reads "exact assessment prompt and a complete readable rendering of
+  the response's judgments" for semantic review.
+- The redesigned adapter (generator version
+  `task-guidance-result-package-v2`) was implemented and both complete
+  packages were generated under
+  `maintainer/docs/evaluations/task-guidance/results/`:
+  `20260919-current-guidance-b0` (2.8 MB, 235 files) and
+  `20260919-task-mechanics-b1` (2.6 MB, 213 files). Each holds 46 runs
+  (18 producers, 12 handoffs, 6 continuations, 1 control, 9 assessments);
+  system messages are 16 captured, 18 reconstructed-verified, and 3
+  unavailable (the GPT continuations without a recorded delivery hash).
+  Captured provider-reported cost totals $1.7770 (b0) and $1.6483 (b1);
+  the pinned-table estimates match the provider-reported per-run costs.
+- Verification completed for both packages: full parity against the frozen
+  datasets (selected identities, task-file bytes, verbatim prompts and
+  responses inside session transcripts, judgment headings and dimension
+  rows, invalid-record surfacing), byte-identical end-to-end re-collection
+  (b1 re-collected to a temporary directory and diffed), package check
+  passing, zero secret-scan findings, and no reasoning content or full
+  tool results in transcripts.
+- During parity verification a projection bug was found and fixed: path
+  normalization had been applied to user and assistant message text,
+  breaking verbatim parity with the frozen responses. Model-produced text
+  is now preserved verbatim in transcripts; normalization applies only to
+  projected material (delivered instructions, tool-call arguments, failure
+  excerpts). A regression test covers this.
+- Handoff semantic assessments use a different judgment schema than
+  task-creation assessments (handoff quality score, plan coverage, lost and
+  invented facts, rediscovery and boundary judgments). The results renderer
+  now dispatches per schema with its own rubric note.
+- September 22, 2026 (structure revision, user-approved): after reviewing the
+  generated packages the user requested and approved the scenarios/results
+  layout recorded above. Sharing analysis that shaped it: configs, targets,
+  producer prompts, assessor system message, and assessor prompt templates are
+  byte-identical between b0 and b1; compiled subject system messages differ
+  between the evaluations (the guidance bundle is the evaluated variable) and
+  never depend on effort (12 files per package held only 6 distinct contents).
+  The user confirmed the raw assessor response stays in the assessment
+  session transcript, the continuation template is not extracted, and package
+  indexes do not link to the scenarios export. The two milestone commits
+  (`a1b0b0c0` implementation, `f92f2e55` packages) predate this revision;
+  the restructure supersedes the committed package layout.
+- Implemented the approved restructure (generator version
+  `task-guidance-result-package-v3`). The two assessment prompt builders were
+  refactored into `string.Template` constants plus substitution builders;
+  byte-identity was proven by rendering all 18 prompts (both datasets, both
+  assessment kinds) before and after the refactor and diffing against the
+  committed v2 prompt files (9/9 b1 prompts matched the builders exactly once
+  the negative-control records were included in the handoff input). The new
+  `extract-scenarios` command writes the scenarios definitions export (16
+  files, 68 KB) from the suite sources; `collect` now uses the
+  `scenarios/<scenario>/` layout, profile+hash system-message names (7 files
+  per package instead of 13), assessor runs collected through the same run
+  path as subject runs (`run.json` + full `session.md` transcript with config
+  and system-message links, plus `results.md`), and per-scenario in-package
+  `target.md` copies; the separate assessment prompt files and the embedded
+  target rendering are gone.
+- Bug found and fixed during re-verification: the v2 results renderer
+  dispatched judgment schemas by field presence (`handoff_quality_score in
+  assessment`), but every task-creation response legitimately carries that
+  field because the prompt's JSON shape includes it — so all 12 committed
+  v2 task-creation results pages were misrendered with the handoff judgment
+  renderer and lost their dimension tables, occurrence lists, and overall
+  headings. The renderer now dispatches on the explicit assessment kind, and
+  the v3 packages render the six-dimension tables correctly. The earlier v2
+  parity check had compared headings too weakly to catch this; the new
+  verification asserts the exact heading and every dimension row against the
+  frozen records.
+- Verification for the restructured packages: parity 0 problems (run
+  inventory per kind, run ids, verbatim prompts and responses in all subject
+  and assessor transcripts against the raw sessions, task-file bytes,
+  task-creation judgment headings plus all six dimension rows and occurrence
+  descriptions, handoff judgment headings, invalid-record surfacing, package
+  target copies against the frozen targets, scenarios export against the
+  suite definitions, 7 profile-prefixed system-message files, no stale
+  `cases/` paths); byte-identical end-to-end re-collection of b1; package
+  checks pass on both; secret scan over 482 files finds no credential values
+  (70 `<redacted>` placeholders; home-directory paths occur only in
+  model-produced text kept verbatim, matching the already-committed frozen
+  datasets); 148 agent-evaluation tests and 60 suite tests pass; captured
+  cost totals are unchanged ($1.6482838 b1, $1.7769892 b0, 46 runs each).
+  One pre-existing test (`test_frozen_candidate_datasets_are_complete`) is
+  CWD-sensitive and passes from the repository root.
+
+- Review round 2 (September 23, 2026), user-approved after reviewing the v3
+  packages: (a) same-agent continuations inherit the producer's compiled
+  system message instead of staying unavailable — the framework gained the
+  `inherited` availability state (result-packages constants, review
+  projection acceptance, one test), and `_collect_run` falls back to the
+  producer's instructions record when the continuation's own session retains
+  no text; (b) `aggregate.json` gained `assessment_details` (18 task-creation
+  and 9 handoff rows with per-dimension status/score and results paths) and
+  `matrix.md` gained a task-creation detail table, a handoff detail table,
+  and a per-scenario table linking every cell directory and assessment
+  rendering — each cohort row is now the visible average of its detail rows,
+  and every detail row links both its judgment rendering and the run or
+  stage directory it is about (producer cell for task-creation rows;
+  plan-retain, plan-omit, control, or continuation for handoff rows);
+  (c) `extract-scenarios` became the full input-definitions export:
+  `shared/configs` (5 sanitized effective configs), `shared/system-messages`
+  (7 provider+hash messages compiled through the production system-message
+  action on temporary factory workspaces), `shared/included-files` (all
+  files the factories add beyond the repository checkout: 6 fixture project
+  sets, per-family guidance compilation with documentation and lock, the
+  assessor README stub), per-stage `input.md` pages in the session-header
+  format (models, tools, delivered instructions, config, workspace revision,
+  fixture upstream and revision, included-file links, prompt and target
+  links), and canonical handoff copies under `handoffs/`. The command takes
+  `--bundle` (default `maintainer/guidance/current`) and replaces the output
+  tree wholesale so renamed content leaves no stale files.
+- Two accuracy bugs found and fixed during round 2: the assessor runs pass
+  `include_tasks=False` in their request overrides, but both the package
+  config views and the export compiled the assessor message and config with
+  the default `True` — the assessor system message wrongly embedded the
+  TASKS section and `glm-assessor-max.json` misstated `include_tasks`. Both
+  packages and the export now record the assessor settings faithfully.
+- Verification for round 2: package parity 0 problems (all detail values and
+  handoff fields against the frozen records by identity, matrix rows and
+  link targets, inherited path and hash equal to the producer's per cell,
+  assessor config `include_tasks` false); export content 0 problems
+  (fixture bytes against `fixture_files()`, guidance outputs and
+  documentation against `compile_guidance`, locks against the compilation
+  lock with repository-relative path normalization, handoff bytes against
+  the suite sources, shared configs and system messages byte-identical to
+  the b0 package — the current bundle's subject guidance is unchanged since
+  the b0 runs — all markdown links resolve inside the export, no
+  cross-references to `results/`, no machine or home paths); byte-identical
+  regeneration of both packages and the export; package checks pass; secret
+  scan over the export finds no credential values (67 `<redacted>`
+  placeholders in config views); 148 agent-evaluation tests and 60 suite
+  tests pass; pyright reports the same 9 pre-existing errors as at HEAD
+  with zero new ones. The export is 169 files, 988 KB. A pre-existing
+  cross-suite test-isolation quirk appears when
+  `tests/` and `suites/task_guidance` run in one pytest process
+  (11 crystal-lattice driver tests fail in the combined run, pass in
+  isolation and in their own suite); both suites pass separately.
+
+- Completion round (September 23, 2026), user-approved "finish the 095":
+  - Synthetic package coverage: `test_result_package.py` builds one
+    synthetic evaluation (the tg02 handoff scenario and the tg04
+    decomposition scenario, one GLM-max cell, every stage kind: producer,
+    plan-retain, plan-omit, continuation, negative control, and both
+    assessment kinds) from hand-built frozen records plus synthetic raw run
+    directories with GLM-style sessions, and exercises the real collection,
+    Crystal Lattice projection, rendering, checking, and byte-identical
+    re-collection path. The continuation session retains no system message,
+    so the test also covers the `inherited` instruction availability and the
+    parent-bounded inherited prefix. A third test proves a missing raw run is
+    reported per record identity.
+  - Fixture ownership removed: `collect` now requires an explicit `--frozen`
+    consolidated-dataset path (the `DatasetSpec.frozen_results` fixture
+    default is gone), `freeze_b0` writes its consolidated dataset under
+    `<artifact-root>/consolidated/<dataset-id>.json` by default, and the four
+    completed-result fixture copies under
+    `suites/task_guidance/fixtures/results/` were deleted after re-proving
+    parity: both committed packages regenerate byte-for-byte from the frozen
+    datasets with explicit `--frozen` paths.
+  - One robustness fix surfaced by the synthetic tests: the aggregate
+    provenance previously required the frozen dataset to live inside the
+    repository; `_provenance_path` now records a repository-relative path
+    when one exists and the given path otherwise.
+  - One operational finding: an interrupted collect (SIGTERM during GPT
+    reconstruction) had left a partially built reconstruction workspace for
+    the b0 tg05 gpt-max run, which made its next collection skip
+    reconstruction and mark the system message unavailable. The leftover was
+    identified by timestamp (2026-09-23 versus the original 2026-09-19/20
+    run workspaces), removed, and parity restored. The 15 original September
+    run workspaces were left untouched.
+  - Documentation and navigation: the task-guidance evaluation index, the
+    maintainer evaluations index, both dated reports, the suite docs index,
+    the running-and-calibration guide, and task 090's durable-evidence links
+    now lead to the committed packages and the scenarios export; the
+    reproducing guide's command-heavy inspection section (jq extraction, raw
+    run discovery) was rewritten into package navigation with the
+    reproduction commands retained, and the superseded
+    `inspect_result` proposal was removed.
+  - Requirement ledgers updated to Implemented/Verified with evidence:
+    `ERPKG-001`–`ERPKG-006`, `CLEVAL-001`–`CLEVAL-004`, and
+    `TGEVAL-012`–`TGEVAL-017`; the result-packages and Crystal Lattice
+    technical specifications now name the `inherited` availability state,
+    and the suite specification records the completed migration and the
+    scenario input-definitions export.
+  - Verification: 148 agent-evaluation tests and 63 suite tests pass (the
+    suite gained the 3 synthetic package tests); both committed packages
+    pass `check` after fixture removal; all relative links in the updated
+    pages resolve; ruff and black pass on the changed files; the
+    CWD-sensitive `test_frozen_candidate_datasets_are_complete`
+    (documentation_standard fixtures, unrelated to this change) passes from
+    the repository root as before.
+
+## Completion Notes
+
+- Outcome: the reusable result-package system is complete. Both completed
+  task-guidance evaluations are preserved as self-contained, regenerable
+  packages under `maintainer/docs/evaluations/task-guidance/results/`, the
+  scenario input definitions live under
+  `maintainer/docs/evaluations/task-guidance/scenarios/`, completed
+  evaluation datasets no longer serve as suite test fixtures, and every
+  navigation entry point leads maintainers to the durable results.
+- Requirement evidence: `ERPKG-001`–`006` (shared package support),
+  `CLEVAL-001`–`004` (Crystal Lattice review projection), and
+  `TGEVAL-012`–`017` (task-guidance adapter, navigation, migration) are
+  implemented, verified, and documented in their owning ledgers. Human review
+  gates were passed at the representative-cell review and the two
+  user-approved package review rounds.
+- Verification performed: byte-identical regeneration of both packages from
+  the frozen datasets (parity 0 problems before fixture removal; package
+  `check` passing after), byte-identical determinism of the synthetic
+  collect/render/check round trip, secret scans with no credential values,
+  full test suites green (148 + 63), and link checks over every updated
+  navigation page.
+- Historical limitations preserved in the package indexes: GLM runs saved no
+  provider usage metadata (usage and cost remain unknown), GPT same-agent
+  continuations carry no delivery hash (delivered instructions are inherited
+  from the producer run), and session transcripts intentionally omit full
+  tool results and encrypted reasoning.
+- Deferred/unresolved: the ~720 MB raw run tree under
+  `tmp/agent-evaluation/task-guidance/` is kept until the package format is
+  declared stable (user decision pending); the pre-existing cross-suite
+  pytest isolation quirk and the CWD-sensitive documentation_standard
+  dataset test remain known, unchanged issues outside this task's scope;
+  guidance promotion decisions remain in task 090.

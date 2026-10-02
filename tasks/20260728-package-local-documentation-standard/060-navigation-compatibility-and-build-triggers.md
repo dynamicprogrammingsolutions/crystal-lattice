@@ -7,7 +7,7 @@ Depends On:
 - `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 
 Specification:
-`maintainer/specifications/documentation-and-specification-standard/index.md`
+`maintainer/docs/development/specifications/crystal-lattice-guidance-integration/index.md`
 
 Requirement IDs:
 `DOCPUB-004`–`DOCPUB-006`, `DOCVAL-003`
