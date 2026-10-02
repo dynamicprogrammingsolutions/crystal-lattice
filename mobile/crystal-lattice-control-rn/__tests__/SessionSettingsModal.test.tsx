@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import SessionSettingsModal from '../src/components/SessionSettingsModal';
@@ -86,6 +87,12 @@ function renderSettingsModal() {
         },
         {
           ui_type: 'config',
+          key: 'generic_trigger_tokens',
+          type: 'number',
+          label: 'Automatic OpenAI compaction trigger tokens',
+        },
+        {
+          ui_type: 'config',
           key: 'working_directory',
           type: 'directory',
           label: 'Working directory',
@@ -124,6 +131,7 @@ function renderSettingsModal() {
         { key: 'include_crystal_lattice_access', default: false },
         { key: 'generic_provider', default: 'local' },
         { key: 'generic_name', default: 'Alpha' },
+        { key: 'generic_trigger_tokens', default: 200000 },
         { key: 'working_directory' },
         { key: 'generic_readonly', default: 'Read only value' },
         { key: 'generic_unknown', default: 'Fallback value' },
@@ -133,6 +141,7 @@ function renderSettingsModal() {
         include_crystal_lattice_access: false,
         generic_provider: 'local',
         generic_name: 'Alpha',
+        generic_trigger_tokens: 200000,
         working_directory: '/app/workspace',
         generic_readonly: 'Read only value',
         generic_unknown: 'Fallback value',
@@ -234,6 +243,13 @@ test('session settings modal renders generic settings control types', () => {
   expect(screen.getByText('Local')).toBeTruthy();
   expect(screen.getByText('Generic name')).toBeTruthy();
   expect(screen.getByDisplayValue('Alpha')).toBeTruthy();
+  expect(
+    StyleSheet.flatten(
+      screen.getByText('Automatic OpenAI compaction trigger tokens').props
+        .style
+    ).flexShrink
+  ).toBe(1);
+  expect(screen.getByDisplayValue('200000')).toBeTruthy();
   expect(screen.getByText('Working directory')).toBeTruthy();
   expect(screen.getByText('Workspace root')).toBeTruthy();
   expect(screen.queryByText('/app/workspace')).toBeNull();

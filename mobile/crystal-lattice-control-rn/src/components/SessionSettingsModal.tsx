@@ -1158,6 +1158,7 @@ const createStyles = (theme: Theme) =>
       flex: 1,
     },
     itemLabel: {
+      flexShrink: 1,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
       fontWeight: "500",
