@@ -1,5 +1,10 @@
 import type { AgentBackend } from '../backend/backend';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
+import type { SessionActionRichUiElement } from '../uiSchema/richUi';
+import {
+  isSessionActionPlacedAt,
+  normalizeSessionActionRichUiElement,
+} from '../uiSchema/richUi';
 import { SimpleSubscribable } from '../util/subscribable';
 import { coerceValueForElement } from '../utils/uiSchema';
 
@@ -7,6 +12,7 @@ export type SessionSettingsStatusTone = 'idle' | 'busy' | 'success' | 'error';
 
 export interface SessionSettingsControllerState {
   elements: UiSchemaElement[];
+  actions: SessionActionRichUiElement[];
   overrides: Record<string, any>;
   configSchema: ConfigSchemaEntry[];
   baseConfig: Record<string, any>;
@@ -22,6 +28,7 @@ export interface SessionSettingsControllerState {
 
 interface CachedSessionSettingsSnapshot {
   elements: UiSchemaElement[];
+  actions: SessionActionRichUiElement[];
   overrides: Record<string, any>;
   configSchema: ConfigSchemaEntry[];
   baseConfig: Record<string, any>;
@@ -33,6 +40,7 @@ type BaseState = Omit<SessionSettingsControllerState, 'statusMessage' | 'statusT
 
 const EMPTY_BASE_STATE: BaseState = {
   elements: [],
+  actions: [],
   overrides: {},
   configSchema: [],
   baseConfig: {},
@@ -109,6 +117,25 @@ function filterConfigUiSchemaElements(elements: UiSchemaElement[]): UiSchemaElem
   }) as UiSchemaElement[];
 }
 
+function filterSessionSettingsActions(
+  elements: UiSchemaElement[],
+): SessionActionRichUiElement[] {
+  const actions: SessionActionRichUiElement[] = [];
+  for (const element of Array.isArray(elements) ? elements : []) {
+    if (!element || typeof element !== 'object' || (element as any).ui_type !== 'session_action') {
+      continue;
+    }
+    const normalized = normalizeSessionActionRichUiElement(element);
+    if (
+      normalized.value &&
+      isSessionActionPlacedAt(normalized.value, 'session_settings')
+    ) {
+      actions.push(normalized.value);
+    }
+  }
+  return actions;
+}
+
 /**
  * Find a UI schema element by key.
  * Returns undefined if not found.
@@ -151,6 +178,7 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
       this.commit({
         ...EMPTY_BASE_STATE,
         elements: cached.elements,
+        actions: cached.actions ?? [],
         overrides: cached.overrides,
         configSchema: cached.configSchema,
         baseConfig: cached.baseConfig,
@@ -211,12 +239,14 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
           return;
         }
 
+        const mergedUiSchema = [
+          ...(Array.isArray(uiSchema) ? uiSchema : []),
+          ...(Array.isArray(applicationUiSchema) ? applicationUiSchema : []),
+        ];
         const next: BaseState = {
           ...this.getBaseState(),
-          elements: filterConfigUiSchemaElements([
-            ...(Array.isArray(uiSchema) ? uiSchema : []),
-            ...(Array.isArray(applicationUiSchema) ? applicationUiSchema : []),
-          ]),
+          elements: filterConfigUiSchemaElements(mergedUiSchema),
+          actions: filterSessionSettingsActions(mergedUiSchema),
           overrides: overrides && typeof overrides === 'object' ? overrides : {},
           configSchema: Array.isArray(configSchema) ? configSchema : [],
           baseConfig: baseConfig && typeof baseConfig === 'object' ? baseConfig : {},
@@ -475,6 +505,7 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
 
     cache.set(this.buildCacheKey(), {
       elements: state.elements,
+      actions: state.actions,
       overrides: state.overrides,
       configSchema: state.configSchema,
       baseConfig: state.baseConfig,

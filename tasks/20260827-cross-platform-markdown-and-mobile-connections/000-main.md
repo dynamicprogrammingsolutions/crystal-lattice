@@ -793,3 +793,28 @@ is no separate verification or documentation subtask.
   reads, and current-intent cross-connection navigation.
 - Complete core, application, frontend SDK, mobile component, real-backend,
   documentation, iOS, and Android verification is recorded in the subtask.
+
+### Home workspace stabilization and parity follow-up
+
+Status: Approved
+
+Extended-use findings reopen the completed mobile `060` and desktop `070`
+subtasks without creating another subtask. The approved coordinated plan and
+full desktop/shared requirements are recorded in `070`; mobile-specific
+requirements are recorded in `060`.
+
+- [x] Chunk 1: preserve the three-pane desktop warm set across Home, eliminate
+  status disappearance across focus changes, and correct vertical desktop
+  Watchlist drag direction.
+- [x] Chunk 2: separate connection reopen from sidebar following, correct
+  Preview/Open state, and add local Watchlist plus desktop note session
+  actions.
+- [ ] Chunk 3: share the mobile/desktop Home card and timeline presentation,
+  including complete fields, safe long-text layout, single preview fallback,
+  and neutral timeline dots.
+- [ ] Chunk 4: add a resizable desktop sidebar, remove duplicate separators,
+  and support middle-click tab closing, including trackpads mapped to middle
+  click.
+
+Each chunk owns its verification and current documentation. Literal raw
+three-finger gesture recognition is not required.

@@ -66,6 +66,13 @@ describe('bridge CLI e2e (real CLI entrypoint + BridgeTransport -> Elixir bridge
         bridgeUrl: bridge.bridgeUrl,
         serverId,
         displayName: 'CLI E2E Test Server',
+        config: {
+          application: {
+            bridge: {
+              http_timeout_seconds: 90,
+            },
+          },
+        },
         startupTimeoutMs: 180_000,
       });
       stopAll.push(started.stop);

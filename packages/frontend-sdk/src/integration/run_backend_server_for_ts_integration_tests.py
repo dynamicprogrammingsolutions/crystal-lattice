@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sys
 from pathlib import Path
 import time
@@ -48,6 +49,10 @@ def main() -> None:
     parser.add_argument("--max-event-age-seconds", type=float)
     parser.add_argument("--session-save-delay-ms", type=int, default=0)
     parser.add_argument("--checkpoint-delay-ms", type=int, default=0)
+    parser.add_argument("--bridge-url")
+    parser.add_argument("--bridge-server-id")
+    parser.add_argument("--bridge-display-name")
+    parser.add_argument("--bridge-http-timeout-seconds", type=float)
     parser.add_argument(
         "--enable-test-control",
         action="store_true",
@@ -67,6 +72,10 @@ def main() -> None:
 
     from agent_terminal_app.__main__ import _collect_additional_dotenv_values
     from agent_terminal_app import server as server_mod
+    from agent_terminal_app.bridge_client import BridgeConfig
+    from agent_terminal_app.server_integration_settings import (
+        DEFAULT_BRIDGE_HTTP_TIMEOUT_SECONDS,
+    )
 
     class DelayingSessionStore:
         def __init__(self, inner: object, *, save_delay_seconds: float) -> None:
@@ -146,6 +155,26 @@ def main() -> None:
     server_mod.configure_application_owner(
         AgentApplicationOwner(factory, event_store=event_store)
     )
+    if args.bridge_url:
+        server_mod.configure_integrations(
+            server_mod.ServerIntegrationRuntimeConfig(
+                bridge=BridgeConfig(
+                    bridge_url=args.bridge_url,
+                    server_id=args.bridge_server_id or "frontend-sdk-integration",
+                    display_name=args.bridge_display_name or "Frontend SDK Integration",
+                    computer_name=socket.gethostname() or "localhost",
+                    location=None,
+                    local_http_base=f"http://{args.host}:{args.port}",
+                    http_timeout_seconds=(
+                        args.bridge_http_timeout_seconds
+                        if args.bridge_http_timeout_seconds is not None
+                        else DEFAULT_BRIDGE_HTTP_TIMEOUT_SECONDS
+                    ),
+                )
+            )
+        )
+    else:
+        server_mod.configure_integrations(None)
 
     import uvicorn
 

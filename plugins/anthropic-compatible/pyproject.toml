@@ -9,7 +9,8 @@ description = "Anthropic-compatible provider and extensions for the AI Agent Pla
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "anthropic>=1.0.0",
+  "anthropic>=1.0.0,<2.0.0",
+  "requests>=2.0.0",
 ]
 
 [project.optional-dependencies]

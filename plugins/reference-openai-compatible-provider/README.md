@@ -79,6 +79,16 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
 - `api_key` (string, optional): bearer token for hosted OpenAI-compatible APIs
 - `timeout` (number, optional): request timeout in seconds
   - default: `60`
+- `tls_verify` (boolean, optional): enable normal HTTPS certificate
+  verification
+  - default: `true`
+- `tls_ca_bundle` (string, optional): custom CA bundle path for model discovery
+  and completion requests; when set, it takes precedence over `tls_verify`
+- `tool_choice` (string, optional): OpenAI-compatible tool selection mode when
+  tools are present
+  - values commonly supported by compatible endpoints: `auto`, `required`,
+    and `none`
+  - default: `auto`
 - `debug_stream` (boolean, optional): log decoded streaming chunks as they are received
   - default: `false`
 - `min_request_interval_seconds` (number, optional): minimum spacing between requests to the same `base_url` scope
@@ -205,6 +215,9 @@ Tool support is enabled automatically when tool plugins are loaded:
 - requests include OpenAI-style `tools` and `tool_choice` when tools are present
 - assistant tool calls are surfaced as `metadata["tool_calls"]`
 
+Set `tool_choice: "required"` for a request that must produce a tool call.
+Support for non-default values depends on the selected compatible endpoint.
+
 To actually run tools, load one or more tool plugins. Example with built-in math tools:
 
 ```json
@@ -246,7 +259,10 @@ The usage extension also accepts these flat provider-config keys:
 - `token_rates` (object, optional): local rates in USD per million tokens
   - `input`: ordinary prompt/input-token rate
   - `cached`: cached prompt-token rate
+  - `cache_write`: optional cache-write token rate; cache-write cost is
+    skipped when not configured
   - `completion`: completion/output-token rate
+  - `models`: optional per-model rate overrides (see below)
 - `estimate_cached_tokens` (boolean, default `false`): opt into the
   turn-aware cached-token fallback described below
 - `show_estimated_cached_tokens` (boolean, default `false`): show an
@@ -271,6 +287,33 @@ current prompt-token total before local cost calculation, preventing an
 inconsistent provider payload from producing a negative ordinary-input
 component. If no distinct cached rate is configured, cached tokens use the
 ordinary input rate.
+
+#### Per-model token rates
+
+`token_rates.models` maps model ids to complete rate sets:
+
+```json
+"token_rates": {
+  "input": 1.0,
+  "cached": 0.2,
+  "completion": 3.2,
+  "models": {
+    "glm-5.2": {"input": 1.4, "cached": 0.26, "completion": 4.4},
+    "glm-5.3-flash": {"input": 0.15, "cached": 0.03, "completion": 0.5}
+  }
+}
+```
+
+When the active model matches an entry, that entry replaces the flat rates as
+a complete set (it must define at least `input` and `completion`; incomplete
+entries are skipped in favor of the flat rates). Matching tries the exact
+model id, then the id with a trailing `:tag` stripped (so `glm-5.2:cloud`
+matches the `glm-5.2` entry), then both candidates case-insensitively. Models
+with no matching entry use the flat rates. Unknown sibling keys (for example
+`_source` or `_generated_at` metadata in an included pricing file) are
+ignored, so a rates file can be referenced directly with
+`{"$include": "path/to/pricing.json"}` (see the application's configuration
+includes guide).
 
 #### Estimated cached-token fallback
 

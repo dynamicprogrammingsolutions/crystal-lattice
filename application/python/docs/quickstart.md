@@ -5,14 +5,19 @@ and verifies a concrete response without requiring provider credentials.
 
 ## Install
 
-With Python 3.10 or newer:
+Choose the supported method for your platform:
 
-```bash
-pipx install crystal-lattice-cli
+- [macOS or Linux](installation-macos-linux.md)
+- [Windows PowerShell](installation-windows.md)
+- [Manual archive installation](installation-manual.md)
+
+Then verify:
+
+```console
 crystal-lattice --help
 ```
 
-For a source checkout, run from the repository root:
+For source development, run from the repository root:
 
 ```bash
 python -m pip install -e "core/python[dev]"

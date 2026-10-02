@@ -28,6 +28,27 @@ The Elixir application supervises:
 The HTTP router runs before `Plug.Parsers` so proxy and transfer routes can read
 raw body bytes. The health router runs after JSON parsing.
 
+## Python server integration configuration
+
+The Python FastAPI startup lifecycle creates bridge and Bonjour integrations
+only from an explicit process-local `ServerIntegrationRuntimeConfig`. The
+normal CLI assembles this value from CLI arguments, project/profile data,
+resolved application configuration, the effective server address, and
+documented defaults. An absent bridge or Bonjour member means that integration
+is disabled.
+
+Ambient process variables do not activate or configure the Python bridge
+client or Bonjour advertising. This prevents a tool-launched child server from
+inheriting the parent server's bridge identity and superseding its connection.
+Direct FastAPI embedders use the same explicit configuration API.
+
+The Python bridge transport settings are configured under
+`application.bridge`. They cover WebSocket maximum message size, HTTP transfer
+timeout, legacy response chunk size and threshold, legacy request-body maximum,
+and bridge debug output. Invalid types or non-positive limits are rejected
+with a field-specific startup error. These settings are process-start
+configuration; application reload does not restart network integrations.
+
 ## State and authority
 
 ### Active server records

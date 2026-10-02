@@ -33,6 +33,10 @@ export interface NativeProps extends ViewProps {
   textColor?: ColorValue;
   placeholderTextColor?: ColorValue;
   fontSize?: WithDefault<Double, 13>;
+  fontFamily?: string;
+  lineHeight?: WithDefault<Double, 0>;
+  italic?: WithDefault<boolean, false>;
+  textContainerInset?: WithDefault<Double, 8>;
   onChange?: BubblingEventHandler<MacTextViewChangeEvent>;
   onSubmit?: BubblingEventHandler<MacTextViewSubmitEvent>;
   onMacContentSizeChange?: DirectEventHandler<MacTextViewContentSizeChangeEvent>;

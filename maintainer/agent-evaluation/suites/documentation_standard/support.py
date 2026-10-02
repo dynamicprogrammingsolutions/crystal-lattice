@@ -31,8 +31,9 @@ SPEC_ROOT = (
 )
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
+ORIGINAL_DEVELOP_GUIDANCE_REVISION = "f81f36326b58268297ba59c1cacbcda604257c27"
 GUIDANCE_INJECTION_VERSION = "v6"
-PROFILE_CONFIG_VERSION = "v5"
+PROFILE_CONFIG_VERSION = "v8"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
@@ -45,6 +46,8 @@ FIXTURE_REVISIONS = {
     "slug-utils": "v3",
     "label-utils": "v3",
     "sync-engine": "v3",
+    "requirement-scope": "v1",
+    "testing-strategy": "v1",
 }
 SYNTHETIC_SRC_CONFTEST = """import sys
 from pathlib import Path
@@ -53,7 +56,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 """
 
-CANDIDATE_GUIDANCE_PATHS = (
+LEGACY_GUIDANCE_PATHS = (
     "AGENTS.md",
     "docs/development/index.md",
     "docs/development/standards/index.md",
@@ -66,6 +69,17 @@ CANDIDATE_GUIDANCE_PATHS = (
     "plugins/docs/AGENTS.md",
 )
 
+CURRENT_GUIDANCE_PATHS = (
+    "AGENTS.md",
+    "docs/development/index.md",
+    "docs/development/documentation.md",
+    "docs/development/crystal-lattice-documentation.md",
+    "plugins/AGENTS.md",
+    "plugins/docs/AGENTS.md",
+)
+
+CANDIDATE_GUIDANCE_PATHS = CURRENT_GUIDANCE_PATHS
+
 
 @dataclass(frozen=True)
 class ModelProfile:
@@ -76,7 +90,12 @@ class ModelProfile:
     auth_mode: str | None = None
     plugin_fragments: tuple[str, ...] = ()
 
-    def request_overrides(self, workspace: Path) -> dict[str, object]:
+    def request_overrides(
+        self,
+        workspace: Path,
+        *,
+        reasoning_effort: str | None = None,
+    ) -> dict[str, object]:
         overrides: dict[str, object] = {
             "model": self.model,
             "working_directory": str(workspace),
@@ -87,7 +106,9 @@ class ModelProfile:
             "web_search_enabled": False,
         }
         if self.name == "glm":
-            overrides["request_options"] = {"reasoning_effort": "high"}
+            overrides["request_options"] = {
+                "reasoning_effort": reasoning_effort or "high"
+            }
         if self.auth_mode is not None:
             overrides["auth_mode"] = self.auth_mode
         return overrides
@@ -97,7 +118,7 @@ PROFILES = {
     "glm": ModelProfile(
         name="glm",
         agent_id="glm-ollama",
-        model="glm-5.2:cloud",
+        model="glm-5.3-flash:cloud",
         hosted=False,
         plugin_fragments=(
             "/codex-tools",
@@ -145,6 +166,7 @@ class GuidanceSource:
     name: str
     root: Path = REPOSITORY_ROOT
     revision: str | None = None
+    paths: tuple[str, ...] = CURRENT_GUIDANCE_PATHS
 
     def read_bytes(self, relative: str) -> bytes:
         if self.revision is None:
@@ -168,7 +190,7 @@ class GuidanceSource:
                 path=relative,
                 sha256=hashlib.sha256(self.read_bytes(relative)).hexdigest(),
             )
-            for relative in CANDIDATE_GUIDANCE_PATHS
+            for relative in self.paths
         )
 
     def sha256(self) -> str:
@@ -180,7 +202,7 @@ class GuidanceSource:
         return _sha256_text(payload)
 
     def copy_to(self, workspace: Path) -> None:
-        for relative in CANDIDATE_GUIDANCE_PATHS:
+        for relative in self.paths:
             target = workspace / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(self.read_bytes(relative))
@@ -198,14 +220,14 @@ class GuidanceSource:
         self,
         paths: tuple[str, ...] | None = None,
     ) -> str:
-        selected_paths = paths or CANDIDATE_GUIDANCE_PATHS
+        selected_paths = paths or self.paths
         lines = [
             "Repository guidance for the next task follows.",
             "Treat it as project instructions, not as the task itself.",
             "Each section is the exact content of the named repository file.",
         ]
         for relative in selected_paths:
-            if relative not in CANDIDATE_GUIDANCE_PATHS:
+            if relative not in self.paths:
                 raise ValueError(f"unsupported guidance instruction path: {relative}")
             content = self.read_bytes(relative).decode("utf-8")
             lines.extend(
@@ -391,6 +413,7 @@ class DocumentationEvaluationHarness:
             environment={
                 "CONFIG_DIR": str(config_path.parent),
                 "CHATGPT_TEST_STATE_DIR": str(config_path.parent),
+                "BUILTIN_PLUGINS": str(REPOSITORY_ROOT / "plugins"),
                 "PIP_CONSTRAINT": str(PLUGIN_RUNTIME_CONSTRAINTS),
                 "OLLAMA_OPENAI_BASE_URL": os.getenv(
                     "OLLAMA_OPENAI_BASE_URL",
@@ -450,8 +473,10 @@ class DocumentationEvaluationHarness:
         prompt_heading: str = "## Exact user prompt",
         cache: bool = True,
         guidance_instruction_paths: tuple[str, ...] | None = None,
+        reasoning_effort: str | None = None,
     ) -> Run[TurnValue]:
-        key = f"branch:{test_id}:{branch_variant}"
+        effort_key = reasoning_effort or "default"
+        key = f"branch:{test_id}:{branch_variant}:{effort_key}"
         if key in self._runs:
             return self._runs[key]
         prompt = extract_blockquote(SPEC_ROOT / spec_file, prompt_heading)
@@ -466,7 +491,7 @@ class DocumentationEvaluationHarness:
         if cache:
             cache_variant_suffix = f":{cache_variant}" if cache_variant else ""
             instruction_paths = (
-                guidance_instruction_paths or CANDIDATE_GUIDANCE_PATHS
+                guidance_instruction_paths or self.guidance.paths
             )
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
@@ -474,7 +499,8 @@ class DocumentationEvaluationHarness:
                 f"{_sha256_text(prompt)}:"
                 f"{branch_variant}:{fixture_revision(fixture_id)}:"
                 f"{GUIDANCE_INJECTION_VERSION}:{PROFILE_CONFIG_VERSION}:"
-                f"{_sha256_text(json.dumps(instruction_paths))}"
+                f"{_sha256_text(json.dumps(instruction_paths))}:"
+                f"{effort_key}"
                 f"{cache_variant_suffix}"
             )
         run = self.evaluation.run(
@@ -485,6 +511,7 @@ class DocumentationEvaluationHarness:
                 guidance=self.guidance,
                 inject_guidance=True,
                 guidance_instruction_paths=guidance_instruction_paths,
+                reasoning_effort=reasoning_effort,
             ),
             continue_from=parent,
             workspace=workspace,
@@ -544,12 +571,18 @@ class DocumentationEvaluationHarness:
         guidance: GuidanceSource | None,
         inject_guidance: bool = False,
         guidance_instruction_paths: tuple[str, ...] | None = None,
+        reasoning_effort: str | None = None,
     ) -> TurnValue:
         if context.workspace is None:
             raise ValueError("missing evaluation workspace")
         if context.session_or_none is None:
             context.start(self.profile.agent_id)
-        context.config.update(self.profile.request_overrides(context.workspace))
+        context.config.update(
+            self.profile.request_overrides(
+                context.workspace,
+                reasoning_effort=reasoning_effort,
+            )
+        )
         context.services.record(
             "documentation_standard.profile",
             {
@@ -558,6 +591,9 @@ class DocumentationEvaluationHarness:
                 "model": self.profile.model,
                 "hosted": self.profile.hosted,
                 "auth_mode": self.profile.auth_mode,
+                "reasoning_effort": reasoning_effort or (
+                    "high" if self.profile.name == "glm" else None
+                ),
             },
         )
         context.services.record(
@@ -572,7 +608,7 @@ class DocumentationEvaluationHarness:
             guidance.metadata() if guidance is not None else None,
         )
         injected_paths = (
-            guidance_instruction_paths or CANDIDATE_GUIDANCE_PATHS
+            guidance_instruction_paths or guidance.paths
             if guidance is not None and inject_guidance
             else ()
         )
@@ -672,13 +708,22 @@ def selected_profile() -> ModelProfile:
 
 
 def candidate_guidance_source() -> GuidanceSource:
-    return GuidanceSource(name="candidate")
+    return GuidanceSource(name="candidate", paths=CURRENT_GUIDANCE_PATHS)
 
 
 def baseline_guidance_source() -> GuidanceSource:
     return GuidanceSource(
         name="baseline",
         revision=BASELINE_GUIDANCE_REVISION,
+        paths=LEGACY_GUIDANCE_PATHS,
+    )
+
+
+def original_develop_guidance_source() -> GuidanceSource:
+    return GuidanceSource(
+        name="develop",
+        revision=ORIGINAL_DEVELOP_GUIDANCE_REVISION,
+        paths=LEGACY_GUIDANCE_PATHS,
     )
 
 
@@ -688,6 +733,8 @@ def selected_guidance_source() -> GuidanceSource:
         return candidate_guidance_source()
     if name == "baseline":
         return baseline_guidance_source()
+    if name == "develop":
+        return original_develop_guidance_source()
     raw_root = os.getenv("AGENT_EVAL_GUIDANCE_DIR")
     if not raw_root:
         raise ValueError(
@@ -706,6 +753,18 @@ def enforce_real_model_gate(profile: ModelProfile) -> None:
         raise RuntimeError(
             "set AGENT_EVAL_ALLOW_HOSTED=1 to execute hosted ChatGPT tests"
         )
+    if profile.name == "glm":
+        result = subprocess.run(
+            ["ollama", "show", profile.model],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise RuntimeError(
+                f"Ollama cannot resolve configured model {profile.model!r}: {detail}"
+            )
 
 
 def extract_blockquote(path: Path, heading: str) -> str:
@@ -1037,6 +1096,10 @@ def apply_fixture(workspace: Path, fixture_id: str, branch_variant: str) -> None
         _fixture_label_utils(workspace, branch_variant)
     elif fixture_id == "sync-engine":
         _fixture_sync_engine(workspace, branch_variant)
+    elif fixture_id == "requirement-scope":
+        _fixture_requirement_scope(workspace, branch_variant)
+    elif fixture_id == "testing-strategy":
+        _fixture_testing_strategy(workspace, branch_variant)
     else:
         raise KeyError(f"unknown fixture: {fixture_id}")
 
@@ -1534,6 +1597,129 @@ Phase 3 pending and keep temporary progress until all phases are verified.
     )
 
 
+def _fixture_requirement_scope(workspace: Path, branch_variant: str) -> None:
+    if branch_variant != "base":
+        raise KeyError(f"unknown requirement-scope variant: {branch_variant}")
+    _write_synthetic_fixture(
+        workspace,
+        {
+            "packages/offline-queue/README.md": """# offline-queue
+
+`enqueue(item)` appends one item to the local in-memory queue.
+""",
+            "packages/offline-queue/src/queue.py": """class Queue:
+    def __init__(self):
+        self.items = []
+
+    def enqueue(self, item):
+        self.items.append(item)
+""",
+            "packages/offline-queue/docs/development/index.md": """# Offline queue development
+
+No batch-enqueue specification exists.
+""",
+            "tasks/offline-queue-batch-enqueue.md": """# Offline queue batch enqueue
+
+Status: Approved
+
+## Required outcomes
+
+- Add a target for `enqueue_batch(items, max_items=100)`.
+- Preserve item order and existing single-item `enqueue` behavior.
+- Reject an empty batch.
+- Reject more than `max_items` before changing the queue.
+- Create live requirements for the target.
+
+Create the specification and requirements only. Do not implement the change.
+
+## Ideas for possible later work
+
+The following ideas are not approved by this task:
+
+- encryption at rest;
+- telemetry dashboards;
+- adaptive compression;
+- cloud replication.
+""",
+        },
+    )
+
+
+def _fixture_testing_strategy(workspace: Path, branch_variant: str) -> None:
+    files = {
+        "plugins/ui-options/README.md": """# ui-options
+
+Provides capability-dependent configuration options.
+""",
+        "plugins/ui-options/src/options.py": """def advanced_option(capabilities):
+    if "advanced" not in capabilities:
+        return None
+    return {
+        "id": "advanced",
+        "type": "toggle",
+        "label": "Advanced",
+        "visible": True,
+        "_debug_origin": "ui-options",
+        "_construction_order": 4,
+    }
+""",
+        "plugins/ui-options/tests/test_options.py": """from options import advanced_option
+
+
+def test_advanced_option_is_absent_without_capability():
+    assert advanced_option(set()) is None
+""",
+        "plugins/ui-options/docs/development/specifications/option-visibility/index.md": """# Option visibility
+
+The advanced option is absent when the `advanced` capability is unavailable.
+When available, consumers receive an option identified as `advanced` with the
+label `Advanced`.
+
+The complete mapping, private metadata, key order, and helper-call structure
+are not public or persisted interfaces.
+""",
+        "application/python/example_api/options.py": """from options import advanced_option
+
+
+def get_options(capabilities):
+    option = advanced_option(capabilities)
+    return {"options": [] if option is None else [option]}
+""",
+        "packages/frontend-sdk/src/options.ts": """export function visibleOptions(
+  payload: {options: Array<{id: string; label: string; visible?: boolean}>},
+) {
+  return payload.options.filter(option => option.visible !== false);
+}
+""",
+        "docs/development/specifications/option-delivery/index.md": """# Option delivery
+
+The public options endpoint returns capability-appropriate options. The
+production frontend adapter presents the returned visible options without
+provider- or plugin-specific types.
+""",
+    }
+    if branch_variant == "local-option":
+        files["tasks/ui-options-local-testing.md"] = """# Local option visibility testing
+
+Status: Approved
+
+Prepare the testing strategy for implementing the option-visibility target in
+`plugins/ui-options`. Do not implement the change or edit test code.
+"""
+    elif branch_variant == "cross-layer":
+        files["tasks/ui-options-delivery-testing.md"] = """# Option delivery testing
+
+Status: Approved
+
+Prepare the testing strategy for the existing cross-package option-delivery
+target. It spans the plugin, public options endpoint, and production frontend
+adapter. Do not implement the change or edit test code.
+"""
+    elif branch_variant != "base":
+        raise KeyError(f"unknown testing-strategy variant: {branch_variant}")
+    _write_synthetic_fixture(workspace, files)
+
+
 def _write_synthetic_fixture(
     workspace: Path,
     files: Mapping[str, str],
@@ -1661,4 +1847,13 @@ def _sha256_text(value: str) -> str:
 
 def _requirement_ids(path: Path) -> tuple[str, ...]:
     text = path.read_text(encoding="utf-8")
-    return tuple(sorted(set(re.findall(r"DOCGEN-\d{3}|DOCREP-\d{3}", text))))
+    return tuple(
+        sorted(
+            set(
+                re.findall(
+                    r"DOC(?:GEN|REP|GUIDE|LOCAL|AGENT|VAL)-\d{3}",
+                    text,
+                )
+            )
+        )
+    )

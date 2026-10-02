@@ -2,8 +2,13 @@
 
 - [CLI distribution implementation and verification](cli-distribution.md)
 - [CLI distribution verification specification](specifications/cli-distribution/index.md)
+- [Local headless agent runs specification](specifications/headless-agent-runs/index.md)
+- [Session and message data query specification](specifications/session-data-query/index.md)
+- [Agent creation and model updates](agent-creation.md)
 - [Application request execution](request-execution.md)
+- [Request cancellation specification](specifications/request-cancellation/index.md)
 - [Application operations](operations.md)
+- [Embedded iOS configuration](embedded-ios-configuration.md)
 - [Bridge registered-server adapter](bridge-server-adapter.md)
 - [Runtime owner integration](runtime-owner-integration.md)
 - [Terminal and HTTP feature development](terminal-and-http-features.md)

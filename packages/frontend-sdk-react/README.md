@@ -23,9 +23,16 @@ integration or e2e scripts.
 
 `useSessionRequestStatuses` is a host-neutral explicit-ID polling hook. The
 host supplies active/foreground policy, saved connections, grouped session
-IDs, and a `ConnectionSessionStatusReader`. The hook deduplicates IDs, polls
-per connection, cancels stale work, applies bounded backoff, and removes stale
-running state when authority is unavailable.
+IDs, and a `ConnectionSessionStatusReader`. The hook deduplicates IDs, splits
+large connection groups into bounded requests, polls per connection, cancels
+stale work, and applies bounded backoff. Successful batches replace only the
+IDs they queried, so changing one visible consumer does not erase unrelated
+status.
+
+A transient unavailable read retains a recently observed Running value through
+retry. Successful non-running or missing-session data replaces it
+authoritatively, while a bounded staleness window prevents unavailable
+authority from leaving Running visible indefinitely.
 
 ## License
 

@@ -114,10 +114,10 @@ describe('SessionTabs', () => {
 
     expect(screen.getByTestId('desktop-home-tab')).toBeTruthy();
     const previewText = screen.getByText('Preview session');
-    expect(StyleSheet.flatten(previewText.props.style).fontStyle).toBe('italic');
-    expect(
-      screen.getByLabelText('Request status: In progress'),
-    ).toBeTruthy();
+    expect(StyleSheet.flatten(previewText.props.style).fontStyle).toBe(
+      'italic',
+    );
+    expect(screen.getByLabelText('Request status: In progress')).toBeTruthy();
 
     const preview = screen.getByTestId(
       'desktop-session-tab-connection:preview',
@@ -133,5 +133,62 @@ describe('SessionTabs', () => {
     );
     expect(onReorderPermanent).toHaveBeenCalledWith(0, 1);
     now.mockRestore();
+  });
+
+  it('closes permanent and preview tabs on middle click without selecting or reordering', () => {
+    const onSelectTab = jest.fn();
+    const onCloseTab = jest.fn();
+    const onReorderPermanent = jest.fn();
+    const screen = render(
+      <SessionTabs
+        permanentTabs={[
+          {
+            tabId: 'connection:one',
+            connectionId: 'connection',
+            sessionId: 'one',
+            title: 'One',
+          },
+        ]}
+        previewTab={{
+          tabId: 'connection:preview',
+          connectionId: 'connection',
+          sessionId: 'preview',
+          title: 'Preview',
+        }}
+        activeTabId="connection:preview"
+        styleVariant="toolbarTabs"
+        connectionNameById={{ connection: 'Local' }}
+        onSelectTab={onSelectTab}
+        onCloseTab={onCloseTab}
+        onReorderPermanent={onReorderPermanent}
+      />,
+    );
+    const nativeEvent = {
+      button: 2,
+      translationX: 0,
+      translationY: 0,
+      locationX: 0,
+      locationY: 0,
+      pageX: 0,
+      pageY: 0,
+    };
+
+    fireEvent(
+      screen.getByTestId('desktop-session-tab-pointer-connection:one'),
+      'auxiliaryClick',
+      { nativeEvent },
+    );
+    fireEvent(
+      screen.getByTestId('desktop-session-tab-pointer-connection:preview'),
+      'auxiliaryClick',
+      { nativeEvent },
+    );
+
+    expect(onCloseTab.mock.calls).toEqual([
+      ['connection:one'],
+      ['connection:preview'],
+    ]);
+    expect(onSelectTab).not.toHaveBeenCalled();
+    expect(onReorderPermanent).not.toHaveBeenCalled();
   });
 });

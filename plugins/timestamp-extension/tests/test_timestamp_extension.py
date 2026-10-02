@@ -18,7 +18,9 @@ class SyntheticSystemMessageFeature:
     name: str = "synthetic_system_message_feature"
     version: str = "0.0.0"
 
-    def get_config_schema(self) -> Dict[str, Any]:  # pragma: no cover - not needed in tests
+    def get_config_schema(
+        self,
+    ) -> Dict[str, Any]:  # pragma: no cover - not needed in tests
         return {}
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
@@ -42,7 +44,11 @@ class SyntheticSystemMessageFeature:
         if not isinstance(system_message, str) or not system_message:
             return list(native_messages), state
 
-        if native_messages and isinstance(native_messages[0], dict) and native_messages[0].get("role") == "system":
+        if (
+            native_messages
+            and isinstance(native_messages[0], dict)
+            and native_messages[0].get("role") == "system"
+        ):
             return list(native_messages), state
 
         injected = {"role": "system", "content": system_message, "_metadata": {}}
@@ -109,7 +115,9 @@ def test_does_not_timestamp_synthetic_system_messages_during_request_prep() -> N
     user_messages = [m for m in session.messages if m.role == "user"]
     assert user_messages
     user_ts = (
-        user_messages[0].metadata.get("timestamp") if user_messages[0].metadata else None
+        user_messages[0].metadata.get("timestamp")
+        if user_messages[0].metadata
+        else None
     )
     assert isinstance(user_ts, str) and user_ts
 
@@ -131,3 +139,78 @@ def test_does_not_timestamp_synthetic_system_messages_during_request_prep() -> N
     user_2 = [m for m in native_2 if m.get("role") == "user"]
     assert user_2
     assert user_2[0].get("_metadata", {}).get("timestamp") == user_ts
+
+
+# ---------------------------------------------------------------------------
+# prepare_appended_message: append-time timestamp allocation
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_appended_message_stamps_timestamp_when_absent() -> None:
+    ext = TimestampExtension()
+    message = {"role": "user", "content": "hi", "metadata": {}}
+
+    stamped, _state = ext.prepare_appended_message(message, None)
+
+    ts = (stamped.get("metadata") or {}).get("timestamp")
+    assert isinstance(ts, str) and ts
+
+
+def test_prepare_appended_message_preserves_existing_timestamp() -> None:
+    ext = TimestampExtension()
+    existing = "2024-01-01T00:00:00+00:00"
+    message = {"role": "user", "content": "hi", "metadata": {"timestamp": existing}}
+
+    stamped, _state = ext.prepare_appended_message(message, None)
+
+    assert (stamped.get("metadata") or {}).get("timestamp") == existing
+
+
+def test_prepare_appended_message_handles_missing_metadata() -> None:
+    ext = TimestampExtension()
+    message = {"role": "tool", "content": "result"}
+
+    stamped, _state = ext.prepare_appended_message(message, None)
+
+    ts = (stamped.get("metadata") or {}).get("timestamp")
+    assert isinstance(ts, str) and ts
+
+
+def test_to_native_messages_returns_native_messages_unchanged() -> None:
+    """The single-message append workaround is retired.
+
+    Timestamp allocation moved to ``prepare_appended_message``; the
+    to-native conversion must not stamp anything.
+    """
+    ext = TimestampExtension()
+    native = [{"role": "user", "content": "hi", "_metadata": {}}]
+    core = [{"role": "user", "content": "hi", "metadata": {}}]
+
+    out = ext.to_native_messages(core, native)
+
+    assert out == native
+
+
+def test_appended_message_timestamp_in_core_metadata_and_native_history() -> None:
+    core = _make_core(with_system_message=False)
+    config: Dict[str, Any] = {"model": "test-model"}
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "hi", config=config)
+
+    # The core message carries the timestamp directly (append hook).
+    user_msg = [m for m in session.messages if m.role == "user"][-1]
+    ts = user_msg.metadata.get("timestamp") if user_msg.metadata else None
+    assert isinstance(ts, str) and ts
+
+    # The provider-native history carries the same timestamp through the
+    # conversion mapping.
+    native_0 = session.metadata.get("native_messages") or []
+    assert native_0
+    assert native_0[0].get("_metadata", {}).get("timestamp") == ts
+
+    # A rebuild (next append) keeps the timestamp on the core message.
+    session_1 = core.add_message(session, "user", "next", config=config)
+    users = [m for m in session_1.messages if m.role == "user"]
+    assert users[0].metadata
+    assert users[0].metadata.get("timestamp") == ts

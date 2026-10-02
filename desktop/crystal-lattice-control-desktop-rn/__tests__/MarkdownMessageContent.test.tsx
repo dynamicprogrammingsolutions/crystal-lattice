@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
@@ -118,6 +118,14 @@ describe('desktop markdown typography adapter', () => {
     expect(highlighter.props.fontFamily).toBe('Menlo');
     expect(highlighter.props.fontSize).toBe(defaultPreset.fontSize.code);
     expect(highlighter.props.lineHeight).toBe(defaultPreset.lineHeight.code);
+    const selectableCode = highlighter.props.CodeTag({
+      children: 'const value = 1;',
+    });
+    expect(selectableCode.props.selectable).toBe(true);
+    const codeBlock = renderer!.root.findByProps({
+      testID: 'desktop-markdown-code-block',
+    });
+    expect(codeBlock.findAllByType(ScrollView)).toHaveLength(0);
 
     const tokenStyles = renderer!.root
       .findAllByType(Text)

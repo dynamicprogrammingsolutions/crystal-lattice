@@ -374,6 +374,7 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 		    <TouchableOpacity
 		      style={styles.disclosureRow}
 		      activeOpacity={0.85}
+		      testID={`tool-result-disclosure-${index}`}
 		      onPress={() => setExpanded((prev) => !prev)}
 		    >
 		      <Text
@@ -393,10 +394,24 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 		    </TouchableOpacity>
             {expanded && (
               <View style={styles.collapsibleContainerTool}>
-                <ScrollView style={styles.collapsibleScroll} nestedScrollEnabled>
-                  <Text style={styles.contentText} selectable>
-                    {content}
-                  </Text>
+                <ScrollView
+                  style={styles.collapsibleScroll}
+                  nestedScrollEnabled
+                  testID={`tool-result-scroll-${index}`}
+                >
+                  <MacTextView
+                    style={styles.readOnlyBoundedText}
+                    initialText={content}
+                    editable={false}
+                    autoGrow
+                    minHeight={theme.typography.lineHeight.message}
+                    textColor={theme.text}
+                    fontSize={theme.typography.fontSize.message}
+                    fontFamily="Menlo"
+                    lineHeight={theme.typography.lineHeight.message}
+                    textContainerInset={0}
+                    testID={`tool-result-${index}`}
+                  />
                 </ScrollView>
               </View>
             )}
@@ -545,6 +560,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
           <TouchableOpacity
             style={styles.disclosureRow}
             activeOpacity={0.85}
+            testID={`assistant-reasoning-disclosure-${index}`}
             onPress={() => setReasoningExpanded((prev) => !prev)}
           >
             <Text
@@ -566,23 +582,43 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
-            <ScrollView style={styles.collapsibleScroll} nestedScrollEnabled>
-              <View>
-                <Text style={styles.reasoningText} selectable>
-                  {reasoning}
-                </Text>
-              </View>
+            <ScrollView
+              style={styles.collapsibleScroll}
+              nestedScrollEnabled
+              testID={`assistant-reasoning-scroll-${index}`}
+            >
+              <MacTextView
+                style={styles.readOnlyBoundedText}
+                initialText={reasoning}
+                editable={false}
+                autoGrow
+                minHeight={theme.typography.lineHeight.small}
+                textColor={theme.textSecondary}
+                fontSize={theme.typography.fontSize.small}
+                fontFamily="Menlo"
+                lineHeight={theme.typography.lineHeight.small}
+                italic
+                textContainerInset={0}
+                testID={`assistant-reasoning-${index}`}
+              />
             </ScrollView>
           </View>
         )}
 
         {content ? (
           renderMode === 'raw' ? (
-            <TextInput
-              style={[styles.contentText, styles.rawReadonlyInput]}
-              value={content}
+            <MacTextView
+              style={styles.rawReadonlyInput}
+              initialText={content}
               editable={false}
-              multiline
+              autoGrow
+              minHeight={theme.typography.lineHeight.message}
+              textColor={theme.text}
+              fontSize={theme.typography.fontSize.message}
+              fontFamily="Menlo"
+              lineHeight={theme.typography.lineHeight.message}
+              textContainerInset={0}
+              testID={`assistant-raw-message-${index}`}
             />
           ) : (
             <MarkdownMessageContent text={content} variant="assistant" />
@@ -593,6 +629,7 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
           <TouchableOpacity
             style={styles.disclosureRow}
             activeOpacity={0.85}
+            testID={`assistant-tool-calls-disclosure-${index}`}
             onPress={() => setToolCallsExpanded((prev) => !prev)}
           >
             <Text
@@ -615,7 +652,11 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {toolCallNames.length > 0 && toolCallsExpanded && (
           <View style={styles.collapsibleContainerTool}>
-            <ScrollView style={styles.collapsibleScroll} nestedScrollEnabled>
+            <ScrollView
+              style={styles.collapsibleScroll}
+              nestedScrollEnabled
+              testID={`assistant-tool-calls-scroll-${index}`}
+            >
               {toolCalls.map((tc: any, idx: number) => {
                 const func = tc.function || {};
                 const toolName =
@@ -645,9 +686,19 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
                 return (
                   <View key={callId || idx} style={styles.toolCallItem}>
                     <Text style={styles.toolCallName}>{toolName}</Text>
-                    <Text style={styles.toolCallArgs} selectable>
-                      {displayText}
-                    </Text>
+                    <MacTextView
+                      style={styles.toolCallArgsReadOnly}
+                      initialText={displayText}
+                      editable={false}
+                      autoGrow
+                      minHeight={theme.typography.lineHeight.tiny}
+                      textColor={theme.textSecondary}
+                      fontSize={theme.typography.fontSize.tiny}
+                      fontFamily="Menlo"
+                      lineHeight={theme.typography.lineHeight.tiny}
+                      textContainerInset={0}
+                      testID={`assistant-tool-call-${index}-${idx}`}
+                    />
                   </View>
                 );
               })}
@@ -837,6 +888,10 @@ const createStyles = (theme: Theme) =>
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       marginLeft: 8,
     },
+    toolCallArgsReadOnly: {
+      width: '98%',
+      marginLeft: 8,
+    },
     contentText: {
       fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
@@ -867,6 +922,9 @@ const createStyles = (theme: Theme) =>
     collapsibleScroll: {
       paddingHorizontal: 4,
       paddingVertical: 4,
+    },
+    readOnlyBoundedText: {
+      width: '100%',
     },
     collapsedHintText: {
       marginTop: 2,
@@ -945,8 +1003,7 @@ const createStyles = (theme: Theme) =>
     },
     rawReadonlyInput: {
       marginTop: 2,
-      padding: 0,
-      color: theme.text,
+      width: '100%',
     },
   });
 

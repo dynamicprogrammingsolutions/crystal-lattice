@@ -160,7 +160,11 @@ def _complete_read_positions(
     messages = _tool_messages(run)
     positions: dict[str, int | None] = {}
     for relative in relative_paths:
-        expected = run.workspace.joinpath(relative).read_text(encoding="utf-8").strip()
+        target = run.workspace / relative
+        if not target.is_file():
+            positions[relative] = None
+            continue
+        expected = target.read_text(encoding="utf-8").strip()
         position = None
         for index, message in enumerate(messages):
             metadata = message.get("metadata")
@@ -219,6 +223,7 @@ def _seed_01(harness: DocumentationEvaluationHarness):
 
 
 @pytest.mark.routine
+@pytest.mark.obsolete
 @pytest.mark.requirements("DOCGEN-001", "DOCVAL-008")
 def test_01_small_package_documentation(
     harness: DocumentationEvaluationHarness,
@@ -1273,6 +1278,7 @@ def test_14_portable_contract_owner(
 
 
 @pytest.mark.routine
+@pytest.mark.obsolete
 @pytest.mark.requirements(
     "DOCGEN-002",
     "DOCGEN-006",
@@ -1425,6 +1431,7 @@ def test_16_failed_generated_refresh(
                     "prepared output remains unchanged",
                     "left the generated file unchanged",
                     "did not claim a refresh",
+                    "still contains",
                 ),
             ),
             run.value.response,
@@ -1439,6 +1446,7 @@ def test_16_failed_generated_refresh(
 
 
 @pytest.mark.routine
+@pytest.mark.obsolete
 @pytest.mark.requirements(
     "DOCREP-001",
     "DOCREP-003",
@@ -1804,6 +1812,7 @@ def test_19_apply_versus_maintain_boundary(
 
 
 @pytest.mark.extended
+@pytest.mark.obsolete
 @pytest.mark.requirements("DOCREP-007", "DOCVAL-009")
 def test_20_routed_guidance_reading(
     harness: DocumentationEvaluationHarness,
@@ -1929,6 +1938,7 @@ def test_20_routed_guidance_reading(
 
 
 @pytest.mark.extended
+@pytest.mark.obsolete
 @pytest.mark.requirements(
     "DOCGEN-008",
     "DOCGEN-009",

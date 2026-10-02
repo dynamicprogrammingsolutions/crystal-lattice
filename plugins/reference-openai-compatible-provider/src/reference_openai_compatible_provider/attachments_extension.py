@@ -166,11 +166,17 @@ class OpenAICompatibleAttachmentsExtension(ProviderExtensionPlugin):
     ) -> Dict[str, Any]:
         _ = state
         if action_id == _STORE_ATTACHMENT_ACTION_ID:
-            return self._store_attachment_action(session, native_messages, params, context)
+            return self._store_attachment_action(
+                session, native_messages, params, context
+            )
         if action_id == _DELETE_ATTACHMENT_ACTION_ID:
-            return self._delete_attachment_action(session, native_messages, params, context)
+            return self._delete_attachment_action(
+                session, native_messages, params, context
+            )
         if action_id == _DOWNLOAD_ATTACHMENT_ACTION_ID:
-            return self._download_attachment_action(session, native_messages, params, context)
+            return self._download_attachment_action(
+                session, native_messages, params, context
+            )
         raise ValueError(f"Unknown action_id {action_id!r}")
 
     def _attachment_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:

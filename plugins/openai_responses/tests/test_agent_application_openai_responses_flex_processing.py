@@ -114,7 +114,11 @@ def test_openai_flex_processing_defaults_stream_recovery_to_early_only() -> None
     assert request["stream_recovery_retries"] == 3
 
 
-def test_openai_fast_mode_injects_priority_for_both_auth_modes() -> None:
+def test_openai_fast_mode_injects_auth_mode_dependent_tier_for_both_auth_modes() -> (
+    None
+):
+    """The official API gets the current ``fast`` name; the ChatGPT backend
+    only accepts the legacy ``priority`` name."""
     ext = OpenAIResponsesFastModeExtension()
 
     chatgpt_config = {
@@ -145,4 +149,4 @@ def test_openai_fast_mode_injects_priority_for_both_auth_modes() -> None:
         },
     )
     _native, api_updated = ext.initialize_request([], api_state)
-    assert api_updated["request"]["payload"]["service_tier"] == "priority"
+    assert api_updated["request"]["payload"]["service_tier"] == "fast"

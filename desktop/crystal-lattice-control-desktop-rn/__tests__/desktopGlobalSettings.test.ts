@@ -2,12 +2,20 @@ import {
   complementarySessionOpenMode,
   normalizeDesktopGlobalSettings,
 } from '../src/settings/desktopGlobalSettings';
-import { resolveSessionItemClick } from '../src/sessions/sessionItemInteraction';
+import {
+  resolveExplicitSessionOpenMode,
+  resolveSessionItemClick,
+} from '../src/sessions/sessionItemInteraction';
 
 describe('desktop global session interaction settings', () => {
   it('defaults double-click to preview and exposes the complementary action', () => {
     const settings = normalizeDesktopGlobalSettings(null);
     expect(settings.sessionDoubleClickAction).toBe('preview');
+    expect(settings.sessionsFollowActiveTabEnabled).toBe(true);
+    expect(settings.switchConnectionWithActiveTabEnabled).toBe(false);
+    expect(settings.timeTrackingEnabled).toBe(false);
+    expect(settings.timeTrackingPluginId).toBe('duration_tracking_app');
+    expect(settings.timeTrackingInactivitySeconds).toBe(30);
     expect(
       complementarySessionOpenMode(settings.sessionDoubleClickAction),
     ).toBe('open');
@@ -37,5 +45,58 @@ describe('desktop global session interaction settings', () => {
         doubleClickAction: 'open',
       }).openMode,
     ).toBe('open');
+  });
+
+  it('uses Open for an existing preview or permanent tab', () => {
+    expect(resolveExplicitSessionOpenMode('open', null)).toBe('preview');
+    expect(resolveExplicitSessionOpenMode('preview', null)).toBe('open');
+    expect(resolveExplicitSessionOpenMode('preview', 'preview')).toBe('open');
+    expect(resolveExplicitSessionOpenMode('open', 'permanent')).toBe('open');
+  });
+
+  it('preserves explicit navigation booleans and otherwise uses their defaults', () => {
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: true,
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: false,
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(false);
+    expect(
+      normalizeDesktopGlobalSettings({
+        sessionsFollowActiveTabEnabled: 'false',
+      }).sessionsFollowActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        switchConnectionWithActiveTabEnabled: true,
+      }).switchConnectionWithActiveTabEnabled,
+    ).toBe(true);
+    expect(
+      normalizeDesktopGlobalSettings({
+        switchConnectionWithActiveTabEnabled: 'true',
+      }).switchConnectionWithActiveTabEnabled,
+    ).toBe(false);
+  });
+
+  it('normalizes the desktop inactivity setting', () => {
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: 60,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(60);
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: 0,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(30);
+    expect(
+      normalizeDesktopGlobalSettings({
+        timeTrackingInactivitySeconds: Number.NaN,
+      }).timeTrackingInactivitySeconds,
+    ).toBe(30);
   });
 });

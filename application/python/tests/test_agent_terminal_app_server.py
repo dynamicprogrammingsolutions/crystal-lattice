@@ -3210,6 +3210,43 @@ def test_cancel_request_endpoint_triggers_cancellation(tmp_path: Path) -> None:
     assert "final" not in kinds
 
 
+def test_http_cancel_routes_preserve_hard_and_soft_modes() -> None:
+    from agent_terminal_app.server import app as fastapi_app
+    from agent_terminal_app.server import get_agent_app
+
+    calls: list[tuple[str, str]] = []
+
+    class _CancellationApp:
+        def cancel_request(self, request_id: str) -> None:
+            calls.append(("hard", request_id))
+
+        def soft_cancel_request(self, request_id: str) -> None:
+            calls.append(("soft", request_id))
+
+    fastapi_app.dependency_overrides[get_agent_app] = lambda: _CancellationApp()
+    try:
+        client = TestClient(fastapi_app)
+        hard = client.post("/requests/request-hard/cancel")
+        soft = client.post("/requests/request-soft/soft-cancel")
+    finally:
+        fastapi_app.dependency_overrides.pop(get_agent_app, None)
+
+    assert hard.status_code == 200
+    assert hard.json() == {
+        "request_id": "request-hard",
+        "status": "cancelled",
+    }
+    assert soft.status_code == 200
+    assert soft.json() == {
+        "request_id": "request-soft",
+        "status": "soft_cancel_requested",
+    }
+    assert calls == [
+        ("hard", "request-hard"),
+        ("soft", "request-soft"),
+    ]
+
+
 def test_cancel_request_endpoint_cancels_active_provider_request(
     tmp_path: Path,
 ) -> None:

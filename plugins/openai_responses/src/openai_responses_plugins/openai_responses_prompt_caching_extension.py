@@ -100,6 +100,12 @@ class OpenAIResponsesPromptCachingExtension(ProviderExtensionPlugin):
                 "param_map": {
                     "session_id": "$session.session_id",
                 },
+                "rich_ui": {
+                    "kind": "button",
+                    "placements": ["session_settings"],
+                    "anchor_key": _PROMPT_CACHE_KEY,
+                    "position": "after",
+                },
             },
         ]
 

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AppState,
   Linking,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -21,6 +22,7 @@ import {
   CloudTransport,
   FetchTransport,
   createBridgeConnectionTransport,
+  invalidateAgentsCache,
   parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
@@ -34,6 +36,7 @@ import {
   type CloudConnectionRecord,
   type ConnectionRecord,
   type DiscoveryConnectionRecord,
+  type EmbeddedConnectionRecord,
   type ManualConnectionRecord,
   type Transport,
   type TransportTimeoutRule,
@@ -62,8 +65,15 @@ import {
 } from './src/bridgeConnection';
 import { usePersistedMarkdownDisplayPreferences } from './src/useMarkdownDisplayPreferences';
 import { HomeWorkspaceProvider } from './src/HomeWorkspaceContext';
+import { createEmbeddedRuntimeBackend } from './src/embeddedRuntime/createEmbeddedRuntimeBackend';
+import {
+  configureEmbeddedPythonRuntime,
+  getEmbeddedPythonRuntimeConfiguration,
+  noteEmbeddedPythonRuntimeAppState,
+  type EmbeddedRuntimePublicConfiguration,
+} from './src/embeddedRuntime/embeddedPythonRuntime';
 
-type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
+type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
 
 interface Service {
   name: string;
@@ -78,6 +88,24 @@ const connectionsStore: KeyValueStore = {
   delete: (key) => AsyncStorage.removeItem(key),
 };
 const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
+const EMBEDDED_CONNECTION_ID = 'embedded-ios-runtime';
+
+function embeddedConnectionRecord(
+  configuration: EmbeddedRuntimePublicConfiguration,
+  lastUsedAt = Date.now(),
+): EmbeddedConnectionRecord {
+  const selectedProfile = configuration.selectedProfileId
+    ? configuration.providers[configuration.selectedProfileId]
+    : undefined;
+  return {
+    id: EMBEDDED_CONNECTION_ID,
+    kind: 'embedded',
+    name: 'On-device Python agents',
+    proxyUrl: selectedProfile?.baseUrl ?? configuration.proxyUrl,
+    model: selectedProfile?.model ?? configuration.model,
+    lastUsedAt,
+  };
+}
 
 export interface SessionsCacheEntry {
   connectionId: string;
@@ -218,7 +246,7 @@ function App(): React.JSX.Element {
   const [backend, setBackend] = useState<AgentBackend | null>(null);
   const [connections, setConnections] = useState<ConnectionRecord[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [connectionsLoading, setConnectionsLoading] = useState(false);
+  const [connectionsLoading, setConnectionsLoading] = useState(true);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
   const [debugTimeline, setDebugTimeline] = useState<DebugTimelineEntry[]>([]);
   
@@ -238,6 +266,12 @@ function App(): React.JSX.Element {
   const [connectingBridgeTransport, setConnectingBridgeTransport] =
     useState<BridgeConnectionTransport | null>(null);
   const [cloudConnectionLink, setCloudConnectionLink] = useState('');
+  const [embeddedProxyUrl, setEmbeddedProxyUrl] = useState(
+    'http://127.0.0.1:3000/v1',
+  );
+  const [embeddedModel, setEmbeddedModel] = useState('qwen3.5:0.8b');
+  const [embeddedApiKey, setEmbeddedApiKey] = useState('');
+  const [embeddedHasSavedApiKey, setEmbeddedHasSavedApiKey] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(true);
@@ -432,7 +466,35 @@ function App(): React.JSX.Element {
     const loadSavedConnections = async () => {
       setConnectionsLoading(true);
       try {
-        const records = await loadConnections(connectionsStore);
+        let records = await loadConnections(connectionsStore);
+        if (Platform.OS === 'ios') {
+          let configuration: EmbeddedRuntimePublicConfiguration | null = null;
+          try {
+            configuration = await getEmbeddedPythonRuntimeConfiguration();
+          } catch (error) {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded settings seed failed',
+              detail: error instanceof Error ? error.message : String(error),
+            });
+          }
+          const prior = records.find(
+            (record): record is EmbeddedConnectionRecord =>
+              record.id === EMBEDDED_CONNECTION_ID &&
+              record.kind === 'embedded',
+          );
+          if (configuration) {
+            records = [
+              embeddedConnectionRecord(
+                configuration,
+                prior?.lastUsedAt ?? Date.now(),
+              ),
+              ...records.filter(
+                (record) => record.id !== EMBEDDED_CONNECTION_ID,
+              ),
+            ];
+          }
+        }
         setConnections(records);
       } catch (err) {
         console.log('Failed to load saved connections', err);
@@ -442,7 +504,7 @@ function App(): React.JSX.Element {
     };
 
     loadSavedConnections();
-  }, []);
+  }, [appendDebugNote]);
 
   useEffect(() => {
     const loadSessionsCache = async () => {
@@ -469,6 +531,9 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const save = async () => {
+      if (connectionsLoading) {
+        return;
+      }
       try {
         await saveConnections(connectionsStore, connections);
       } catch (err) {
@@ -477,7 +542,7 @@ function App(): React.JSX.Element {
     };
 
     save();
-  }, [connections]);
+  }, [connections, connectionsLoading]);
 
   useEffect(() => {
     const saveSessions = async () => {
@@ -663,6 +728,27 @@ function App(): React.JSX.Element {
     const sub = AppState.addEventListener('change', (nextState) => {
       const previousState = appStateRef.current;
       appStateRef.current = nextState;
+      if (Platform.OS === 'ios') {
+        void noteEmbeddedPythonRuntimeAppState(nextState)
+          .then((status) => {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded runtime lifecycle updated',
+              detail: status.state,
+              meta: {
+                backgroundTaskActive: status.backgroundTaskActive ?? false,
+                requestId: status.requestId ?? null,
+              },
+            });
+          })
+          .catch((error) => {
+            appendDebugNote({
+              scope: 'app',
+              title: 'Embedded runtime lifecycle update failed',
+              detail: error instanceof Error ? error.message : String(error),
+            });
+          });
+      }
 
       if (nextState === 'active') {
         if (previousState !== 'active') {
@@ -693,6 +779,34 @@ function App(): React.JSX.Element {
     handleAppForeground,
     transport,
   ]);
+
+  useEffect(() => {
+    if (connectionMethod !== 'embedded' || Platform.OS !== 'ios') {
+      return;
+    }
+    let active = true;
+    void getEmbeddedPythonRuntimeConfiguration()
+      .then((configuration) => {
+        if (!active) return;
+        if (configuration.proxyUrl) {
+          setEmbeddedProxyUrl(configuration.proxyUrl);
+        }
+        if (configuration.model) {
+          setEmbeddedModel(configuration.model);
+        }
+        setEmbeddedHasSavedApiKey(configuration.hasApiKey);
+      })
+      .catch((error) => {
+        appendDebugNote({
+          scope: 'app',
+          title: 'Embedded runtime configuration load failed',
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [appendDebugNote, connectionMethod]);
 
   useEffect(() => {
     zeroconf.on('resolved', (service: any) => {
@@ -799,6 +913,74 @@ function App(): React.JSX.Element {
         detail: error?.message || 'connection_error',
       });
       Alert.alert('Connection Error', error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const connectEmbedded = async () => {
+    const proxyUrl = embeddedProxyUrl.trim();
+    const model = embeddedModel.trim();
+    if (!proxyUrl || !model) {
+      Alert.alert('Error', 'Please enter both proxy URL and model');
+      return;
+    }
+    if (!embeddedApiKey && !embeddedHasSavedApiKey) {
+      Alert.alert('Error', 'Please enter the proxy API key');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Embedded runtime connection started',
+        detail: model,
+        meta: { proxyUrl },
+      });
+      const configuration = await configureEmbeddedPythonRuntime({
+        proxyUrl,
+        model,
+        ...(embeddedApiKey ? { apiKey: embeddedApiKey } : {}),
+      });
+      const embedded = createEmbeddedRuntimeBackend();
+      await embedded.transport.request({
+        method: 'POST',
+        path: '/embedded/runtime/validate',
+      });
+      await embedded.backend.listAgents();
+      setTransport(embedded.transport);
+      setBackend(embedded.backend);
+      const record: EmbeddedConnectionRecord = {
+        id: EMBEDDED_CONNECTION_ID,
+        kind: 'embedded',
+        name: 'On-device Python agent',
+        proxyUrl: configuration.proxyUrl,
+        model: configuration.model,
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(record.id);
+      setEmbeddedApiKey('');
+      setEmbeddedHasSavedApiKey(configuration.hasApiKey);
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
+      appendDebugNote({
+        scope: 'app',
+        title: 'Embedded runtime connection succeeded',
+        detail: configuration.model,
+        meta: { proxyUrl: configuration.proxyUrl },
+      });
+    } catch (error: any) {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Embedded runtime connection failed',
+        detail: error?.message || 'connection_error',
+      });
+      Alert.alert(
+        'Embedded Runtime Error',
+        error?.message || 'Could not start the embedded runtime',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -1029,6 +1211,13 @@ function App(): React.JSX.Element {
   };
 
   const handleDeleteConnection = (record: ConnectionRecord) => {
+    if (record.kind === 'embedded') {
+      Alert.alert(
+        'Built-in Connection',
+        'The on-device Python connection is always available on iOS.',
+      );
+      return;
+    }
     setConnections((prev) => prev.filter((r) => r.id !== record.id));
 
     setSessionsCache((prev) => {
@@ -1053,8 +1242,9 @@ function App(): React.JSX.Element {
   const renderMethodSelection = () => (
     <View style={styles.container}>
       <Text style={styles.title}>Select Connection Method</Text>
-      
+
       <TouchableOpacity
+        testID="connection-method-manual"
         style={[styles.button, styles.methodButton]}
         onPress={() => selectMethod('manual')}>
         <Text style={styles.buttonText}>Manual Address</Text>
@@ -1107,11 +1297,75 @@ function App(): React.JSX.Element {
     </View>
   );
 
+  const renderEmbeddedConnection = () => (
+    <ScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled">
+      <Text style={styles.title}>On-device Python Agent</Text>
+      <Text style={styles.infoText}>
+        Proof of concept: connect the embedded agent to an
+        API-key-protected OpenAI-compatible proxy.
+      </Text>
+
+      <TextInput
+        testID="embedded-proxy-url-input"
+        style={styles.input}
+        placeholder="Proxy URL"
+        value={embeddedProxyUrl}
+        onChangeText={setEmbeddedProxyUrl}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <TextInput
+        testID="embedded-model-input"
+        style={styles.input}
+        placeholder="Model"
+        value={embeddedModel}
+        onChangeText={setEmbeddedModel}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <TextInput
+        testID="embedded-api-key-input"
+        style={styles.input}
+        placeholder={
+          embeddedHasSavedApiKey
+            ? 'API key saved — leave blank to keep it'
+            : 'Proxy API key'
+        }
+        value={embeddedApiKey}
+        onChangeText={setEmbeddedApiKey}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+
+      <TouchableOpacity
+        testID="embedded-connect-button"
+        style={[styles.button, styles.primaryButton]}
+        onPress={connectEmbedded}
+        disabled={isLoading}>
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Starting...' : 'Start On-device Agent'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.secondaryButton]}
+        onPress={cancelConnectionWizard}>
+        <Text style={styles.buttonTextSecondary}>Back</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
   const renderManualConnection = () => (
     <View style={styles.container}>
       <Text style={styles.title}>Manual Connection</Text>
       
       <TextInput
+        testID="manual-host-input"
         style={styles.input}
         placeholder="Host (e.g., 192.168.1.100)"
         value={manualHost}
@@ -1119,8 +1373,9 @@ function App(): React.JSX.Element {
         autoCapitalize="none"
         autoCorrect={false}
       />
-      
+
       <TextInput
+        testID="manual-port-input"
         style={styles.input}
         placeholder="Port (e.g., 8080)"
         value={manualPort}
@@ -1129,6 +1384,7 @@ function App(): React.JSX.Element {
       />
 
       <TouchableOpacity
+        testID="manual-connect-button"
         style={[styles.button, styles.primaryButton]}
         onPress={connectManual}
         disabled={isLoading}>
@@ -1408,6 +1664,7 @@ function App(): React.JSX.Element {
   );
 
   const renderConnectingScreen = () => {
+    if (connectionMethod === 'embedded') return renderEmbeddedConnection();
     if (connectionMethod === 'manual') return renderManualConnection();
     if (connectionMethod === 'discovery') return renderDiscoveryConnection();
     if (connectionMethod === 'bridge') return renderBridgeConnection();
@@ -1433,8 +1690,14 @@ function App(): React.JSX.Element {
       });
 
       let nextTransport: Transport | null = null;
+      let nextBackend: AgentBackend | null = null;
 
-      if (record.kind === 'manual' || record.kind === 'discovery') {
+      if (record.kind === 'embedded') {
+        const embedded = createEmbeddedRuntimeBackend();
+        await embedded.backend.listAgents();
+        nextTransport = embedded.transport;
+        nextBackend = embedded.backend;
+      } else if (record.kind === 'manual' || record.kind === 'discovery') {
         const baseUrl = `http://${record.host}:${record.port}`;
         const httpTransport = createHttpTransport(baseUrl);
         await httpTransport.request({ method: 'GET', path: '/api/data' });
@@ -1475,7 +1738,7 @@ function App(): React.JSX.Element {
 
       if (nextTransport) {
         setTransport(nextTransport);
-        setBackend(new RestAgentBackend({ transport: nextTransport }));
+        setBackend(nextBackend ?? new RestAgentBackend({ transport: nextTransport }));
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
         appendDebugNote({
@@ -1553,6 +1816,22 @@ function App(): React.JSX.Element {
                       onSaveMessagesHistoryRange={saveMessagesHistoryRange}
                       debugTimeline={debugTimeline}
                       onAppendDebugTimelineEntry={appendDebugNote}
+                      onEmbeddedSettingsChanged={(configuration) => {
+                        const prior = connections.find(
+                          (record) =>
+                            record.id === EMBEDDED_CONNECTION_ID &&
+                            record.kind === 'embedded',
+                        );
+                        const updatedRecord = embeddedConnectionRecord(
+                          configuration,
+                          prior?.lastUsedAt ?? Date.now(),
+                        );
+                        upsertConnection(updatedRecord);
+                        invalidateAgentsCache(EMBEDDED_CONNECTION_ID);
+                        if (selectedConnectionId === EMBEDDED_CONNECTION_ID) {
+                          void handleSelectSavedConnection(updatedRecord);
+                        }
+                      }}
                     />
                   );
                 })()}

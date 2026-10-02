@@ -153,3 +153,26 @@ docker run -p 8080:80 cl-landing
 ```
 
 The build happens inside Docker so no local Node is required on the server.
+
+## Privacy-Minimized Website Analytics
+
+Production analytics is disabled unless both of these public build variables
+are valid:
+
+```text
+PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL=https://stats.dynamicprogrammingsolutions.com/insight.js
+PUBLIC_CRYSTAL_LATTICE_UMAMI_LANDING_ID=<Umami website UUID for crystallattice.dev>
+```
+
+The integration accepts only the approved script URL and a valid UUID, restricts
+collection to `crystallattice.dev`, respects Do Not Track and the browser
+`umami.disabled` opt-out, strips URL/referrer query and fragment data, and
+permits only page views and bounded Core Web Vitals. Missing or invalid values
+produce a normal build with no tracker markup.
+
+Run the focused checks with:
+
+```bash
+yarn test:analytics
+yarn test:content
+```

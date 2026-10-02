@@ -15,6 +15,8 @@ from boot_smoke import (
     assert_plugin_not_preinstalled,
     prepare_smoke_config,
 )
+from distribution_support import normalize_arch, normalize_platform
+from headless_access_smoke import assert_headless_access
 from progress import StepLogger
 
 
@@ -37,7 +39,7 @@ def smoke_test_archive(archive: Path) -> None:
     if not archive.is_file():
         raise RuntimeError(f"Archive does not exist: {archive}")
 
-    progress = StepLogger(total_steps=4)
+    progress = StepLogger(total_steps=5)
     with tempfile.TemporaryDirectory(prefix="crystal-python-runtime-smoke-") as tmp:
         temp_dir = Path(tmp)
         extract_dir = temp_dir / "extract"
@@ -71,6 +73,14 @@ def smoke_test_archive(archive: Path) -> None:
             expected_plugin_id=DYNAMIC_PLUGIN_PROBE,
             timeout_seconds=300,
             progress=progress.detail,
+        )
+        progress.step("Verifying archive CLI and Python SDK headless access")
+        assert_headless_access(
+            [launcher_path(package_dir)],
+            python=python_path(package_dir),
+            config_path=config_path,
+            workspace=temp_dir / "headless access workspace",
+            home_dir=temp_dir / "headless access home",
         )
 
 
@@ -117,6 +127,7 @@ def validate_package(package_dir: Path) -> None:
         if not path.exists():
             raise RuntimeError(f"Expected package path is missing: {path}")
 
+    validate_native_python_identity(package_dir, manifest)
     validate_portable_python_links(package_dir, manifest)
 
     output = subprocess.check_output(
@@ -151,6 +162,35 @@ def validate_package(package_dir: Path) -> None:
         raise RuntimeError(
             "Runtime layout does not point "
             "CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST at preinstalled-plugins.json"
+        )
+
+
+def validate_native_python_identity(
+    package_dir: Path, manifest: dict[str, object]
+) -> None:
+    output = subprocess.check_output(
+        [
+            str(python_path(package_dir)),
+            "-c",
+            (
+                "import json, platform, sys; "
+                "print(json.dumps({'platform': sys.platform, "
+                "'machine': platform.machine()}))"
+            ),
+        ],
+        cwd=str(package_dir),
+        text=True,
+    )
+    identity = json.loads(output)
+    actual_platform = normalize_platform(str(identity.get("platform", "")))
+    actual_arch = normalize_arch(str(identity.get("machine", "")))
+    expected_platform = normalize_platform(str(manifest.get("platform", "")))
+    expected_arch = normalize_arch(str(manifest.get("arch", "")))
+    if (actual_platform, actual_arch) != (expected_platform, expected_arch):
+        raise RuntimeError(
+            "Packaged Python identity does not match runtime manifest: "
+            f"expected {expected_platform}-{expected_arch}, "
+            f"got {actual_platform}-{actual_arch}"
         )
 
 

@@ -1,5 +1,9 @@
 # Test 17: public package profile and local ownership
 
+Legacy status: retained for the direct pre/post comparison. Its required full
+package profile conflicts with the current rule that every illustrated file is
+optional, so it is excluded from the revised suite.
+
 ## Purpose
 
 Verify that an agent applies the Crystal Lattice public-package profile

@@ -19,6 +19,12 @@ import {
   type SessionRequestStatusSnapshot,
 } from '../types/sessionRequestStatus';
 import type {
+  MessageDataQueryParams,
+  MessageDataQueryResult,
+  SessionDataQueryParams,
+  SessionDataQueryResult,
+} from '../types/sessionDataQuery';
+import type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
@@ -31,23 +37,65 @@ import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsI
 const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
 
 function buildQuery(
-  params: Record<string, string | number | boolean | undefined>,
+  params: Record<
+    string,
+    | string
+    | number
+    | boolean
+    | readonly (string | number | boolean)[]
+    | undefined
+  >,
 ): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue;
-    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+    const values = Array.isArray(value) ? value : [value];
+    for (const item of values) {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(item))}`);
+    }
   }
   return parts.length > 0 ? `?${parts.join('&')}` : '';
 }
 
+function csvFilterValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return 'any';
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        const rendered = String(item);
+        return /[",\r\n]/.test(rendered)
+          ? `"${rendered.replace(/"/g, '""')}"`
+          : rendered;
+      })
+      .join(',');
+  }
+  return String(value);
+}
+
+function filterAssignments(
+  filters: Readonly<Record<string, unknown>> | undefined,
+): string[] | undefined {
+  if (!filters) {
+    return undefined;
+  }
+  return Object.entries(filters).map(
+    ([filterId, value]) => `${filterId}=${csvFilterValue(value)}`,
+  );
+}
+
 export class RestAgentBackend implements AgentBackend {
-  readonly kind = 'rest' as const;
+  readonly kind: 'rest' | 'inProcess';
 
   private transport: Transport;
 
-  constructor(options: { transport: Transport }) {
+  constructor(options: {
+    transport: Transport;
+    kind?: 'rest' | 'inProcess';
+  }) {
     this.transport = options.transport;
+    this.kind = options.kind ?? 'rest';
   }
 
   private buildIdempotencyHeaders(idempotencyKey?: string): Record<string, string> {
@@ -154,6 +202,23 @@ export class RestAgentBackend implements AgentBackend {
     return sessions;
   }
 
+  async querySessions(
+    params: SessionDataQueryParams = {},
+  ): Promise<SessionDataQueryResult> {
+    const query = buildQuery({
+      limit: params.limit,
+      apply_filter_defaults: params.applyFilterDefaults,
+      filter: filterAssignments(params.filters),
+      include: params.include,
+      exclude: params.exclude,
+    });
+    const resp = await this.transport.request<SessionDataQueryResult>({
+      method: 'GET',
+      path: `/sessions${query}`,
+    });
+    return resp.data;
+  }
+
   async getSessionSummary(sessionId: string): Promise<SessionSummary> {
     const resp = await this.transport.request<{ session?: SessionSummary } | SessionSummary>({
       method: 'GET',
@@ -203,6 +268,24 @@ export class RestAgentBackend implements AgentBackend {
       readonly: resp.data?.readonly === true,
       snapshotId: typeof resp.data?.snapshot_id === 'string' ? resp.data.snapshot_id : null,
     };
+  }
+
+  async queryMessages(
+    sessionId: string,
+    params: MessageDataQueryParams = {},
+  ): Promise<MessageDataQueryResult> {
+    const query = buildQuery({
+      start: params.start,
+      end: params.end,
+      include: params.include,
+      exclude: params.exclude,
+    });
+    const path = `/sessions/${encodeURIComponent(sessionId)}/messages${query}`;
+    const resp = await this.transport.request<MessageDataQueryResult>({
+      method: 'GET',
+      path,
+    });
+    return resp.data;
   }
 
   async listSessionSnapshots(sessionId: string): Promise<SessionSnapshotSummary[]> {
@@ -380,6 +463,19 @@ export class RestAgentBackend implements AgentBackend {
     options: { idempotencyKey?: string } = {},
   ): Promise<void> {
     const path = `/requests/${encodeURIComponent(requestId)}/cancel`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async softCancelRequest(
+    requestId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/requests/${encodeURIComponent(requestId)}/soft-cancel`;
     await this.transport.request({
       method: 'POST',
       path,

@@ -3,11 +3,16 @@ import type { UiSchemaElement } from "../types/uiSchema";
 import {
   normalizeSessionListActionElement,
   type SessionListActionElement,
+  type SessionListButtonRichUi,
   type SessionListRichUi,
 } from "../sessions/sessionListContracts";
 import type { SessionListOptionTone } from "../sessions/sessionListFilters";
 
-export const CHAT_RICH_UI_PLACEMENTS = ["session_header", "composer"] as const;
+export const CHAT_RICH_UI_PLACEMENTS = [
+  "session_header",
+  "composer",
+  "session_settings",
+] as const;
 
 export type ChatRichUiPlacement = (typeof CHAT_RICH_UI_PLACEMENTS)[number];
 
@@ -107,6 +112,11 @@ export interface ConfigRichUiControl {
 export interface SessionActionRichUiElement extends ActionUiElement {
   ui_type: "session_action";
   rich_ui?: SessionListRichUi;
+}
+
+export interface SessionSettingsActionAnchor {
+  key?: string;
+  position: "after";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -886,6 +896,22 @@ export function isSessionActionPlacedAt(
   placement: ChatRichUiPlacement,
 ): boolean {
   return getSessionActionRichUiPlacements(element).includes(placement);
+}
+
+export function getSessionSettingsActionAnchor(
+  element: SessionActionRichUiElement,
+): SessionSettingsActionAnchor {
+  const richUi = element.rich_ui;
+  if (!richUi || richUi.kind !== "button") {
+    return { position: "after" };
+  }
+  const button = richUi as SessionListButtonRichUi;
+  return {
+    ...(typeof button.anchor_key === "string" && button.anchor_key
+      ? { key: button.anchor_key }
+      : {}),
+    position: "after",
+  };
 }
 
 export function normalizeSessionActionRichUiElements(

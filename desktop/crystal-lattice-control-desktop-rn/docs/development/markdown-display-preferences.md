@@ -36,6 +36,29 @@ uses the `feature/native-line-height` branch of
 reviewable fork commit. Raw and otherwise non-markdown message bodies consume
 the semantic `message` font size and line height.
 
+The raw assistant message uses the repository's native `MacTextView` in
+read-only auto-grow mode. Read-only native instances forward wheel events to
+their parent, reset their clip origin to the top, disable spelling, grammar,
+replacement, data-detection, and undo services, and expose only Copy in the
+context menu. The raw renderer passes its Menlo family, semantic message font
+size and line height, and zero text-container inset. A production `ChatPane`
+XCUITest proves that the same wheel gesture moves the transcript over both an
+ordinary message and the tall raw assistant block.
+
+The chat header session ID uses `Text selectable`. Human verification
+confirmed selection works; AppKit also exposes spelling and grammar menu
+items, which is accepted for this field. Clickable Sessions and home
+collection rows retain their separate human gate before any selection change.
+
+Expanded reasoning, tool results, and tool-call arguments use read-only
+auto-growing `MacTextView` instances inside their existing bounded
+`ScrollView`s. Wheel input therefore reaches the intentional bounded parent
+instead of creating another hidden native scroll offset. Markdown fenced and
+indented code retain syntax highlighting but have no nested `ScrollView`.
+Long code wraps to the available message width and the block expands to its
+complete content height. Its syntax highlighter uses a selectable root
+`Text`, and wheel input over the block moves the transcript.
+
 Native verification launches `DesktopMarkdownGeometryHarness` through the
 application's harness initial property. The harness uses the production
 markdown renderer and reports React `onLayout` measurements through

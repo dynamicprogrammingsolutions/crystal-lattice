@@ -17,15 +17,26 @@ export interface UsePersistedConnectionsResult {
   clearConnections: () => void;
 }
 
+export interface UsePersistedConnectionsOptions {
+  initialRecords?: ConnectionRecord[];
+  skipHydration?: boolean;
+}
+
 function sortByLastUsedDesc(records: ConnectionRecord[]): ConnectionRecord[] {
   return [...records].sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
 }
 
-export function usePersistedConnections(store: KeyValueStore): UsePersistedConnectionsResult {
-  const [connectionRecords, setConnectionRecords] = useState<ConnectionRecord[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+export function usePersistedConnections(
+  store: KeyValueStore,
+  options: UsePersistedConnectionsOptions = {},
+): UsePersistedConnectionsResult {
+  const [connectionRecords, setConnectionRecords] = useState<
+    ConnectionRecord[]
+  >(options.initialRecords ?? []);
+  const [hydrated, setHydrated] = useState(options.skipHydration === true);
 
   useEffect(() => {
+    if (options.skipHydration) return;
     const hydrate = async () => {
       try {
         const records = await loadConnections(store);
@@ -35,22 +46,21 @@ export function usePersistedConnections(store: KeyValueStore): UsePersistedConne
       }
     };
     hydrate();
-  }, [store]);
+  }, [options.skipHydration, store]);
 
   useEffect(() => {
     if (!hydrated) return;
     const save = async () => {
       try {
         await saveConnections(store, connectionRecords);
-      } catch {
-      }
+      } catch {}
     };
     save();
   }, [connectionRecords, hydrated, store]);
 
   const upsertConnection = useCallback((record: ConnectionRecord) => {
-    setConnectionRecords((prev) => {
-      const idx = prev.findIndex((existing) => existing.id === record.id);
+    setConnectionRecords(prev => {
+      const idx = prev.findIndex(existing => existing.id === record.id);
       if (idx === -1) {
         return [...prev, record];
       }
@@ -61,13 +71,15 @@ export function usePersistedConnections(store: KeyValueStore): UsePersistedConne
   }, []);
 
   const deleteConnection = useCallback((connectionId: string) => {
-    setConnectionRecords((prev) => prev.filter((record) => record.id !== connectionId));
+    setConnectionRecords(prev =>
+      prev.filter(record => record.id !== connectionId),
+    );
   }, []);
 
   const touchConnection = useCallback((connectionId: string) => {
     const now = Date.now();
-    setConnectionRecords((prev) =>
-      prev.map((record) =>
+    setConnectionRecords(prev =>
+      prev.map(record =>
         record.id === connectionId ? { ...record, lastUsedAt: now } : record,
       ),
     );

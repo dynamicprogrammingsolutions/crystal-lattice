@@ -71,11 +71,52 @@ function trimTail(messages: IndexedMessage[], maxMessages: number | null): Index
   return messages.slice(messages.length - maxMessages);
 }
 
+/**
+ * The default history window: the last 50 messages (suffix range `-50:`).
+ *
+ * Used as the automatic fallback when a load for another range fails
+ * because the range no longer selects any messages (for example after a
+ * session compaction rewrote the history).
+ */
+export const DEFAULT_HISTORY_RANGE: { start?: number; end?: number } = {
+  start: -50,
+};
+
+const RANGE_SELECTS_NO_MESSAGES_PATTERN = /range selects no messages/i;
+
+/**
+ * Detect the server's rejection of a message range that selects no
+ * messages (HTTP 400 from `GET /sessions/{id}/messages`).
+ *
+ * Transports surface HTTP errors as `Error` objects whose message embeds
+ * the server detail string, so the detail substring is matched on any
+ * error-like value.
+ */
+export function isRangeSelectsNoMessagesError(err: unknown): boolean {
+  if (typeof err === 'string') {
+    return RANGE_SELECTS_NO_MESSAGES_PATTERN.test(err);
+  }
+  if (err && typeof err === 'object') {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return RANGE_SELECTS_NO_MESSAGES_PATTERN.test(message);
+    }
+  }
+  return false;
+}
+
+function isDefaultHistoryRange(range: { start?: number; end?: number }): boolean {
+  return range.start === DEFAULT_HISTORY_RANGE.start && range.end === undefined;
+}
+
 export class ChatController extends SimpleSubscribable<ChatControllerState> {
   private backend: AgentBackend;
   private eventSource: PollingEventSource | null = null;
   private readonly sessionId: string;
   private onEventsListener: ((events: Event[]) => void) | null = null;
+  private rangeFallbackListener:
+    | ((range: { start?: number; end?: number }) => void)
+    | null = null;
 
   private epoch = 0;
   private autoReloadUsedEpoch = -1;
@@ -89,6 +130,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     initialMessages?: IndexedMessage[];
     initialEventsCursorId?: string | null;
     initialActiveRequestId?: string | null;
+    onRangeFallback?: (range: { start?: number; end?: number }) => void;
   }) {
     super({
       sessionId: options.sessionId,
@@ -111,6 +153,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     });
     this.backend = options.backend;
     this.sessionId = options.sessionId;
+    this.rangeFallbackListener = options.onRangeFallback ?? null;
 
     // Default the window to the existing messages so we don't grow without
     // bounds when hydrating from cache. Frontends are expected to call
@@ -125,6 +168,18 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
 
   setEventsListener(listener: ((events: Event[]) => void) | null): void {
     this.onEventsListener = listener;
+  }
+
+  /**
+   * Set (or clear) the listener notified when a message load falls back to
+   * {@link DEFAULT_HISTORY_RANGE} because the requested range no longer
+   * selects any messages. Consumers use it to sync their persisted range
+   * state to the effective range.
+   */
+  setRangeFallbackListener(
+    listener: ((range: { start?: number; end?: number }) => void) | null,
+  ): void {
+    this.rangeFallbackListener = listener;
   }
 
   isEventStreaming(): boolean {
@@ -346,6 +401,14 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     await this.backend.cancelRequest(active);
   }
 
+  async softCancelActiveRequest(): Promise<void> {
+    const active = this.getSnapshot().activeRequestId;
+    if (!active) {
+      return;
+    }
+    await this.backend.softCancelRequest(active);
+  }
+
   async modifyMessage(index: number, content: string): Promise<void> {
     this.beginEpoch();
     await this.backend.modifyMessage(this.sessionId, index, content);
@@ -498,7 +561,13 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     if (options.bumpEpoch) {
       this.beginEpoch();
     }
+    await this.reloadMessagesWithRange(range, { allowFallback: true });
+  }
 
+  private async reloadMessagesWithRange(
+    range: { start?: number; end?: number },
+    options: { allowFallback: boolean },
+  ): Promise<void> {
     const wasStreaming = this.isEventStreaming();
     if (wasStreaming) {
       this.stopEventStreaming();
@@ -547,6 +616,27 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         this.startEventStreaming({ initialSinceId: cursorEventId ?? null });
       }
     } catch (err) {
+      if (
+        options.allowFallback &&
+        !isDefaultHistoryRange(range) &&
+        isRangeSelectsNoMessagesError(err)
+      ) {
+        // The requested range no longer selects any messages (for example
+        // after a session compaction rewrote the history). Recover by
+        // loading the default suffix window instead of failing.
+        const fallbackRange = { ...DEFAULT_HISTORY_RANGE };
+        if (this.rangeFallbackListener) {
+          try {
+            this.rangeFallbackListener(fallbackRange);
+          } catch {
+            // Listener errors must not break loading.
+          }
+        }
+        await this.reloadMessagesWithRange(fallbackRange, {
+          allowFallback: false,
+        });
+        return;
+      }
       this.setSnapshot({ ...this.getSnapshot(), loading: false });
       throw err;
     }

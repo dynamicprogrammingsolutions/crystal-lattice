@@ -19,6 +19,7 @@
     "test:macos-ui:connections": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ConnectionsPanelUITests",
     "test:macos-ui:transcript-range": "CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/TranscriptRangeNavigationUITests",
     "test:macos-ui:action-display": "CLC_ENABLE_ACTION_DISPLAY_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ActionDisplayWindowUITests",
+    "test:macos-ui:human-time": "jest --config jest.macos-ui.config.js --runInBand --runTestsByPath __native__/humanTimeTelemetry.native.test.ts",
     "pod-install": "cd macos && pod install && cd .."
   },
   "dependencies": {
@@ -41,9 +42,9 @@
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
-    "@react-native-community/cli": "20.0.0",
-    "@react-native-community/cli-platform-android": "20.0.0",
-    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native-community/cli": "20.2.0",
+    "@react-native-community/cli-platform-android": "20.2.0",
+    "@react-native-community/cli-platform-ios": "20.2.0",
     "@react-native/babel-preset": "0.81.6",
     "@react-native/eslint-config": "0.81.6",
     "@react-native/metro-config": "0.81.6",

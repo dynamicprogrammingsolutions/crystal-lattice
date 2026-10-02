@@ -29,25 +29,27 @@ support SLA or a fixed compatibility window at this stage.
 
 ### 1. Install The Terminal/Server App
 
-On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
+On macOS or Linux:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
-The installer places `crystal-lattice` in an existing suitable writable
-directory already on your `PATH`, preferring an existing installation,
-`~/.local/bin`, or `~/bin`. If no suitable directory is available, it stops
-with instructions for setting `BIN_DIR` instead of installing an undiscoverable
-command.
+On Windows x64 or ARM64, run from PowerShell:
 
-Users who prefer Python packaging can use:
-
-```bash
-pipx install crystal-lattice-cli
+```powershell
+irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex
 ```
 
-More installation details are in [application/python/README.md](application/python/README.md).
+Both installers include Python and verify that `crystal-lattice` is available
+by name. No provider credentials are required for startup.
+
+The Python packages are not currently published to PyPI. For development from
+a source checkout, use the editable-install instructions later in this README.
+
+For PATH behavior, review-first installation, manual archives, updates, and
+removal, see the
+[installation guide](application/python/docs/installation.md).
 
 ### 2. Start The Server And Terminal
 
@@ -382,9 +384,11 @@ Contributor references:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
-- [TYPES_AND_PROTOCOLS.md](TYPES_AND_PROTOCOLS.md)
-- [EXAMPLES.md](EXAMPLES.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Core types and plugin protocols](core/python/docs/types-and-protocols.md)
+- [Application events](core/python/docs/events.md)
+- [Tested Core examples](core/python/docs/examples.md)
 
 ## Architecture Overview
 
@@ -510,7 +514,7 @@ print(replies[-1]["content"])
 ## Examples And Recipes
 
 Examples live under `core/python/examples` and are catalogued in
-[EXAMPLES.md](EXAMPLES.md). Highlights include echo providers, provider
+[the generated examples guide](core/python/docs/examples.md). Highlights include echo providers, provider
 extensions, feature plugins, file tools, streaming, app-layer flows, and
 OpenRouter/Ollama examples.
 
@@ -535,7 +539,9 @@ Key docs:
 - [Development documentation](docs/development/index.md)
 - [Reusable development standards](docs/development/standards/index.md)
 - [Crystal Lattice repository policy](docs/development/repository/index.md)
-- [docs/api/core-sdk.md](docs/api/core-sdk.md)
+- [Core Python documentation](core/python/docs/index.md)
+- [Core SDK guide](core/python/docs/core-sdk.md)
+- [Application events](core/python/docs/events.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
 - [docs/reference/agent_core](docs/reference/agent_core)
@@ -577,7 +583,7 @@ python scripts/generate_examples_md.py
 ## Status And Version
 
 - Core package: `agent-core` 0.3.0
-- Terminal CLI package: `crystal-lattice-cli` 0.1.1 (`crystal-lattice` command)
+- Terminal CLI package: `crystal-lattice-cli` 0.1.5 (`crystal-lattice` command)
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.

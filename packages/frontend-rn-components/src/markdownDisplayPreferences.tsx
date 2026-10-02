@@ -5,10 +5,30 @@ export const MARKDOWN_BASE_FONT_SIZES = [14, 15, 16, 17] as const;
 
 export type MarkdownBaseFontSize = (typeof MARKDOWN_BASE_FONT_SIZES)[number];
 export type MarkdownHeaderSize = 'normal' | 'small';
+export type MarkdownRendererId =
+  | 'react-native-markdown-display'
+  | 'react-native-enriched-markdown';
+export type CodeBlockRendererId =
+  | 'selectable-native'
+  | 'syntax-highlighter';
 
 export interface MarkdownDisplayPreferences {
   baseFontSize: MarkdownBaseFontSize;
   headerSize: MarkdownHeaderSize;
+  markdownRenderer: MarkdownRendererId;
+  codeBlockRenderer: CodeBlockRendererId;
+}
+
+export interface MarkdownRendererCapabilities {
+  enrichedMarkdown: boolean;
+  selectableNativeCode: boolean;
+}
+
+export interface ResolvedMarkdownRendererPreferences {
+  markdownRenderer: MarkdownRendererId;
+  codeBlockRenderer: CodeBlockRendererId;
+  markdownRendererFellBack: boolean;
+  codeBlockRendererFellBack: boolean;
 }
 
 export interface MarkdownTypography {
@@ -46,9 +66,39 @@ export const MARKDOWN_HEADER_SIZE_OPTIONS: ReadonlyArray<{
   { value: 'small', label: 'Small' },
 ];
 
+export const MARKDOWN_RENDERER_OPTIONS: ReadonlyArray<{
+  value: MarkdownRendererId;
+  label: string;
+}> = [
+  {
+    value: 'react-native-markdown-display',
+    label: 'React Native Markdown Display',
+  },
+  {
+    value: 'react-native-enriched-markdown',
+    label: 'Enriched Markdown (experimental)',
+  },
+];
+
+export const CODE_BLOCK_RENDERER_OPTIONS: ReadonlyArray<{
+  value: CodeBlockRendererId;
+  label: string;
+}> = [
+  {
+    value: 'selectable-native',
+    label: 'Selectable native code',
+  },
+  {
+    value: 'syntax-highlighter',
+    label: 'Syntax highlighter',
+  },
+];
+
 export const DEFAULT_MARKDOWN_DISPLAY_PREFERENCES: MarkdownDisplayPreferences = {
   baseFontSize: 15,
   headerSize: 'normal',
+  markdownRenderer: 'react-native-markdown-display',
+  codeBlockRenderer: 'selectable-native',
 };
 
 type ResponsiveTypography = Pick<
@@ -249,6 +299,23 @@ export function normalizeMarkdownHeaderSize(value: unknown): MarkdownHeaderSize 
     : DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.headerSize;
 }
 
+export function normalizeMarkdownRendererId(
+  value: unknown,
+): MarkdownRendererId {
+  return value === 'react-native-markdown-display' ||
+    value === 'react-native-enriched-markdown'
+    ? value
+    : DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.markdownRenderer;
+}
+
+export function normalizeCodeBlockRendererId(
+  value: unknown,
+): CodeBlockRendererId {
+  return value === 'selectable-native' || value === 'syntax-highlighter'
+    ? value
+    : DEFAULT_MARKDOWN_DISPLAY_PREFERENCES.codeBlockRenderer;
+}
+
 export function normalizeMarkdownDisplayPreferences(
   value: unknown,
 ): MarkdownDisplayPreferences {
@@ -259,11 +326,45 @@ export function normalizeMarkdownDisplayPreferences(
   return {
     baseFontSize: normalizeMarkdownBaseFontSize(record.baseFontSize),
     headerSize: normalizeMarkdownHeaderSize(record.headerSize),
+    markdownRenderer: normalizeMarkdownRendererId(record.markdownRenderer),
+    codeBlockRenderer: normalizeCodeBlockRendererId(record.codeBlockRenderer),
+  };
+}
+
+export function resolveMarkdownRendererPreferences(
+  preferences: MarkdownDisplayPreferences,
+  capabilities: MarkdownRendererCapabilities,
+): ResolvedMarkdownRendererPreferences {
+  const requestedMarkdownRenderer = normalizeMarkdownRendererId(
+    preferences.markdownRenderer,
+  );
+  const requestedCodeBlockRenderer = normalizeCodeBlockRendererId(
+    preferences.codeBlockRenderer,
+  );
+  const markdownRendererFellBack =
+    requestedMarkdownRenderer === 'react-native-enriched-markdown' &&
+    !capabilities.enrichedMarkdown;
+  const codeBlockRendererFellBack =
+    requestedCodeBlockRenderer === 'selectable-native' &&
+    !capabilities.selectableNativeCode;
+
+  return {
+    markdownRenderer: markdownRendererFellBack
+      ? 'react-native-markdown-display'
+      : requestedMarkdownRenderer,
+    codeBlockRenderer: codeBlockRendererFellBack
+      ? 'syntax-highlighter'
+      : requestedCodeBlockRenderer,
+    markdownRendererFellBack,
+    codeBlockRendererFellBack,
   };
 }
 
 export function deriveMarkdownTypography(
-  preferences: MarkdownDisplayPreferences,
+  preferences: Pick<
+    MarkdownDisplayPreferences,
+    'baseFontSize' | 'headerSize'
+  >,
 ): MarkdownTypography {
   const baseFontSize = normalizeMarkdownBaseFontSize(preferences.baseFontSize);
   const headerSize = normalizeMarkdownHeaderSize(preferences.headerSize);
@@ -334,7 +435,12 @@ export function MarkdownDisplayPreferencesProvider({
 }: MarkdownDisplayPreferencesProviderProps): React.JSX.Element {
   const preferences = useMemo(
     () => normalizeMarkdownDisplayPreferences(value),
-    [value.baseFontSize, value.headerSize],
+    [
+      value.baseFontSize,
+      value.codeBlockRenderer,
+      value.headerSize,
+      value.markdownRenderer,
+    ],
   );
   const setPreferences = useCallback(
     (update: MarkdownDisplayPreferenceUpdate) => {

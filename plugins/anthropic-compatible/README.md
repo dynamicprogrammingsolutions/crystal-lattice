@@ -131,6 +131,8 @@ Provider-owned keys:
 
 - `provider`: `anthropic`;
 - `auth_mode`: currently `api`;
+- `provider_transport`: `sdk` by default, or `requests` for fixed runtimes
+  without the Anthropic SDK dependency closure;
 - `api_key`: resolved API key;
 - `base_url`: API root, default `https://api.anthropic.com`;
 - `model`: selected model ID;
@@ -141,6 +143,10 @@ Provider-owned keys:
 - `headers`: additional non-secret headers.
 - `betas`: beta identifiers passed through the SDK beta Messages API;
 - `beta_headers`: beta identifiers composed into the Anthropic beta header.
+
+The requests transport supports model discovery, standard and beta Messages
+requests, streaming events, tools, reasoning blocks, usage, and cancellation.
+The official SDK remains the default for ordinary installations.
 
 The provider owns transport, native Messages history, cancellation, model
 discovery, and redacted request failures. It remains usable for plain text when

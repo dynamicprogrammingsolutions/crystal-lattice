@@ -4,7 +4,7 @@
 Updates the authoritative version in ``application/python/pyproject.toml`` and
 syncs the previous version string in the documentation files that reference it
 (the root README status line, the application README install/archive examples,
-and the deploy runbook examples).
+the installation guides, and the deploy runbook examples).
 """
 from __future__ import annotations
 
@@ -20,6 +20,9 @@ PYPROJECT_PATH = Path("application") / "python" / "pyproject.toml"
 DOC_PATHS = (
     Path("README.md"),
     Path("application") / "python" / "README.md",
+    Path("application") / "python" / "docs" / "installation-macos-linux.md",
+    Path("application") / "python" / "docs" / "installation-windows.md",
+    Path("application") / "python" / "docs" / "installation-manual.md",
     Path("deploy") / "aws-cli-downloads" / "README.md",
 )
 VERSION_LINE_RE = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"$')

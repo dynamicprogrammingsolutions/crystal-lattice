@@ -87,6 +87,59 @@ key for that provider or tool. See
 [configuration placeholders](configuration-placeholders.md#env-files) for
 the complete lookup order and precedence.
 
+## Bridge runtime settings
+
+Bridge registration is explicitly enabled with `--enable-bridge` or
+`--bridge-url`. `application.bridge_url` supplies a reusable URL but does not
+enable registration by itself. URL precedence is:
+
+1. `--bridge-url`;
+2. `.crystal/profile.json`;
+3. `~/.crystal/projects.json`;
+4. `application.bridge_url`.
+
+Advanced bridge-client transport settings live under `application.bridge`:
+
+```json
+{
+  "application": {
+    "bridge_url": "wss://bridge.example/ws/websocket",
+    "bridge": {
+      "ws_max_size_bytes": 16777216,
+      "http_timeout_seconds": 120.0,
+      "http_chunk_size_bytes": 921600,
+      "http_chunk_threshold_bytes": 262144,
+      "http_max_body_bytes": 10485760,
+      "debug": false
+    }
+  }
+}
+```
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `ws_max_size_bytes` | positive integer or `null` | `16777216` (16 MiB) | Maximum WebSocket message accepted by the Python bridge client. `null` disables the WebSocket library's message-size limit. |
+| `http_timeout_seconds` | positive finite number | `120.0` | Timeout used by bridge HTTP download/upload operations. |
+| `http_chunk_size_bytes` | positive integer | `921600` (900 KiB) | Payload target for legacy chunked bridge responses, with protocol-envelope headroom applied by the adapter. |
+| `http_chunk_threshold_bytes` | positive integer | `262144` (256 KiB) | Response size above which the legacy adapter uses chunked response events. |
+| `http_max_body_bytes` | positive integer | `10485760` (10 MiB) | Maximum request body buffered by the Python legacy bridge adapter. |
+| `debug` | boolean | `false` | Enables bridge-client debug output. |
+
+Wrong JSON types, zero or negative sizes/timeouts, and non-finite timeouts stop
+server startup with a field-specific error. These settings are read when the
+process starts. Application reload does not reconnect the bridge or restart
+Bonjour, so changing them requires restarting Crystal Lattice.
+
+Bridge and Bonjour do not implicitly read specially named environment
+variables. Use the documented CLI/profile/application settings. Embedders that
+run `agent_terminal_app.server:app` directly configure
+`ServerIntegrationRuntimeConfig` before FastAPI startup.
+
+The ordinary [placeholder system](configuration-placeholders.md) remains
+available when a configuration author deliberately places a placeholder in
+one of these fields; that is explicit configuration, not an automatic bridge
+environment contract.
+
 ## Session-list loading
 
 The current local session-list implementation persists complete derived

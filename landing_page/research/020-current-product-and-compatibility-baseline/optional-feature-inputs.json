@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "features": [
+    {
+      "project_name": "duration-tracking",
+      "reason": "Relevant optional transparency behavior named by task scope."
+    },
+    {
+      "project_name": "gemini-compaction-app",
+      "reason": "Relevant optional application compaction behavior named by task scope."
+    },
+    {
+      "project_name": "gemini-compaction-feature",
+      "reason": "Relevant optional provider/request compaction behavior named by task scope."
+    },
+    {
+      "project_name": "message-export-actions",
+      "reason": "Relevant optional export behavior named by task scope."
+    },
+    {
+      "project_name": "sleep-prevention-app",
+      "reason": "Relevant optional background-operation behavior named by task scope."
+    }
+  ]
+}

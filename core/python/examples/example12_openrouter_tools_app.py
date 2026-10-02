@@ -1,5 +1,5 @@
 """
-PROJECT_PLAN Example 12: OpenRouter + tools application layer.
+Example 12: OpenRouter tools application.
 
 This example shows how to build a small application around
 ``agent_core.AgentCore`` using the OpenRouter provider with tools and

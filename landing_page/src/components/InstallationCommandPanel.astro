@@ -1,0 +1,63 @@
+---
+import type { InstallationCommandMethod } from "../content/pageTypes";
+
+interface Props {
+  method: InstallationCommandMethod;
+  arrowIcon: string;
+}
+
+const { method, arrowIcon } = Astro.props;
+const commandId = `install-command-${method.id}`;
+const copyLabel = `Copy ${method.tabLabel} install command`;
+const copiedLabel = `Copied ${method.tabLabel} install command`;
+---
+
+<div class="flex min-h-[174px] flex-col">
+  <div class="border-b border-line px-5 py-2.5 sm:px-6">
+    <p class="font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-fg-4">
+      {method.panelLabel}
+    </p>
+  </div>
+  <div class="relative flex min-h-[72px] items-center gap-3 bg-code px-5 py-5 pr-14 font-mono text-[0.8125rem] sm:px-6 sm:pr-16">
+    <span class="shrink-0 select-none font-semibold text-accent">
+      {method.prompt}
+    </span>
+    <div class="min-w-0 flex-1 overflow-x-auto" data-install-command-scroll>
+      <code
+        id={commandId}
+        class="whitespace-nowrap bg-transparent p-0 text-fg [font-size:inherit]"
+        data-install-command
+      >
+        {method.command}
+      </code>
+    </div>
+    <button
+      type="button"
+      class="absolute right-4 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-line bg-raised text-fg-5 transition-colors hover:border-line-strong hover:text-fg-2"
+      aria-label={copyLabel}
+      aria-controls={commandId}
+      data-copy-label={copyLabel}
+      data-copied-label={copiedLabel}
+      data-copied="false"
+      data-install-copy
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+    </button>
+    <span class="sr-only" aria-live="polite" data-copy-status></span>
+  </div>
+  <div class="flex flex-1 flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-3 sm:px-6">
+    <p class="text-xs leading-relaxed text-fg-4">{method.support}</p>
+    <a
+      href={method.documentation.href}
+      target={method.documentation.target}
+      rel={method.documentation.target ? "noopener" : undefined}
+      class="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-accent-soft transition-colors hover:text-accent-pale"
+    >
+      {method.documentation.label}
+      <Fragment set:html={arrowIcon} />
+    </a>
+  </div>
+</div>

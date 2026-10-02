@@ -11,6 +11,12 @@ extra:
   crystal_lattice:
     site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
     docs_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.dev"]
+    analytics:
+      script_url: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_SCRIPT_URL, ""]
+      website_id: !ENV [PUBLIC_CRYSTAL_LATTICE_UMAMI_DOCS_ID, ""]
+
+hooks:
+  - hooks/analytics.py
 
 theme:
   name: material
@@ -81,6 +87,14 @@ plugins:
           - development/specifications/bridge-connectivity/technical-spec.md: Bridge-connectivity technical contract.
           - development/specifications/bridge-connectivity/protocol.md: Bridge-connectivity wire protocol.
         Guides:
+          - packages/application-python/installation.md: Choose a Crystal Lattice CLI installation method.
+          - packages/application-python/installation-macos-linux.md: Install the CLI on macOS or Linux.
+          - packages/application-python/installation-windows.md: Install the CLI with native Windows PowerShell.
+          - packages/application-python/installation-manual.md: Download, extract, and run a release archive manually.
+          - packages/core-python/quickstart.md: Core Python credential-free quickstart.
+          - packages/core-python/core-sdk.md: Selected Core SDK workflows.
+          - packages/core-python/types-and-protocols.md: Core type and plugin mental model.
+          - packages/core-python/events.md: Application event contracts and integration boundaries.
           - plugin-development/overview.md: General plugin authoring and packaging guide.
           - packages/application-python/configuration.md: Application plugin configuration and examples.
         Current Plugin Docs:
@@ -112,8 +126,6 @@ plugins:
           - packages/*/*.md
           - packages/*/development/*.md
         Reference:
-          - api/core-sdk.md: Core SDK guide.
-          - api/events.md: Event stream types and API transport notes.
           - reference/agent_core/core.md: AgentCore API reference.
           - reference/agent_core/types.md: Core types and protocols reference.
           - reference/agent_core/plugin/provider.md: Provider wrapper API reference.
@@ -124,6 +136,11 @@ plugins:
 nav:
   - Overview: index.md
   - Guides:
+    - Installation:
+      - Choose a method: packages/application-python/installation.md
+      - macOS and Linux: packages/application-python/installation-macos-linux.md
+      - Windows: packages/application-python/installation-windows.md
+      - Manual: packages/application-python/installation-manual.md
     - Application Configuration: packages/application-python/configuration.md
     - Plugin System Overview: plugin-development/overview.md
   - Packages:
@@ -131,9 +148,15 @@ nav:
     - Core and runtime:
       - Core Python SDK:
         - Core Python SDK: packages/core-python/index.md
+        - Quickstart: packages/core-python/quickstart.md
+        - Core SDK Guide: packages/core-python/core-sdk.md
+        - Types And Plugin Protocols: packages/core-python/types-and-protocols.md
+        - Application Events: packages/core-python/events.md
+        - Tested Examples: packages/core-python/examples.md
         - Development: packages/core-python/development/index.md
       - Terminal and HTTP Application:
         - Terminal and HTTP Application: packages/application-python/index.md
+        - Quickstart: packages/application-python/quickstart.md
         - Development: packages/application-python/development/index.md
     - Frontend SDKs and components:
       - Frontend SDK:
@@ -177,8 +200,6 @@ nav:
     - Built-In Plugins: built-in-plugins/index.md
   - Reference:
     - Default Configuration: reference/default-config.md
-    - Core SDK Guide: api/core-sdk.md
-    - Event Stream Types: api/events.md
     - AgentCore: reference/agent_core/core.md
     - Types & Protocols: reference/agent_core/types.md
     - Provider Wrapper: reference/agent_core/plugin/provider.md

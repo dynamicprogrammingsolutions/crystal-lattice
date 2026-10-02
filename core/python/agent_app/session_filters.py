@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, TypeGuard
 
 from .session_listing import (
     SessionListDiagnostic,
@@ -15,14 +16,16 @@ from .session_listing import (
 )
 
 
-_OPTION_TONES = frozenset({"primary", "highlight", "warning", "success", "danger", "muted"})
+_OPTION_TONES = frozenset(
+    {"primary", "highlight", "warning", "success", "danger", "muted"}
+)
 
 
 def _is_record(value: Any) -> bool:
     return isinstance(value, Mapping)
 
 
-def _is_option_value(value: Any) -> bool:
+def _is_option_value(value: Any) -> TypeGuard[str | bool]:
     return isinstance(value, (str, bool))
 
 
@@ -36,6 +39,26 @@ def _typed_value_key(value: Any) -> Tuple[str, Any]:
 
 def _typed_equal(left: Any, right: Any) -> bool:
     return _typed_value_key(left) == _typed_value_key(right)
+
+
+def _datetime_timestamp(value: Any, *, runtime_value: bool) -> Optional[float]:
+    if (
+        not runtime_value
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    ):
+        return float(value)
+    if not isinstance(value, str) or not value:
+        return None
+    normalized = value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
+        return parsed.astimezone(timezone.utc).timestamp()
+    except (ValueError, OverflowError, OSError):
+        return None
 
 
 @dataclass(frozen=True)
@@ -90,7 +113,11 @@ class SessionListFilter:
             "id": self.element_id,
             "label": self.label,
             "order": self.order,
-            "data": (self.data_paths[0] if len(self.data_paths) == 1 else list(self.data_paths)),
+            "data": (
+                self.data_paths[0]
+                if len(self.data_paths) == 1
+                else list(self.data_paths)
+            ),
             "type": self.filter_type,
             "match": self.match,
             "default": self.default,
@@ -193,7 +220,9 @@ def _normalize_options(
                 raw=element,
             )
         value = raw_option.get("value")
-        if not _is_option_value(value) or (boolean_filter and not isinstance(value, bool)):
+        if not _is_option_value(value) or (
+            boolean_filter and not isinstance(value, bool)
+        ):
             return (), _diagnostic(
                 "invalid_session_list_filter",
                 (
@@ -298,7 +327,9 @@ def _normalize_filter(
         if match not in {"contains", "equals"}:
             return fail("Text filters support contains or equals.")
         if "multiple" in raw:
-            return fail("session_list_filter.multiple is valid only for select filters.")
+            return fail(
+                "session_list_filter.multiple is valid only for select filters."
+            )
         if "options" in raw:
             return fail("Text filters do not support options.")
         case_sensitive = raw.get("case_sensitive", False)
@@ -313,7 +344,9 @@ def _normalize_filter(
         if match != "equals":
             return fail("Boolean filters support equals only.")
         if "multiple" in raw:
-            return fail("session_list_filter.multiple is valid only for select filters.")
+            return fail(
+                "session_list_filter.multiple is valid only for select filters."
+            )
         if "case_sensitive" in raw:
             return fail("case_sensitive is valid only for text filters.")
         options, option_error = _normalize_options(
@@ -357,13 +390,49 @@ def _normalize_filter(
             for value in default:
                 key = _typed_value_key(value)
                 if not _value_is_declared(value, options) or key in seen_defaults:
-                    return fail("Multiple-select defaults must be unique declared option values.")
+                    return fail(
+                        "Multiple-select defaults must be unique declared option values."
+                    )
                 seen_defaults.add(key)
             default = list(default)
         elif default is not None and not _value_is_declared(default, options):
-            return fail("Single-select default must be null or a declared option value.")
+            return fail(
+                "Single-select default must be null or a declared option value."
+            )
+    elif filter_type == "datetime":
+        if match not in {"before", "on_or_before", "after", "on_or_after"}:
+            return fail(
+                "Datetime filters support before, on_or_before, after, or on_or_after."
+            )
+        if "multiple" in raw:
+            return fail(
+                "session_list_filter.multiple is valid only for select filters."
+            )
+        if "case_sensitive" in raw:
+            return fail("case_sensitive is valid only for text filters.")
+        if "options" in raw:
+            return fail("Datetime filters do not support options.")
+        case_sensitive = False
+        multiple = False
+        options = ()
+        default = raw.get("default")
+        if (
+            default is not None
+            and _datetime_timestamp(
+                default,
+                runtime_value=True,
+            )
+            is None
+        ):
+            return fail(
+                "Datetime filter default must be null or a timezone-aware ISO-8601 string."
+            )
     else:
-        return fail("session_list_filter.type must be text, boolean, or select.")
+        return fail(
+            "session_list_filter.type must be text, boolean, select, or datetime."
+        )
+    if not isinstance(match, str):  # pragma: no cover - guarded by every branch
+        return fail("session_list_filter.match must be a string.")
 
     raw_main_search = raw.get("main_search", False)
     if not isinstance(raw_main_search, bool):
@@ -416,12 +485,16 @@ def normalize_session_list_filter_schema(
         if declaration is not None:
             normalized.append(declaration)
 
-    declared_main_searches = [declaration for declaration in normalized if declaration.main_search]
+    declared_main_searches = [
+        declaration for declaration in normalized if declaration.main_search
+    ]
     by_id: Dict[str, List[SessionListFilter]] = {}
     for declaration in normalized:
         by_id.setdefault(declaration.element_id, []).append(declaration)
     duplicate_ids = {
-        element_id for element_id, declarations in by_id.items() if len(declarations) > 1
+        element_id
+        for element_id, declarations in by_id.items()
+        if len(declarations) > 1
     }
     for element_id in sorted(duplicate_ids):
         declarations = by_id[element_id]
@@ -433,27 +506,38 @@ def normalize_session_list_filter_schema(
                     "all declarations with that id were ignored."
                 ),
                 element_id=element_id,
-                details={"plugins": [declaration.plugin_id for declaration in declarations]},
+                details={
+                    "plugins": [declaration.plugin_id for declaration in declarations]
+                },
             )
         )
     normalized = [
-        declaration for declaration in normalized if declaration.element_id not in duplicate_ids
+        declaration
+        for declaration in normalized
+        if declaration.element_id not in duplicate_ids
     ]
 
-    main_searches = [declaration for declaration in normalized if declaration.main_search]
+    main_searches = [
+        declaration for declaration in normalized if declaration.main_search
+    ]
     main_search_conflict = len(declared_main_searches) > 1
     if main_search_conflict:
-        conflicting_ids = [declaration.element_id for declaration in declared_main_searches]
+        conflicting_ids = [
+            declaration.element_id for declaration in declared_main_searches
+        ]
         diagnostics.append(
             SessionListDiagnostic(
                 code="ambiguous_session_list_main_search",
                 message=(
-                    "Multiple valid session-list filters declare main_search; " "none was selected."
+                    "Multiple valid session-list filters declare main_search; "
+                    "none was selected."
                 ),
                 details={"filter_ids": conflicting_ids},
             )
         )
-        normalized = [declaration for declaration in normalized if not declaration.main_search]
+        normalized = [
+            declaration for declaration in normalized if not declaration.main_search
+        ]
         main_search_id = None
     else:
         main_search_id = main_searches[0].element_id if main_searches else None
@@ -496,7 +580,19 @@ def validate_session_list_filter_value(
     if declaration.filter_type == "text":
         return None if isinstance(value, str) else "must be a string"
     if declaration.filter_type == "boolean":
-        return None if value is None or isinstance(value, bool) else "must be null, true, or false"
+        return (
+            None
+            if value is None or isinstance(value, bool)
+            else "must be null, true, or false"
+        )
+    if declaration.filter_type == "datetime":
+        if value is None:
+            return None
+        return (
+            None
+            if _datetime_timestamp(value, runtime_value=True) is not None
+            else "must be null or a timezone-aware ISO-8601 string"
+        )
     if declaration.multiple:
         if not isinstance(value, list):
             return "must be a list of declared option values"
@@ -592,7 +688,21 @@ def _resolved_value_matches(
             return candidate == query
         return query in candidate
     if declaration.filter_type == "boolean":
-        return isinstance(resolved_value, bool) and _typed_equal(resolved_value, runtime_value)
+        return isinstance(resolved_value, bool) and _typed_equal(
+            resolved_value, runtime_value
+        )
+    if declaration.filter_type == "datetime":
+        candidate = _datetime_timestamp(resolved_value, runtime_value=False)
+        query = _datetime_timestamp(runtime_value, runtime_value=True)
+        if candidate is None or query is None:
+            return False
+        if declaration.match == "before":
+            return candidate < query
+        if declaration.match == "on_or_before":
+            return candidate <= query
+        if declaration.match == "after":
+            return candidate > query
+        return candidate >= query
     if declaration.multiple:
         return any(_typed_equal(resolved_value, selected) for selected in runtime_value)
     return _typed_equal(resolved_value, runtime_value)
@@ -613,7 +723,9 @@ def evaluate_session_list_filters(
     active = [
         (declaration, runtime_values[declaration.element_id])
         for declaration in schema.filters
-        if is_session_list_filter_active(declaration, runtime_values[declaration.element_id])
+        if is_session_list_filter_active(
+            declaration, runtime_values[declaration.element_id]
+        )
     ]
     if not active:
         return SessionListFilterEvaluation(
@@ -657,13 +769,18 @@ def _coerce_option_token(
     for option in declaration.options:
         if isinstance(option.value, str) and option.value == token:
             matches.append(option.value)
-        elif isinstance(option.value, bool) and token.lower() == str(option.value).lower():
+        elif (
+            isinstance(option.value, bool)
+            and token.lower() == str(option.value).lower()
+        ):
             matches.append(option.value)
     unique = {_typed_value_key(value): value for value in matches}
     if len(unique) == 1:
         return next(iter(unique.values()))
     if len(unique) > 1:
-        raise ValueError(f"filter {declaration.element_id!r} has ambiguous option value {token!r}")
+        raise ValueError(
+            f"filter {declaration.element_id!r} has ambiguous option value {token!r}"
+        )
     raise ValueError(f"invalid value {token!r} for filter {declaration.element_id!r}")
 
 
@@ -675,13 +792,17 @@ def coerce_session_list_filter_input(
 
     if declaration.filter_type == "text":
         if not isinstance(raw_value, str):
-            raise ValueError(f"text filter {declaration.element_id!r} requires one string")
+            raise ValueError(
+                f"text filter {declaration.element_id!r} requires one string"
+            )
         return raw_value
 
     tokens = [raw_value] if isinstance(raw_value, str) else list(raw_value)
     if declaration.filter_type == "boolean":
         if len(tokens) != 1:
-            raise ValueError(f"boolean filter {declaration.element_id!r} requires one value")
+            raise ValueError(
+                f"boolean filter {declaration.element_id!r} requires one value"
+            )
         lowered = tokens[0].lower()
         if lowered == "any":
             return None
@@ -689,7 +810,23 @@ def coerce_session_list_filter_input(
             return True
         if lowered == "false":
             return False
-        raise ValueError(f"boolean filter {declaration.element_id!r} accepts any, true, or false")
+        raise ValueError(
+            f"boolean filter {declaration.element_id!r} accepts any, true, or false"
+        )
+    if declaration.filter_type == "datetime":
+        if len(tokens) != 1:
+            raise ValueError(
+                f"datetime filter {declaration.element_id!r} requires one value"
+            )
+        token = tokens[0]
+        if token.lower() == "any":
+            return None
+        if _datetime_timestamp(token, runtime_value=True) is None:
+            raise ValueError(
+                f"datetime filter {declaration.element_id!r} requires "
+                "a timezone-aware ISO-8601 value or 'any'"
+            )
+        return token
 
     if len(tokens) == 1 and tokens[0].lower() == "any":
         return [] if declaration.multiple else None
@@ -698,17 +835,23 @@ def coerce_session_list_filter_input(
     selected = [_coerce_option_token(declaration, token) for token in tokens]
     if declaration.multiple:
         if len({_typed_value_key(value) for value in selected}) != len(selected):
-            raise ValueError(f"filter {declaration.element_id!r} contains duplicate values")
+            raise ValueError(
+                f"filter {declaration.element_id!r} contains duplicate values"
+            )
         return selected
     if len(selected) != 1:
-        raise ValueError(f"single-select filter {declaration.element_id!r} requires one value")
+        raise ValueError(
+            f"single-select filter {declaration.element_id!r} requires one value"
+        )
     return selected[0]
 
 
 class SessionListFilterEngine:
     """Application-owned interpreter for session-list filter declarations."""
 
-    def schema(self, ui_elements: Sequence[Mapping[str, Any]]) -> SessionListFilterSchema:
+    def schema(
+        self, ui_elements: Sequence[Mapping[str, Any]]
+    ) -> SessionListFilterSchema:
         return normalize_session_list_filter_schema(ui_elements)
 
     def __call__(

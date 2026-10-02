@@ -11,7 +11,10 @@ Reusable macOS-native multiline text view for React Native New Architecture cons
   - imperative `focus()`
   - placeholder support
   - editable mode
+  - read-only selectable mode with a copy-only context menu
   - auto-grow and content-height reporting
+  - read-only wheel forwarding to a parent scroll view
+  - configurable native font family, line height, and text-container inset
   - submit callback
 
 ## Example

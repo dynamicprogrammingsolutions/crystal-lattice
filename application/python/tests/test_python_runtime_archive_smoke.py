@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = ROOT / "application" / "python" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
@@ -49,3 +51,49 @@ def test_macos_library_reference_classifier_rejects_host_paths() -> None:
         )
         is True
     )
+
+
+def test_native_python_identity_accepts_matching_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_smoke.subprocess,
+        "check_output",
+        lambda *args, **kwargs: '{"platform": "linux", "machine": "aarch64"}\n',
+    )
+    monkeypatch.setattr(
+        runtime_smoke,
+        "python_path",
+        lambda _package_dir: tmp_path / "python",
+    )
+
+    runtime_smoke.validate_native_python_identity(
+        tmp_path,
+        {"platform": "linux", "arch": "arm64"},
+    )
+
+
+def test_native_python_identity_rejects_mislabeled_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_smoke.subprocess,
+        "check_output",
+        lambda *args, **kwargs: '{"platform": "win32", "machine": "AMD64"}\n',
+    )
+    monkeypatch.setattr(
+        runtime_smoke,
+        "python_path",
+        lambda _package_dir: tmp_path / "python.exe",
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="expected windows-arm64, got windows-amd64",
+    ):
+        runtime_smoke.validate_native_python_identity(
+            tmp_path,
+            {"platform": "windows", "arch": "arm64"},
+        )

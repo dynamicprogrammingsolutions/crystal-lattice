@@ -1,52 +1,9 @@
-"""
-Core SDK for the AI Agent Platform.
+"""Core SDK for the AI Agent Platform.
 
-Functional architecture: AgentCore stores only the processing pipeline (plugins via wrappers),
-all transformations are pure functions that take session/config and return new objects.
-
-Examples:
-    Basic non-streaming usage:
-
-    ```python
-    from agent_core import AgentCore
-    from plugins.openai_provider import OpenAICompatibleProvider
-
-    core = AgentCore()
-    core.register_provider(OpenAICompatibleProvider)
-
-    session = core.create_session()
-    session = core.add_message(session, "user", "Hello!")
-
-    config = {
-        "provider": "openai_compatible",
-        "model": "gpt-4o",
-        "base_url": "https://api.openai.com/v1",
-        "api_key": "sk-...",
-    }
-    session, finals = core.send_request(session, config)
-    print(finals[-1]["content"])  # Assistant reply
-    ```
-
-    Streaming usage:
-
-    ```python
-    for chunk in core.send_request_stream(session, config):
-        if chunk["type"] == "partial":
-            print(chunk["message"]["content"], end="", flush=True)
-        elif chunk["type"] == "final":
-            session = chunk["session"]
-            print("\n[Done]")
-    ```
-
-    Tool schemas and execution:
-
-    ```python
-    tool_schemas = core.get_tool_schemas(config)
-    # Execute tool calls the model asked for (application loop)
-    tool_results = core.execute_tool_calls(tool_calls, config)
-    for msg in tool_results:
-        session = core.add_message(session, msg["role"], msg["content"], msg.get("metadata"))
-    ```
+``AgentCore`` owns registered plugin wrappers and Core-local caches.
+Conversation operations accept explicit sessions/configuration and return new
+conversation values. Request and tool methods may perform provider, tool, or
+preparation I/O.
 """
 
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
@@ -64,9 +21,11 @@ from .tool_interop import CORE_TEXT_TOOL_RESULT_FORMAT_ID, ToolInteropTarget
 from .tool_result_payloads import (
     TOOL_RESULT_FIELD,
 )
+import time
 import uuid
 import json
 import re
+from datetime import datetime, timezone
 
 logger = None
 log_chunk_processing = None
@@ -75,11 +34,12 @@ _PreparedToolState = Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]]
 
 
 class AgentCore:
-    """Stateless processing pipeline for AI Agent Platform.
+    """Provider and plugin processing pipeline.
 
-    Stores registered plugin wrappers (processing logic), not runtime state.
-    All methods are pure functions that take session/config as parameters.
-    The application layer manages sessions and configuration.
+    The instance stores registered wrappers plus model, dependency, tag, and
+    prepared-tool caches. Applications manage durable sessions and
+    configuration. Session transformations return new values; request and tool
+    methods may perform external I/O.
     """
 
     # -------- Integrity helpers --------
@@ -664,6 +624,67 @@ class AgentCore:
             session_id = str(uuid.uuid4())
         return Session(session_id=session_id, messages=[])
 
+    def _prepare_appended_message_with_hooks(
+        self,
+        message: Dict[str, Any],
+        config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Dispatch ``prepare_appended_message`` for an end-append.
+
+        Extensions run before features (priority order within each kind);
+        shared state is threaded through the chain and written back to the
+        provider wrapper when it holds initialized state. The session is
+        never touched by the state flow. No dispatch when the plugin
+        context does not resolve (no provider registered/selected).
+
+        The guaranteed state contract is the within-chain threading: the
+        write-back to the provider wrapper happens before the append
+        conversion, which may re-initialize provider state afterwards (the
+        append conversion re-runs provider/feature init), so state
+        persistence beyond this call is not guaranteed — the same as the
+        request pipeline, which re-initializes state per request.
+
+        The hook runs before the message is converted to provider-native
+        form, so metadata stamped here persists into native ``_metadata``
+        through the provider conversion (the same provider-mediated
+        persistence rule as all per-message metadata).
+        """
+        try:
+            provider, extensions, features, _tools, _tags = (
+                self._resolve_plugins_for_config(config)
+            )
+        except Exception:
+            return message
+        participants = [
+            *sorted(extensions, key=lambda p: getattr(p, "priority", 100)),
+            *sorted(features, key=lambda p: getattr(p, "priority", 100)),
+        ]
+        if not participants:
+            return message
+        provider_state = (
+            provider.state
+            if provider is not None
+            and isinstance(getattr(provider, "state", None), dict)
+            else None
+        )
+        state: Dict[str, Any] = dict(provider_state) if provider_state else {}
+        current_message = message
+        for participant in participants:
+            out_message, out_state = participant.prepare_appended_message(
+                current_message,
+                state,
+                context=context,
+            )
+            if isinstance(out_message, dict):
+                current_message = out_message
+            if isinstance(out_state, dict):
+                state = out_state
+        if provider is not None and provider_state is not None:
+            provider.state = state
+        return current_message
+
     def add_message(
         self,
         session: Session,
@@ -677,7 +698,7 @@ class AgentCore:
         context: Optional[Dict[str, Any]] = None,
         tool_result: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """Add a message to the session (pure function).
+        """Add a message and return an updated session.
 
         When session.metadata contains provider-native history (native_messages)
         and a provider is registered, converts the newly added message to
@@ -738,6 +759,16 @@ class AgentCore:
         # positions rebuilds native history so that provider-native messages
         # stay consistent with the updated core sequence.
         if insert_at == message_count:
+            # Message-append lifecycle hook: end-appends only (inserts
+            # rebuild native history on a different path), and only when a
+            # config resolves the plugin context. The legacy no-config path
+            # does not dispatch.
+            if config:
+                message_dict = self._prepare_appended_message_with_hooks(
+                    message_dict,
+                    config,
+                    context=context,
+                )
             # Always prefer the native-preserving helper; when native history
             # cannot be safely updated, it falls back to a core-only append.
 
@@ -768,7 +799,7 @@ class AgentCore:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> Session:
-        """Modify the content of an existing message (pure function).
+        """Modify message content and return an updated session.
 
         Only `system`, `user`, and `assistant` messages are supported. The
         message role and metadata remain unchanged. When provider-native
@@ -1880,7 +1911,7 @@ class AgentCore:
                 plugin_context=plugin_context,
                 extra=extra,
             )
-        return self._context.build_request_context(
+        request_context = self._context.build_request_context(
             config=config,
             plugin_context=plugin_context,
             session=session,
@@ -1888,6 +1919,13 @@ class AgentCore:
             stream=stream,
             extra=extra,
         )
+        # Provider-call facts (symmetric with the tool-call hooks): raw
+        # timestamps only, captured before the request pipeline starts.
+        # The framework never computes durations; plugins own measurement.
+        # setdefault keeps any richer caller-provided facts.
+        request_context.setdefault("started_at", datetime.now(timezone.utc).isoformat())
+        request_context.setdefault("started_at_mono", time.monotonic())
+        return request_context
 
     def _build_session_action_context(
         self,
@@ -2452,10 +2490,17 @@ class AgentCore:
                     pass
 
         # Provider finalize returns provider-native finals and full native history
+        # Provider-call facts (symmetric with the tool-call hooks): raw
+        # finished timestamps, captured after the provider call completes.
+        finalize_context: Dict[str, Any] = {
+            **request_context,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at_mono": time.monotonic(),
+        }
         final_native_2, native_messages, state = provider.finalize(
             native_messages,
             state,
-            context=request_context,
+            context=finalize_context,
         )
 
         # Combine provider-native finals from call_api and provider.finalize
@@ -2467,7 +2512,7 @@ class AgentCore:
                 final_native,
                 native_messages,
                 state,
-                context=request_context,
+                context=finalize_context,
             )
 
         # Convert provider-native finals to core messages once finalization completes
@@ -2674,10 +2719,17 @@ class AgentCore:
                     pass
 
         # Finalize using the last accumulated native messages
+        # Provider-call facts: raw finished timestamps after the provider
+        # call completes (symmetric with the tool-call hooks).
+        finalize_context: Dict[str, Any] = {
+            **request_context,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at_mono": time.monotonic(),
+        }
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(),
             provider.get_state(),
-            context=request_context,
+            context=finalize_context,
         )
 
         combined_native_finals = [*aggregated_native_finals, *final_native]
@@ -2688,7 +2740,7 @@ class AgentCore:
                 combined_native_finals,
                 native_messages,
                 state,
-                context=request_context,
+                context=finalize_context,
             )
 
         logger.debug(
@@ -2874,10 +2926,17 @@ class AgentCore:
                 except Exception:
                     pass
 
+        # Provider-call facts: raw finished timestamps after the provider
+        # call completes (symmetric with the tool-call hooks).
+        finalize_context: Dict[str, Any] = {
+            **request_context,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at_mono": time.monotonic(),
+        }
         final_native, native_messages, state = provider.finalize(
             provider.get_last_native_messages(),
             provider.get_state(),
-            context=request_context,
+            context=finalize_context,
         )
 
         combined_native_finals = [*aggregated_native_finals, *final_native]
@@ -2888,7 +2947,7 @@ class AgentCore:
                 combined_native_finals,
                 native_messages,
                 state,
-                context=request_context,
+                context=finalize_context,
             )
 
         # Convert provider-native finals to core messages
@@ -2974,19 +3033,11 @@ class AgentCore:
         """Get flattened config schema from all registered plugins.
 
         Returns:
-            List of config entry descriptors. Each element is a
-            dictionary that includes:
-
-            - ``"key"``: the top-level config key.
-            - ``"plugin"``: the contributing plugin's id/name
-              (provider, extension, feature, or tool).
-            - Any additional metadata provided by the plugin
-              (for example, ``"type"``, ``"default"``,
-              ``"required"``, ``"description"``).
-
-            Multiple plugins may contribute entries for the same
-            ``"key"``; each contribution is represented as a separate
-            element in the returned list.
+            Config entry descriptors. Every dictionary contains ``"key"`` and
+            the contributing ``"plugin"`` ID plus metadata supplied by that
+            plugin, such as ``"type"``, ``"default"``, ``"required"``, or
+            ``"description"``. Multiple plugins can contribute separate
+            entries for the same key.
         """
         entries: List[Dict[str, Any]] = []
 
@@ -3028,6 +3079,17 @@ class AgentCore:
         provider, extension, feature, or tool. The core treats the dictionaries
         as opaque and simply annotates and flattens them; applications decide
         how to render or interpret each entry.
+
+        Every element carries a numeric ``order`` and the returned list is
+        sorted by it (stable). An element may set an explicit ``order``; when
+        absent the core stamps a kind-and-position default: provider band
+        1000, provider extension band 2000, feature band 3000, tool band
+        4000, and within a band the Nth plugin defaults to ``band + N * 10``.
+        Elements from one plugin share the plugin default, so the stable
+        sort keeps each plugin's declared element order. Explicit orders
+        override the defaults on the same scale (e.g. ``1990`` sorts before
+        every extension element, ``2015`` between the first and second
+        extension plugins).
         """
 
         if not isinstance(config, dict):
@@ -3079,7 +3141,11 @@ class AgentCore:
         elements: List[Dict[str, Any]] = []
         config_by_key: Dict[str, Dict[str, Any]] = {}
 
-        def _extend(raw_elements: List[Dict[str, Any]], plugin_name: str) -> None:
+        def _extend(
+            raw_elements: List[Dict[str, Any]],
+            plugin_name: str,
+            default_order: int,
+        ) -> None:
             for el in raw_elements or []:
                 if not isinstance(el, dict):
                     continue
@@ -3090,6 +3156,10 @@ class AgentCore:
                     ui_type = "config"
                 if "plugin" not in entry and plugin_name:
                     entry["plugin"] = plugin_name
+
+                order = entry.get("order")
+                if not isinstance(order, (int, float)) or isinstance(order, bool):
+                    entry["order"] = default_order
 
                 if (
                     plugin_name in extension_plugin_names
@@ -3115,17 +3185,26 @@ class AgentCore:
                 elements.append(entry)
 
         if provider is not None:
-            _extend(provider.get_ui_elements(config, ui_context), provider.name)
-            for name, ext_ui in provider.get_extension_ui_elements(
-                config, ui_context
-            ).items():
-                _extend(ext_ui, name)
-        for feature in enabled_features:
-            _extend(feature.get_ui_elements(config, ui_context), feature.name)
-        for tool in enabled_tools:
-            _extend(tool.get_ui_elements(config, ui_context), tool.name)
+            _extend(provider.get_ui_elements(config, ui_context), provider.name, 1010)
+            for ext_position, (name, ext_ui) in enumerate(
+                provider.get_extension_ui_elements(config, ui_context).items()
+            ):
+                _extend(ext_ui, name, 2000 + (ext_position + 1) * 10)
+        for feature_position, feature in enumerate(enabled_features):
+            _extend(
+                feature.get_ui_elements(config, ui_context),
+                feature.name,
+                3000 + (feature_position + 1) * 10,
+            )
+        for tool_position, tool in enumerate(enabled_tools):
+            _extend(
+                tool.get_ui_elements(config, ui_context),
+                tool.name,
+                4000 + (tool_position + 1) * 10,
+            )
 
         elements.extend(config_by_key.values())
+        elements.sort(key=lambda entry: entry.get("order", 0))
         return elements
 
     class _SessionActionValidationError(Exception):
@@ -4504,6 +4583,101 @@ class AgentCore:
 
         return None, None, None, None
 
+    def _get_enabled_features_for_config(
+        self,
+        config: Dict[str, Any],
+    ) -> List[FeatureWrapper]:
+        """Resolve enabled features for hook dispatch (provider context required).
+
+        Features participate in the tool-call and append hooks only when the
+        full plugin context resolves (a provider is registered and selected).
+        Bare-core tool execution without a provider keeps its current
+        behavior and does not dispatch the hooks.
+        """
+        if not self._providers:
+            return []
+        try:
+            _provider, _extensions, features, _tools, _tags = (
+                self._resolve_plugins_for_config(config)
+            )
+            return list(features)
+        except Exception:
+            return []
+
+    def _tool_call_hook_participants(
+        self,
+        provider: Optional[ProviderWrapper],
+        extensions: List[ExtensionWrapper],
+        config: Dict[str, Any],
+    ) -> List[Any]:
+        """Build the priority-ordered participant list for tool-call hooks.
+
+        Extensions run before features (mirroring the request pipeline);
+        within each kind, participants run in priority order (lower first).
+        """
+        if provider is None:
+            return []
+        features = self._get_enabled_features_for_config(config)
+        return [
+            *sorted(extensions, key=lambda p: getattr(p, "priority", 100)),
+            *sorted(features, key=lambda p: getattr(p, "priority", 100)),
+        ]
+
+    def _dispatch_prepare_tool_call(
+        self,
+        participants: List[Any],
+        tool_call: Dict[str, Any],
+        state: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Thread ``prepare_tool_call`` through the participants.
+
+        Each participant may transform the call (sanitizing/interception)
+        and update the shared state; later participants see earlier
+        participants' results. The caller re-inspects a transformed call
+        before resolving the handler.
+        """
+        current_call = tool_call
+        current_state = state
+        for participant in participants:
+            out_call, out_state = participant.prepare_tool_call(
+                current_call,
+                current_state,
+                context=context,
+            )
+            if isinstance(out_call, dict):
+                current_call = out_call
+            if isinstance(out_state, dict):
+                current_state = out_state
+        return current_call, current_state
+
+    def _dispatch_finalize_tool_call(
+        self,
+        participants: List[Any],
+        tool_message: Dict[str, Any],
+        state: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Thread ``finalize_tool_call`` through the participants.
+
+        Each participant may transform the final tool message (e.g. stamp
+        plugin-owned metadata) and update the shared state; later
+        participants receive earlier participants' transformed message.
+        """
+        current_message = tool_message
+        current_state = state
+        for participant in participants:
+            out_message, out_state = participant.finalize_tool_call(
+                current_message,
+                current_state,
+                context=context,
+            )
+            if isinstance(out_message, dict):
+                current_message = out_message
+            if isinstance(out_state, dict):
+                current_state = out_state
+        return current_message, current_state
+
     def iter_tool_messages(
         self,
         tool_calls: List[Dict[str, Any]],
@@ -4518,6 +4692,16 @@ class AgentCore:
         yielded as-is when they contain a ``"part"`` key. Result dictionaries are
         detected via the presence of a ``"success"`` key and transformed into final
         core ``tool`` messages at the end of each tool call.
+
+        Enabled extensions and features participate through the optional
+        ``prepare_tool_call``/``finalize_tool_call`` hooks (extensions before
+        features, priority order within each kind; shared state threaded
+        through the chain). ``prepare_tool_call`` may transform the call; the
+        transformed call is re-inspected before handler resolution.
+        ``finalize_tool_call`` runs exactly once per call, on the single final
+        message every call yields (including synthesized error results, which
+        carry a ``tool_error`` context fact). The hooks dispatch only when the
+        full plugin context resolves (a provider is registered and selected).
 
         Args:
             tool_calls: List of tool call dictionaries to execute.
@@ -4544,6 +4728,34 @@ class AgentCore:
             extensions=extensions,
             tool_states=tool_states,
         )
+        hook_participants = self._tool_call_hook_participants(
+            provider,
+            extensions,
+            config,
+        )
+        # Shared provider state for the hook chains. When the provider has
+        # initialized state, thread it through the chains and write the final
+        # state back; otherwise use transient state (the request pipeline
+        # re-initializes provider state per request anyway).
+        provider_state = (
+            provider.state
+            if provider is not None
+            and isinstance(getattr(provider, "state", None), dict)
+            else None
+        )
+        hook_state: Dict[str, Any] = dict(provider_state) if provider_state else {}
+
+        def _write_back_hook_state() -> None:
+            if provider is not None and provider_state is not None:
+                provider.state = hook_state
+
+        def _record_call_facts(facts: Dict[str, Any]) -> None:
+            # Record framework-owned facts into the caller's context so they
+            # flow to later consumers (e.g. the append hook when the
+            # application reuses this context for add_message). The context
+            # reflects the most recent call.
+            if isinstance(context, dict):
+                context.update(facts)
 
         for call in tool_calls:
             try:
@@ -4559,11 +4771,25 @@ class AgentCore:
                     "tool_call_id": call_id,
                     "tool_name": name,
                 }
-                yield {
+                message = {
                     "role": "tool",
                     "content": f"Error: no tool handled '{name}'",
                     "metadata": metadata,
                 }
+                if hook_participants:
+                    error_context = {
+                        **self._build_tool_runtime_context(config, context),
+                        "tool_error": "inspect_call_failed",
+                    }
+                    _record_call_facts({"tool_error": "inspect_call_failed"})
+                    message, hook_state = self._dispatch_finalize_tool_call(
+                        hook_participants,
+                        message,
+                        hook_state,
+                        error_context,
+                    )
+                    _write_back_hook_state()
+                yield message
                 continue
 
             call_id = inspected_call.call_id
@@ -4575,25 +4801,129 @@ class AgentCore:
                 registry,
             )
 
+            # Layer 1: Core-level context enrichment.
+            # Higher layers (application, terminal) may have already set these;
+            # use setdefault so we never overwrite a richer value.
+            tool_context = self._build_tool_runtime_context(config, context)
+
+            # Framework-owned facts only: raw timestamps and the call
+            # descriptor. The framework never computes durations or
+            # stamps messages.
+            hook_context: Dict[str, Any] = {}
+            if hook_participants:
+                started_at = datetime.now(timezone.utc).isoformat()
+                started_at_mono = time.monotonic()
+                hook_context = {
+                    **tool_context,
+                    "tool_call_id": call_id,
+                    "tool_name": name,
+                    "tool_plugin": (
+                        getattr(tool, "name", None) if tool is not None else None
+                    ),
+                    "started_at": started_at,
+                    "started_at_mono": started_at_mono,
+                }
+                effective_call, hook_state = self._dispatch_prepare_tool_call(
+                    hook_participants,
+                    inspected_call.raw,
+                    hook_state,
+                    hook_context,
+                )
+                _write_back_hook_state()
+                _record_call_facts(
+                    {
+                        "tool_call_id": call_id,
+                        "tool_name": name,
+                        "tool_plugin": hook_context.get("tool_plugin"),
+                        "started_at": started_at,
+                        "started_at_mono": started_at_mono,
+                    }
+                )
+                if effective_call != inspected_call.raw:
+                    # A participant transformed the call; re-inspect before
+                    # resolving the handler. A transformed call that no
+                    # longer inspects follows the synthesized-error path.
+                    try:
+                        inspected_call = registry.inspect_call(effective_call)
+                    except Exception:
+                        inspected_call = None
+                    if inspected_call is None:
+                        metadata = {
+                            "tool_call_id": call_id,
+                            "tool_name": name,
+                        }
+                        message = {
+                            "role": "tool",
+                            "content": f"Error: no tool handled '{name}'",
+                            "metadata": metadata,
+                        }
+                        error_context = {
+                            **hook_context,
+                            "tool_error": "inspect_call_failed_after_prepare",
+                        }
+                        message, hook_state = self._dispatch_finalize_tool_call(
+                            hook_participants,
+                            message,
+                            hook_state,
+                            error_context,
+                        )
+                        _write_back_hook_state()
+                        yield message
+                        continue
+                    call_id = inspected_call.call_id
+                    name = inspected_call.tool_name
+                    hook_context = {
+                        **hook_context,
+                        "tool_call_id": call_id,
+                        "tool_name": name,
+                    }
+                    tool, state, prepared, matched_schema = (
+                        self._resolve_tool_handler_for_call(
+                            inspected_call,
+                            tool_states,
+                            registry,
+                        )
+                    )
+                    _record_call_facts(
+                        {
+                            "tool_call_id": call_id,
+                            "tool_name": name,
+                            "tool_plugin": (
+                                getattr(tool, "name", None)
+                                if tool is not None
+                                else None
+                            ),
+                        }
+                    )
+
             if tool is None or state is None:
                 metadata = {
                     "tool_call_id": call_id,
                     "tool_name": name,
                 }
-                yield {
+                message = {
                     "role": "tool",
                     "content": f"Error: no tool handled '{name}'",
                     "metadata": metadata,
                 }
+                if hook_participants:
+                    error_context = {
+                        **hook_context,
+                        "tool_error": f"no tool handled '{name}'",
+                    }
+                    _record_call_facts({"tool_error": f"no tool handled '{name}'"})
+                    message, hook_state = self._dispatch_finalize_tool_call(
+                        hook_participants,
+                        message,
+                        hook_state,
+                        error_context,
+                    )
+                    _write_back_hook_state()
+                yield message
                 continue
             last_result: Dict[str, Any] | None = None
             had_result = False
             stream_error: str | None = None
-
-            # Layer 1: Core-level context enrichment.
-            # Higher layers (application, terminal) may have already set these;
-            # use setdefault so we never overwrite a richer value.
-            tool_context = self._build_tool_runtime_context(config, context)
 
             try:
                 iterator = tool.stream_tool(
@@ -4645,11 +4975,33 @@ class AgentCore:
                 plugin_name = getattr(tool, "name", None)
                 if isinstance(plugin_name, str) and plugin_name:
                     metadata["tool_plugin"] = plugin_name
-                yield {
+                message = {
                     "role": "tool",
                     "content": content,
                     "metadata": metadata,
                 }
+                if hook_participants:
+                    finalize_context: Dict[str, Any] = {
+                        **hook_context,
+                        "finished_at": datetime.now(timezone.utc).isoformat(),
+                        "finished_at_mono": time.monotonic(),
+                        "tool_error": content,
+                    }
+                    _record_call_facts(
+                        {
+                            "finished_at": finalize_context["finished_at"],
+                            "finished_at_mono": finalize_context["finished_at_mono"],
+                            "tool_error": content,
+                        }
+                    )
+                    message, hook_state = self._dispatch_finalize_tool_call(
+                        hook_participants,
+                        message,
+                        hook_state,
+                        finalize_context,
+                    )
+                    _write_back_hook_state()
+                yield message
                 continue
 
             assert last_result is not None
@@ -4735,6 +5087,26 @@ class AgentCore:
                 "metadata": metadata,
                 TOOL_RESULT_FIELD: tool_result_value,
             }
+
+            if hook_participants:
+                finalize_context = {
+                    **hook_context,
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "finished_at_mono": time.monotonic(),
+                }
+                _record_call_facts(
+                    {
+                        "finished_at": finalize_context["finished_at"],
+                        "finished_at_mono": finalize_context["finished_at_mono"],
+                    }
+                )
+                tool_message, hook_state = self._dispatch_finalize_tool_call(
+                    hook_participants,
+                    tool_message,
+                    hook_state,
+                    finalize_context,
+                )
+                _write_back_hook_state()
 
             yield tool_message
 

@@ -112,6 +112,22 @@ class FeaturePlugin(BasePlugin, Protocol):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Final processing after streaming (optional)."""
 
+    # Tool-call lifecycle (optional)
+    def prepare_tool_call(
+        self, tool_call: Dict[str, Any], state: Dict[str, Any], *, context: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Observe or transform a tool call before execution (optional)."""
+
+    def finalize_tool_call(
+        self, tool_message: Dict[str, Any], state: Dict[str, Any], *, context: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Act on the final tool message after a tool call (optional)."""
+
+    def prepare_appended_message(
+        self, message: Dict[str, Any], state: Optional[Dict[str, Any]] = None, *, context: Optional[Dict[str, Any]] = None
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Transform a message before it is appended to a session (optional)."""
+
     # Actions
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions."""
@@ -152,6 +168,54 @@ class FeaturePlugin(BasePlugin, Protocol):
     def apply_completion(self, config: Dict[str, Any], text: str, completion: Dict[str, Any]) -> str:
         """Transform an accepted completion."""
 ```
+
+---
+
+## Tool-call and message-append hooks
+
+Features can participate in tool-call execution and session appends through
+three optional hooks. They share one contract with provider extensions:
+
+- **Ordering**: extensions run before features; within each kind, plugins run
+  in `priority` order (lower first). Shared provider state is threaded through
+  the chain, so later participants see earlier participants' state updates.
+- **Facts only from the framework**: contexts carry raw facts — the call
+  descriptor (`tool_call_id`, `tool_name`, `tool_plugin`), raw timestamps
+  (`started_at`/`started_at_mono` around execution, `finished_at`/
+  `finished_at_mono` after it), `session_id`/`request_id`, and `tool_error`
+  for synthesized results. The framework never computes durations or stamps
+  messages; plugins own any measurement they derive from these facts.
+- **Dispatch scope**: the hooks fire only when the full plugin context
+  resolves (a provider is registered and selected). Bare-core tool
+  execution without a provider does not dispatch them.
+
+`prepare_tool_call(tool_call, state, *, context)` runs once per inspectable
+tool call, immediately before the owning tool plugin executes it. It may
+transform the call — sanitizing arguments or redirecting to another tool —
+and the framework re-inspects the returned call before resolving the handler.
+A transformed call that no longer inspects follows the existing
+synthesized-error path. Transformers own correlation: the tool-result
+message's `tool_call_id` reflects the transformed call.
+
+`finalize_tool_call(tool_message, state, *, context)` runs exactly once per
+tool call, after execution, before the final core `tool` message is yielded
+to the caller — so stamps flow to application events and the session. It also
+runs for synthesized results (failed inspection, no handler, stream error),
+with a `tool_error` context fact. This is the natural place for per-call
+measurements such as tool-call duration.
+
+`prepare_appended_message(message, state, *, context)` runs inside
+`AgentCore.add_message` for end-of-session appends, before the message is
+converted to provider-native form — metadata stamped here persists into
+native `_metadata` through the provider conversion and survives
+native-history rebuilds. Assistant finals do not pass through this hook
+(they enter via the request pipeline, where `finalize` runs); `after_index`
+inserts do not trigger it. For appended tool results, the context carries the
+tool-call execution facts in addition to the append facts.
+
+See the [timestamp extension](../timestamp-extension/README.md) for a worked
+example: `finalize_tool_call` stamps per-call and per-turn tool duration, and
+`prepare_appended_message` allocates message timestamps at append time.
 
 ---
 

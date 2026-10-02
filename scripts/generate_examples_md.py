@@ -6,7 +6,7 @@ from typing import List
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 EX_DIR = os.path.join(ROOT, "core/python/examples")
-OUT = os.path.join(ROOT, "EXAMPLES.md")
+OUT = os.path.join(ROOT, "core/python/docs/examples.md")
 
 
 def read_file(path: str) -> str:
@@ -19,7 +19,7 @@ def title_from_docstring(doc: str, fallback: str) -> str:
         first = doc.strip().splitlines()[0].strip()
         if first:
             return first
-    # Fallback: transform filename like example5_project_plan_basic -> "Example 5 Project Plan Basic"
+    # Fallback: transform a filename like example5_basic_ollama -> "Example 5 Basic Ollama".
     name = os.path.splitext(os.path.basename(fallback))[0]
     name = name.replace("_", " ")
     return name.title()
@@ -71,16 +71,20 @@ def extract_plugin_code(src: str) -> str:
 
 
 def build_section(code_path: str) -> str:
-    rel_code = os.path.relpath(code_path, ROOT)
+    rel_code = os.path.relpath(code_path, os.path.dirname(OUT))
     base = os.path.basename(code_path)
     test_path = os.path.join(EX_DIR, "tests", f"test_{base}")
-    rel_test = os.path.relpath(test_path, ROOT)
+    rel_test = os.path.relpath(test_path, os.path.dirname(OUT))
+    run_test = os.path.relpath(test_path, ROOT)
 
     src = read_file(code_path)
     mod = ast.parse(src)
     doc = ast.get_docstring(mod) or ""
     title = title_from_docstring(doc, base)
-    description = doc.strip() if doc else ""
+    description_lines = doc.strip().splitlines() if doc else []
+    if description_lines and description_lines[0].strip() == title:
+        description_lines = description_lines[1:]
+    description = "\n".join(description_lines).strip()
 
     plugin_code = extract_plugin_code(src)
     usage_code = extract_run_example_code(src)
@@ -108,9 +112,9 @@ def build_section(code_path: str) -> str:
         section.append("```")
         section.append("")
 
-    section.append(f"- Code: `{rel_code}`")
-    section.append(f"- Test: `{rel_test}`")
-    section.append(f"- Run: `pytest -q {rel_test}`")
+    section.append(f"- [Code]({rel_code})")
+    section.append(f"- [Test]({rel_test})")
+    section.append(f"- Run: `pytest -q {run_test}`")
     section.append("")
     return "\n".join(section)
 
@@ -125,13 +129,17 @@ def main() -> None:
     sections: List[str] = [
         "# Examples",
         "",
-        "Note: Plugins use instance methods but should remain stateless (pure) and operate on explicit state objects. Plugin instances are short-lived and scoped to a single request, just like the shared provider state managed by the provider wrapper.",
-        "Note: Some examples/tests require external services (for example, OpenRouter) and will be skipped unless the required environment variables are configured (for example, OPENROUTER_API_KEY).",
+        "This catalog is generated from the runnable examples under `core/python/examples`.",
+        "",
+        "Plugin instances are short-lived and operate on explicit state objects. Providers, extensions, and features share provider state during a request; tools keep separate state.",
+        "",
+        "Some examples and tests require a local service or hosted provider. Run them only with their integration marker and prerequisites enabled; a skipped gated test is not evidence that the integration ran.",
         "",
     ]
     for path in files:
         sections.append(build_section(path))
     content = "\n".join(sections).rstrip() + "\n"
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(content)
     print(f"Wrote {OUT} with {len(files)} examples.")

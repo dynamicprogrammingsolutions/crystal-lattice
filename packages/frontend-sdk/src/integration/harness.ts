@@ -128,6 +128,12 @@ export async function startBackendServer(options: {
   startupTimeoutMs?: number;
   sessionSaveDelayMs?: number;
   checkpointDelayMs?: number;
+  bridge?: {
+    url: string;
+    serverId: string;
+    displayName?: string;
+    httpTimeoutSeconds?: number;
+  };
   eventStoreOptions?: {
     maxEventsGlobal?: number;
     maxEventAgeSeconds?: number;
@@ -178,16 +184,22 @@ export async function startBackendServer(options: {
   if (options.enableTestControl) {
     args.push('--enable-test-control');
   }
+  if (options.bridge) {
+    args.push('--bridge-url', options.bridge.url);
+    args.push('--bridge-server-id', options.bridge.serverId);
+    if (options.bridge.displayName) {
+      args.push('--bridge-display-name', options.bridge.displayName);
+    }
+    if (typeof options.bridge.httpTimeoutSeconds === 'number') {
+      args.push('--bridge-http-timeout-seconds', String(options.bridge.httpTimeoutSeconds));
+    }
+  }
 
   const child = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd: options.cwd,
     env: {
       ...process.env,
-	      SERVER_HOST: '127.0.0.1',
-	      SERVER_PORT: String(port),
-	      PORT: String(port),
-	      BRIDGE_LOCAL_HTTP_BASE: baseUrl,
       ...(options.env || {}),
       REPO_ROOT: repoRoot,
       BUILTIN_PLUGINS: path.join(repoRoot, 'plugins'),
@@ -262,6 +274,7 @@ export async function startBackendViaCLI(options: {
   bridgeUrl: string;
   serverId?: string;
   displayName?: string;
+  config?: Record<string, unknown>;
   port?: number;
   startupTimeoutMs?: number;
 }): Promise<StartedServer> {
@@ -276,6 +289,9 @@ export async function startBackendViaCLI(options: {
   fs.mkdirSync(path.join(workspace, '.crystal'), { recursive: true });
   const sessionsRoot = path.join(workspace, '.crystal', 'sessions');
   const configPath = path.join(workspace, '.crystal', 'config.json');
+  if (options.config) {
+    fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf8');
+  }
 
   const repoVenvPython = path.join(repoRoot, '.venv', 'bin', 'python');
   const python = process.env.PYTHON || (fs.existsSync(repoVenvPython) ? repoVenvPython : 'python');

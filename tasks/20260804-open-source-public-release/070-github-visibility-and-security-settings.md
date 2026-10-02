@@ -1,16 +1,25 @@
 # Change GitHub Visibility And Apply Immediate Security Settings
 
-Perform the manual GitHub administration required to make the approved
-repository commit public without leaving `main`, Actions, security intake, or
-deployment credentials unnecessarily exposed.
+Integrate the reviewed readiness work into the actively developed repository,
+apply the immediate GitHub security settings, make the current remote
+repository public, and verify the transition without stopping normal branch
+development.
 
 ## Requirements checklist
 
-- [ ] The approved publication candidate is the repository state made public.
+- [ ] The tested readiness-baseline changes are integrated into the actual
+  current `main`, and every remote ref added or changed since the baseline has
+  passed the required delta review.
+- [ ] All branches, tags, pull-request refs, and reachable history present on
+  GitHub at the visibility change are treated as publication scope; future
+  pushed refs are public by default.
 - [ ] `main` is protected by a ruleset or branch protection requiring pull requests and required checks.
 - [ ] Force pushes and deletion of `main` are blocked.
 - [ ] Default Actions token permissions are read-only and Actions cannot approve pull requests.
 - [ ] Production deployment/release environments require appropriate approval and branch restrictions.
+- [ ] Fork-based pull requests and other untrusted workflows cannot access
+  repository secrets, protected environments, write tokens, signing
+  credentials, or deployment authority.
 - [ ] Dependency graph, Dependabot alerts, secret scanning, push protection, and private vulnerability reporting are enabled where available.
 - [ ] Repository description, homepage, topics, license detection, Issues, and support/security links are correct.
 - [ ] No unexpected workflow runs or infrastructure deployments occur during the transition.
@@ -18,28 +27,124 @@ deployment credentials unnecessarily exposed.
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
 Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-gate.md
 
-## Manual procedure
+## Responsibility split
 
-### Before changing visibility
+### Agent-executable work
 
-1. Confirm task `060` is `GO` and record the approved commit SHA.
-2. Pause merges and direct pushes.
-3. Confirm no production deployment workflow is currently running.
-4. Confirm required repository secrets are stored only in GitHub settings, not
+- Integrate or adapt the remaining readiness-baseline changes on current
+  `main`.
+- Inventory and scan remote branches, tags, pull-request refs, workflow output,
+  releases, and deployments.
+- Run local audits, tests, builds, link checks, and live-route verification.
+- Configure Actions permissions, allowed actions, SHA enforcement,
+  environments, repository metadata, and supported security features through
+  the GitHub API after approval.
+- Push approved refs, monitor expected workflows, stop on unexpected activity,
+  and perform post-change API and logged-out verification.
+
+### Owner-required work
+
+- Explicitly approve execution of this Draft plan and the publication timing.
+- Complete or explicitly authorize the final repository visibility change.
+- Complete any GitHub owner re-authentication, confirmation prompt, or required
+  environment approval.
+- Retain the original secret values for the later environment-secret migration;
+  GitHub does not expose stored values for automated copying.
+
+## Procedure
+
+### Prepare security settings while still private
+
+1. Confirm task `060` is `GO` and record its tested readiness-baseline SHA and
+   remote-ref inventory.
+2. Confirm active development continues throughout the process and use
+   baseline-plus-delta checks instead of stopping branch activity.
+3. Inventory current GitHub branches, tags, pull-request refs, releases, and
+   their tip SHAs, and compare them with task `060`.
+4. Scan every new or changed remote ref and its newly reachable commits with
+   the task `060` secret/privacy checks.
+5. Re-run affected legal, documentation, dependency, workflow, build, or test
+   checks when the delta touches those boundaries.
+6. Confirm no production deployment or release workflow is currently running.
+7. Confirm required repository secrets are stored only in GitHub settings, not
    in files.
-5. Open repository **Settings → Actions → General**.
-6. Set default workflow permissions to **Read repository contents and packages**.
-7. Disable **Allow GitHub Actions to create and approve pull requests**.
-8. Require approval for first-time outside contributors before their workflows
+8. Set default workflow permissions to **Read repository contents and
+   packages**.
+9. Disable **Allow GitHub Actions to create and approve pull requests**.
+10. Require approval for first-time outside contributors before their workflows
    run.
-9. Confirm fork workflows receive neither repository secrets nor write tokens.
-10. Change the allowed-actions policy to selected actions:
+11. Confirm fork workflows receive neither repository secrets nor write tokens.
+12. Change the allowed-actions policy to selected actions:
     - allow GitHub-owned actions;
     - allow `aws-actions/configure-aws-credentials`;
-    - allow `softprops/action-gh-release`;
+    - allow `ruby/setup-ruby`;
     - add a future action repository only when a reviewed, SHA-pinned workflow
       actually needs it.
-11. Require actions to be pinned to a full-length commit SHA.
+13. Require actions to be pinned to a full-length commit SHA.
+14. Create or update environment `production-sites`.
+15. Restrict `production-sites` to `main` and add a required reviewer if
+    supported.
+16. Confirm environment `cli-release` is restricted to tags matching
+    `crystal-lattice-cli-v*`; add a required reviewer if supported.
+17. Create or update environment `testflight`.
+18. Restrict `testflight` to `main` and add a required reviewer if supported.
+19. Attach only the static-site, CLI publication, and TestFlight publication
+    jobs to their corresponding environments.
+20. Keep existing secret values at repository scope for the initial
+    publication under the owner's accepted trusted-write-collaborator model.
+21. Confirm:
+    - no workflow uses `pull_request_target`;
+    - Public CI does not reference repository secrets;
+    - secret-bearing workflows do not run for pull requests;
+    - TestFlight remains manual-only;
+    - CLI publication remains manual/tag-only;
+    - deployment and publication jobs retain their branch/tag environment
+      restrictions.
+22. Record environment-scoping of the existing secret values as mandatory
+    post-publication hardening in task `130`.
+
+### Integrate and validate current `main` while still private
+
+1. Work in `/Users/ferenci84/Dev/Mine/ai-agent-platform-main` on `main`.
+2. Treat the old publication-candidate branch as evidence and a source for
+   selected changes, not as a branch to merge wholesale into current `main`.
+3. Adapt the remaining applicable baseline changes to current code:
+   - repeat and apply supported dependency-advisory remediation against the
+     current lockfiles;
+   - attach the TestFlight publication job to `testflight`;
+   - adapt the Actions security validator to require the exact intended
+     workflow/job/environment mappings;
+   - retain current deployment and CLI-release improvements that superseded
+     the old baseline.
+4. Record the actual current `main` SHA being validated.
+5. Refresh the remote-ref inventory. If another branch, tag, or pull-request
+   ref changed during setup, scan that delta before continuing.
+6. Push only the approved current `main` and other specifically intended refs.
+7. Expect exactly:
+   - `Public CI`;
+   - `Deploy Static Sites`.
+8. Do not manually dispatch TestFlight or CLI release and do not create a
+   release tag.
+9. Require all four Public CI jobs to pass on the actual current `main` SHA.
+10. Require the static-site build, protected deployment, and both AWS
+    deployments to pass.
+11. Stop with the repository private if a protected environment is unavailable,
+    an expected workflow fails, or an unexpected workflow, release, TestFlight
+    upload, or infrastructure operation starts.
+12. Verify all of these live routes return successfully:
+    - `https://crystallattice.dev/`
+    - `https://crystallattice.dev/privacy`
+    - `https://crystallattice.dev/support`
+    - `https://crystallattice.dev/mobile`
+    - `https://docs.crystallattice.dev/`
+13. Verify the live Claude Tools documentation contains the reviewed
+    public-behavior/Apache provenance and no longer contains the superseded
+    statement that normalized fixtures are subject to Anthropic's terms.
+14. Refresh the workflow, deployment, release, repository-setting, and
+    remote-ref inventories immediately before visibility changes. Review any
+    new delta while development continues.
+15. Continue only when no workflow is active or queued and every current
+    remote ref is covered by the baseline plus reviewed deltas.
 
 ### Change visibility
 
@@ -82,16 +187,15 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 
 ### Protect deployments
 
-1. Create or update environment `production-sites`.
-2. Restrict it to `main`.
-3. Add a required reviewer if supported.
-4. Create or update environment `cli-release`.
-5. Restrict it to tags matching `crystal-lattice-cli-v*` and add a required
-   reviewer if supported.
-6. Reserve `testflight` for the later iOS workflow.
-7. Move or scope static-site deployment secrets to `production-sites` and CLI
-   publication secrets to `cli-release` where supported.
-8. Confirm pull-request jobs cannot access these environments or secrets.
+1. Recheck that `production-sites`, `cli-release`, and `testflight` retained
+   their branch/tag restrictions and reviewer rules through the visibility
+   change.
+2. Confirm the static-site, CLI release, and TestFlight publication jobs are
+   the only jobs attached to those environments.
+3. Confirm fork-based pull-request jobs cannot access repository secrets,
+   protected environments, write tokens, or publication authority.
+4. Keep environment-scoping of the existing secret values deferred to task
+   `130`; do not delete or recreate secret values during this transition.
 
 ### Complete repository presentation
 
@@ -105,16 +209,37 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 7. Check the repository from a logged-out browser.
 
 ## Execution plan
-Status: Draft
+Status: Approved
 
-This task is primarily manual and must be performed by an organization or
-repository owner. The agent may prepare commands and verify settings through
-read-only GitHub API calls, but changing visibility and organization security
-settings requires explicit owner action.
+Execute this as a mixed automatic/manual transition. The agent performs the
+repository integration, delta review, tests, most GitHub settings changes,
+workflow monitoring, and verification. The owner approves publication timing
+and completes or explicitly authorizes the final visibility operation and any
+GitHub confirmation that cannot be automated.
 
 Because rulesets are not currently available for this private repository on its
 present plan, minimize the interval between making the repository public and
 activating the `main` ruleset.
+
+The current repository settings require mandatory pre-publication correction:
+
+- default workflow permissions are `write`;
+- Actions may approve pull requests;
+- all third-party actions are allowed;
+- full-SHA policy enforcement is disabled.
+
+Environments `production-sites` and `cli-release` already have their intended
+`main` branch and CLI release-tag restrictions. Environment `testflight` still
+needs to be created and the current TestFlight publication job needs to be
+attached to it.
+
+Existing secret values may remain repository-scoped for the initial public
+release. This is an explicit risk acceptance based on trusted write
+collaborators, manual/restricted publication triggers, no
+`pull_request_target`, and secret-free Public CI. It does not prevent a trusted
+collaborator or compromised write-enabled account from deliberately using a
+repository secret in a new workflow. Moving the values to protected
+environments remains required post-publication hardening in task `130`.
 
 ### Implementation decisions and open questions
 
@@ -124,28 +249,303 @@ activating the `main` ruleset.
 - Use protected environments for production authority.
 - Require the four stable `Public CI` checks on `main`.
 - Permit only GitHub-owned actions plus the currently required AWS credentials
-  and GitHub Release action repositories.
+  and Ruby setup action repositories.
 - Require full-SHA action references; version comments remain informational.
-- A later TestFlight workflow must add its reviewed action repositories to the
-  selected-action allowlist rather than broadening the policy generally.
+- Integrate the readiness-baseline changes with current development while the
+  repository remains private; visibility changes only after current-tip CI,
+  remote-ref delta review, and live legal/support surfaces pass.
+- Keep branches active during publication. Use a baseline-plus-delta model for
+  every remote branch, tag, and pull-request ref.
+- Local-only branches are outside GitHub publication scope until pushed.
+- Keep existing secret values repository-scoped for the initial publication;
+  defer their environment migration to task `130`.
+- Do not defer Actions token hardening, selected-action enforcement,
+  environment branch/tag restrictions, or TestFlight environment attachment.
+- The current TestFlight workflow is manual-only and must use the protected
+  `testflight` environment before publication.
 
 ### Documentation
 
 - Record the final settings and any unavailable organization-plan features.
-- Do not record secret names with values.
+- Record the accepted temporary repository-secret trust model and the task
+  `130` follow-up.
+- Do not record secret values.
 
 ### Task checklist
 
-- [ ] Apply pre-visibility Actions settings.
+- [x] Integrate applicable readiness-baseline changes into current private
+  `main`.
+- [x] Apply pre-visibility Actions settings.
+- [x] Protect production, CLI release, and TestFlight environments.
+- [x] Verify fork-PR and protected-workflow isolation without relocating secret
+  values.
+- [x] Scan all remote-ref changes since task `060`.
+- [x] Validate Public CI, static deployment, and live public-facing content on
+  the actual current `main`.
 - [ ] Change visibility to public.
 - [ ] Protect `main`.
 - [ ] Enable immediate security features.
-- [ ] Protect deploy/release environments.
-- [ ] Set repository presentation metadata.
+- [ ] Recheck deploy/release environment protection after visibility changes.
+- [x] Set repository presentation metadata.
 - [ ] Verify through logged-out and API checks.
 
 ### Requirement verification
 
 - GitHub settings/API inspection confirms public visibility and protections.
-- A test pull request cannot deploy, publish, or read protected secrets.
+- Private pre-visibility workflow runs prove the actual current `main` and
+  static-site deployment path before public exposure.
+- Remote-ref inventory and delta scans cover all branches, tags,
+  pull-request refs, and newly reachable commits present at publication.
+- A fork-based test pull request cannot deploy, publish, receive a write token,
+  or read repository secrets.
 - Private vulnerability reporting and public Issues are accessible.
+
+## Implementation Notes
+
+### September 7, 2026: private-side preparation completed
+
+Execution started in
+`/Users/ferenci84/Dev/Mine/ai-agent-platform-main` on local `main` at
+`63e73300c6f504a5361d11797024d2b8e6026655`. At the start, local `main` was 24
+commits ahead of `origin/main`, local `develop` pointed to the same commit, the
+repository was private, no workflow was active or queued, and no pull request
+was open.
+
+The old publication-candidate branch was not merged wholesale. Its still
+applicable changes were adapted to current `main`:
+
+- root `shell-quote` resolved to `1.10.0`;
+- mobile and desktop React Native community CLI packages moved from `20.0.0`
+  to the supported same-major `20.2.0`;
+- both application lockfiles resolved `fast-xml-parser` to `5.11.1` and
+  `shell-quote` to `1.10.0`;
+- the TestFlight publication job now uses environment `testflight`;
+- the Actions security validator requires the exact four intended
+  workflow/job/environment mappings while retaining the newer static-site
+  deployment checks.
+
+Production-only npm audits report zero critical findings for the root, mobile,
+and desktop lockfiles. The remaining root full-audit critical finding is the
+previously accepted development-only Vitest UI-server advisory; remaining
+mobile and desktop findings are non-critical transitive tooling findings
+tracked for task `130`.
+
+Private GitHub settings now enforce:
+
+- read-only default workflow token permissions;
+- no Actions pull-request approval;
+- selected Actions limited to GitHub-owned actions,
+  `aws-actions/configure-aws-credentials`, and `ruby/setup-ruby`;
+- full-length commit-SHA action references.
+
+Environment state now is:
+
+- `production-sites`: restricted to branch `main`;
+- `cli-release`: restricted to tags matching `crystal-lattice-cli-v*`;
+- `testflight`: created and restricted to branch `main`.
+
+Required reviewers remain unavailable in the current private-repository plan
+and must be reconsidered immediately after visibility changes. Existing secret
+values remain repository-scoped under the approved temporary trust model and
+their migration is tracked in task `130`.
+
+The fresh publication mirror covered 34 remote branch heads, two tags, all 12
+GitHub pull-request heads, and 2,014 commits:
+
+- Gitleaks `8.30.1`: the same three accepted findings—one notification-cache
+  false positive and two revoked historical JWT findings;
+- TruffleHog `3.96.0`: zero verified credentials and the same two unverified
+  revoked historical JWT findings, with the previously documented Lob
+  false-positive detector excluded.
+
+No new secret or privacy finding was identified.
+
+Local verification on the updated tree:
+
+- Actions validator, actionlint, workflow YAML parsing, manifest parsing, and
+  `git diff --check`: passed;
+- core Python 3.11: `504 passed`, `26 deselected`, one expected xfail;
+- application Python 3.11 in a clean CI-equivalent virtual environment:
+  `371 passed`, one skipped, `92 deselected`;
+- frontend SDK: `335 passed`;
+- React bindings: `20 passed`;
+- shared React Native components: `51 passed`;
+- mobile clean install/configuration: passed; `176` tests passed;
+- desktop clean install/configuration: passed; `141` tests passed;
+- landing production build: passed with all five expected routes;
+- documentation preparation and non-strict production build: passed.
+
+The first application run used a contaminated shared Python environment and
+failed while loading incompatible cached plugin dependencies. A clean Python
+3.11 environment resolved that failure. A second clean run initially omitted
+the virtual environment from subprocess `PATH`; rerunning with the same
+`setup-python` path behavior used by Public CI passed the full application
+suite. No source change was required for either local-environment issue.
+
+Execution remains before the current-`main` commit/push, hosted Public CI and
+deployment validation, final remote-ref delta check, visibility confirmation,
+and post-public settings.
+
+### September 7, 2026: current `main` pushed and privately validated
+
+Commit `6ad8970a28addb3fef184eb9fd85d05597132779` was pushed to remote
+`main`. The push advanced `main` by 25 reviewed commits and intentionally
+triggered only:
+
+- Public CI run `34141194786`: passed all four required jobs;
+- Deploy Static Sites run `34141194767`: passed the landing/docs builds,
+  protected AWS OIDC assumption, and both deployments.
+
+No TestFlight run, CLI release run, release tag, or new release was triggered.
+The deployment for `6ad8970a28addb3fef184eb9fd85d05597132779`
+finished successfully.
+
+All required live routes returned HTTP `200` after deployment:
+
+- `https://crystallattice.dev/`
+- `https://crystallattice.dev/privacy`
+- `https://crystallattice.dev/support`
+- `https://crystallattice.dev/mobile`
+- `https://docs.crystallattice.dev/`
+
+The deployed Claude Tools page states that the package is an independent,
+AI-assisted compatibility implementation based on publicly visible Claude Code
+interfaces and that its normalized fixtures are Apache-2.0 licensed. The
+superseded Anthropic-license statement is absent.
+
+The post-push publication mirror covered 34 remote branch heads, two tags, all
+12 GitHub pull-request heads, and 2,015 commits. Both history scans remained
+identical to the accepted baseline:
+
+- Gitleaks: three accepted findings, with no new finding;
+- TruffleHog: two unverified revoked historical JWT findings and zero verified
+  credentials.
+
+The two new workflow log archives contained:
+
+- zero Gitleaks findings;
+- zero TruffleHog findings;
+- no private-key, AWS access-key, or GitHub-token value shape;
+- normal GitHub masking markers only.
+
+No Actions artifact is retained and no workflow is active or queued.
+
+Repository presentation metadata now includes:
+
+- description: `A modular, provider-agnostic AI agent platform with Python,
+  terminal, web, mobile, and desktop clients.`;
+- homepage: `https://crystallattice.dev`;
+- topics: `agent-framework`, `ai-agents`, `fastapi`, `llm`, `python`, and
+  `react-native`;
+- Issues enabled and Discussions disabled.
+
+The next commit records this evidence only. After its hosted Public CI and
+final ref delta scan pass, execution stops for the owner visibility
+confirmation.
+
+### September 8, 2026: website truthfulness delta prepared
+
+Before repository visibility changed, the owner requested two public-surface
+corrections. Current `main` and `origin/main` were synchronized at
+`5351da7ea6cdde808c40ea93aaae31adde4dd99f`, and the preceding analytics work
+was committed with a clean worktree.
+
+The prepared delta:
+
+- restores the homepage hero badge to `Open Source`;
+- retains the model-native/plugin-driven product description elsewhere;
+- removes the unavailable `pipx install crystal-lattice-cli` and
+  `pip install crystal-lattice-cli` claims from maintained user guidance;
+- documents the bundled download installer as the released user path and
+  editable source installs as the developer path;
+- makes the hero alternate-install field optional and omits its row when no
+  supported alternative exists;
+- adds a landing content regression test and runs it in both Public CI and
+  static-site deployment.
+
+Local verification passed:
+
+- four analytics tests;
+- two new homepage-content tests;
+- landing production build with five generated routes;
+- two documentation analytics tests;
+- documentation preparation and non-strict production build;
+- workflow YAML parsing, actionlint, Actions security validation, and
+  `git diff --check`;
+- an isolated live installer smoke test using release `0.1.4`, followed by a
+  successful `crystal-lattice --help`;
+- maintained and generated public documentation contain no unsupported
+  `pipx`/`pip` CLI installation command;
+- generated homepage HTML contains `Open Source`, the supported installer, and
+  no alternate-install row.
+
+The refreshed pre-push publication mirror covered 34 branch heads, five tags,
+all 12 GitHub pull-request heads, and 2,066 commits:
+
+- Gitleaks: the same three accepted historical findings;
+- TruffleHog: zero verified credentials, the two accepted revoked historical
+  JWT findings, and one new unverified URI match in the analytics sanitizer
+  test.
+
+The new URI match is the intentionally fake
+`name:password@example.com` referrer used to prove that analytics removes URL
+credentials and private query/fragment data. It is not an active credential
+and is retained as useful security-test coverage.
+
+Public CI run `34275747652` on concurrent `develop` work was still active, so
+the website delta was not pushed while that run was in progress.
+
+### September 8, 2026: website truthfulness delta deployed and validated
+
+Commit `249d6361edbf087554475222409f4b583a721f7e` was pushed after the
+concurrent `develop` Public CI run completed successfully.
+
+Expected hosted results:
+
+- Public CI run `34276458498`: passed all four required jobs, including the new
+  homepage-content tests;
+- Deploy Static Sites run `34276458492`: passed both builds, protected AWS
+  authentication, and landing/docs deployment;
+- no TestFlight run, CLI release run, release tag, or release was created by
+  the website push.
+
+Live verification after deployment:
+
+- the homepage returns HTTP `200`;
+- exactly one hero badge reads `Open Source`;
+- the former `Plugin-driven agent platform` badge is absent;
+- the supported bundled installer is present;
+- `pipx install crystal-lattice-cli` is absent;
+- the generated application quickstart returns HTTP `200`, contains the
+  bundled installer, and contains no unsupported PyPI CLI installation
+  command.
+
+The post-push publication mirror covered 34 branch heads, five tags, all 12
+GitHub pull-request heads, and 2,067 commits:
+
+- Gitleaks: the same three accepted historical findings;
+- TruffleHog: zero verified credentials, the two accepted revoked historical
+  JWT findings, and the accepted fake analytics-test URI.
+
+Both new workflow log archives produced zero Gitleaks and zero TruffleHog
+findings.
+
+Ten Actions artifacts are retained from the CLI `0.1.2`, `0.1.3`, and `0.1.4`
+tag workflows. They are expected one-day build-matrix handoff archives and
+expire on September 9, 2026. The first two release runs stopped after Windows
+build failures; the `0.1.4` run completed and published the current release.
+
+All retained archives were downloaded and reviewed:
+
+- 263,908 archive entries were inventoried;
+- sensitive-filename matching found only the public `certifi` CA certificate
+  bundles;
+- TruffleHog found zero verified credentials;
+- redacted Gitleaks/TruffleHog matches resolve to third-party Python
+  standard-library/package regex markers, registry/type constants, and
+  documented example URLs;
+- no application, GitHub, AWS, Apple, signing, or deployment credential was
+  found.
+
+The website correction is complete. Task `070` remains paused immediately
+before repository visibility changes and post-public security configuration.

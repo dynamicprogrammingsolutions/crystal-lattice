@@ -21,7 +21,9 @@ WRAPPED_SCRIPTS = {
     "test:examples",
     "test:cli:source-install",
     "test:cli:archive",
+    "test:cli:agent-access",
     "test:cli:default-install",
+    "test:cli:powershell-install",
     "test:core:integration",
     "test:application:integration",
     "test:ollama",
@@ -39,6 +41,10 @@ WRAPPED_SCRIPTS = {
     "test:plugins:claude",
     "test:plugins:web-fetch-shared",
     "test:plugins:tool-compat-shared",
+    "test:ios:embedded-providers:bundle",
+    "test:ios:embedded-providers:bundle:api",
+    "test:ios:embedded-providers:detox:api",
+    "test:ios:embedded-providers:detox:chatgpt",
     "lint",
     "lint:fix",
     "format",
@@ -204,6 +210,14 @@ def test_python_tooling_scripts_run_through_repo_run():
     )
 
 
+def test_ios_embedded_provider_bundle_build_targets_mobile_prepare():
+    scripts = _load_scripts()
+
+    assert scripts["build:ios:embedded-providers:bundle"] == (
+        "npm --prefix mobile/crystal-lattice-control-rn run ios:prepare-python"
+    )
+
+
 def test_server_scripts_run_installed_commands_without_repo_run():
     scripts = _load_scripts()
 
@@ -235,6 +249,10 @@ def test_cli_distribution_scripts_use_the_isolated_runner():
     assert (
         scripts["test:cli:default-install"] == "python scripts/repo_run.py python "
         "application/python/scripts/run_distribution_smoke.py default-install"
+    )
+    assert (
+        scripts["test:cli:powershell-install"] == "python scripts/repo_run.py python "
+        "application/python/scripts/run_distribution_smoke.py powershell-install"
     )
 
 

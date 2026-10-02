@@ -85,6 +85,19 @@ def test_attachment_extension_ui_hidden_without_provider_tag() -> None:
     assert extension.get_ui_elements(config={}, tags=["other"], models=[]) == []
 
 
+def test_attachment_extension_hides_upload_controls_for_requests_transport() -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+
+    assert (
+        extension.get_ui_elements(
+            config={"provider_transport": "requests"},
+            tags=["openai_responses"],
+            models=[],
+        )
+        == []
+    )
+
+
 def test_attachment_extension_initialize_request_normalizes_state() -> None:
     extension = OpenAIResponsesAttachmentsExtension()
 

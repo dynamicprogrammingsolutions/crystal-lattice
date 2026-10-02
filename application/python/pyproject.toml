@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crystal-lattice-cli"
-version = "0.1.1"
+version = "0.1.5"
 description = "Crystal Lattice command-line and HTTP frontend for agent-core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,7 +45,7 @@ include = ["agent_terminal_app*"]
 agent_terminal_app = [
     "*.json",
     "runtime_layout.json",
-    "default_config/*.json",
+    "default_config/**/*.json",
     "default_config/*.md",
     "default_config/cloud-agent/**/*",
     "default_config/codex/**/*.json",
@@ -68,6 +68,7 @@ markers = [
     "openai: tests requiring OpenAI credentials",
     "openrouter: OpenRouter integration tests",
     "anthropic: tests requiring Anthropic credentials",
+    "zai: tests requiring Z.ai credentials",
     "manual_integration: semiautomated tests requiring a human or saved auth state",
     "terminal_ui: deterministic pseudo-terminal UI tests",
 ]

@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
+
 from agent_app.application_future import AgentApplication
 from agent_core import AgentCore
 
@@ -40,6 +42,24 @@ def _build_app(
         str(tmp_path / "sessions"),
         core_factory=AgentCore,
         replay_server_settings_on_startup=replay_server_settings_on_startup,
+    )
+
+
+def _build_workspace_app(tmp_path: Path, workspace_root: Path) -> AgentApplication:
+    config_path = _make_config(tmp_path)
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["agents"]["default"].update(
+        {
+            "workspace_root": str(workspace_root),
+            "working_directory": str(workspace_root),
+            "allowed_paths": [str(workspace_root)],
+        }
+    )
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    return AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
     )
 
 
@@ -163,3 +183,103 @@ def test_session_settings_helpers_fire_lifecycle(tmp_path: Path) -> None:
     assert "overrides" not in deleted.metadata
     assert app.get_session_settings(session.session_id) == {}
     assert plugin.executed[-1]["context"]["changed_keys"] == ["dummy_session_mode"]
+
+
+def test_session_working_directory_is_canonicalized_and_workspace_is_locked(
+    tmp_path: Path,
+) -> None:
+    workspace_root = tmp_path / "workspace"
+    nested = workspace_root / "projects" / "alpha"
+    sibling = tmp_path / "sibling"
+    nested.mkdir(parents=True)
+    sibling.mkdir()
+    app = _build_workspace_app(tmp_path, workspace_root)
+    _core, _base_config, session = app.create_session("default")
+
+    app.patch_session_settings(
+        session.session_id,
+        {"working_directory": "projects/alpha"},
+        source="test",
+    )
+    assert app.get_session_settings(session.session_id)["working_directory"] == str(
+        nested.resolve()
+    )
+
+    for updates in (
+        {"working_directory": str(sibling)},
+        {"working_directory": "../sibling"},
+        {"working_directory": "missing"},
+        {"workspace_root": str(sibling)},
+        {"allowed_paths": [str(sibling)]},
+    ):
+        with pytest.raises(ValueError):
+            app.patch_session_settings(
+                session.session_id,
+                updates,
+                source="test",
+            )
+
+
+def test_session_workspace_id_resolves_internal_private_and_external_roots(
+    tmp_path: Path,
+) -> None:
+    workspace_root = tmp_path / "workspace"
+    shared = workspace_root / "shared-project"
+    external = tmp_path / "external"
+    shared.mkdir(parents=True)
+    external.mkdir()
+    app = _build_workspace_app(tmp_path, workspace_root)
+    _core, base_config, session = app.create_session("default")
+    base_config["workspace_grants"] = json.dumps(
+        {
+            "grant-1": {
+                "path": str(external),
+                "display_name": "External",
+                "available": True,
+            }
+        }
+    )
+    app._agent_base_configs["default"] = base_config
+
+    app.patch_session_settings(
+        session.session_id,
+        {"workspace_id": "shared:shared-project"},
+        source="test",
+    )
+    assert app.get_session_settings(session.session_id) == {
+        "workspace_id": "shared:shared-project",
+        "working_directory": str(shared.resolve()),
+    }
+
+    private = workspace_root / ".sessions" / session.session_id / "private-one"
+    private.mkdir(parents=True)
+    app.patch_session_settings(
+        session.session_id,
+        {"workspace_id": f"private:{session.session_id}:private-one"},
+        source="test",
+    )
+    assert app.get_session_settings(session.session_id)["working_directory"] == str(
+        private.resolve()
+    )
+
+    app.patch_session_settings(
+        session.session_id,
+        {"workspace_id": "external:grant-1"},
+        source="test",
+    )
+    assert app.get_session_settings(session.session_id)["working_directory"] == str(
+        external.resolve()
+    )
+
+    for workspace_id in (
+        "shared:../outside",
+        "shared:.sessions/other",
+        "private:other-session:private-one",
+        "external:missing",
+    ):
+        with pytest.raises(ValueError):
+            app.patch_session_settings(
+                session.session_id,
+                {"workspace_id": workspace_id},
+                source="test",
+            )

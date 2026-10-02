@@ -20,7 +20,10 @@ import time
 from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core.types import ToolPlugin
-from tool_compat_shared.shell_engine import build_sync_subprocess_kwargs
+from tool_compat_shared.shell_engine import (
+    build_sync_subprocess_kwargs,
+    terminate_process_tree,
+)
 
 MAX_OUTPUT_LINES_DEFAULT = 2000
 HAD_CHAR_LIMIT_PER_LINE = 80
@@ -293,8 +296,6 @@ class ShellTool(ToolPlugin):
         stdout = str(result.get("stdout", "") or "")
         stderr = str(result.get("stderr", "") or "")
         stdout_truncated = bool(result.get("stdout_truncated"))
-        stderr_truncated = bool(result.get("stderr_truncated"))
-
         stdout_has = bool(stdout.strip())
         stderr_has = bool(stderr.strip())
         exitcode_is_zero = isinstance(returncode, int) and returncode == 0
@@ -384,6 +385,8 @@ class ShellTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        *,
+        cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream shell command output as partials plus a final result.
 
@@ -483,6 +486,18 @@ class ShellTool(ToolPlugin):
         stdout_chunks: List[str] = []
         stderr_chunks: List[str] = []
         timed_out = False
+        cancelled_event = threading.Event()
+        cancel_token: int | None = None
+
+        def _request_cancel() -> None:
+            cancelled_event.set()
+            terminate_process_tree(proc)
+
+        if cancellation is not None and hasattr(cancellation, "add_callback"):
+            try:
+                cancel_token = cancellation.add_callback(_request_cancel)
+            except Exception:
+                cancel_token = None
 
         # Use a background thread to read stdout so we can enforce a real
         # wall-clock timeout even when the subprocess isn't producing output.
@@ -532,11 +547,7 @@ class ShellTool(ToolPlugin):
                 elapsed = time.monotonic() - start_time
                 if timeout_seconds and elapsed >= timeout_seconds:
                     timed_out = True
-                    proc.kill()
-                    try:
-                        proc.wait(timeout=1)
-                    except Exception:
-                        pass
+                    terminate_process_tree(proc)
                     break
 
                 # Drain any available stdout lines, but don't block too long.
@@ -588,16 +599,30 @@ class ShellTool(ToolPlugin):
                 stderr_thread.join(timeout=1)
             except Exception:
                 pass
+            if (
+                cancellation is not None
+                and cancel_token is not None
+                and hasattr(cancellation, "remove_callback")
+            ):
+                try:
+                    cancellation.remove_callback(cancel_token)
+                except Exception:
+                    pass
 
         stdout_text = "".join(stdout_chunks)
         stderr_text = "".join(stderr_chunks)
         truncated_stdout = self._truncate(stdout_text, max_output_lines, max_output_chars)
         truncated_stderr = self._truncate(stderr_text, max_output_lines, max_output_chars)
 
+        cancelled = cancelled_event.is_set() and not timed_out
         if timed_out:
             success = False
             return_code = None
             error_msg = f"Command timed out after {timeout_seconds} seconds"
+        elif cancelled:
+            success = False
+            return_code = None
+            error_msg = "Command cancelled"
         else:
             return_code = proc.returncode
             success = return_code == 0
@@ -616,6 +641,7 @@ class ShellTool(ToolPlugin):
             "workdir": abs_workdir,
             "command": raw_command,
             "timeout_seconds": timeout_seconds,
+            "cancelled": cancelled,
             "explicit_workdir": bool(isinstance(raw_workdir, str) and raw_workdir.strip()),
         }
         if not success:

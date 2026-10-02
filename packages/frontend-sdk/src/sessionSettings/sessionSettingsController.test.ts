@@ -50,6 +50,25 @@ describe('SessionSettingsController', () => {
           id: 'application_status',
           label: 'Application status',
         },
+        {
+          ui_type: 'session_action',
+          plugin: 'settings',
+          id: 'anchored',
+          label: 'Anchored',
+          action_id: 'anchored',
+          rich_ui: {
+            kind: 'button',
+            placements: ['session_settings'],
+            anchor_key: 'application_setting',
+          },
+        },
+        {
+          ui_type: 'session_action',
+          plugin: 'settings',
+          id: 'header-only',
+          label: 'Header only',
+          action_id: 'header-only',
+        },
       ]),
     });
 
@@ -66,6 +85,16 @@ describe('SessionSettingsController', () => {
       },
     ]);
     expect(backend.getSessionApplicationUiSchema).toHaveBeenCalledWith('s1');
+    expect(controller.getSnapshot().actions).toEqual([
+      expect.objectContaining({
+        id: 'anchored',
+        rich_ui: expect.objectContaining({
+          kind: 'button',
+          placements: ['session_settings'],
+          anchor_key: 'application_setting',
+        }),
+      }),
+    ]);
 
     controller.dispose();
   });
@@ -101,6 +130,7 @@ describe('SessionSettingsController', () => {
 
     const second = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
     expect(second.getSnapshot().elements).toEqual([{ key: 'model', ui_type: 'config', type: 'text' }]);
+    expect(second.getSnapshot().actions).toEqual([]);
     expect(second.getSnapshot().overrides).toEqual({ model: 'first' });
     expect(second.getSnapshot().loading).toBe(false);
 

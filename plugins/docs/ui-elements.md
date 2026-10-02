@@ -64,11 +64,43 @@ When `AgentCore.get_ui_schema()` is called, the core:
 3. Normalizes each element:
    - Sets `ui_type` to `"config"` if missing or falsy
    - Adds `plugin` field with the contributing plugin name
+   - Stamps an effective `order` (see [Element ordering](#element-ordering) below)
    - For `session_action`/`message_action` elements from extensions/features, sets `action_owner` field automatically
 4. **Deduplicates config elements**: Elements with `ui_type == "config"` are collected by `key` and only the last definition for each key is kept
-5. Appends deduplicated config elements at the end
+5. Returns all elements sorted by effective `order` (stable)
 
 This deduplication means later plugins can override earlier config elements with the same key.
+
+`AgentApplication.get_application_ui_schema()` applies the same
+normalization to application-plugin elements (app-plugin band, see below).
+
+## Element ordering
+
+Every UI element may carry an optional numeric `order`. The owner
+(core for provider/extension/feature/tool elements, application layer for
+application-plugin elements) stamps an effective order on every element
+and returns the list sorted by it, so consumers that render elements in
+list order need no sorting of their own.
+
+- **Explicit order wins**: if the element sets a finite numeric `order`,
+  it is kept as-is.
+- **Defaults preserve the current aggregation order**: provider band
+  1000, provider extension band 2000, feature band 3000, tool band 4000,
+  application plugin band 5000. Within a band the Nth plugin (in the
+  current iteration order) defaults to `band + N * 10` — e.g. the first
+  extension defaults to 2010, the second to 2020.
+- Elements from one plugin share the plugin's default, and the sort is
+  stable, so a plugin's declared element order is preserved.
+- Explicit orders position elements on the same scale across bands:
+  `order: 1990` sorts before every extension element; `order: 2015`
+  lands between the first (2010) and second (2020) extension plugins.
+
+The `order` field applies to all element types — config/settings
+elements, message footers, status bar fields, session/message actions,
+session-list fields and actions alike. Consumers that additionally sort
+a subset by `order` (for example session-list actions in the frontend
+SDK) do so idempotently: every element already carries its effective
+order.
 
 ### Automatic `action_owner` assignment
 
@@ -217,6 +249,18 @@ def get_ui_elements(self, state, config=None, context=None):
 | `select` | Chip-style selection (all options visible) |
 | `dropdown` | Dropdown menu (collapsed until clicked) |
 | `number` | Numeric input |
+
+#### Disabled configuration controls
+
+A configuration element may set `"disabled": true`. Supporting frontends keep
+the element visible, prevent edits, and continue rendering `description`.
+Use the description to explain why the setting is unavailable; do not hide an
+unavailable capability when the user needs that diagnostic.
+
+Terminal configuration commands also reject updates to disabled elements.
+`disabled` is presentation and interaction metadata, not the feature's only
+authorization check: runtime behavior must still validate its own
+preconditions.
 
 #### Compact rich configuration
 
@@ -951,8 +995,15 @@ interface SessionListFilter {
   icon?: string;
   order?: number;
   data: string | string[];
-  type: 'text' | 'boolean' | 'select';
-  match: 'contains' | 'equals' | 'one_of';
+  type: 'text' | 'boolean' | 'select' | 'datetime';
+  match:
+    | 'contains'
+    | 'equals'
+    | 'one_of'
+    | 'before'
+    | 'on_or_before'
+    | 'after'
+    | 'on_or_after';
   multiple?: boolean;          // select only
   case_sensitive?: boolean;    // text only
   missing_value?: unknown;
@@ -974,11 +1025,18 @@ Supported combinations are:
 | `boolean` | `null`, `true`, or `false` | `equals` | `null` |
 | single `select` | `null` or one declared option value | `equals` | `null` |
 | multiple `select` | list of declared option values | `one_of` | `[]` |
+| `datetime` | `null` or timezone-bearing ISO-8601 string | `before`, `on_or_before`, `after`, or `on_or_after` | `null` |
 
 Text matching is case-insensitive unless `case_sensitive` is true. Non-string
 summary values do not match text operators. For a multiple select, the
 resolved summary value is scalar and matches when it occurs among the selected
 values.
+
+Datetime runtime values must include a timezone, such as
+`2026-09-01T00:00:00Z` or `2026-09-01T02:00:00+02:00`. Candidate summary data
+may be a timezone-bearing ISO string or numeric Unix epoch seconds. Python and
+TypeScript evaluators compare UTC instants. Naive or invalid values do not
+match and produce diagnostics when supplied as runtime values.
 
 Composition rules:
 
@@ -1032,12 +1090,15 @@ built-in search plugin also declares `session_title_search` over displayed
 title/subtitle paths and `session_first_message_search` over a complete
 `first_user_message` field contributed by a `session_list` trigger.
 
-HTTP session listing remains unfiltered in this iteration. Mobile and desktop
-apply declarations to the complete ordered collection locally. Terminal
-filtering uses the in-process `AgentApplication` query service. Exact session
-loading by ID is independent of filter state. Frontend state is scoped by the
-active connection and normalized declaration identity; changing either restores
-the current declarations' defaults and removes stale values.
+Mobile and desktop apply declarations to an ordered collection locally. The
+one-shot `crystal-lattice sessions --filter <id>=<value>` command and repeated
+HTTP `GET /sessions?filter=<id>=<value>` parameters use the same normalized
+application query service. HTTP callers opt into defaults with
+`apply_filter_defaults=true`; an ordinary request with no new parameters
+retains the complete current response. Exact session loading by ID is
+independent of filter state. Frontend state is scoped by the active connection
+and normalized declaration identity; changing either restores the current
+declarations' defaults and removes stale values.
 
 Built-in pin, archive, and status plugins demonstrate metadata-backed filters
 and rich ordinary actions. Their `rich_ui.value_path` and filters use the same
@@ -1103,6 +1164,23 @@ status inactive defaults preserve the full list; archive intentionally hides
 archived sessions by default. Missing pin/archive state resolves to false and
 missing status resolves to `todo`, allowing old sessions to participate
 without a migration write.
+
+The built-in timestamp metadata plugin also demonstrates a date filter over an
+always-available summary field:
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "modified_after",
+    "label": "Modified after",
+    "icon": "calendar",
+    "order": 30,
+    "type": "datetime",
+    "match": "on_or_after",
+    "data": "modified",
+    "default": None,
+}
+```
 
 ### Composer attachments (`ui_type == "composer_attachment"`)
 
@@ -1279,6 +1357,7 @@ interface UiSchemaElement {
   label?: string;
   icon?: string;
   description?: string;
+  disabled?: boolean;
   options?: any;
   data?: string;
   template?: string;
@@ -1444,9 +1523,11 @@ GET /sessions
 GET /sessions/{session_id}/summary
 ```
 
-The first endpoint returns the complete application-ordered summary list
-(optionally truncated by its existing `limit` parameter). The second returns
-the same summary contract for one exact ID without applying list filters.
+The first endpoint returns the complete application-ordered summary list by
+default. It accepts `limit`, repeated plugin `filter=<id>=<value>`, optional
+`apply_filter_defaults`, and repeated RFC 9535 `include`/`exclude` JSONPath
+parameters. The second returns the same summary contract for one exact ID
+without applying list filters.
 
 ### Server settings values
 

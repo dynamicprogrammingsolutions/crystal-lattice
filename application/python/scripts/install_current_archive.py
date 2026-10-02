@@ -10,6 +10,7 @@ from distribution_support import (
     current_platform_archive,
     resolve_bash,
     resolve_configured_archive,
+    resolve_powershell,
 )
 from progress import StepLogger
 
@@ -40,10 +41,30 @@ def main() -> None:
     env[ARCHIVE_ENV] = archive.as_posix()
     progress.step("Installing the archive through the public installer")
     progress.run_visible(
-        [resolve_bash(env=env), str(SCRIPT_DIR / "install.sh")],
+        public_installer_command(env=env),
         cwd=ROOT,
         env=env,
     )
+
+
+def public_installer_command(
+    *,
+    env: dict[str, str],
+    windows: bool | None = None,
+) -> list[str]:
+    if windows is None:
+        windows = os.name == "nt"
+    if windows:
+        return [
+            resolve_powershell(env=env),
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(SCRIPT_DIR / "install.ps1"),
+        ]
+    return [resolve_bash(env=env), str(SCRIPT_DIR / "install.sh")]
 
 
 if __name__ == "__main__":

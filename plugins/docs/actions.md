@@ -211,6 +211,10 @@ elements. Values entered into the embedded display form are addressed with
 `$form.<field_name>`. Existing action dialogs continue to use
 `$dialog.<field_name>`.
 
+Default text inputs rendered for embedded display forms and action dialogs
+carry the stable test identifier `action-form-input-<field_name>`, so native
+UI tests can target plugin-declared fields by name.
+
 For a direct action display, use `dismiss` when the display should close
 locally without a backend call. Notification dismissal behavior is documented
 separately in
@@ -934,6 +938,64 @@ the existing core-side mutation style:
 Because `session_metadata` can contain `"overrides"`, provider-extension
 actions can initialize or repair session-owned settings without becoming
 application plugins.
+
+## Actions placed in session settings
+
+A `session_action` may use the `session_settings` rich-UI placement when the
+operation belongs next to a related config field rather than in the ordinary
+session header or composer:
+
+```python
+{
+    "ui_type": "session_action",
+    "id": "regenerate_prompt_cache_key",
+    "label": "Regenerate cache key",
+    "icon": "refresh-cw",
+    "action_id": "regenerate_prompt_cache_key",
+    "action_owner": "provider_extension",
+    "param_map": {
+        "session_id": "$session.session_id",
+    },
+    "rich_ui": {
+        "kind": "button",
+        "placements": ["session_settings"],
+        "anchor_key": "prompt_cache_key",
+        "position": "after",
+    },
+}
+```
+
+`anchor_key` names the related config element. A frontend that supports the
+placement renders the button after that field. If the field is unavailable,
+the action remains visible in a general settings-actions section. Actions
+without an explicit placement retain the existing session-header default.
+
+Settings placement does not change execution semantics. Application,
+feature, and provider-extension owners continue to use the same definitions,
+input validation, action endpoints, mutation results, UI effects, and
+idempotency behavior.
+
+An action may also request a user-mediated client input:
+
+```python
+{
+    "client_input": {
+        "kind": "directory",
+        "input_name": "workspace_grant_id",
+        "access": "read_write",
+        "persistent": True,
+    },
+    "param_map": {
+        "grant_id": "$client.workspace_grant_id",
+    },
+}
+```
+
+For persistent directory input, the client opens its native directory picker
+and stores the platform permission. The action receives only the opaque grant
+identifier. Raw bookmarks and provider filesystem paths must not be placed in
+session metadata or action parameters. Canceling client input skips action
+execution.
 
 `context` follows the same rule here: it is caller-provided execution metadata
 and must be serializable.

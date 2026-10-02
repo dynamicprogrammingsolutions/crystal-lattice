@@ -280,6 +280,34 @@ Practical guidance (not exhaustive):
   - Stateless mapping between provider-native fields and core metadata.
   - Must handle both full-history conversions and **single-message lists** (e.g. `AgentCore.add_message`).
 
+- `prepare_tool_call(tool_call, state, *, context) -> (tool_call, state)`
+  - Runs once per inspectable tool call, immediately before the owning tool
+    plugin executes it. Extensions run before features; priority order
+    within each kind. May transform the call (sanitizing, interception) —
+    the framework re-inspects the returned call before resolving the
+    handler, and the tool-result message's `tool_call_id` reflects the
+    transformed call.
+
+- `finalize_tool_call(tool_message, state, *, context) -> (tool_message, state)`
+  - Runs exactly once per tool call, after execution, before the final
+    core `tool` message is yielded (also for synthesized error results,
+    which carry a `tool_error` context fact). The natural place for
+    plugin-owned measurements such as tool-call duration: the context
+    carries the framework-provided raw facts (`started_at`,
+    `started_at_mono`, `finished_at`, `finished_at_mono`, call
+    descriptor, session/request ids), and the plugin computes and stamps
+    any derived values onto the returned message.
+
+- `prepare_appended_message(message, state, *, context) -> (message, state)`
+  - Runs inside `AgentCore.add_message` for end-of-session appends,
+    before the message is converted to provider-native form, so metadata
+    stamped here persists into native `_metadata` through the provider
+    conversion. Assistant finals do not pass through this hook (they use
+    `finalize`); `after_index` inserts do not trigger it.
+
+See [tool call duration](../timestamp-extension/README.md) for a worked
+example of `finalize_tool_call` measurement stamping.
+
 ---
 
 ## Shared streaming accumulator: `state["accumulator"]`

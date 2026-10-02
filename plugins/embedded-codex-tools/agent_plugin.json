@@ -1,0 +1,24 @@
+{
+  "module": "embedded_codex_tools",
+  "subdirectory": ".",
+  "entries": [
+    "embedded_codex_tools.sed_tool.CodexLikeSedTool",
+    "embedded_codex_tools.rg_tool.CodexLikeRgTool",
+    "embedded_codex_tools.find_tool.CodexLikeFindTool",
+    "embedded_codex_tools.curl_tool.CodexLikeCurlTool",
+    "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool"
+  ],
+  "kinds": {
+    "embedded_codex_tools.sed_tool.CodexLikeSedTool": "tools",
+    "embedded_codex_tools.rg_tool.CodexLikeRgTool": "tools",
+    "embedded_codex_tools.find_tool.CodexLikeFindTool": "tools",
+    "embedded_codex_tools.curl_tool.CodexLikeCurlTool": "tools",
+    "embedded_codex_tools.apply_patch_tool.CodexLikeApplyPatchTool": "tools"
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "embedded-tools-shared",
+      "path": "../embedded-tools-shared"
+    }
+  ]
+}

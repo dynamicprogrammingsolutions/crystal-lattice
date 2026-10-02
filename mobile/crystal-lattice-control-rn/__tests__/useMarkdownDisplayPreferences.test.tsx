@@ -16,22 +16,30 @@ test('hydrates defaults and persists changes', async () => {
   expect(result.current.preferences).toEqual({
     baseFontSize: 15,
     headerSize: 'normal',
+    markdownRenderer: 'react-native-markdown-display',
+    codeBlockRenderer: 'selectable-native',
   });
 
   act(() => {
     result.current.setPreferences({
       baseFontSize: 16,
       headerSize: 'small',
+      markdownRenderer: 'react-native-enriched-markdown',
+      codeBlockRenderer: 'syntax-highlighter',
     });
   });
   expect(result.current.preferences).toEqual({
     baseFontSize: 16,
     headerSize: 'small',
+    markdownRenderer: 'react-native-enriched-markdown',
+    codeBlockRenderer: 'syntax-highlighter',
   });
   await waitFor(async () =>
     expect(
       await AsyncStorage.getItem(MARKDOWN_DISPLAY_PREFERENCES_STORAGE_KEY),
-    ).toBe('{"baseFontSize":16,"headerSize":"small"}'),
+    ).toBe(
+      '{"baseFontSize":16,"headerSize":"small","markdownRenderer":"react-native-enriched-markdown","codeBlockRenderer":"syntax-highlighter"}',
+    ),
   );
 });
 
@@ -49,19 +57,40 @@ test.each([
   await waitFor(async () =>
     expect(
       await AsyncStorage.getItem(MARKDOWN_DISPLAY_PREFERENCES_STORAGE_KEY),
-    ).toBe(`{"baseFontSize":${expected},"headerSize":"normal"}`),
+    ).toBe(
+      `{"baseFontSize":${expected},"headerSize":"normal","markdownRenderer":"react-native-markdown-display","codeBlockRenderer":"selectable-native"}`,
+    ),
   );
+});
+
+test('adds renderer defaults without changing typography-only preferences', async () => {
+  await AsyncStorage.setItem(
+    MARKDOWN_DISPLAY_PREFERENCES_STORAGE_KEY,
+    '{"baseFontSize":16,"headerSize":"small"}',
+  );
+
+  const { result } = renderHook(() => usePersistedMarkdownDisplayPreferences());
+  await waitFor(() => expect(result.current.hydrated).toBe(true));
+
+  expect(result.current.preferences).toEqual({
+    baseFontSize: 16,
+    headerSize: 'small',
+    markdownRenderer: 'react-native-markdown-display',
+    codeBlockRenderer: 'selectable-native',
+  });
 });
 
 test('normalizes partially invalid stored values', async () => {
   await AsyncStorage.setItem(
     MARKDOWN_DISPLAY_PREFERENCES_STORAGE_KEY,
-    '{"baseFontSize":17,"headerSize":"large"}',
+    '{"baseFontSize":17,"headerSize":"large","markdownRenderer":"react-native-enriched-markdown","codeBlockRenderer":"invalid"}',
   );
   const { result } = renderHook(() => usePersistedMarkdownDisplayPreferences());
   await waitFor(() => expect(result.current.hydrated).toBe(true));
   expect(result.current.preferences).toEqual({
     baseFontSize: 17,
     headerSize: 'normal',
+    markdownRenderer: 'react-native-enriched-markdown',
+    codeBlockRenderer: 'selectable-native',
   });
 });

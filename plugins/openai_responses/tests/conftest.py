@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ if str(_TEST_SUPPORT) not in sys.path:
 
 # Ensure this plugin package's src/ is importable.
 _SRC = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC) not in sys.path:
+if not os.environ.get("CRYSTAL_EMBEDDED_PROVIDER_BUNDLE") and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 # Ensure this plugin's benchmark/ directory is importable so tests can
@@ -39,7 +40,10 @@ from plugin_provision import (  # noqa: E402
     provision_plugin,
 )
 
-if not module_importable("feature_system_message"):
+if (
+    not os.environ.get("CRYSTAL_EMBEDDED_PROVIDER_BUNDLE")
+    and not module_importable("feature_system_message")
+):
     import atexit
     import shutil
     import tempfile

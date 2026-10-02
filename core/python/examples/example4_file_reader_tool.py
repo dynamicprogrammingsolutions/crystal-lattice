@@ -1,5 +1,5 @@
 """
-FileReaderTool example (class-based tool plugin) derived from PLUGIN_EXAMPLES.md.
+Example 4: Sandboxed file-reader tool.
 """
 
 import os

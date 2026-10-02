@@ -29,6 +29,8 @@ export function DesktopMarkdownGeometryHarness({
   const [preferences, setPreferences] = useState<MarkdownDisplayPreferences>({
     baseFontSize: normalizeMarkdownBaseFontSize(initialMarkdownBaseFontSize),
     headerSize: normalizeMarkdownHeaderSize(initialMarkdownHeaderSize),
+    markdownRenderer: 'react-native-markdown-display',
+    codeBlockRenderer: 'syntax-highlighter',
   });
   const [geometry, setGeometry] = useState<Record<string, number>>({});
 

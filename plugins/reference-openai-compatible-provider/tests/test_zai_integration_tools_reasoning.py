@@ -1,43 +1,79 @@
 from __future__ import annotations
 
-import re
+from typing import Any
 
 import pytest
 
+from plugins.file_reader_tool import FileReaderTool
 from plugins.math_tools import MathTools
 from zai_test_utils import (
+    REASONING_TEST_DIR,
     ZAI_REASONING_MODEL,
     build_reference_core,
     build_zai_cfg,
+    reasoning_test_prompt,
     send_request_or_skip,
     zai_model,
 )
 
-_HIDDEN_WORD_OPTIONS = [
-    "North",
-    "South",
-    "East",
-    "West",
-]
 pytestmark = pytest.mark.api
 
 
-def _extract_hidden_word(reasoning: str) -> str | None:
-    if not reasoning:
-        return None
+def _assistant_reasoning(message: dict[str, Any]) -> str:
+    metadata = message.get("metadata") or {}
+    reasoning = metadata.get("reasoning")
+    return reasoning.strip() if isinstance(reasoning, str) else ""
 
-    match = re.search(r"SECRET_WORD=(?P<word>[A-Za-z]+)", reasoning, flags=re.IGNORECASE)
-    if match:
-        word = match.group("word")
-        if word in _HIDDEN_WORD_OPTIONS:
-            return word
 
-    hits = [
-        option
-        for option in _HIDDEN_WORD_OPTIONS
-        if re.search(rf"\b{re.escape(option)}\b", reasoning)
-    ]
-    return hits[-1] if hits else None
+def _assert_tool_calls_have_names(tool_calls: list[dict[str, Any]]) -> None:
+    for call in tool_calls:
+        function = call.get("function") or {}
+        name = function.get("name")
+        assert isinstance(name, str) and name.strip(), (
+            f"expected non-empty function.name, got {call!r}"
+        )
+
+
+def _bank_file_cfg() -> dict[str, Any]:
+    return {
+        **build_zai_cfg(
+            zai_model("ZAI_REASONING_MODEL", ZAI_REASONING_MODEL),
+            request_options={
+                "reasoning_effort": "max",
+                "thinking": {"type": "enabled", "clear_thinking": False},
+                "temperature": 0,
+            },
+        ),
+        "allowed_paths": [str(REASONING_TEST_DIR)],
+        "working_directory": str(REASONING_TEST_DIR),
+        "max_file_size": 1024 * 1024,
+    }
+
+
+def _bank_file_session(core):
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "system",
+        "You have access to the read_file tool. The working directory for file paths "
+        f"is: {REASONING_TEST_DIR}. You can use relative paths like 'bank0.json'.",
+    )
+    return core.add_message(session, "user", reasoning_test_prompt())
+
+
+def _append_tool_results(core, session, cfg, tool_calls):
+    _assert_tool_calls_have_names(tool_calls)
+    tool_messages = core.execute_tool_calls(tool_calls, cfg)
+    assert tool_messages
+    for tool_message in tool_messages:
+        session = core.add_message(
+            session,
+            tool_message.get("role", "tool"),
+            tool_message.get("content", ""),
+            metadata=tool_message.get("metadata"),
+            config=cfg,
+        )
+    return session
 
 
 @pytest.mark.integration
@@ -80,141 +116,74 @@ def test_tools_tool_loop_zai_openai_compat():
 
 @pytest.mark.integration
 @pytest.mark.zai
-def test_tools_reasoning_round_trip_zai():
-    cfg = build_zai_cfg(
-        zai_model("ZAI_REASONING_MODEL", ZAI_REASONING_MODEL),
-        request_options={"thinking": {"type": "enabled"}, "temperature": 0},
+def test_reasoning_history_preserved_across_zai_tool_call():
+    cfg = _bank_file_cfg()
+    core = build_reference_core(FileReaderTool)
+
+    last_failure: tuple[str, int, int] | None = None
+    for _attempt in range(3):
+        session = _bank_file_session(core)
+        session, first_finals = send_request_or_skip(core, session, cfg)
+        assert first_finals and first_finals[-1]["role"] == "assistant"
+
+        first_assistant = first_finals[-1]
+        first_reasoning = _assistant_reasoning(first_assistant)
+        tool_calls = (first_assistant.get("metadata") or {}).get("tool_calls") or []
+        if not first_reasoning or not tool_calls:
+            last_failure = ("", len(first_reasoning), len(tool_calls))
+            continue
+
+        session = _append_tool_results(core, session, cfg, tool_calls)
+        _final_session, final_finals = send_request_or_skip(core, session, cfg)
+        assert final_finals and final_finals[-1]["role"] == "assistant"
+        content = final_finals[-1].get("content", "").strip()
+
+        if content == "Clock":
+            return
+        last_failure = (content, len(first_reasoning), len(tool_calls))
+
+    pytest.fail(
+        "Z.ai did not preserve its private bank-file reasoning across the tool call. "
+        f"Last attempt: content={last_failure[0]!r}, "
+        f"first_reasoning_length={last_failure[1]}, "
+        f"tool_call_count={last_failure[2]}",
+        pytrace=False,
     )
-
-    core = build_reference_core(MathTools)
-    session = core.create_session()
-    session = core.add_message(
-        session,
-        "user",
-        "Use the add tool to add 2 and 3. Keep your reasoning private. "
-        "After the tool result, reply with only the number.",
-    )
-
-    session2, first_finals = send_request_or_skip(core, session, cfg)
-    assert first_finals and first_finals[-1]["role"] == "assistant"
-
-    first_assistant = first_finals[-1]
-    first_metadata = first_assistant.get("metadata") or {}
-    first_reasoning = first_metadata.get("reasoning_content") or first_metadata.get(
-        "reasoning"
-    )
-    first_tool_calls = first_metadata.get("tool_calls") or []
-
-    assert isinstance(first_reasoning, str) and first_reasoning.strip()
-    assert first_tool_calls
-
-    tool_messages = core.execute_tool_calls(first_tool_calls, cfg)
-    for tool_message in tool_messages:
-        session2 = core.add_message(
-            session2,
-            tool_message.get("role", "tool"),
-            tool_message.get("content", ""),
-            metadata=tool_message.get("metadata"),
-            config=cfg,
-        )
-
-    _session3, second_finals = send_request_or_skip(core, session2, cfg)
-    assert second_finals and second_finals[-1]["role"] == "assistant"
-
-    second_assistant = second_finals[-1]
-    second_metadata = second_assistant.get("metadata") or {}
-    second_reasoning = second_metadata.get("reasoning_content") or second_metadata.get(
-        "reasoning"
-    )
-
-    assert second_assistant.get("content", "").strip() == "5"
-    assert isinstance(second_reasoning, str) and second_reasoning.strip()
 
 
 @pytest.mark.integration
 @pytest.mark.zai
-def test_preserved_reasoning_hidden_word_zai():
-    cfg = build_zai_cfg(
-        zai_model("ZAI_REASONING_MODEL", ZAI_REASONING_MODEL),
-        request_options={
-            "thinking": {"type": "enabled", "clear_thinking": False},
-            "temperature": 0,
-        },
-    )
+def test_reasoning_history_preserved_across_zai_user_turn():
+    cfg = _bank_file_cfg()
+    core = build_reference_core(FileReaderTool)
 
-    core = build_reference_core(MathTools)
-    prompt = (
-        "Before calling any tools, privately create a random integer seed between 100 and 999. "
-        "Use that private seed to select exactly one hidden word from this ordered list: "
-        + ", ".join(_HIDDEN_WORD_OPTIONS)
-        + ". Use this private rule: hidden_index = (seed + 2 * SUM) mod 4, "
-        "where SUM is the result of adding 19 and 23 with the add tool. "
-        "Do not reveal the seed, hidden_index, or hidden word in visible output. "
-        "After you receive the tool result, keep a private checkpoint line exactly formatted as "
-        "SECRET_WORD=<word> in your private reasoning only. "
-        "Never include SECRET_WORD or the hidden word in visible content. "
-        "Visible output after the tool result must be only the numeric sum and nothing else."
-    )
-    followup = (
-        "The prior secrecy rule applied only to the previous turn. You are now explicitly "
-        "allowed to reveal the stored SECRET_WORD. Return only the <word> value from your "
-        "previous private reasoning."
-    )
-
-    last_failure: tuple[str | None, str | None, str | None] | None = None
-    for _ in range(5):
-        session = core.create_session()
-        session = core.add_message(session, "user", prompt)
-
-        session2, first_finals = send_request_or_skip(core, session, cfg)
+    last_failure: tuple[str, int, int] | None = None
+    for _attempt in range(5):
+        session = _bank_file_session(core)
+        session, first_finals = send_request_or_skip(core, session, cfg)
         assert first_finals and first_finals[-1]["role"] == "assistant"
 
-        first_tool_calls = (first_finals[-1].get("metadata") or {}).get("tool_calls") or []
-        assert first_tool_calls
-
-        tool_messages = core.execute_tool_calls(first_tool_calls, cfg)
-        for tool_message in tool_messages:
-            session2 = core.add_message(
-                session2,
-                tool_message.get("role", "tool"),
-                tool_message.get("content", ""),
-                metadata=tool_message.get("metadata"),
-                config=cfg,
-            )
-
-        session3, second_finals = send_request_or_skip(core, session2, cfg)
-        assert second_finals and second_finals[-1]["role"] == "assistant"
-
-        second_assistant = second_finals[-1]
-        second_content = second_assistant.get("content", "").strip()
-        second_metadata = second_assistant.get("metadata") or {}
-        second_reasoning = second_metadata.get("reasoning_content") or ""
-        hidden_word = _extract_hidden_word(second_reasoning)
-
-        if second_content != "42":
-            last_failure = (hidden_word, second_content, None)
-            continue
-        if not isinstance(second_reasoning, str) or not second_reasoning.strip():
-            last_failure = (hidden_word, second_content, None)
-            continue
-        if hidden_word not in _HIDDEN_WORD_OPTIONS:
-            last_failure = (hidden_word, second_content, None)
-            continue
-        if hidden_word in second_content:
-            last_failure = (hidden_word, second_content, None)
+        first_assistant = first_finals[-1]
+        first_reasoning = _assistant_reasoning(first_assistant)
+        tool_calls = (first_assistant.get("metadata") or {}).get("tool_calls") or []
+        if not first_reasoning or not tool_calls:
+            last_failure = ("", len(first_reasoning), len(tool_calls))
             continue
 
-        session3 = core.add_message(session3, "user", followup)
-        _session4, third_finals = send_request_or_skip(core, session3, cfg)
-        assert third_finals and third_finals[-1]["role"] == "assistant"
-        third_content = third_finals[-1].get("content", "").strip()
-        if third_content == hidden_word:
+        session = _append_tool_results(core, session, cfg, tool_calls)
+        session = core.add_message(session, "user", "give me the final result")
+        _final_session, final_finals = send_request_or_skip(core, session, cfg)
+        assert final_finals and final_finals[-1]["role"] == "assistant"
+        content = final_finals[-1].get("content", "").strip()
+
+        if content == "Clock":
             return
-        last_failure = (hidden_word, second_content, third_content)
+        last_failure = (content, len(first_reasoning), len(tool_calls))
 
     pytest.fail(
-        "Preserved Z.ai reasoning checkpoint did not survive the follow-up turn. "
-        f"Last attempt details: hidden_word={last_failure[0]!r}, "
-        f"second_content={last_failure[1]!r}, third_content={last_failure[2]!r}",
+        "Z.ai did not preserve its private bank-file reasoning across the inserted "
+        f"user turn. Last attempt: content={last_failure[0]!r}, "
+        f"first_reasoning_length={last_failure[1]}, "
+        f"tool_call_count={last_failure[2]}",
         pytrace=False,
     )

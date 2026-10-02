@@ -5,6 +5,7 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 ## Features
 
 - 🔍 **Multiple Connection Methods:**
+  - On-device Python agent with an OpenAI-compatible proxy (iOS proof of concept)
   - Manual address entry (IP + port)
   - Automatic Bonjour/mDNS discovery
   - Bridge service connection for cross-network access
@@ -67,9 +68,9 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
    npm install
    ```
 
-3. **Install iOS Pods:**
+3. **Prepare the embedded Python runtime and install iOS Pods:**
    ```bash
-   cd ios && pod install && cd ..
+   npm run pod-install
    ```
 
 ## Running the App
@@ -93,6 +94,18 @@ npx react-native run-ios
 open ios/CrystalLatticeControlRN.xcworkspace
 ```
 Then click the Run button in Xcode.
+
+### On-device Python agent
+
+The iOS app includes a proof-of-concept embedded Python agent. Start an
+API-key-protected OpenAI-compatible proxy backed by Ollama, then choose
+**Connections → New connection → On-device Python Agent** and enter its URL,
+model, and API key.
+
+Simulator URLs can use `127.0.0.1`. A physical iPhone must use the Mac's LAN
+address. See
+[Embedded Python runtime](docs/development/embedded-python-runtime.md) for
+proxy, build, test, persistence, background, and security details.
 
 ### Running on Physical iOS Device
 
@@ -357,6 +370,22 @@ already exists:
 npm run detox:test:website-visual:ios
 npm run detox:test:website-visual:android
 ```
+
+The focused human-time telemetry suite runs the real release app against a
+spawned backend and verifies that foreground time with a real session open
+reaches the duration-tracking SQLite store:
+
+```bash
+npm run detox:build:ios
+npm run detox:test:human-time:ios
+
+npm run detox:build:android
+npm run detox:test:human-time:android
+```
+
+See [Human time telemetry](docs/development/human-time-telemetry.md) for the
+two-tier coverage split, Python/plugin prerequisites, and the focused
+real-backend integration command.
 
 The Connections/Settings harness renders the production Connections screen,
 global and server settings modals, action menus, and markdown renderer. It
@@ -709,7 +738,7 @@ mobile/crystal-lattice-control-rn/
 ## Related Documentation
 
 - [Home, Watchlist, and recent sessions](docs/home.md)
-- [Mobile frontend hosting](docs/development/frontend-hosting.md)
+- [Mobile development documentation](docs/development/index.md)
 - [Bridge transport guide](../../packages/frontend-sdk/docs/bridge-transports.md)
 - [React Native Documentation](https://reactnative.dev/)
 - [react-native-zeroconf GitHub](https://github.com/balthazar/react-native-zeroconf)

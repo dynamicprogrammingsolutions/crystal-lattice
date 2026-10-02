@@ -86,6 +86,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = tags, models
+        if isinstance(config, dict) and config.get("native_compaction_enabled") is False:
+            return []
         placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
             {
@@ -143,6 +145,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        if config.get("native_compaction_enabled") is False:
+            return []
         placeholder_enabled = self._placeholder_transcript_enabled_for_config(config)
         return [
             {

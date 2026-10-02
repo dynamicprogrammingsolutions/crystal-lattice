@@ -5,6 +5,7 @@
 #import <React/RCTBridge.h>
 #import <React/RCTRootView.h>
 #import <objc/message.h>
+#import <math.h>
 
 @interface DesktopWindowManager () <NSPopoverDelegate>
 
@@ -62,7 +63,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"recentSessionsWindowChanged", @"sessionDoubleClickActionChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"switchConnectionWithActiveTabChanged", @"markdownBaseFontSizeChanged", @"markdownHeaderSizeChanged", @"recentSessionsWindowChanged", @"sessionDoubleClickActionChanged", @"timeTrackingEnabledChanged", @"timeTrackingPluginIdChanged", @"timeTrackingInactivitySecondsChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -75,6 +76,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleSessionsFollowActiveTabDidChange:)
                                                name:CLCSessionsFollowActiveTabDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleSwitchConnectionWithActiveTabDidChange:)
+                                               name:CLCSwitchConnectionWithActiveTabDidChangeNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -106,6 +112,22 @@ RCT_EXPORT_MODULE();
                                            selector:@selector(handleSessionDoubleClickActionDidChange:)
                                                name:CLCSessionDoubleClickActionDidChangeNotification
                                              object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleTimeTrackingEnabledDidChange:)
+                                               name:CLCTimeTrackingEnabledDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleTimeTrackingPluginIdDidChange:)
+                                               name:CLCTimeTrackingPluginIdDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(handleTimeTrackingInactivitySecondsDidChange:)
+             name:CLCTimeTrackingInactivitySecondsDidChangeNotification
+           object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleProgressiveScrollHarnessCommand:)
@@ -141,6 +163,10 @@ RCT_EXPORT_MODULE();
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCSwitchConnectionWithActiveTabDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCMarkdownBaseFontSizeDidChangeNotification
                                                 object:nil];
 
@@ -163,6 +189,19 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCSessionDoubleClickActionDidChangeNotification
                                                 object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCTimeTrackingEnabledDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCTimeTrackingPluginIdDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter]
+      removeObserver:self
+                name:CLCTimeTrackingInactivitySecondsDidChangeNotification
+              object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCProgressiveScrollHarnessCommandNotification
@@ -220,6 +259,18 @@ RCT_EXPORT_MODULE();
   [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
 }
 
+- (void)handleSwitchConnectionWithActiveTabDidChange:(NSNotification *)notification
+{
+  id enabled =
+      notification.userInfo[CLCSwitchConnectionWithActiveTabEnabledUserInfoKey];
+  BOOL resolved = NO;
+  if ([enabled isKindOfClass:[NSNumber class]]) {
+    resolved = [enabled boolValue];
+  }
+  [self sendEventWithName:@"switchConnectionWithActiveTabChanged"
+                     body:@{ @"enabled" : @(resolved) }];
+}
+
 - (void)handleMarkdownBaseFontSizeDidChange:(NSNotification *)notification
 {
   NSNumber *baseFontSize = notification.userInfo[CLCMarkdownBaseFontSizeUserInfoKey];
@@ -252,7 +303,7 @@ RCT_EXPORT_MODULE();
     @"moduleName" : @"GlobalSettingsWindow",
     @"title" : @"Settings",
     @"width" : @560,
-    @"height" : @360,
+    @"height" : @680,
     @"initialProps" : @{},
   }];
 }
@@ -277,6 +328,37 @@ RCT_EXPORT_MODULE();
   }
   [self sendEventWithName:@"sessionDoubleClickActionChanged"
                      body:@{ @"sessionDoubleClickAction" : value }];
+}
+
+- (void)handleTimeTrackingEnabledDidChange:(NSNotification *)notification
+{
+  id enabled = notification.userInfo[CLCTimeTrackingEnabledUserInfoKey];
+  if (![enabled isKindOfClass:[NSNumber class]]) {
+    return;
+  }
+  [self sendEventWithName:@"timeTrackingEnabledChanged"
+                     body:@{ @"enabled" : @([enabled boolValue]) }];
+}
+
+- (void)handleTimeTrackingPluginIdDidChange:(NSNotification *)notification
+{
+  NSString *pluginId = notification.userInfo[CLCTimeTrackingPluginIdUserInfoKey];
+  if (![pluginId isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"timeTrackingPluginIdChanged"
+                     body:@{ @"pluginId" : pluginId }];
+}
+
+- (void)handleTimeTrackingInactivitySecondsDidChange:(NSNotification *)notification
+{
+  id seconds =
+      notification.userInfo[CLCTimeTrackingInactivitySecondsUserInfoKey];
+  if (![seconds isKindOfClass:[NSNumber class]]) {
+    return;
+  }
+  [self sendEventWithName:@"timeTrackingInactivitySecondsChanged"
+                     body:@{ @"seconds" : seconds }];
 }
 
 - (void)handleOpenNotificationTesting:(__unused NSNotification *)notification
@@ -570,6 +652,8 @@ RCT_EXPORT_METHOD(openConnectionEditor : (NSDictionary *)params)
                                                      backing:NSBackingStoreBuffered
                                                        defer:NO];
     window.title = @"Connection";
+    window.accessibilityIdentifier = @"connectionEditorWindow";
+    window.accessibilityLabel = @"connectionEditorWindow";
 	    rootView.frame = frame;
 	    rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 	    window.contentView = rootView;
@@ -754,11 +838,42 @@ RCT_REMAP_METHOD(getDesktopGlobalSettings,
       ![sessionDoubleClickAction isEqualToString:@"open"]) {
     sessionDoubleClickAction = @"preview";
   }
+  id rawSessionsFollowActiveTabEnabled =
+      [defaults objectForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
+  BOOL sessionsFollowActiveTabEnabled =
+      rawSessionsFollowActiveTabEnabled == nil
+      ? YES
+      : [defaults boolForKey:@"CrystalLattice.SessionsFollowActiveTabEnabled"];
+  BOOL switchConnectionWithActiveTabEnabled =
+      [defaults boolForKey:@"CrystalLattice.SwitchConnectionWithActiveTabEnabled"];
+  BOOL timeTrackingEnabled =
+      [defaults boolForKey:@"CrystalLattice.TimeTrackingEnabled"];
+  NSString *timeTrackingPluginId =
+      [defaults stringForKey:@"CrystalLattice.TimeTrackingPluginId"];
+  if (![timeTrackingPluginId isKindOfClass:[NSString class]] ||
+      timeTrackingPluginId.length == 0) {
+    timeTrackingPluginId = @"duration_tracking_app";
+  }
+  id rawTimeTrackingInactivitySeconds =
+      [defaults objectForKey:@"CrystalLattice.TimeTrackingInactivitySeconds"];
+  double timeTrackingInactivitySeconds =
+      rawTimeTrackingInactivitySeconds == nil
+      ? 30.0
+      : [defaults doubleForKey:@"CrystalLattice.TimeTrackingInactivitySeconds"];
+  if (!isfinite(timeTrackingInactivitySeconds) ||
+      timeTrackingInactivitySeconds <= 0) {
+    timeTrackingInactivitySeconds = 30.0;
+  }
   resolve(@{
     @"baseFontSize" : @(baseFontSize),
     @"headerSize" : headerSize,
     @"recentSessionsWindow" : recentSessionsWindow,
     @"sessionDoubleClickAction" : sessionDoubleClickAction,
+    @"sessionsFollowActiveTabEnabled" : @(sessionsFollowActiveTabEnabled),
+    @"switchConnectionWithActiveTabEnabled" : @(switchConnectionWithActiveTabEnabled),
+    @"timeTrackingEnabled" : @(timeTrackingEnabled),
+    @"timeTrackingPluginId" : timeTrackingPluginId,
+    @"timeTrackingInactivitySeconds" : @(timeTrackingInactivitySeconds),
   });
 }
 

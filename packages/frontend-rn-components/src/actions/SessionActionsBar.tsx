@@ -18,7 +18,8 @@ export interface SessionActionsBarProps {
   onOpenMenu?: () => void;
   menuButtonTestID?: string;
   isActionDisabled?: (action: SessionActionKey) => boolean;
-  extraActions?: SessionActionDefinition[];
+  baseActions?: readonly SessionActionDefinition[];
+  extraActions?: readonly SessionActionDefinition[];
   availableActions?: SessionActionKey[];
   pinnedKeysForBar?: SessionActionKey[];
   maxPinnedActionsForBar?: number;
@@ -52,6 +53,7 @@ export function SessionActionsBar({
   onOpenMenu,
   menuButtonTestID,
   isActionDisabled,
+  baseActions,
   extraActions,
   availableActions,
   pinnedKeysForBar,
@@ -75,7 +77,7 @@ export function SessionActionsBar({
       renderPinIcon={renderPinIcon}
       renderCloseIcon={renderCloseIcon}
       modalContentStyle={modalContentStyle}
-      baseActions={ALL_SESSION_ACTIONS}
+      baseActions={baseActions ?? ALL_SESSION_ACTIONS}
       extraActions={extraActions}
       availableActions={availableActions}
       pinnedKeysForBar={pinnedKeysForBar}

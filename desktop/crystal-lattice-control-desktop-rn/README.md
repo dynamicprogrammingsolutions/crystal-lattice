@@ -22,6 +22,7 @@ Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-d
 ## Development documentation
 
 - [Desktop development](docs/development/index.md)
+- [Human-time telemetry](docs/development/human-time-telemetry.md)
 
 # Getting Started
 
@@ -140,6 +141,12 @@ Detox. Run all macOS UI tests with:
 npm run test:macos-ui
 ```
 
+Most focused UI tests use Debug harness launches, so an ordinary Release
+instance can remain open during those tests. The human-time suite uses Release
+to prevent React Native development overlays from covering the bottom
+composer; macOS therefore terminates an already-running app with the same
+bundle identifier when that suite launches.
+
 Run the focused native session-filter popover test with:
 
 ```sh
@@ -148,6 +155,28 @@ npm run test:macos-ui:session-filters
 
 The focused command launches a deterministic harness that renders the
 production sessions panel and shared filter controls.
+
+Run the focused production-flow human-time collection test with:
+
+```sh
+npm run test:macos-ui:human-time
+```
+
+The command starts a hermetic local backend, seeds sessions through the public
+SDK, drives the production connection/settings/chat/list UI, and verifies the
+sent user message plus a positive session SQLite row. It
+invokes XCTest in Release and should be run only when native UI test execution
+is intended.
+
+### Human-time integration test
+
+The focused real-backend test exercises the production transport, server,
+duration-tracking plugin, and SQLite store without launching XCTest:
+
+```sh
+npm run test:integration -- \
+  --runTestsByPath __integration__/humanTimeSpanUpload.realBackend.integration.test.ts
+```
 
 ### Inspect agent instructions
 

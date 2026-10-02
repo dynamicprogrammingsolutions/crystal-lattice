@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import math
+import re
 import threading
 from typing import Any, Callable, Dict, Literal, Optional
 
@@ -17,6 +19,42 @@ from .sessions import SessionFileState
 
 
 SessionRequestStartStatus = Literal["started", "already_running"]
+SessionRequestResultStatus = Literal[
+    "succeeded",
+    "failed",
+    "cancelled",
+    "interrupted",
+]
+
+_ERROR_DETAIL_LIMIT = 500
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b(api[_-]?key|authorization|password|secret|token)\b"
+    r"(\s*[:=]\s*)([^\s,;]+)"
+)
+_BEARER_RE = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
+
+
+def _safe_error_message(detail: Any) -> str:
+    text = " ".join(str(detail or "").split())
+    if not text:
+        return "Agent request failed"
+    text = _SECRET_ASSIGNMENT_RE.sub(r"\1\2[redacted]", text)
+    text = _BEARER_RE.sub("Bearer [redacted]", text)
+    if len(text) > _ERROR_DETAIL_LIMIT:
+        return text[: _ERROR_DETAIL_LIMIT - 3] + "..."
+    return text
+
+
+@dataclass(frozen=True)
+class SessionRequestError:
+    category: str
+    message: str
+
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "category": self.category,
+            "message": self.message,
+        }
 
 
 @dataclass(frozen=True)
@@ -32,6 +70,8 @@ class SessionRequestResult:
     request_id: str
     final_session: Dict[str, Any] | None
     final_messages: list[Dict[str, Any]]
+    status: SessionRequestResultStatus = "interrupted"
+    error: SessionRequestError | None = None
 
 
 @dataclass(frozen=True)
@@ -159,28 +199,79 @@ class SessionRequestCoordinator:
         *,
         stream: bool = True,
         on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        message: Dict[str, Any] | None = None,
+        timeout: float | None = None,
     ) -> SessionRequestResult:
+        normalized_timeout = self._normalize_timeout(timeout)
         operation = self._acquire_application_operation()
         prepared: _PreparedSessionRequest | None = None
+        timer: threading.Timer | None = None
+        timeout_fired = threading.Event()
         try:
             prepared, existing_request_id = self._prepare(
                 session_id,
                 overrides,
-                message=None,
+                message=message,
             )
             if existing_request_id is not None:
                 raise SessionRequestAlreadyRunningError(session_id, existing_request_id)
             assert prepared is not None
-            return self._execute(
+            if normalized_timeout is not None:
+                timer = threading.Timer(
+                    normalized_timeout,
+                    self._cancel_timed_out_request,
+                    args=(prepared.request_id, timeout_fired),
+                )
+                timer.daemon = True
+                timer.start()
+            result = self._execute(
                 prepared,
                 stream=bool(stream),
                 on_checkpoint=on_checkpoint,
+                on_event=on_event,
             )
+            if timeout_fired.is_set():
+                return replace(
+                    result,
+                    status="cancelled",
+                    error=SessionRequestError(
+                        category="timeout",
+                        message=(
+                            "Agent request exceeded the configured timeout and "
+                            "was cancelled"
+                        ),
+                    ),
+                )
+            return result
         finally:
+            if timer is not None:
+                timer.cancel()
             if prepared is not None:
                 self._clear_active(prepared.session.session_id, prepared.request_id)
                 prepared.operation.release()
             self._release_operation(operation)
+
+    @staticmethod
+    def _normalize_timeout(timeout: float | None) -> float | None:
+        if timeout is None:
+            return None
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(float(timeout))
+            or float(timeout) <= 0
+        ):
+            raise ValueError("timeout must be a finite positive number")
+        return float(timeout)
+
+    def _cancel_timed_out_request(
+        self,
+        request_id: str,
+        timeout_fired: threading.Event,
+    ) -> None:
+        timeout_fired.set()
+        self._app.cancel_request(request_id)
 
     def close(self) -> None:
         with self._lock:
@@ -375,7 +466,12 @@ class SessionRequestCoordinator:
         operation: Any | None,
     ) -> None:
         try:
-            self._execute(prepared, stream=stream, on_checkpoint=None)
+            self._execute(
+                prepared,
+                stream=stream,
+                on_checkpoint=None,
+                on_event=None,
+            )
         except Exception as exc:
             self._logger.warning(
                 "session_request_background_worker_failed",
@@ -399,10 +495,15 @@ class SessionRequestCoordinator:
         *,
         stream: bool,
         on_checkpoint: Callable[[Session], None] | None,
+        on_event: Callable[[Dict[str, Any]], None] | None,
     ) -> SessionRequestResult:
         final_session: Dict[str, Any] | None = prepared.session.to_dict()
         final_messages: list[Dict[str, Any]] = []
         final_request_id = prepared.request_id
+        saw_successful_final = False
+        saw_cancelled = False
+        request_error: SessionRequestError | None = None
+        observer_error: Exception | None = None
 
         for event in self._app.send_request(
             prepared.core,
@@ -428,23 +529,55 @@ class SessionRequestCoordinator:
                 continue
 
             stored = self._app.publish_event(event)
-            if stored.get("type") == "final":
+            stored_type = stored.get("type")
+            if stored_type == "final":
                 final_messages = [
                     item
                     for item in list(stored.get("messages") or [])
                     if isinstance(item, dict)
                 ]
+                saw_successful_final = any(
+                    item.get("role") == "assistant" for item in final_messages
+                )
                 request_id = stored.get("request_id")
                 if isinstance(request_id, str) and request_id:
                     final_request_id = request_id
+            elif stored_type == "request_cancelled":
+                saw_cancelled = True
+            elif stored_type == "error":
+                request_error = SessionRequestError(
+                    category="request_failed",
+                    message=_safe_error_message(stored.get("detail")),
+                )
             elif isinstance(stored.get("session"), dict):
                 final_session = stored["session"]
+
+            if on_event is not None and observer_error is None:
+                try:
+                    on_event(stored)
+                except Exception as exc:
+                    observer_error = exc
+                    self._app.cancel_request(prepared.request_id)
+
+        if observer_error is not None:
+            raise observer_error
+
+        if saw_cancelled:
+            status: SessionRequestResultStatus = "cancelled"
+        elif request_error is not None:
+            status = "failed"
+        elif saw_successful_final:
+            status = "succeeded"
+        else:
+            status = "interrupted"
 
         return SessionRequestResult(
             session_id=prepared.session.session_id,
             request_id=final_request_id,
             final_session=final_session,
             final_messages=final_messages,
+            status=status,
+            error=request_error,
         )
 
     def _clear_active(self, session_id: str, request_id: str) -> None:
@@ -458,7 +591,9 @@ __all__ = [
     "SessionRequestCoordinator",
     "SessionRequestCoordinatorClosedError",
     "SessionOperationBusyError",
+    "SessionRequestError",
     "SessionRequestResult",
+    "SessionRequestResultStatus",
     "SessionRequestStart",
     "StaleApplicationGenerationError",
 ]

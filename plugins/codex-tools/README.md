@@ -23,7 +23,8 @@ Execute shell scripts using the user's default shell.
 - **Parameters**: `command` (string, required), `workdir` (string), `timeout_ms` (number), `login` (boolean)
 - **Command format**: String script (e.g., `"echo hello"`)
 - **Execution**: Wrapped via shell (e.g., `bash -lc "echo hello"`)
-- **Models**: Codex variants plus the shell-command GPT family (`gpt-5.1`, `gpt-5.2`, `gpt-5.4`, and later)
+- **Models**: Codex variants plus the shell-command GPT family (`gpt-5.1`,
+  `gpt-5.2`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later)
 - **Selection**: Auto-selected when `codex-variant` tag is present
 
 ### Shell Legacy
@@ -70,7 +71,8 @@ Discover and execute MCP (Model Context Protocol) tools through Codex-style qual
 Emits the `codex-variant` tag when the model belongs to the shell-command family.
 
 - **Plugin name**: `codex_variant`
-- **Tag emitted**: `codex-variant` (for `*-codex` models and `gpt-5.4` and later plain/minified GPT models)
+- **Tag emitted**: `codex-variant` (for `*-codex` models and `gpt-5.4` and
+  later plain, minified, Sol, Terra, Luna, and Astra GPT models)
 - **Purpose**: Enables automatic shell tool selection based on model type
 
 ### CodexSkillsFeature
@@ -90,7 +92,7 @@ Tools are automatically selected based on:
 | Condition | Tool Enabled |
 |-----------|-------------|
 | `gpt-5` and `gpt-5-mini` (auto mode) | `shell` |
-| `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, and later GPT families (auto mode) | `shell_command` |
+| `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later GPT families (auto mode) | `shell_command` |
 | `shell_tool_mode: "shell"` | `shell` (forced) |
 | `shell_tool_mode: "shell_command"` | `shell_command` (forced) |
 
@@ -172,7 +174,9 @@ shell_tool_mode = "shell_command"
 
 1. **Two shell tool variants**: Array-based (`shell`) and string-based (`shell_command`)
 2. **Automatic selection**: Based on `codex-variant` tag from model-family detection
-3. **Model detection**: `CodexVariantFeature` keeps `gpt-5` and `gpt-5-mini` on `shell`, and routes `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, and later GPT families to `shell_command`
+3. **Model detection**: `CodexVariantFeature` keeps `gpt-5` and `gpt-5-mini`
+   on `shell`, and routes `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named
+   GPT-5.6/GPT-6 variants, and later GPT families to `shell_command`
 4. **Workdir semantics**: Missing or empty `workdir` falls back to the effective turn cwd, and relative `workdir` values are resolved against that cwd before execution
 5. **Apply patch fallback**: If `apply_patch` is disabled with `disabled_plugins`, shell tools can still route `apply_patch` heredocs internally when `intercept_apply_patch` is enabled
 6. **Legacy tool**: Disabled by default, enable via `enabled_plugins`

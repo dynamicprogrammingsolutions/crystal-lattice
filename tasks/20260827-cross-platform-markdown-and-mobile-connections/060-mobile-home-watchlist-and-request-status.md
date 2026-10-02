@@ -624,3 +624,125 @@ overlay first; a subsequent effect then resets its translation.
 Verification passed with the focused Home and measured-offset regressions, the
 complete mobile Jest suite (40 suites, 162 tests), mobile TypeScript, and
 `git diff --check`.
+
+### Cross-platform Home parity and session-action follow-up
+
+Status: Approved
+
+This mobile-owned follow-up is coordinated by the approved execution plan in
+`tasks/20260827-cross-platform-markdown-and-mobile-connections/070-desktop-home-history-status-and-preview-tabs.md`.
+It reopens only the mobile Home and local-session-action behavior listed
+below. Each coordinated completion chunk owns its mobile verification and
+documentation.
+
+The revised Chunk 3 presentation plan in that coordinating task is
+`Approved`. Mobile and desktop keep independently owned platform layouts while
+targeting the agreed current fallback and visual alignment.
+
+#### Functional requirements
+
+- [x] Mobile Sessions and Messages expose a local, state-aware `Add to
+  Watchlist` or `Remove from Watchlist` session action. The action changes only
+  device-local Watchlist membership and remains distinct from server-side
+  session pinning.
+- [ ] Mobile Watchlist cards and Recent Sessions timeline rows closely align
+  with their desktop equivalents in current information hierarchy and visual
+  rhythm: title, optional subtitle, session ID, connection name, relative
+  time, request status, note, and relevant local actions. Platform-specific
+  visual drift remains supported.
+- [x] A message preview is rendered exactly once as the fallback when both
+  title and subtitle are absent.
+- [x] Long connection names and session IDs truncate without displacing the
+  relative time or local actions; connection-name and time truncation are
+  independent.
+- [x] Timeline rail dots are neutral gray. Request-status indicators retain
+  their semantic state colors.
+
+#### Non-functional requirements
+
+- [x] Mobile owns its Watchlist-card, timeline, display fallback,
+  relative-time formatting, styles, and accessibility identifiers. It reuses
+  existing shared Home data, status, theme, and reorder contracts without
+  introducing shared React presentation components.
+- [x] The local Watchlist action uses the existing static session-action
+  extension points and pinnable action infrastructure; it does not require a
+  backend, application plugin, or transport mutation.
+- [x] Mobile component tests derive expected presentation from the SDK
+  session-list fallback and active theme rather than duplicating mutable
+  layout or typography values.
+- [x] Mobile Jest and focused iOS/Android Detox scenarios verify Sessions and
+  Messages Watchlist actions, long-name timestamp visibility, field fallback,
+  and the mobile-owned card/timeline structure against the coordinated
+  alignment fixture.
+
+#### Follow-up task checklist
+
+- [x] Complete the mobile portion of coordinated Chunk 2: local Watchlist
+  actions in Sessions and Messages.
+- [x] Complete the mobile portion of coordinated Chunk 3: independently owned
+  Home presentation, field fallback, truncation, and neutral timeline dots.
+- [x] Update current mobile Home/session-navigation documentation.
+- [x] Record mobile component, type, iOS, and Android evidence with the owning
+  completion chunk.
+
+#### Chunk 2 mobile completion notes
+
+- Sessions and Messages now add the same state-aware local Watchlist
+  definition to their existing pinnable Session actions. The action is
+  available without a backend after local hydration and remains separate from
+  plugin/server pin state.
+- Shared action rows now expose explicit accessibility activation. Local
+  actions remain disabled during Home hydration, and pinned-action state
+  preserves a user update that races an older storage read without losing
+  built-in or plugin defaults.
+- Verification passed with the complete mobile Jest suite (42 suites, 182
+  tests), mobile TypeScript, final iOS and Android builds, the complete iOS
+  Session-list and rich-session Detox suites (4 tests), and focused Android
+  Sessions and Messages Detox scenarios (2 tests). Two retries of an
+  unrelated Android geometry scenario were blocked by emulator
+  window-focus/ANR failures before useful interaction; its iOS counterpart
+  passed.
+- Current mobile Home and development documentation describes the new
+  Session-action entry points and hydration ownership. Chunk 3 presentation
+  documentation and native evidence remain open.
+
+#### Chunk 3 mobile implementation notes
+
+- Mobile retains its local `WatchlistTile`, timeline markup, relative-time
+  formatter, fallback helper, styles, and field identifiers. No shared React
+  presentation component or display model was introduced.
+- Watchlist and Recent now render title, optional subtitle or distinct
+  preview, session ID, request status, note, and a final metadata row.
+  Connection is the flexible one-line child; time and action controls do not
+  shrink.
+- Timeline status uses the inline semantic variant and its rail uses the
+  mobile theme's neutral `textMuted`. Watchlist status remains a badge.
+- Existing two-column measured drag, target placeholder, settling overlay,
+  inclusive Recent behavior, note actions, and navigation remain owned by and
+  unchanged in the mobile host.
+
+#### Chunk 3 mobile completion notes
+
+- Preview fallback and controlled relative-time behavior have independent
+  mobile unit coverage across supplied, missing, duplicate, and
+  whitespace-only title/subtitle/preview combinations.
+- Mobile component coverage derives typography from the active theme and
+  verifies field order, one-line truncation props, flexible connection,
+  non-shrinking time/actions, neutral rail color, and preview de-duplication.
+- Verification passed:
+  - mobile Jest: 44 suites and 197 tests;
+  - mobile TypeScript;
+  - fresh iOS and Android E2E builds;
+  - complete updated Home Detox scenario on iOS and Android, including
+    long-name metadata geometry, preview-only behavior, both Watchlist
+    columns, drag/settling, persistence, notes, settings, and navigation;
+  - targeted Prettier, `git diff --check`, and documentation preparation.
+- Two default-resource Android attempts lost application-window focus in the
+  Android 36.1 emulator. The final scenario passed with temporary four-core,
+  4-GB, no-snapshot boot arguments; no repository or permanent AVD setting
+  changed.
+- The Home E2E test also replaced its stale pre-existing
+  `options-picker-option-24h` selector with the current production
+  `options-picker-declared-24h` identifier exposed by the picker.
+- Targeted mobile ESLint remains unavailable because the package has no ESLint
+  configuration file.

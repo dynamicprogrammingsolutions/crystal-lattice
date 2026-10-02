@@ -6,6 +6,7 @@ import {
   NotificationUiEffectObserver,
   parseRefreshUiEffects,
   subscribeSessionRefreshInvalidations,
+  subscribeSessionsListRefreshInvalidations,
   subscribeRefreshUiEffects,
 } from './uiEffects';
 
@@ -82,21 +83,52 @@ describe('refresh UI effects', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('keeps a cached session stale until an active consumer reloads it', async () => {
+  it('consumes an invalidation after one failed reload attempt', async () => {
     const backend = {} as any;
     emitRefreshUiEffects(backend, { reload_session_ids: ['s1'] });
-    const inactiveReload = vi.fn(async () => false);
-    const unsubscribeInactive = subscribeSessionRefreshInvalidations(
+    const failingReload = vi.fn(async () => false);
+    const unsubscribeFailing = subscribeSessionRefreshInvalidations(
       backend,
       's1',
-      inactiveReload,
+      failingReload,
     );
     await vi.waitFor(() => {
-      expect(inactiveReload).toHaveBeenCalledTimes(1);
+      expect(failingReload).toHaveBeenCalledTimes(1);
+    });
+    // Let the acknowledge/consume chain settle.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    unsubscribeFailing();
+
+    // A resubscribed consumer must not replay the failed invalidation:
+    // replaying persistently failing invalidations to every new
+    // subscriber creates an infinite retry + error-alert loop.
+    const retriedReload = vi.fn(async () => true);
+    subscribeSessionRefreshInvalidations(backend, 's1', retriedReload);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(retriedReload).not.toHaveBeenCalled();
+  });
+
+  it('consumes an invalidation after a rejected reload attempt', async () => {
+    const backend = {} as any;
+    emitRefreshUiEffects(backend, { reload_sessions_list: true });
+    const rejectedReload = vi.fn(async () => {
+      throw new Error('network down');
+    });
+    subscribeSessionsListRefreshInvalidations(backend, rejectedReload);
+    await vi.waitFor(() => {
+      expect(rejectedReload).toHaveBeenCalledTimes(1);
     });
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    unsubscribeInactive();
 
+    const laterReload = vi.fn(async () => true);
+    subscribeSessionsListRefreshInvalidations(backend, laterReload);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(laterReload).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges after a successful reload and does not replay it', async () => {
+    const backend = {} as any;
+    emitRefreshUiEffects(backend, { reload_session_ids: ['s1'] });
     const activeReload = vi.fn(async () => true);
     subscribeSessionRefreshInvalidations(backend, 's1', activeReload);
     await vi.waitFor(() => {

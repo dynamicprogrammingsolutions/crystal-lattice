@@ -5,8 +5,15 @@ import {
   type SessionListContractDiagnostic,
 } from './sessionListContracts';
 
-export type SessionListFilterType = 'text' | 'boolean' | 'select';
-export type SessionListFilterMatch = 'contains' | 'equals' | 'one_of';
+export type SessionListFilterType = 'text' | 'boolean' | 'select' | 'datetime';
+export type SessionListFilterMatch =
+  | 'contains'
+  | 'equals'
+  | 'one_of'
+  | 'before'
+  | 'on_or_before'
+  | 'after'
+  | 'on_or_after';
 export type SessionListOptionTone =
   | 'primary'
   | 'highlight'
@@ -85,6 +92,28 @@ function typedValueKey(value: unknown): string {
 
 function typedEqual(left: unknown, right: unknown): boolean {
   return typeof left === typeof right && left === right;
+}
+
+function datetimeTimestamp(
+  value: unknown,
+  options: { runtimeValue: boolean },
+): number | null {
+  if (
+    !options.runtimeValue &&
+    typeof value === 'number' &&
+    Number.isFinite(value)
+  ) {
+    return value * 1000;
+  }
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+  ) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function diagnostic(
@@ -388,8 +417,43 @@ function normalizeFilter(
         'Single-select default must be null or a declared option value.',
       );
     }
+  } else if (raw.type === 'datetime') {
+    type = 'datetime';
+    if (
+      raw.match !== 'before' &&
+      raw.match !== 'on_or_before' &&
+      raw.match !== 'after' &&
+      raw.match !== 'on_or_after'
+    ) {
+      return fail(
+        'Datetime filters support before, on_or_before, after, or on_or_after.',
+      );
+    }
+    match = raw.match;
+    if (Object.prototype.hasOwnProperty.call(raw, 'multiple')) {
+      return fail(
+        'session_list_filter.multiple is valid only for select filters.',
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, 'case_sensitive')) {
+      return fail('case_sensitive is valid only for text filters.');
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, 'options')) {
+      return fail('Datetime filters do not support options.');
+    }
+    defaultValue = raw.default ?? null;
+    if (
+      defaultValue !== null &&
+      datetimeTimestamp(defaultValue, { runtimeValue: true }) === null
+    ) {
+      return fail(
+        'Datetime filter default must be null or a timezone-aware ISO-8601 string.',
+      );
+    }
   } else {
-    return fail('session_list_filter.type must be text, boolean, or select.');
+    return fail(
+      'session_list_filter.type must be text, boolean, select, or datetime.',
+    );
   }
 
   const mainSearch = raw.main_search ?? false;
@@ -621,6 +685,12 @@ export function validateSessionListFilterValue(
       ? null
       : 'must be null, true, or false';
   }
+  if (filter.type === 'datetime') {
+    return value === null ||
+      datetimeTimestamp(value, { runtimeValue: true }) !== null
+      ? null
+      : 'must be null or a timezone-aware ISO-8601 string';
+  }
   if (filter.multiple) {
     if (!Array.isArray(value)) {
       return 'must be a list of declared option values';
@@ -702,6 +772,23 @@ function resolvedValueMatches(
   }
   if (filter.type === 'boolean') {
     return typeof resolvedValue === 'boolean' && typedEqual(resolvedValue, runtimeValue);
+  }
+  if (filter.type === 'datetime') {
+    const candidate = datetimeTimestamp(resolvedValue, { runtimeValue: false });
+    const query = datetimeTimestamp(runtimeValue, { runtimeValue: true });
+    if (candidate === null || query === null) {
+      return false;
+    }
+    if (filter.match === 'before') {
+      return candidate < query;
+    }
+    if (filter.match === 'on_or_before') {
+      return candidate <= query;
+    }
+    if (filter.match === 'after') {
+      return candidate > query;
+    }
+    return candidate >= query;
   }
   if (filter.multiple) {
     return (

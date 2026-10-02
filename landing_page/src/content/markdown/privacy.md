@@ -1,7 +1,7 @@
 ---
 label: Legal
 title: Privacy Policy
-meta: "Effective date: August 5, 2026"
+meta: "Effective date: September 7, 2026"
 ---
 
 ## The short version
@@ -14,6 +14,18 @@ conversations, sessions, attachments, or connection credentials to us.
 
 You do not need a Crystal Lattice account. The app contains no advertising,
 analytics, telemetry, or cross-app tracking SDKs.
+
+The public website and documentation use a separate, privacy-minimized,
+self-hosted analytics service as described below. This does not give us access
+to your Crystal Lattice sessions, prompts, attachments, provider requests, or
+locally stored application data.
+
+## Controller
+
+The controller for the public website, documentation, and support
+correspondence is Dynamic Programming Solutions Kft., Nyári Pál utca 15,
+2724 Újlengyel, Hungary. Privacy questions and requests can be sent to
+[support@dynamicprogrammingsolutions.com](mailto:support@dynamicprogrammingsolutions.com).
 
 ## Data stored on your devices
 
@@ -68,12 +80,62 @@ When you choose to save or share a generated file, the app uses the operating
 system's photo-library, document-saving, or share interface. Crystal Lattice
 does not receive a copy of the selected or generated file.
 
-## This website
+## Public website and documentation analytics
 
-The Crystal Lattice website may collect standard web server access logs (IP
-address, browser type, pages visited, referrer) for operational purposes. We do
-not use third-party advertising trackers or website analytics. Infrastructure
-providers may process these logs to deliver and secure the website.
+The public website at [crystallattice.dev](https://crystallattice.dev) and the
+documentation at
+[docs.crystallattice.dev](https://docs.crystallattice.dev) use a self-hosted
+Umami installation to understand aggregate website use, navigation between the
+two sites, documentation usage, and technical page performance. We do not send
+this analytics information to Google Analytics or Umami's managed cloud
+service, and we do not use it for advertising, remarketing, or cross-site
+profiles.
+
+Before transmission, a mandatory filter permits only ordinary page views and
+Core Web Vitals. It removes URL query strings and fragments, advertising click
+identifiers, referrer query strings, credentials and fragments, custom events,
+custom session properties, and user identifiers. Session replay and heatmaps
+are disabled.
+
+The permitted information is the sanitized page address and title, sanitized
+referrer domain and path, timestamp, browser language, screen dimensions, and
+LCP, INP, CLS, FCP, TTFB, or page-duration measurements. Browser, operating
+system, device category, and approximate location may be derived on the server
+from ordinary request information. IP address and user-agent information are
+processed transiently to derive approximate location and anonymous session and
+visit values. Raw IP addresses are not intended to be stored in the analytics
+database, and the anonymous values are not used to identify named people or
+track visitors across unrelated websites.
+
+Dynamic Programming Solutions Kft. operates Umami and its PostgreSQL database
+on Amazon Web Services infrastructure in Ireland. Live analytics records are
+deleted on a rolling basis after 24 months, and encrypted analytics backups are
+retained for up to 35 days. Access is limited to authorized administrators.
+
+Our legal basis is our legitimate interest in operating, evaluating, securing,
+and improving the two public sites with strictly minimized first-party
+analytics. The tracker respects the browser's Do Not Track setting. You can
+also use the analytics preference control below to disable analytics in this
+browser, or object by contacting us.
+
+The hosting infrastructure may separately process ordinary request information
+needed to deliver and secure the sites. Infrastructure processing is not used
+by us for advertising profiles.
+
+## Browser storage
+
+The Umami baseline does not set analytics cookies or write an analytics
+identifier to browser storage. It reads the `umami.disabled` preference only
+when a visitor has deliberately disabled analytics. The sites may also store
+functional preferences, such as the selected light or dark theme, so the
+interface can remember a choice requested by the visitor.
+
+We do not request prior consent through a popup for this strictly minimized
+baseline because it does not set analytics cookies and our stated legal basis
+is legitimate interest. This does not override mandatory requirements that may
+apply in a particular jurisdiction. Replay, heatmaps, advertising,
+remarketing, identification, or similar technologies will require a separate
+assessment and policy update before activation.
 
 ## Support correspondence
 
@@ -85,6 +147,19 @@ content, or other secrets in a support request.
 
 Apple, Google, GitHub, hosting providers, and other services you independently
 use apply their own privacy policies to their services.
+
+## Your rights
+
+Subject to applicable law, you may request access, correction, deletion,
+restriction, or portability of your personal data. You may object to processing
+based on legitimate interests, including baseline website analytics, on grounds
+relating to your situation. We will stop the relevant processing unless
+applicable law permits continued processing on compelling legitimate grounds
+or for legal claims.
+
+You may also complain to the competent data-protection authority. In Hungary,
+this is the Hungarian National Authority for Data Protection and Freedom of
+Information (NAIH).
 
 ## Open source
 

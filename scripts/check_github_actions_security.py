@@ -20,7 +20,7 @@ EXTERNAL_ACTION_RE = re.compile(r"^\s*uses:\s*([^#\s]+)")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 JOB_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 WRITE_PERMISSION_RE = re.compile(r"^\s+([A-Za-z0-9_-]+):\s*write\s*(?:#.*)?$")
-ENVIRONMENT_RE = re.compile(r"^\s+environment:\s*(?:#.*)?$")
+ENVIRONMENT_RE = re.compile(r"^\s+environment:\s*([A-Za-z0-9_-]+)\s*(?:#.*)?$")
 PRIVILEGED_TRIGGER_RE = re.compile(
     r"^  (pull_request_target|workflow_run):\s*(?:\{\})?\s*(?:#.*)?$"
 )
@@ -32,10 +32,12 @@ ALLOWED_WRITE_PERMISSIONS = {
 }
 
 ALLOWED_ENVIRONMENTS = {
-    ("deploy-static-sites.yml", "deploy"),
-    ("release-crystal-lattice-cli.yml", "publish"),
-    ("release-crystal-lattice-cli.yml", "publish-downloads"),
+    ("deploy-static-sites.yml", "deploy", "production-sites"),
+    ("ios-testflight.yml", "release", "testflight"),
+    ("release-crystal-lattice-cli.yml", "publish", "cli-release"),
+    ("release-crystal-lattice-cli.yml", "publish-downloads", "cli-release"),
 }
+REQUIRED_ENVIRONMENTS = ALLOWED_ENVIRONMENTS
 
 PUBLIC_CI_REQUIRED_JOBS = {
     "Repository checks",
@@ -118,8 +120,9 @@ def validate_action_pins(path: Path, lines: list[str], errors: list[str]) -> Non
 
 def validate_permissions_and_environments(
     path: Path, lines: list[str], errors: list[str]
-) -> None:
+) -> set[tuple[str, str | None, str]]:
     jobs = line_job_map(lines)
+    environments: set[tuple[str, str | None, str]] = set()
     for index, line in enumerate(lines):
         line_number = index + 1
         job = jobs[index]
@@ -133,12 +136,16 @@ def validate_permissions_and_environments(
                     f"{permission.group(1)!r} in job {job!r}"
                 )
 
-        if ENVIRONMENT_RE.match(line):
-            key = (path.name, job)
+        environment = ENVIRONMENT_RE.match(line)
+        if environment:
+            key = (path.name, job, environment.group(1))
+            environments.add(key)
             if key not in ALLOWED_ENVIRONMENTS:
                 errors.append(
-                    f"{path}:{line_number}: unauthorized environment in job {job!r}"
+                    f"{path}:{line_number}: unauthorized environment "
+                    f"{environment.group(1)!r} in job {job!r}"
                 )
+    return environments
 
 
 def validate_publication_triggers(
@@ -146,6 +153,7 @@ def validate_publication_triggers(
 ) -> None:
     if path.name not in {
         "deploy-static-sites.yml",
+        "ios-testflight.yml",
         "release-crystal-lattice-cli.yml",
     }:
         return
@@ -255,11 +263,18 @@ def validate() -> list[str]:
     if not workflows:
         return [f"{WORKFLOWS_DIR}: no active workflows found"]
 
+    environments: set[tuple[str, str | None, str]] = set()
     for path in workflows:
         lines = path.read_text(encoding="utf-8").splitlines()
         validate_action_pins(path, lines, errors)
-        validate_permissions_and_environments(path, lines, errors)
+        environments.update(validate_permissions_and_environments(path, lines, errors))
         validate_publication_triggers(path, lines, errors)
+
+    for workflow, job, environment in sorted(REQUIRED_ENVIRONMENTS - environments):
+        errors.append(
+            f"{WORKFLOWS_DIR / workflow}: required environment is missing "
+            f"from job {job!r}: {environment}"
+        )
 
     validate_public_ci(errors)
     validate_static_site_deploy(errors)

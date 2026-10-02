@@ -5,10 +5,16 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
+import sys
 from typing import Any, Mapping
 
 
 _ENV_PLACEHOLDER_RE = re.compile(r"\$\{env:([^}]+)\}")
+_APPLICATION_DOCS_URL = (
+    "https://docs.crystallattice.dev/packages/application-python/"
+    "headless-agent-runs/"
+)
 
 
 @dataclass(frozen=True)
@@ -38,6 +44,10 @@ class RuntimeLayout:
     @property
     def root_system_messages(self) -> Path:
         return self.bundle_path("root_system_messages")
+
+    @property
+    def application_docs(self) -> Path | None:
+        return self.optional_bundle_path("application_docs")
 
     @property
     def cloud_runtime_build_context(self) -> Path | None:
@@ -74,6 +84,7 @@ class RuntimeLayout:
     def env_overrides(self) -> dict[str, str]:
         values = {
             "BUILTIN_PLUGINS": str(self.builtin_plugins),
+            "CRYSTAL_LATTICE_SYSTEM_MESSAGES": str(self.root_system_messages),
         }
         cloud_runtime_context = self.cloud_runtime_build_context
         if cloud_runtime_context is None and self.layout == "source":
@@ -92,6 +103,64 @@ class RuntimeLayout:
             values["CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"] = str(
                 preinstalled_plugin_manifest
             )
+        return values
+
+    def application_env_overrides(
+        self,
+        *,
+        config_path: str | Path,
+        session_root: str | Path,
+        env_overrides: Mapping[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Return runtime-owned config and external-project access values."""
+
+        config = Path(config_path).expanduser().resolve()
+        sessions = Path(session_root).expanduser().resolve()
+        values = self.env_overrides()
+        if env_overrides is not None:
+            values.update({key: str(value) for key, value in env_overrides.items()})
+
+        python_executable: Path | None
+        if self.layout == "bundled":
+            python_executable = None
+            cli_argv = [str(Path(sys.executable).resolve())]
+        else:
+            # Resolving sys.executable follows a venv's python symlink into the
+            # base installation, where this application's SDK may not exist.
+            python_executable = self.python_executable or Path(sys.executable).absolute()
+            cli_argv = [
+                str(python_executable),
+                "-m",
+                "agent_terminal_app",
+            ]
+
+        cli_argv.extend(
+            [
+                "--config",
+                str(config),
+                "--sessions-dir",
+                str(sessions),
+            ]
+        )
+        values.update(
+            {
+                "CONFIG_DIR": str(config.parent),
+                "CRYSTAL_LATTICE_CLI_ARGV_JSON": json.dumps(cli_argv),
+                "CRYSTAL_LATTICE_CLI_COMMAND": _render_shell_command(cli_argv),
+                "CRYSTAL_LATTICE_CONFIG": str(config),
+                "CRYSTAL_LATTICE_SESSIONS": str(sessions),
+                "CRYSTAL_LATTICE_DOCS_URL": _APPLICATION_DOCS_URL,
+            }
+        )
+
+        if python_executable is not None:
+            values["CRYSTAL_LATTICE_PYTHON"] = str(python_executable)
+            values["CRYSTAL_LATTICE_PYTHON_API_MODULE"] = "agent_terminal_app"
+
+        application_docs = self.application_docs
+        if application_docs is not None and application_docs.is_dir():
+            values["CRYSTAL_LATTICE_DOCS"] = str(application_docs)
+
         return values
 
     def to_resolved_dict(self) -> dict[str, Any]:
@@ -161,7 +230,46 @@ def _resolve_manifest_path(manifest_path: str | Path | None) -> Path:
     if override:
         return Path(override).expanduser().resolve()
 
+    packaged_manifest = _packaged_runtime_manifest(Path(sys.executable))
+    if packaged_manifest is not None:
+        return packaged_manifest
+
     return (Path(__file__).resolve().parent / "runtime_layout.json").resolve()
+
+
+def _packaged_runtime_manifest(executable: Path) -> Path | None:
+    executable_dir = executable.expanduser().resolve().parent
+    candidates: list[Path] = []
+    if executable_dir.name.lower() == "python":
+        candidates.append(executable_dir.parent)
+    if (
+        executable_dir.name.lower() in {"bin", "scripts"}
+        and executable_dir.parent.name.lower() == "python"
+    ):
+        candidates.append(executable_dir.parent.parent)
+
+    for package_root in candidates:
+        manifest = (
+            package_root
+            / "application"
+            / "python"
+            / "agent_terminal_app"
+            / "runtime_layout.json"
+        )
+        if manifest.is_file():
+            return manifest.resolve()
+    return None
+
+
+def _render_shell_command(
+    argv: list[str],
+    *,
+    windows: bool | None = None,
+) -> str:
+    is_windows = os.name == "nt" if windows is None else windows
+    if not is_windows:
+        return shlex.join(argv)
+    return "& " + " ".join("'" + argument.replace("'", "''") + "'" for argument in argv)
 
 
 def _require_string_paths(

@@ -3,12 +3,42 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import shutil
+import subprocess
 import sys
+import threading
+import time
 
 import pytest
 
 from agent_app.plugin_manager import PluginManager
 from agent_core import AgentCore
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callback = None
+
+    def add_callback(self, callback):
+        self._callback = callback
+        return 1
+
+    def remove_callback(self, token: int) -> None:
+        self._callback = None
+
+    def cancel(self) -> None:
+        if self._callback is not None:
+            self._callback()
+
+
+def _pid_is_live(pid: int) -> bool:
+    completed = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    status = completed.stdout.strip()
+    return bool(status) and not status.startswith("Z")
 
 
 def _core_python_dir() -> Path:
@@ -239,6 +269,76 @@ def test_bash_tool_preview_and_streaming_execution(tmp_path: Path) -> None:
     assert len(finals) == 1
     assert "two" in finals[0].get("content", "")
     assert "three" in finals[0].get("content", "")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="uses POSIX process groups")
+def test_bash_tool_hard_cancel_terminates_process_tree(tmp_path: Path) -> None:
+    pid_file = tmp_path / "child.pid"
+    tool_file = tmp_path / "cancellable_tool.bash"
+    tool_file.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+case "${{1-}}" in
+  schema)
+    cat <<'JSON'
+{{"id":"cancellable_tool","version":"0.1.0","args_mode":"flags","tools":[{{"type":"function","function":{{"name":"cancellable_tool","description":"Blocks","parameters":{{"type":"object","properties":{{}},"required":[]}}}}}}]}}
+JSON
+    ;;
+  run)
+    sleep 60 &
+    child=$!
+    printf '%s' "$child" > {str(pid_file)!r}
+    wait "$child"
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    policy = _bash_tool_policy(tmp_path)
+    manager = PluginManager(cache_dir=tmp_path / "cache", policy=policy)
+    resolved = manager.resolve_all(
+        [{"bash_tool": {"file": str(tool_file.name)}}]
+    )
+    assert resolved.errors == []
+    core = AgentCore()
+    core.register_tool(resolved.classes[0])
+    cancellation = _TestCancellation()
+    items: list[dict] = []
+    call = {
+        "id": "call_cancel",
+        "type": "function",
+        "function": {"name": "cancellable_tool", "arguments": {}},
+    }
+    worker = threading.Thread(
+        target=lambda: items.extend(
+            core.iter_tool_messages(
+                [call],
+                config={},
+                cancellation=cancellation,
+            )
+        )
+    )
+    worker.start()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not pid_file.exists():
+        time.sleep(0.02)
+    assert pid_file.exists()
+
+    cancellation.cancel()
+    worker.join(timeout=5)
+
+    assert not worker.is_alive()
+    child_pid = int(pid_file.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and _pid_is_live(child_pid):
+        time.sleep(0.05)
+    assert not _pid_is_live(child_pid)
+    finals = [item for item in items if "part" not in item]
+    assert finals
+    assert "cancel" in str(finals[-1].get("content", "")).lower()
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")

@@ -47,12 +47,34 @@ python -m pip install -e "plugins/openai_responses[dev]"
   is the simplest setup.
 - Do not commit real API keys into configs or docs.
 
+The provider uses the official OpenAI SDK by default. Fixed runtimes that
+cannot load the SDK's native dependency closure may set:
+
+```json
+{
+  "provider_transport": "requests"
+}
+```
+
+The requests transport supports API-key and ChatGPT-authenticated model
+discovery, ordinary and streaming Responses calls, and tool loops. It does
+not provide file uploads or async native-compaction calls.
+
+Set `tls_ca_bundle` to a PEM bundle path when a Responses-compatible endpoint
+uses a private or self-signed CA. This option applies only to
+`provider_transport: "requests"` and keeps verification enabled. Without it,
+requests uses its ordinary public CA trust behavior.
+
 The provider defaults to `OPENAI_API_KEY` automatically, so `api_key` can be
 omitted from config when the env var is present.
 
 When `auth_mode: "chatgpt"` is selected, or when `auth_mode: "auto"` resolves
 to ChatGPT because a valid saved login exists, the provider reads a saved
 credential file instead of requiring `OPENAI_API_KEY`.
+
+ChatGPT credential refresh and direct discovery calls use an explicit
+Certifi-backed SSL context, which is important in fixed Python runtimes that
+do not have an operating-system OpenSSL default trust path.
 
 When credentials and network access are available, API-key mode fetches the
 real OpenAI model list through the OpenAI Python SDK. For ChatGPT auth, the
@@ -229,6 +251,7 @@ The bundle supports three auth modes:
 Relevant keys:
 
 - `auth_mode`
+- `provider_transport`
 - `chatgpt_credentials_path`
 - `chatgpt_base_url`
 - `chatgpt_account_id`
@@ -355,7 +378,8 @@ When prompt cache key support is enabled:
 - older sessions missing a key are repaired on first request
 - forked sessions keep the same key by default
 - users can manually edit the key through normal session settings
-- users can regenerate the key through the `regenerate_prompt_cache_key` session action
+- users can regenerate the key from the action button placed directly below
+  the cache-key field in session settings
 
 By default, prompt cache key support is enabled when this extension is loaded.
 Set `enable_prompt_cache_key: false` if you want to turn off automatic
@@ -438,19 +462,22 @@ selects the ChatGPT endpoint.
 
 ### Fast mode
 
-Fast mode applies `service_tier: "priority"` to Responses calls for both
+Fast mode applies the fast processing tier to Responses calls for both
 API-key and ChatGPT auth modes. The control is:
 
-- `enable_fast_mode`: enable `service_tier: "priority"` for Responses calls
+- `enable_fast_mode`: enable the fast processing tier for Responses calls
+  (wire value `service_tier: "fast"` for API auth; the ChatGPT backend only
+  accepts the legacy `service_tier: "priority"` name, so that value is sent
+  for ChatGPT auth)
   (applies to both API-key and ChatGPT auth modes)
 
-The usage footer renders `tier: priority` when OpenAI reports that tier, and
-cost estimation uses priority-tier pricing when the checked-in or manual
+The usage footer renders `tier: fast` when OpenAI reports that tier, and
+cost estimation uses fast-tier pricing when the checked-in or manual
 pricing data defines it. The footer also renders `mode: pro` when the
 response reports `reasoning.mode: "pro"` (Pro reasoning mode, see below).
 
 Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
-is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
+is independent of Fast mode's service tier. Both can be enabled
 at the same time on GPT-5.6 models with API auth; they touch different parts of
 the outbound payload and neither overwrites the other. Pro mode is API-only
 (see "Pro mode billing" below for the auth-mode gating).
@@ -484,6 +511,8 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
+  - GPT-6 Astra and Sol: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
   - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
@@ -493,11 +522,11 @@ loaded.
   - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
     `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
-- `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only
-  (Sol, Terra, Luna, and the bare `gpt-5.6` alias). API-only: hidden when
-  `auth_mode` is `chatgpt`.
+- `reasoning_mode`: optional string enum `["pro"]`, the GPT-6 family
+  (Astra, Sol, Luna) and the GPT-5.6 family (Sol, Terra, Luna, and the
+  bare `gpt-5.6` alias). API-only: hidden when `auth_mode` is `chatgpt`.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
-  "all_turns"]`, GPT-5.6 family only.
+  "all_turns"]`, the GPT-6 and GPT-5.6 families only.
 - `show_reasoning_context_footer`: set to `false` to keep reasoning-context
   behavior and metadata while hiding its assistant-message footer.
 
@@ -657,7 +686,9 @@ details.
 
 It exposes a session action with id `regenerate_prompt_cache_key` that replaces
 the current session-owned prompt cache key without changing the visible
-transcript.
+transcript. Its UI element uses the `session_settings` placement and anchors
+the button after `prompt_cache_key`, so frontends supporting settings actions
+do not also place it in the ordinary session-action bar.
 
 ## Capabilities and caveats
 
@@ -738,6 +769,11 @@ Run hosted API integration tests:
 ```bash
 pytest plugins/openai_responses/tests -m 'integration and api and not slow_integration and openai' -q
 ```
+
+Tests carrying `provider_integration` directly exercise provider/extension
+classes without `AgentApplication`. The iOS bundle runner positively selects
+that marker and supplies the embedded requests-transport configuration from a
+prebuilt ZIP; ordinary source runs retain the package's normal SDK defaults.
 
 Run manual ChatGPT-auth integration tests separately:
 

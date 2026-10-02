@@ -614,6 +614,15 @@ test('uses plugin search and all non-main filter controls with Reset and Show al
       type: 'text',
       match: 'equals',
     },
+    {
+      ui_type: 'session_list_filter',
+      id: 'modified_after',
+      label: 'Modified after',
+      data: 'modified',
+      type: 'datetime',
+      match: 'on_or_after',
+      default: null,
+    },
   ]);
   mockUseApplicationPlugins.mockReturnValue(applicationPluginsResult(schema));
 
@@ -662,6 +671,19 @@ test('uses plugin search and all non-main filter controls with Reset and Show al
   expect(screen.getByTestId('session-row-beta-session')).toBeTruthy();
   expect(screen.getByTestId('session-row-gamma-session')).toBeTruthy();
   expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
+
+  fireEvent.changeText(
+    screen.getByTestId('session-filter-modified_after-datetime'),
+    '1970-01-01T00:00:02.500Z',
+  );
+  fireEvent(
+    screen.getByTestId('session-filter-modified_after-datetime'),
+    'submitEditing',
+  );
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-beta-session')).toBeNull();
+  expect(screen.queryByTestId('session-row-gamma-session')).toBeNull();
+  fireEvent.press(screen.getByTestId('session-filters-show-all'));
 
   fireEvent.changeText(
     screen.getByTestId('session-filter-note-text'),

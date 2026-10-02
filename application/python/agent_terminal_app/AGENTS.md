@@ -123,9 +123,12 @@ mobile integration unless explicitly updating the mobile app at the same time.
 
 ### 3.3. Bonjour & bridge options
 
-- Bonjour and bridge features are configured **only via CLI flags** to
-  `python -m agent_terminal_app` (which map to environment variables). Do not
-  introduce other ad-hoc configuration mechanisms in this package.
+- Bonjour and bridge activation is configured through CLI flags to
+  `python -m agent_terminal_app`; advanced bridge transport settings may come
+  from the documented `application.bridge` configuration object. The CLI
+  passes explicit process-local runtime configuration to the server. Do not
+  use ambient environment variables to activate or configure these internally
+  hosted integrations.
 - The effective contract for mobile clients is:
   - Bonjour service type: `_http._tcp.local.` with `path=/` and a human
     readable service name.

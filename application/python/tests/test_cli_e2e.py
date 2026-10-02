@@ -86,10 +86,13 @@ def _launch_cli(
     home_dir: Path,
     port: int,
     *extra_args: str,
+    env_overrides: dict[str, str] | None = None,
 ) -> tuple[subprocess.Popen[str], Path]:
     """Launch the CLI as a subprocess with isolated HOME and cwd."""
     stdout_file = workspace / "stdout.log"
     env = _make_env(home_dir, workspace)
+    if env_overrides:
+        env.update(env_overrides)
     process = subprocess.Popen(
         [
             "python",
@@ -761,6 +764,81 @@ def test_enable_bridge_startup_summary(tmp_path: Path, _session_home: Path) -> N
     assert "[crystal-lattice] Starting" in output
     assert "Bridge:" in output
     assert "ws://localhost:4000/ws/websocket" in output
+
+
+def test_server_ignores_inherited_bridge_and_bonjour_environment(
+    tmp_path: Path,
+    _session_home: Path,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    config_path = workspace / ".crystal" / "config.json"
+    config_path.write_text("{}", encoding="utf-8")
+    port = _reserve_port()
+    base_url = f"http://127.0.0.1:{port}"
+
+    process, stdout_file = _launch_cli(
+        workspace,
+        _session_home,
+        port,
+        "--config",
+        str(config_path),
+        env_overrides={
+            "BRIDGE_URL": "ws://127.0.0.1:1/ws/websocket",
+            "BRIDGE_SERVER_ID": "inherited-server",
+            "BRIDGE_HTTP_CHUNK_SIZE_BYTES": "invalid",
+            "ENABLE_BONJOUR": "1",
+            "BONJOUR_PORT": "9876",
+            "BONJOUR_SERVICE_NAME": "Inherited",
+        },
+    )
+    try:
+        _wait_for_server(base_url, process, timeout=60)
+    finally:
+        _terminate(process, timeout=10)
+
+    output = _read_stdout(stdout_file)
+    assert "Bridge:" not in output
+    assert "Bonjour:" not in output
+
+
+def test_invalid_bridge_application_setting_fails_with_field_path(
+    tmp_path: Path,
+    _session_home: Path,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    config_path = workspace / ".crystal" / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "application": {
+                    "bridge": {
+                        "http_timeout_seconds": 0,
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    port = _reserve_port()
+
+    process, stdout_file = _launch_cli(
+        workspace,
+        _session_home,
+        port,
+        "--enable-bridge",
+        "--bridge-url",
+        "ws://127.0.0.1:1/ws/websocket",
+        "--config",
+        str(config_path),
+    )
+    process.wait(timeout=30)
+
+    output = _read_stdout(stdout_file)
+    assert process.returncode == 2
+    assert (
+        "application.bridge.http_timeout_seconds must be a positive finite number"
+        in output
+    )
 
 
 def test_default_log_file_created(tmp_path: Path, _session_home: Path) -> None:

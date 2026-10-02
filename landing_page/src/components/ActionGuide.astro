@@ -35,6 +35,17 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
               <h4 class="text-[0.9375rem] font-semibold text-fg-2">{step.label}</h4>
             </div>
             {step.text && <p class="text-sm leading-relaxed text-fg-4">{step.text}</p>}
+            {step.link && (
+              <a
+                href={step.link.href}
+                class="mt-2.5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-soft transition-colors hover:text-accent-pale"
+              >
+                {step.link.label}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6"></path>
+                </svg>
+              </a>
+            )}
             {step.code && <ShellCommand code={step.code} className="mt-3.5" />}
           </article>
         ))}

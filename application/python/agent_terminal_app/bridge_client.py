@@ -18,9 +18,8 @@ High-level behaviour
   the local HTTP API (FastAPI) via :mod:`httpx`, and respond with
   ``http_response`` messages containing status, headers, and body.
 
-The FastAPI application wires this client up from an ``@app.on_event``
-startup handler using environment variables, so that the bridge can be
-enabled or disabled without changing application code.
+The FastAPI application wires this client up from an explicit
+``ServerIntegrationRuntimeConfig`` supplied before startup.
 """
 
 from __future__ import annotations
@@ -35,7 +34,6 @@ import json
 import logging
 import os
 import signal
-import socket
 import sys
 import time
 import uuid
@@ -46,6 +44,15 @@ except Exception:  # pragma: no cover - handled at runtime
     websockets = None  # type: ignore[assignment]
 
 import httpx
+
+from .server_integration_settings import (
+    DEFAULT_BRIDGE_DEBUG,
+    DEFAULT_BRIDGE_HTTP_CHUNK_SIZE_BYTES,
+    DEFAULT_BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES,
+    DEFAULT_BRIDGE_HTTP_MAX_BODY_BYTES,
+    DEFAULT_BRIDGE_HTTP_TIMEOUT_SECONDS,
+    DEFAULT_BRIDGE_WS_MAX_SIZE_BYTES,
+)
 
 
 log = logging.getLogger(__name__)
@@ -68,15 +75,15 @@ class BridgeConfig:
     local_http_base: str
     bridge_http_base: Optional[str] = None
 
-    ws_max_size_bytes: Optional[int] = 16 * 1024 * 1024
-    http_timeout_seconds: float = 120.0
+    ws_max_size_bytes: Optional[int] = DEFAULT_BRIDGE_WS_MAX_SIZE_BYTES
+    http_timeout_seconds: float = DEFAULT_BRIDGE_HTTP_TIMEOUT_SECONDS
     # Keep a safe headroom so the Phoenix envelope stays < ~1MiB.
-    request_chunk_size_bytes: int = 900 * 1024
-    request_chunking_threshold_bytes: int = 256 * 1024
-    response_chunking_threshold_bytes: int = 256 * 1024
-    max_body_bytes: int = 10 * 1024 * 1024
+    request_chunk_size_bytes: int = DEFAULT_BRIDGE_HTTP_CHUNK_SIZE_BYTES
+    request_chunking_threshold_bytes: int = DEFAULT_BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES
+    response_chunking_threshold_bytes: int = DEFAULT_BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES
+    max_body_bytes: int = DEFAULT_BRIDGE_HTTP_MAX_BODY_BYTES
 
-    debug: bool = False
+    debug: bool = DEFAULT_BRIDGE_DEBUG
 
     exit_on_superseded: bool = False
     local_guard: bool = False
@@ -1105,7 +1112,7 @@ class BridgeClient:
             if not self.config.takeover_local:
                 raise RuntimeError(
                     f"bridge server_id={self.config.server_id} already running (pid={existing_pid}); "
-                    "stop the other process or set BRIDGE_TAKEOVER_LOCAL=1"
+                    "stop the other process or use --bridge-takeover-local"
                 )
 
             log.warning(
@@ -1192,94 +1199,6 @@ class BridgeClient:
             raise SystemExit(0)
 
 
-def create_bridge_client_from_env() -> Optional[BridgeClient]:
-    """Create a :class:`BridgeClient` from environment variables.
-
-    Recognised variables::
-
-        BRIDGE_URL            WebSocket URL to the bridge, e.g.
-                              ``ws://localhost:4000/ws/websocket``.
-        BRIDGE_DISPLAY_NAME   Optional human-friendly server name
-                              (default: ``Agent Terminal App``).
-        BRIDGE_LOCATION       Optional freeform location string
-                              (e.g., ``"Office"``).
-        BRIDGE_LOCAL_HTTP_BASE
-                              Base URL of the local FastAPI server as
-                              seen from this process
-                              (default: ``http://127.0.0.1:<PORT>`` where
-                              PORT comes from ``SERVER_PORT`` or ``8000``).
-        BRIDGE_HTTP_BASE_URL  Optional public HTTP origin for v2 body
-                              transfers. By default it is derived from
-                              ``BRIDGE_URL``.
-
-        BRIDGE_EXIT_ON_SUPERSEDED
-                              Exit the current process if the bridge
-                              signals that this server has been
-                              superseded by a newer connection.
-        BRIDGE_LOCAL_GUARD    Opt-in local single-instance guard
-                              (lockfile keyed by server_id).
-        BRIDGE_TAKEOVER_LOCAL When BRIDGE_LOCAL_GUARD is enabled,
-                              attempt to SIGTERM the existing pid and
-                              take over the lock.
-
-    Returns ``None`` when ``BRIDGE_URL`` is not defined so that callers
-    can treat bridge support as entirely optional.
-    """
-
-    bridge_url = os.getenv("BRIDGE_URL")
-    if not bridge_url:
-        return None
-
-    display_name = os.getenv("BRIDGE_DISPLAY_NAME") or "Agent Terminal App"
-    location = os.getenv("BRIDGE_LOCATION")
-
-    # Default to a local uvicorn instance when BRIDGE_LOCAL_HTTP_BASE is
-    # not provided explicitly.
-    local_http_base = os.getenv("BRIDGE_LOCAL_HTTP_BASE")
-    if not local_http_base:
-        port = int(os.getenv("SERVER_PORT", os.getenv("PORT", "8000")))
-        host = os.getenv("SERVER_HOST", "127.0.0.1")
-        local_http_base = f"http://{host}:{port}"
-
-    server_id = os.getenv("BRIDGE_SERVER_ID") or str(uuid.uuid4())
-    computer_name = socket.gethostname() or "localhost"
-
-    cfg = BridgeConfig(
-        bridge_url=bridge_url,
-        server_id=server_id,
-        display_name=display_name,
-        computer_name=computer_name,
-        location=location,
-        local_http_base=local_http_base,
-        bridge_http_base=os.getenv("BRIDGE_HTTP_BASE_URL") or None,
-        ws_max_size_bytes=_parse_optional_int(
-            os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
-        ),
-        http_timeout_seconds=_parse_float(
-            os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
-        ),
-        request_chunk_size_bytes=int(
-            os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
-        ),
-        request_chunking_threshold_bytes=int(
-            os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-        ),
-        response_chunking_threshold_bytes=int(
-            os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-        ),
-        max_body_bytes=int(
-            os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
-        ),
-        debug=os.getenv("BRIDGE_DEBUG", "").strip()
-        in {"1", "true", "True", "yes", "YES"},
-        exit_on_superseded=_parse_bool(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
-        local_guard=_parse_bool(os.getenv("BRIDGE_LOCAL_GUARD")),
-        takeover_local=_parse_bool(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
-    )
-
-    return BridgeClient(cfg)
-
-
 def _derive_bridge_http_base(bridge_url: str) -> str:
     parsed = urlsplit(bridge_url)
     if parsed.scheme not in {"ws", "wss", "http", "https"}:
@@ -1298,29 +1217,3 @@ def _derive_bridge_http_base(bridge_url: str) -> str:
         path = path[: -len("/ws")]
 
     return urlunsplit((scheme, parsed.netloc, path, "", "")).rstrip("/")
-
-
-def _parse_optional_int(
-    value: Optional[str], *, default: Optional[int]
-) -> Optional[int]:
-    if value is None or value == "":
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
-def _parse_bool(value: Optional[str]) -> bool:
-    if value is None:
-        return False
-    return value.strip() in {"1", "true", "True", "yes", "YES"}
-
-
-def _parse_float(value: Optional[str], *, default: float) -> float:
-    if value is None or value == "":
-        return default
-    try:
-        return float(value)
-    except ValueError:
-        return default
