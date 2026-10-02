@@ -105,9 +105,9 @@ def test_checked_in_manual_chatgpt_models_are_empty() -> None:
 
 
 def test_checked_in_codex_snapshot_lists_gpt_6_family_and_daybreak() -> None:
-    """The refreshed snapshot includes the GPT-6 family (astra, sol, luna)
-    and both daybreak models, and no longer lists the retired gpt-5.2,
-    gpt-5.4-mini, or gpt-5.4 entries."""
+    """The refreshed snapshot includes the GPT-6.1 and GPT-6 families
+    (gpt-6.1-sol, astra, sol, luna) and both daybreak models, and no
+    longer lists the retired gpt-5.2, gpt-5.4-mini, or gpt-5.4 entries."""
     from openai_responses_plugins.openai_responses_codex_models import (
         default_snapshot_path,
     )
@@ -115,6 +115,7 @@ def test_checked_in_codex_snapshot_lists_gpt_6_family_and_daybreak() -> None:
     payload = json.loads(default_snapshot_path().read_text(encoding="utf-8"))
     models = payload["models"]
     for model in (
+        "gpt-6.1-sol",
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6-luna",
@@ -130,6 +131,7 @@ def test_checked_in_codex_snapshot_lists_gpt_6_family_and_daybreak() -> None:
     assert "gpt-5.4-mini" not in models
     # gpt-5.4 was retired upstream 2026-09-24 (694d8d45bd3d, #47932).
     assert "gpt-5.4" not in models
+    assert models["gpt-6.1-sol"]["name"] == "GPT-6.1-Sol"
     assert models["gpt-6-astra"]["name"] == "GPT-6-Astra"
     assert models["gpt-6-sol"]["name"] == "GPT-6-Sol"
     assert models["gpt-6-luna"]["name"] == "GPT-6-Luna"
