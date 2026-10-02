@@ -6,6 +6,7 @@ import pytest
 
 from agent_core import AgentCore, Message, Session
 from feature_system_message.system_message_feature import SystemMessageFeature
+from plugins.request_options_feature import RequestOptionsFeature
 
 from openai_responses_plugins.openai_responses_native_compaction_extension import (
     OpenAIResponsesNativeCompactionExtension,
@@ -132,6 +133,148 @@ def _build_core() -> AgentCore:
         [OpenAIResponsesNativeCompactionExtension],
     )
     return core
+
+
+def test_automatic_compaction_schema_and_ui() -> None:
+    extension = OpenAIResponsesNativeCompactionExtension()
+
+    schema = extension.get_config_schema()
+    ui = {
+        item["key"]: item
+        for item in extension.get_ui_elements(
+            {
+                "enable_openai_automatic_compaction": True,
+                "openai_compaction_trigger_tokens": 240000,
+            }
+        )
+        if isinstance(item.get("key"), str)
+    }
+
+    assert schema["enable_openai_automatic_compaction"]["default"] is False
+    assert schema["openai_compaction_trigger_tokens"]["default"] == 200000
+    assert ui["enable_openai_automatic_compaction"]["type"] == "checkbox"
+    assert ui["enable_openai_automatic_compaction"]["default"] is True
+    assert ui["openai_compaction_trigger_tokens"]["type"] == "number"
+    assert ui["openai_compaction_trigger_tokens"]["default"] == 240000
+
+
+def test_automatic_compaction_request_shaping_and_raw_override() -> None:
+    extension = OpenAIResponsesNativeCompactionExtension()
+    config = {
+        **_config(),
+        "enable_openai_automatic_compaction": True,
+        "openai_compaction_trigger_tokens": 210000,
+        "request_options": {
+            "context_management": [{"type": "compaction", "compact_threshold": 250000}]
+        },
+    }
+    state = {
+        "config": config,
+        "request": {"payload": {"model": "gpt-5.4"}},
+    }
+
+    native, state = extension.initialize_request([], state)
+    assert native == []
+    assert state["request"]["payload"]["context_management"] == [
+        {"type": "compaction", "compact_threshold": 210000}
+    ]
+
+    native, state = RequestOptionsFeature().initialize_request(native, state)
+    assert native == []
+    assert state["request"]["payload"]["context_management"] == [
+        {"type": "compaction", "compact_threshold": 250000}
+    ]
+
+
+def test_disabled_automatic_compaction_leaves_request_unchanged() -> None:
+    extension = OpenAIResponsesNativeCompactionExtension()
+    state = {
+        "config": _config(),
+        "request": {"payload": {"model": "gpt-5-mini"}},
+    }
+
+    native, next_state = extension.initialize_request([], state)
+
+    assert native == []
+    assert next_state is state
+    assert "context_management" not in next_state["request"]["payload"]
+
+
+def test_automatic_compaction_item_persists_and_replays_on_followup() -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[
+            {
+                "id": "resp_auto_1",
+                "output": [
+                    {
+                        "id": "comp_auto_1",
+                        "type": "compaction",
+                        "encrypted_content": "opaque-auto",
+                    },
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {"type": "output_text", "text": "First automatic answer"}
+                        ],
+                    },
+                ],
+            },
+            {
+                "id": "resp_auto_2",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {"type": "output_text", "text": "Second automatic answer"}
+                        ],
+                    }
+                ],
+            },
+        ],
+        compact_payload={"id": "unused", "output": []},
+    )
+    core = _build_core()
+    config = {
+        **_config(),
+        "model": "gpt-5.4",
+        "enable_openai_automatic_compaction": True,
+        "openai_compaction_trigger_tokens": 200000,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "first turn", config=config)
+    session, first_finals = core.send_request(session, config)
+    assert first_finals[-1]["content"] == "First automatic answer"
+
+    stored_native = (session.metadata or {}).get("native_messages")
+    assert isinstance(stored_native, list)
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "compaction"
+        and item.get("encrypted_content") == "opaque-auto"
+        for item in stored_native
+    )
+
+    session = core.add_message(session, "user", "second turn", config=config)
+    session, second_finals = core.send_request(session, config)
+    assert second_finals[-1]["content"] == "Second automatic answer"
+
+    create_calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
+    assert len(create_calls) == 2
+    assert create_calls[0]["context_management"] == [
+        {"type": "compaction", "compact_threshold": 200000}
+    ]
+    assert create_calls[1]["context_management"] == [
+        {"type": "compaction", "compact_threshold": 200000}
+    ]
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") == "compaction"
+        and item.get("encrypted_content") == "opaque-auto"
+        for item in create_calls[1]["input"]
+    )
 
 
 def _patch_extension_client(

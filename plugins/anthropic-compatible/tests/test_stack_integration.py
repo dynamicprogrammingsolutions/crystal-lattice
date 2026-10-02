@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 from agent_core import AgentCore, Session
 from plugins.request_options_feature import RequestOptionsFeature
 
 from anthropic_plugins import (
+    AnthropicCompactionExtension,
+    AnthropicContextEditingExtension,
     AnthropicPromptCachingExtension,
     AnthropicProvider,
     AnthropicReasoningControlsExtension,
@@ -40,6 +43,7 @@ class ScriptedModels:
 class ScriptedClient:
     def __init__(self):
         self.messages = ScriptedMessages()
+        self.beta = SimpleNamespace(messages=ScriptedMessages())
         self.models = ScriptedModels()
 
     def close(self) -> None:
@@ -49,6 +53,54 @@ class ScriptedClient:
 class ScriptedAnthropicProvider(AnthropicProvider):
     def _client(self, config: dict[str, Any]) -> ScriptedClient:
         return ScriptedClient()
+
+
+class EchoTool:
+    name = "anthropic_compaction_echo"
+    version = "0.1.0"
+
+    def get_config_schema(self) -> dict[str, Any]:
+        return {}
+
+    def init(self, config: dict[str, Any]) -> dict[str, Any]:
+        return {}
+
+    def get_tool_schemas(
+        self,
+        state: dict[str, Any],
+        *,
+        prepared: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "echo",
+                    "description": "Echo a value.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                        "required": ["value"],
+                    },
+                },
+            }
+        ]
+
+    def execute_tool(
+        self,
+        tool_name: str | None,
+        payload: Any,
+        state: dict[str, Any],
+        **_: Any,
+    ) -> dict[str, Any]:
+        return {"success": True, "value": str(payload["value"])}
+
+    def format_tool_result(
+        self,
+        result: dict[str, Any],
+        state: dict[str, Any],
+    ) -> str:
+        return result["value"]
 
 
 def _core(*, extensions: list[type] | None = None) -> AgentCore:
@@ -273,3 +325,205 @@ def test_full_stack_persists_reasoning_usage_and_native_history() -> None:
         "signature": "sig",
     }
     assert native[-1]["_metadata"]["usage_input_tokens_cumulative"] == 13
+
+
+def test_compaction_stack_persists_and_reuses_complete_native_block() -> None:
+    ScriptedMessages.calls = []
+    compaction_block = {
+        "type": "compaction",
+        "content": "Remember the durable decision.",
+        "encrypted_content": "opaque-continuation",
+    }
+    ScriptedMessages.responses = [
+        _message(
+            content=[compaction_block, {"type": "text", "text": "first"}],
+            usage={
+                "input_tokens": 3,
+                "output_tokens": 2,
+                "iterations": [
+                    {
+                        "type": "compaction",
+                        "input_tokens": 50,
+                        "output_tokens": 5,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                    },
+                    {
+                        "type": "message",
+                        "input_tokens": 3,
+                        "output_tokens": 2,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                    },
+                ],
+            },
+        ),
+        _message(
+            content=[{"type": "text", "text": "follow-up"}],
+            usage={"input_tokens": 4, "output_tokens": 1},
+        ),
+    ]
+    core = _core(
+        extensions=[
+            AnthropicContextEditingExtension,
+            AnthropicCompactionExtension,
+            AnthropicUsageExtension,
+        ]
+    )
+    config = {
+        "provider": "anthropic",
+        "model": "scripted",
+        "api_key": "test",
+        "capabilities": {
+            "anthropic_context_editing": True,
+            "anthropic_compaction": True,
+        },
+        "anthropic_thinking_retention": "all",
+        "enable_anthropic_compaction": True,
+        "anthropic_compaction_trigger_tokens": 50000,
+    }
+    session = core.add_message(core.create_session(), "user", "question", config=config)
+
+    session, finals = core.send_request(session, config)
+
+    assert finals[0]["content"] == "first"
+    assert finals[0]["metadata"]["anthropic_compaction"]["occurred"] is True
+    assert "opaque-continuation" not in repr(finals[0]["metadata"])
+    assert finals[0]["metadata"]["usage_compaction_input_tokens"] == 50
+    assert session.metadata["native_messages"][-1]["content"][0] == compaction_block
+
+    reloaded = Session.from_dict(session.to_dict())
+    reloaded = core.add_message(reloaded, "user", "continue", config=config)
+    reloaded, follow_up = core.send_request(reloaded, config)
+
+    assert follow_up[0]["content"] == "follow-up"
+    second_request_messages = ScriptedMessages.calls[-1]["messages"]
+    replayed = [
+        block
+        for message in second_request_messages
+        if message.get("role") == "assistant"
+        for block in (
+            message.get("content") if isinstance(message.get("content"), list) else []
+        )
+        if isinstance(block, dict) and block.get("type") == "compaction"
+    ]
+    assert replayed == [compaction_block]
+    assert reloaded.metadata["native_messages"][-1]["content"] == [
+        {"type": "text", "text": "follow-up"}
+    ]
+
+
+def test_compaction_composes_with_reasoning_tools_caching_and_usage() -> None:
+    ScriptedMessages.calls = []
+    ScriptedMessages.responses = [
+        _message(
+            content=[
+                {"type": "compaction", "content": "Earlier context"},
+                {"type": "thinking", "thinking": "Use echo.", "signature": "sig"},
+                {
+                    "type": "tool_use",
+                    "id": "tool_1",
+                    "name": "echo",
+                    "input": {"value": "kept"},
+                },
+            ],
+            usage={
+                "input_tokens": 2,
+                "output_tokens": 1,
+                "iterations": [
+                    {
+                        "type": "compaction",
+                        "input_tokens": 20,
+                        "output_tokens": 3,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                    },
+                    {
+                        "type": "message",
+                        "input_tokens": 2,
+                        "output_tokens": 1,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation_input_tokens": 0,
+                    },
+                ],
+            },
+            stop_reason="tool_use",
+        ),
+        _message(
+            content=[{"type": "text", "text": "kept"}],
+            usage={"input_tokens": 5, "output_tokens": 1},
+        ),
+    ]
+    core = _core(
+        extensions=[
+            AnthropicToolsExtension,
+            AnthropicReasoningExtension,
+            AnthropicContextEditingExtension,
+            AnthropicCompactionExtension,
+            AnthropicPromptCachingExtension,
+            AnthropicUsageExtension,
+        ]
+    )
+    core.register_tool(EchoTool)
+    config = {
+        "provider": "anthropic",
+        "model": "scripted",
+        "api_key": "test",
+        "capabilities": {
+            "anthropic_context_editing": True,
+            "anthropic_compaction": True,
+            "prompt_caching": True,
+        },
+        "anthropic_thinking_retention": "all",
+        "enable_anthropic_compaction": True,
+        "anthropic_compaction_trigger_tokens": 50000,
+        "request_options": {"thinking": {"type": "enabled", "budget_tokens": 128}},
+    }
+    session = core.add_message(
+        core.create_session(),
+        "user",
+        "Echo kept.",
+        config=config,
+    )
+
+    session, first = core.send_request(session, config)
+    calls = first[-1]["metadata"]["tool_calls"]
+    assert calls[0]["name"] == "echo"
+    assert first[-1]["metadata"]["reasoning"] == "Use echo."
+    assert first[-1]["metadata"]["anthropic_compaction"]["occurred"] is True
+    assert first[-1]["metadata"]["usage_compaction_input_tokens"] == 20
+
+    for message in core.execute_tool_calls(calls, config):
+        session = core.add_message(
+            session,
+            message["role"],
+            message["content"],
+            metadata=message.get("metadata"),
+            tool_result=message.get("toolResult"),
+            config=config,
+        )
+
+    session, second = core.send_request(session, config)
+
+    assert second[-1]["content"] == "kept"
+    first_request = ScriptedMessages.calls[-2]
+    assert first_request["cache_control"] == {"type": "ephemeral", "ttl": "5m"}
+    assert [edit["type"] for edit in first_request["context_management"]["edits"]] == [
+        "clear_thinking_20251015",
+        "compact_20260112",
+    ]
+    second_request_blocks = [
+        block
+        for message in ScriptedMessages.calls[-1]["messages"]
+        for content in [message.get("content")]
+        if isinstance(content, list)
+        for block in content
+        if isinstance(block, dict)
+    ]
+    assert any(block.get("type") == "compaction" for block in second_request_blocks)
+    assert any(block.get("type") == "thinking" for block in second_request_blocks)
+    assert any(block.get("type") == "tool_use" for block in second_request_blocks)
+    assert any(block.get("type") == "tool_result" for block in second_request_blocks)
+    assert session.metadata["native_messages"][-1]["content"] == [
+        {"type": "text", "text": "kept"}
+    ]

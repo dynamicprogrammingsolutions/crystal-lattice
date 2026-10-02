@@ -13,6 +13,7 @@ native protocol, including:
 - web/search server tools;
 - service tiers or speed controls;
 - provider-native compaction.
+- provider-native context editing.
 
 The extension owns:
 
@@ -42,6 +43,9 @@ config, UI, or enablement.
 
 This keeps the feature independently selectable even when the network code
 cannot be physically moved out of the provider.
+
+For native compaction and context editing, see
+[Provider-native context maintenance](native-context-maintenance.md).
 
 ## Direct request-option features
 

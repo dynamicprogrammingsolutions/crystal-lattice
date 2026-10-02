@@ -6,10 +6,12 @@
 - `anthropic_plugins.tools_extension.AnthropicToolsExtension`
 - `anthropic_plugins.reasoning_extension.AnthropicReasoningExtension`
 - `anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension`
+- `anthropic_plugins.context_editing_extension.AnthropicContextEditingExtension`
+- `anthropic_plugins.compaction_extension.AnthropicCompactionExtension`
 - `anthropic_plugins.usage_extension.AnthropicUsageExtension`
 - `anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension`
 
-All five extension classes plus the provider are registered by
+All seven extension classes plus the provider are registered by
 `agent_plugin.json`.
 
 ## Provider boundary
@@ -45,9 +47,19 @@ data, supplies known Claude regex fallbacks, contributes model-specific UI,
 and maps normalized settings into `thinking` and `output_config`.
 `RequestOptionsFeature` remains the final raw request override.
 
+`AnthropicContextEditingExtension` owns thinking retention, tool-use clearing,
+their independent capability gate, request composition, beta requirement, UI,
+and applied-edit metadata.
+
+`AnthropicCompactionExtension` owns automatic compaction enablement, trigger,
+instructions, model-capability gate, request composition, beta requirement,
+and safe public compaction metadata. The complete compaction block remains in
+native history.
+
 `AnthropicUsageExtension` owns public token metadata, formatting, turn/session
 accumulation, stable turn IDs and terminal/tool-call state, and the standard
-cumulative fields consumed by performance extensions.
+cumulative fields consumed by performance extensions. It treats reported
+iteration usage as authoritative and exposes separate compaction token classes.
 
 `AnthropicPromptCachingExtension` owns automatic top-level cache configuration,
 enabled/TTL UI, and capability gating. Cache usage remains in
@@ -65,11 +77,13 @@ anthropic_usage
 ## Streaming sequence
 
 1. The provider initializes a minimal Messages payload.
-2. Tools add schemas and the generic request-options feature adds direct
-   request fields.
+2. Tools, context editing, compaction, reasoning controls, and caching add
+   their request fields and beta requirements; generic request options run
+   last.
 3. The SDK yields events normalized to plain dictionaries.
 4. The provider updates a lossless ordered assistant block accumulator.
-5. Extensions project tool calls, reasoning partials, and usage.
+5. Extensions project tool calls, reasoning partials, compaction/edit status,
+   and usage.
 6. The provider appends one completed native assistant message.
 7. Extensions finalize public metadata.
 8. Core persists the full provider-native history.
@@ -87,6 +101,11 @@ anthropic_usage
 - `test_anthropic_stage3_api_integration.py`: official capability descriptors,
   prompt caching, adaptive interleaving, authentication errors, and
   cancellation.
+- `test_context_management_unit.py`: context-management config, UI, tags,
+  request ordering, beta validation, block/delta reduction, metadata, and
+  iteration usage.
+- `test_anthropic_compaction_api_integration.py`: slow official streaming
+  compaction, persistence, replay, and follow-up continuation.
 
 The deterministic tests define exact behavior. Ollama tests prove real
 compatible transport. Hosted tests cover only official API behavior that the

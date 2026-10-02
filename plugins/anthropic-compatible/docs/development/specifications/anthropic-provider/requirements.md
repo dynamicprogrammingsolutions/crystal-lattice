@@ -24,13 +24,15 @@ These requirements track the live implementation of the
 | ANTH-017 | Reasoning-and-tools profiles pass the canonical bank-file continuity contract in ordinary and streaming modes, and cross-request preservation profiles satisfy the interrupted-user reasoning-size contract or record an explicit negative profile. | Implemented | Automated | Documented | direct Haiku ordinary/streaming and Sonnet keep-all pass; latest-turn-only reports server-cleared reasoning while native client history remains intact |
 | ANTH-018 | `AnthropicReasoningControlsExtension` normalizes authoritative model capabilities, applies documented regex fallbacks when descriptors are absent, accepts explicit capability-detail overrides, owns model-specific settings/UI/request mapping, and leaves raw request options authoritative. | Implemented | Automated | Documented | controls unit/stack/hosted tests and `docs/reasoning-controls.md` copyable `$variants` fallback |
 | ANTH-019 | Anthropic model discovery produces the portable searchable custom-capable `model` dropdown with nested validation, an ordinary fallback icon, and self-contained compact presentation; Anthropic reasoning effort retains an ordinary fallback icon while using a simple text-only compact composer dropdown across mobile and desktop. | Implemented | Automated | Documented | provider/reasoning unit tests, public backend integration, frontend production-screen suites, iOS/Android Detox, and macOS XCUITest |
+| ANTH-020 | Anthropic native context management provides capability-gated automatic compaction and independent context-editing policy while preserving provider-native continuation blocks and complete reported usage. | Implemented | Automated | Documented | [native context-management requirements](../native-compaction-and-context-editing/requirements.md); subtask 013; package guide and implementation map |
 
 ## Deferred provider features
 
-Server web tools, fast mode/service tiers, native compaction/context editing,
-Files/PDFs/document citations, token counting, and advanced server tools are
-owned by subtasks 011 through 016. Image attachments, cost estimation, and
-portable provider request errors are owned by subtasks 017 through 019. Their
-implementation must add or refine stable requirement IDs before execution.
+Server web tools, fast mode/service tiers, Files/PDFs/document citations,
+token counting, and advanced server tools are owned by subtasks 011, 012, and
+014 through 016. Native compaction/context editing is tracked by ANTH-020 and
+subtask 013. Image attachments, cost estimation, and portable provider request
+errors are owned by subtasks 017 through 019. Their implementation must add or
+refine stable requirement IDs before execution.
 
 Message Batches and structured outputs are not planned by this task group.

@@ -59,10 +59,6 @@ def test_official_capabilities_are_normalized() -> None:
         "thinking_types": ["adaptive"],
         "effort_levels": ["low", "medium", "high", "xhigh", "max"],
         "adaptive_interleaving": True,
-        "context_management": {
-            "clear_thinking_20251015": True,
-            "clear_tool_uses_20250919": True,
-        },
     }
 
 

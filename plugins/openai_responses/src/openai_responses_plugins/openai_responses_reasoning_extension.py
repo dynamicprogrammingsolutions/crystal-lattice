@@ -89,6 +89,9 @@ _GPT_5_6_REASONING_EFFORTS = frozenset(
         ("low", "medium", "high", "xhigh", "max"),
     }
 )
+_REASONING_CONTEXT_MODEL_PATTERN = re.compile(
+    r"^gpt-(?:5\.(?:[6-9]|[1-9][0-9]+)|" r"(?:[6-9]|[1-9][0-9]+))(?:\.[0-9]+)*(?:$|-)"
+)
 
 
 class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
@@ -135,7 +138,8 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     "makes reasoning from the active turn available without "
                     "rendering earlier-turn reasoning. 'all_turns' renders "
                     "compatible reasoning items from earlier turns into the "
-                    "next sample (GPT-5.6 family only). 'auto' and absence "
+                    "next sample (GPT-5.6 and later numeric GPT families). "
+                    "'auto' and absence "
                     "both normalize to omission (the API default applies)."
                 ),
             },
@@ -185,15 +189,14 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         )
 
     def _model_supports_reasoning_context(self, model: str) -> bool:
-        # Conservative gating: the official reasoning guide says
-        # ``reasoning.context`` support is model-dependent, and the Codex
-        # catalog does not publish per-model capability data. Gate to the
-        # GPT-5.6 family (the same check used for Pro mode) until official
-        # per-model capability data is available. Users who need to force a
-        # context value on an older reasoning model can set
-        # ``request_options.reasoning.context`` directly as an expert escape
-        # hatch.
-        return self._model_supports_pro_reasoning(model)
+        # Model discovery does not currently publish a dedicated
+        # reasoning-context capability. GPT-5.6 and GPT-6 Astra establish the
+        # persisted-reasoning contract, so carry that behavior forward across
+        # later numeric GPT families. Pro mode and effort options retain their
+        # separate, narrower model rules.
+        return (
+            _REASONING_CONTEXT_MODEL_PATTERN.search(model.strip().lower()) is not None
+        )
 
     def get_ui_elements(
         self,
@@ -258,10 +261,11 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 {
                     "type": "select",
                     "key": "reasoning_context",
-                    "label": "Reasoning Context",
+                    "label": "Reasoning retention",
                     "options": [
-                        {"value": value, "label": value}
-                        for value in _REASONING_CONTEXTS
+                        {"value": "auto", "label": "Auto"},
+                        {"value": "current_turn", "label": "Current turn only"},
+                        {"value": "all_turns", "label": "All turns"},
                     ],
                 }
             )

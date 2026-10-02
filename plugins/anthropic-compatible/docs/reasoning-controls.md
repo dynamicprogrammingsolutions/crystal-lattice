@@ -205,5 +205,6 @@ configuration and can use separate variants:
 }
 ```
 
-Context-management edits and provider beta configuration remain independent
-raw configuration.
+Thinking retention and tool-use clearing are owned by the separate Anthropic
+context-editing extension. See
+[Anthropic native context management](context-management.md).

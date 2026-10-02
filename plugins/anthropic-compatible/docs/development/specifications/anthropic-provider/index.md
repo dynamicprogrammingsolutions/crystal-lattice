@@ -38,6 +38,10 @@ Decision records:
 - [Compatibility and capability discovery](decisions/002-compatibility-and-capability-discovery.md)
 - [Anthropic SDK transport](decisions/003-anthropic-sdk-transport.md)
 
+Package feature refinements:
+
+- [Native compaction and context editing](../native-compaction-and-context-editing/index.md)
+
 Related portable contract:
 
 - [Portable provider implementation](../../../../../../docs/development/specifications/portable-provider-implementation/index.md)
@@ -45,6 +49,7 @@ Related portable contract:
 Active delivery work:
 
 - `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
+- `tasks/20260824-direct-claude-provider-and-plugin-login/013-anthropic-native-compaction-and-context-editing.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/017-anthropic-image-attachments.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/018-provider-cost-estimation-and-pricing-catalog.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/019-portable-provider-request-errors.md`

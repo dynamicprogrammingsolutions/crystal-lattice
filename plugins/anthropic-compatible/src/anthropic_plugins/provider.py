@@ -20,6 +20,13 @@ from .content_blocks import (
     reduce_event,
     strip_runtime_fields,
 )
+from .context_management import (
+    COMPACTION_BETA,
+    CONTEXT_EDITING_BETA,
+    compaction_supported,
+    context_editing_supported,
+    request_required_betas,
+)
 
 logger = get_logger("anthropic_provider")
 
@@ -54,7 +61,6 @@ _BETA_MESSAGE_KEYS = {
     "speed",
 }
 _RESERVED_REQUEST_OPTION_KEYS = {"messages", "stream", "system"}
-_CONTEXT_MANAGEMENT_BETA = "context-management-2025-06-27"
 
 
 def _effective_api_key(config: dict[str, Any]) -> str:
@@ -241,6 +247,10 @@ class AnthropicProvider(ProviderPlugin):
         capabilities = capabilities if isinstance(capabilities, dict) else {}
         if capabilities.get("prompt_caching") is True:
             tags.append("supports_prompt_caching")
+        if compaction_supported(config, models):
+            tags.append("supports_anthropic_compaction")
+        if context_editing_supported(config, models):
+            tags.append("supports_anthropic_context_editing")
 
         controls = capabilities.get("anthropic_reasoning_controls")
         if controls is True:
@@ -450,6 +460,7 @@ class AnthropicProvider(ProviderPlugin):
         self,
         config: dict[str, Any],
         payload: dict[str, Any],
+        required_betas: list[str] | None = None,
     ) -> list[str]:
         explicit = self._explicit_beta_header(config, payload)
         if explicit is not None:
@@ -458,6 +469,7 @@ class AnthropicProvider(ProviderPlugin):
             [
                 *_string_list(config.get("betas")),
                 *_string_list(config.get("beta_headers")),
+                *list(required_betas or []),
             ]
         )
 
@@ -476,13 +488,39 @@ class AnthropicProvider(ProviderPlugin):
         payload: dict[str, Any],
         *,
         stream: bool,
+        required_betas: list[str] | None = None,
     ) -> tuple[dict[str, Any], bool]:
-        beta_ids = self._configured_beta_ids(config, payload)
-        if "context_management" in payload and _CONTEXT_MANAGEMENT_BETA not in beta_ids:
-            raise RuntimeError(
-                "Anthropic request option 'context_management' requires "
-                f"provider beta {_CONTEXT_MANAGEMENT_BETA!r}"
-            )
+        beta_ids = self._configured_beta_ids(config, payload, required_betas)
+        context_management = payload.get("context_management")
+        if isinstance(context_management, dict):
+            raw_edits = context_management.get("edits")
+            edits = raw_edits if isinstance(raw_edits, list) else []
+            edit_types = {
+                edit.get("type")
+                for edit in edits
+                if isinstance(edit, dict) and isinstance(edit.get("type"), str)
+            }
+            required_for_payload: set[str] = set()
+            if "compact_20260112" in edit_types:
+                required_for_payload.add(COMPACTION_BETA)
+            if edit_types.intersection(
+                {"clear_thinking_20251015", "clear_tool_uses_20250919"}
+            ):
+                required_for_payload.add(CONTEXT_EDITING_BETA)
+            if edit_types.difference(
+                {
+                    "compact_20260112",
+                    "clear_thinking_20251015",
+                    "clear_tool_uses_20250919",
+                }
+            ):
+                required_for_payload.add(CONTEXT_EDITING_BETA)
+            missing = sorted(required_for_payload.difference(beta_ids))
+            if missing:
+                raise RuntimeError(
+                    "Anthropic context management request requires provider "
+                    f"beta(s): {', '.join(missing)}"
+                )
 
         use_beta = self._uses_beta_api(config, payload)
         supported_keys = _BETA_MESSAGE_KEYS if use_beta else _STANDARD_MESSAGE_KEYS
@@ -512,6 +550,7 @@ class AnthropicProvider(ProviderPlugin):
                 [
                     *_string_list(config.get("betas")),
                     *_string_list(config.get("beta_headers")),
+                    *list(required_betas or []),
                 ]
             )
             if sdk_betas:
@@ -550,7 +589,10 @@ class AnthropicProvider(ProviderPlugin):
         client = None
         try:
             request_kwargs, use_beta = self._request_kwargs(
-                config, payload, stream=False
+                config,
+                payload,
+                stream=False,
+                required_betas=request_required_betas(state),
             )
             client = self._client(config)
             response = self._messages_resource(client, use_beta).create(
@@ -609,7 +651,10 @@ class AnthropicProvider(ProviderPlugin):
         client = None
         try:
             request_kwargs, use_beta = self._request_kwargs(
-                config, payload, stream=True
+                config,
+                payload,
+                stream=True,
+                required_betas=request_required_betas(state),
             )
             client = self._client(config)
             stream = self._messages_resource(client, use_beta).create(**request_kwargs)

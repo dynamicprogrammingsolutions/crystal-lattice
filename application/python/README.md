@@ -370,11 +370,21 @@ The default Claude routes are provider-qualified:
 
 - `claude-openrouter` uses Claude through OpenRouter.
 - `claude-anthropic` uses the direct Anthropic API and selects model-specific
-  reasoning defaults, beta, and context-management settings through
-  configuration variants. The Anthropic reasoning-controls extension derives
-  available mode and effort UI from model capabilities or known fallbacks. It
-  defaults to Sonnet 5 and can select supported Haiku, Sonnet, Opus, Fable, and
-  Mythos models from model discovery.
+  reasoning and context-management defaults through configuration variants.
+  The Anthropic reasoning-controls, context-editing, and compaction extensions
+  derive their applicable UI from model capabilities. Supported compaction,
+  keep-all thinking retention, and conservative tool-use clearing are enabled
+  by default. Current one-million-token models compact at 800,000 tokens and
+  begin tool-use clearing at 200,000 tokens. The agent defaults to Sonnet 5
+  and can select supported Haiku, Sonnet, Opus, Fable, and Mythos models from
+  model discovery.
+
+The default OpenAI Responses provider keeps automatic compaction disabled.
+Users can enable it and adjust its 200,000-token trigger in session settings.
+Model variants select all-turn reasoning retention for GPT-5.6-and-later
+numeric model families. Existing manual full/prefix compaction remains
+available as a session action. OpenAI currently has no independent native
+tool-use-clearing control.
 
 For model-like request testing without any external API or local model, use the
 echo config:
