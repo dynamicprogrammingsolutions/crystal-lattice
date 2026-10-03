@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -13,7 +14,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "16"
+RUNTIME_LAYOUT_VERSION = "17"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -389,6 +390,28 @@ def patch_python_build_utils(framework_root: Path) -> None:
     )
 
 
+def patch_python_dylib_info_templates(framework_root: Path) -> None:
+    template_paths = sorted(
+        (framework_root / "build").glob("*-dylib-Info-template.plist")
+    )
+    if not template_paths:
+        raise RuntimeError(
+            "Python support archive has no dynamic-library Info.plist templates"
+        )
+    for template_path in template_paths:
+        with template_path.open("rb") as handle:
+            plist = plistlib.load(handle)
+        package_type = plist.get("CFBundlePackageType")
+        if package_type != "APPL":
+            raise RuntimeError(
+                "Python support framework template changed unexpectedly: "
+                f"{template_path} has CFBundlePackageType={package_type!r}"
+            )
+        plist["CFBundlePackageType"] = "FMWK"
+        with template_path.open("wb") as handle:
+            plistlib.dump(plist, handle, sort_keys=False)
+
+
 def prepare_runtime(archive: Path) -> None:
     app_source_digest = source_digest()
     expected_marker = (
@@ -418,6 +441,7 @@ def prepare_runtime(archive: Path) -> None:
         staged_framework = staged_vendor / "Python.xcframework"
         shutil.copytree(source_framework, staged_framework)
         patch_python_build_utils(staged_framework)
+        patch_python_dylib_info_templates(staged_framework)
         create_application_archive(staged_resources / "crystal_lattice_app.zip")
         shutil.copy2(
             EMBEDDED_CONFIG_PATH,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import plistlib
 import subprocess
 
 
@@ -62,3 +63,26 @@ def test_patch_python_build_utils_emits_valid_framework_bundle_ids(
             text=True,
         )
         assert result.stdout == expected
+
+
+def test_patch_python_dylib_info_templates_marks_frameworks_as_frameworks(
+    tmp_path: Path,
+) -> None:
+    framework_root = tmp_path / "Python.xcframework"
+    template_path = framework_root / "build" / "iOS-dylib-Info-template.plist"
+    template_path.parent.mkdir(parents=True)
+    with template_path.open("wb") as handle:
+        plistlib.dump(
+            {
+                "CFBundleExecutable": "",
+                "CFBundleIdentifier": "",
+                "CFBundlePackageType": "APPL",
+            },
+            handle,
+        )
+
+    prepare_ios_python_runtime.patch_python_dylib_info_templates(framework_root)
+
+    with template_path.open("rb") as handle:
+        patched = plistlib.load(handle)
+    assert patched["CFBundlePackageType"] == "FMWK"
