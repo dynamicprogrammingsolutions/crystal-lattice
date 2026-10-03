@@ -47,7 +47,7 @@ This Linux x64 example uses the current package version. Change `target` to
 the value from the table for another supported system:
 
 ```bash
-version=0.2.0
+version=0.2.1
 target=linux-amd64
 archive="crystal-lattice-python-runtime-v${version}-${target}.tar.gz"
 
@@ -62,7 +62,7 @@ The archive launcher uses the Python runtime inside the extracted directory.
 This Windows x64 example can also use `windows-arm64`:
 
 ```powershell
-$Version = "0.2.0"
+$Version = "0.2.1"
 $Target = "windows-amd64"
 $Archive = "crystal-lattice-python-runtime-v$Version-$Target.zip"
 $Runtime = $Archive -replace "\.zip$", ""
@@ -94,7 +94,7 @@ Choose a stable location for the extracted runtime. Then write a small
 forwarding command into a directory already on `PATH`:
 
 ```bash
-runtime="$(pwd)/crystal-lattice-python-runtime-v0.2.0-linux-amd64"
+runtime="$(pwd)/crystal-lattice-python-runtime-v0.2.1-linux-amd64"
 command_dir="$HOME/.local/bin"
 
 mkdir -p "$command_dir"
@@ -114,7 +114,7 @@ already on PATH:
 
 ```powershell
 $Runtime = (
-  Resolve-Path ".\crystal-lattice-python-runtime-v0.2.0-windows-amd64"
+  Resolve-Path ".\crystal-lattice-python-runtime-v0.2.1-windows-amd64"
 ).Path
 $CommandDirectory = "$HOME\bin"
 $Command = Join-Path $CommandDirectory "crystal-lattice.cmd"

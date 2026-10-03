@@ -122,6 +122,10 @@ jobs:
             archive-glob: "*.zip"
             bash-installer: false
     steps:
+      - name: Enable Git long paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

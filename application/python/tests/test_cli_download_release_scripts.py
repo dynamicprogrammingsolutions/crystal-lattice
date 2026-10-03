@@ -588,6 +588,13 @@ def test_release_workflow_builds_all_native_targets() -> None:
     assert "openssl:$triplet" in workflow
     assert '"VCPKG_ROOT=$($env:VCPKG_INSTALLATION_ROOT)"' in workflow
     assert '"OPENSSL_STATIC=1"' in workflow
+    build_job = workflow[workflow.index("  build:") : workflow.index("  publish:")]
+    assert build_job.count("name: Enable Git long paths") == 1
+    assert "if: runner.os == 'Windows'" in build_job
+    assert "git config --global core.longpaths true" in build_job
+    assert build_job.index("name: Enable Git long paths") < build_job.index(
+        "name: Check out repository"
+    )
 
 
 def test_release_workflow_verifies_public_downloads_after_publication() -> None:

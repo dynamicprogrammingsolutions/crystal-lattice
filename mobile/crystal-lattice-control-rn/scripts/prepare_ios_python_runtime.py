@@ -13,7 +13,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "15"
+RUNTIME_LAYOUT_VERSION = "16"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -76,6 +76,16 @@ EMBEDDED_CONFIG_ROOT = (
 EMBEDDED_CONFIG_PATH = EMBEDDED_CONFIG_ROOT / "config.json"
 APPLICATION_PACKAGE_INIT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "__init__.py"
+)
+UPSTREAM_FRAMEWORK_BUNDLE_ID_LINE = (
+    "    FRAMEWORK_BUNDLE_ID=$(echo "
+    '$PRODUCT_BUNDLE_IDENTIFIER.$FULL_MODULE_NAME | tr "_" "-")\n'
+)
+PATCHED_FRAMEWORK_BUNDLE_ID_LINES = (
+    '    FRAMEWORK_BUNDLE_COMPONENT=$(echo "$FULL_MODULE_NAME" '
+    '| tr "._" "--" | tr -s "-" | sed "s/^-//; s/-$//")\n'
+    '    FRAMEWORK_BUNDLE_ID="$PRODUCT_BUNDLE_IDENTIFIER.'
+    'python-$FRAMEWORK_BUNDLE_COMPONENT"\n'
 )
 
 
@@ -361,6 +371,24 @@ def create_application_archive(destination: Path) -> None:
                 archive.write(module_path, module_path.name)
 
 
+def patch_python_build_utils(framework_root: Path) -> None:
+    utils_path = framework_root / "build" / "utils.sh"
+    text = utils_path.read_text(encoding="utf-8")
+    count = text.count(UPSTREAM_FRAMEWORK_BUNDLE_ID_LINE)
+    if count != 1:
+        raise RuntimeError(
+            "Python support build helper changed unexpectedly: expected one "
+            f"framework bundle-ID assignment in {utils_path}, found {count}"
+        )
+    utils_path.write_text(
+        text.replace(
+            UPSTREAM_FRAMEWORK_BUNDLE_ID_LINE,
+            PATCHED_FRAMEWORK_BUNDLE_ID_LINES,
+        ),
+        encoding="utf-8",
+    )
+
+
 def prepare_runtime(archive: Path) -> None:
     app_source_digest = source_digest()
     expected_marker = (
@@ -387,7 +415,9 @@ def prepare_runtime(archive: Path) -> None:
 
         staged_vendor = extracted / "staged-vendor"
         staged_resources = extracted / "staged-resources"
-        shutil.copytree(source_framework, staged_vendor / "Python.xcframework")
+        staged_framework = staged_vendor / "Python.xcframework"
+        shutil.copytree(source_framework, staged_framework)
+        patch_python_build_utils(staged_framework)
         create_application_archive(staged_resources / "crystal_lattice_app.zip")
         shutil.copy2(
             EMBEDDED_CONFIG_PATH,
