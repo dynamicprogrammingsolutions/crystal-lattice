@@ -163,7 +163,7 @@ def test_status_plugin_exposes_consistent_ordinary_action_and_filter(
         "value_path": "metadata.status",
         "missing_value": "todo",
         "input_name": "status",
-        "default_pinned": False,
+        "default_pinned": True,
         "options": EXPECTED_OPTIONS,
     }
     assert action["rich_ui"]["options"] == status_input["options"]
@@ -227,6 +227,7 @@ def test_status_plugin_exposes_consistent_ordinary_action_and_filter(
         "label": "Show status in session list footer",
         "description": "Display the current workflow status in each session row.",
         "default": True,
+        "order": 5020,
         "plugin": "session_status",
     }
 

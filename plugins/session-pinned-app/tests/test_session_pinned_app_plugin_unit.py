@@ -103,7 +103,7 @@ def test_session_pinned_contributes_rich_toggle_and_boolean_filter(
             "value_path": "metadata.favorite",
             "missing_value": False,
             "active_value": True,
-            "default_pinned": True,
+            "default_pinned": False,
             "placements": ["header_trailing", "actions_bar"],
             "appearance": {
                 "active": {"tone": "highlight"},

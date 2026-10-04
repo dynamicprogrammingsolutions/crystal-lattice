@@ -191,6 +191,7 @@ describe("Anthropic rich model UI through the public backend", () => {
         kind: "list",
         placements: ["session_header"],
         value_path: "metadata.status",
+        default_pinned: true,
       },
     });
 

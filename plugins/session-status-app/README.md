@@ -55,6 +55,11 @@ different selection immediately without OK/Cancel confirmation. Selecting the
 current option performs no mutation. The ordinary select form remains the
 permanent fallback for frontends that do not support rich lists.
 
+The status rich list is pinned by default on both the session-list action bar
+and the session header when no preference has been stored. Existing saved
+preferences—including an intentionally empty list—remain authoritative and
+are not migrated or overwritten when this default changes.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

@@ -281,7 +281,7 @@ describe('SessionsScreen real-backend component integration', () => {
           rich_ui: expect.objectContaining({
             kind: 'toggle',
             value_path: 'metadata.favorite',
-            default_pinned: true,
+            default_pinned: false,
             placements: ['header_trailing', 'actions_bar'],
             appearance: expect.objectContaining({
               active: { tone: 'highlight' },
@@ -302,6 +302,7 @@ describe('SessionsScreen real-backend component integration', () => {
           rich_ui: expect.objectContaining({
             kind: 'list',
             value_path: 'metadata.status',
+            default_pinned: true,
           }),
         }),
         expect.objectContaining({

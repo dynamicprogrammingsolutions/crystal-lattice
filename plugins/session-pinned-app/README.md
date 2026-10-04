@@ -17,9 +17,9 @@ It contributes:
 
 The rich toggle declares both `header_trailing` and `actions_bar` placements:
 it restores the title-corner pin control while still allowing the user to
-choose whether it appears in their action bar. The rich toggle is initially
-pinned when the user has no saved action-bar preference. An existing saved
-preference, including an intentionally empty one, remains authoritative.
+choose whether it appears in their action bar. The rich toggle is not pinned
+in the action bar by default. An existing saved preference—including a choice
+to pin it or an intentionally empty action bar—remains authoritative.
 Frontends without rich-toggle or header-placement support still retain the
 ordinary action-menu behavior and run the action immediately through its
 ordinary `dialog.kind: "none"` behavior.

@@ -69,7 +69,7 @@ class SessionPinnedAppPlugin:
                     "value_path": f"metadata.{pinned_key}",
                     "missing_value": False,
                     "active_value": True,
-                    "default_pinned": True,
+                    "default_pinned": False,
                     "placements": ["header_trailing", "actions_bar"],
                     "appearance": {
                         "active": {"tone": "highlight"},

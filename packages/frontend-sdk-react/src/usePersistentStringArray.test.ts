@@ -41,4 +41,28 @@ describe('persistent string-array preference semantics', () => {
     expect(parsePersistentStringArray('{"not":"an array"}')).toBeNull();
     expect(parsePersistentStringArray('[1, "pin", null]')).toEqual(['pin']);
   });
+
+  it('keeps an explicit user choice when plugin defaults move from pin to status', () => {
+    expect(
+      resolveDefaultPersistentStringArray({
+        current: ['toggle_session_pinned'],
+        initial: ['set_session_status'],
+        hasStoredPreference: true,
+      }),
+    ).toEqual(['toggle_session_pinned']);
+    expect(
+      resolveDefaultPersistentStringArray({
+        current: [],
+        initial: ['set_session_status'],
+        hasStoredPreference: true,
+      }),
+    ).toEqual([]);
+    expect(
+      resolveDefaultPersistentStringArray({
+        current: ['toggle_session_pinned'],
+        initial: ['set_session_status'],
+        hasStoredPreference: false,
+      }),
+    ).toEqual(['set_session_status']);
+  });
 });
