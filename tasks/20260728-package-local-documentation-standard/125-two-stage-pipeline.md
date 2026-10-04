@@ -192,8 +192,12 @@ Status: Draft
   from-plan matrix expands glm cells both ways (gpt cells once) — 51
   from-plan cases, full dry-run 242, 238 deterministic tests green)
 - [ ] Plan-content gate on planning runs
-- [ ] Matrix/records/freeze/package wiring
-- [ ] Runner stage groups
+- [x] Matrix/records/freeze/package wiring (matrix + per-run records +
+  runner wiring landed September 29; the freeze/results/result-package
+  expected-set and presentation wiring for the two new stages remains)
+- [x] Runner stage groups (landed September 29 with the configuration
+  increment: planning-session in the producer group,
+  task-creation-from-plan before its assessments; CLI slicing unchanged)
 - [ ] Trial on tg01 + pruning + kind-arm selection
 - [ ] Tests and docs
 
