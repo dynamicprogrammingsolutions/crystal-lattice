@@ -163,6 +163,8 @@ guidance, task guidance, publication rules, or their validation, read:
 - `maintainer/docs/development/specifications/crystal-lattice-guidance-integration/requirements.md`
 
 **Auxiliary directories**
+- `.crystal/`: ignored local runtime state; the default session root is
+  `./.crystal/sessions`.
 - `evaluations/`: shared evaluation framework and benchmark suites.
 - `tasks/`: task handoff files used for planning and delegated follow-up work.
 - `test/`: repository-level shared test support and cross-cutting tests.

@@ -39,7 +39,7 @@ Global options precede the standalone command. For example:
 ```bash
 crystal-lattice \
   --config ~/.crystal/config.json \
-  --sessions-dir ~/.crystal/sessions \
+  --sessions-dir ./.crystal/sessions \
   agents
 ```
 

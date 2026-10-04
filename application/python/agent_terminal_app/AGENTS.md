@@ -77,10 +77,10 @@ to the core engine, not changing core algorithms.
     reasoning/tool traces, etc.).
   - Any changes should preserve readability in a plain terminal.
 
-- `sessions/`
-  - On-disk session files used by this app. Tests may create temporary files
-    here; do not commit new static session files unless a test explicitly
-    needs them.
+- Session files use the active session root. The default is
+  `./.crystal/sessions`; `--sessions-dir` may override it. Tests may create
+  temporary session files; do not commit them unless a test explicitly needs
+  them.
 
 ---
 
