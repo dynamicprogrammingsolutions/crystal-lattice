@@ -239,6 +239,12 @@ directories and connections; the matrix command set stays unchanged.
   limitation recorded: the plugin requires the openai-compatible
   provider, so preserve-thinking variants are GLM-only.
 
+- September 29, 2026 (run scope approved): b1v4 is approved FOR
+  EVALUATION ONLY — do not promote it over `current` (b1v3) yet. After
+  the new tests (subtask 125 D stages) and all infrastructure changes
+  are complete, retest ONLY the currently promoted b1v3 plus b1v4
+  through the parallel runner; do not re-run b0 or earlier candidates.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
