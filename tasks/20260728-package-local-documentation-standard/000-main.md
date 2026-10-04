@@ -783,7 +783,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
+- [x] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - [x] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
