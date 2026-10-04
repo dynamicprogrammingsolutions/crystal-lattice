@@ -13,8 +13,8 @@ The command:
 
 1. builds a Release app in an isolated derived-data directory;
 2. launches `DesktopWebsiteVisualHarness` with one deterministic visual kind;
-3. renders the production agent picker beside the production session-plugins
-   window;
+3. renders the production two-pane agent picker and its selected-agent
+   default-plugin preview;
 4. asks the harness app to cache and encode its own content view after React
    has rendered;
 5. writes light/dark PNG candidates under
@@ -31,9 +31,11 @@ Current kinds:
   tool plugins.
 
 The fixture plugin entries are capture-only data. They use the real
-`SessionPluginEntry` shape and production plugin-window component, and are not
+`AgentPluginEntry` contract and production picker component, and are not
 included in normal application defaults.
 
 Stable agent IDs remain authoritative. Display title, description, and order
 come from the public descriptor contract, while picker submission continues to
-send only the stable ID.
+send only the stable ID. The capture harness supplies a deterministic
+in-process backend; ordinary windows use the active REST, bridge, or in-process
+connection backend through `agentPickerCoordinator`.

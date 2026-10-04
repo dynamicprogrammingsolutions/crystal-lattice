@@ -70,4 +70,46 @@ describe('RestAgentBackend agents', () => {
       },
     ]);
   });
+
+  it('lists only normalized safe agent plugin metadata', async () => {
+    const transport = {
+      request: vi.fn(async () => ({
+        status: 200,
+        data: {
+          plugins: [
+            {
+              id: ' apply_patch ',
+              kind: ' tools ',
+              name: ' apply_patch ',
+              class_path: ' codex_tools.ApplyPatchTool ',
+              class_name: ' ApplyPatchTool ',
+              enabled: true,
+              active: true,
+              source: 'agent',
+              api_key: 'must-not-cross-the-sdk',
+            },
+            { id: '', kind: 'tools', enabled: true, active: true },
+          ],
+        },
+      })),
+    } as unknown as Transport;
+    const backend = new RestAgentBackend({ transport });
+
+    await expect(backend.listAgentPlugins('codex/openai')).resolves.toEqual([
+      {
+        id: 'apply_patch',
+        kind: 'tools',
+        name: 'apply_patch',
+        class_path: 'codex_tools.ApplyPatchTool',
+        class_name: 'ApplyPatchTool',
+        enabled: true,
+        active: true,
+        source: 'agent',
+      },
+    ]);
+    expect(transport.request).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/agents/codex%2Fopenai/plugins',
+    });
+  });
 });

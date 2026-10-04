@@ -15,6 +15,7 @@ import type {
 } from '../types/notifications';
 import type { SessionRequestStatusSnapshot } from '../types/sessionRequestStatus';
 import type { AgentDescriptor } from '../types/agents';
+import type { AgentPluginEntry } from '../types/agentPlugins';
 import type {
   MessageDataQueryParams,
   MessageDataQueryResult,
@@ -70,6 +71,7 @@ export interface AgentBackend {
   // --- Agents ---
   listAgents(): Promise<string[]>;
   listAgentDescriptors?(): Promise<AgentDescriptor[]>;
+  listAgentPlugins?(agentId: string): Promise<AgentPluginEntry[]>;
   getSessionAgent(sessionId: string): Promise<string>;
   switchSessionAgent(
     sessionId: string,

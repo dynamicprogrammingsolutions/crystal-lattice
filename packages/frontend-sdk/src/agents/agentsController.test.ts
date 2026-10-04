@@ -67,4 +67,60 @@ describe("AgentsController cache invalidation", () => {
     ]);
     expect(backend.listAgents).not.toHaveBeenCalled();
   });
+
+  it("caches effective plugins per agent and connection", async () => {
+    const cacheKey = `plugins-${Date.now()}`;
+    const listAgentPlugins = vi.fn().mockImplementation(async (agentId: string) => [
+      {
+        id: `${agentId}-tool`,
+        kind: "tools",
+        enabled: true,
+        active: true,
+        source: "agent",
+        secret: "must-not-be-retained",
+      },
+    ]);
+    const backend = {
+      listAgents: vi.fn().mockResolvedValue(["codex", "claude"]),
+      listAgentPlugins,
+    } as unknown as AgentBackend;
+
+    const first = new AgentsController({ backend, cacheKey });
+    await expect(first.ensurePluginsLoaded("codex")).resolves.toEqual([
+      {
+        id: "codex-tool",
+        kind: "tools",
+        enabled: true,
+        active: true,
+        source: "agent",
+      },
+    ]);
+    await expect(first.ensurePluginsLoaded("codex")).resolves.toEqual([
+      {
+        id: "codex-tool",
+        kind: "tools",
+        enabled: true,
+        active: true,
+        source: "agent",
+      },
+    ]);
+
+    const second = new AgentsController({ backend, cacheKey });
+    await second.ensurePluginsLoaded("codex");
+    await second.ensurePluginsLoaded("claude");
+    expect(listAgentPlugins).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an explicit compatibility error when preview is unsupported", async () => {
+    const controller = new AgentsController({
+      backend: {
+        listAgents: vi.fn().mockResolvedValue(["legacy"]),
+      } as unknown as AgentBackend,
+      cacheKey: `unsupported-${Date.now()}`,
+    });
+
+    await expect(controller.ensurePluginsLoaded("legacy")).rejects.toThrow(
+      "Agent plugin preview is not supported by this connection",
+    );
+  });
 });

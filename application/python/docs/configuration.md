@@ -109,6 +109,36 @@ returns `agent_descriptors`, ordered by display order:
 Clients must submit `id`, not the display title, when creating or switching a
 session.
 
+### Agent default plugin preview
+
+`GET /agents/{agent_id}/plugins` returns the selected agent's effective
+default plugin projection without creating or saving a session:
+
+```json
+{
+  "plugins": [
+    {
+      "id": "apply_patch",
+      "kind": "tools",
+      "class_path": "codex_tools.apply_patch_tool.ApplyPatchTool",
+      "class_name": "ApplyPatchTool",
+      "name": "apply_patch",
+      "enabled": true,
+      "active": true,
+      "source": "implicit"
+    }
+  ]
+}
+```
+
+The endpoint is read-only. It exposes plugin identity, kind, class metadata,
+default-enabled state, effective active state, and whether enablement is
+implicit or agent-configured. It does not return provider settings,
+credentials, environment values, request options, system-message content, or
+other configuration values.
+
+Unknown agent IDs return HTTP 404.
+
 The command searches for configuration in:
 
 1. `./.crystal/config.json`

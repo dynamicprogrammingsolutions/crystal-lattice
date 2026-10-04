@@ -3041,13 +3041,83 @@ class AgentApplication:
         for kind in ("providers", "extensions", "features", "tools"):
             for plugin_class in runtime.plugin_classes.get(kind) or []:
                 plugin_id = self._plugin_id_for_class(plugin_class)
-                result.append(
-                    {
-                        "kind": kind,
-                        "id": plugin_id,
-                        "class_path": f"{plugin_class.__module__}.{plugin_class.__qualname__}",
-                    }
-                )
+                entry: Dict[str, Any] = {
+                    "kind": kind,
+                    "id": plugin_id,
+                    "class_path": f"{plugin_class.__module__}.{plugin_class.__qualname__}",
+                    "class_name": plugin_class.__name__,
+                }
+                name_attr = getattr(plugin_class, "name", None)
+                if isinstance(name_attr, str) and name_attr:
+                    entry["name"] = name_attr
+                result.append(entry)
+        return result
+
+    def list_agent_profile_plugins(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Return the effective default plugin projection for ``agent_id``.
+
+        This read-only projection is suitable for public clients that need to
+        preview an agent before creating or switching a session. It exposes
+        plugin identity and state only; no configuration values are returned.
+        """
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+
+        runtime = self._get_agent_plugin_runtime(agent_id)
+        all_plugins = self.list_plugins_for_agent(agent_id)
+        default_ids = self.get_agent_plugins(agent_id)
+        enabled_ids = (
+            None
+            if default_ids is None
+            else {plugin_id for plugin_id in default_ids if isinstance(plugin_id, str)}
+        )
+        source = "implicit" if enabled_ids is None else "agent"
+
+        effective_config = resolve_request_config(
+            self._get_agent_base_config(agent_id),
+            None,
+        )
+        active_by_kind: Optional[Dict[str, List[str]]]
+        try:
+            core = self._build_core_with_enabled_ids(
+                default_ids,
+                selected_provider_config=effective_config,
+                plugins_by_kind_and_id=runtime.plugins_by_kind_and_id,
+            )
+            active_by_kind = core.get_plugins_for_config(effective_config)
+        except Exception:
+            # The catalog/default state remains useful even when an optional
+            # plugin cannot complete dependency resolution for a preview.
+            active_by_kind = None
+
+        result: List[Dict[str, Any]] = []
+        for entry in all_plugins:
+            plugin_id = entry.get("id")
+            kind = entry.get("kind")
+            if not isinstance(plugin_id, str) or not plugin_id:
+                continue
+            if not isinstance(kind, str) or not kind:
+                continue
+
+            enabled = enabled_ids is None or plugin_id in enabled_ids
+            active_ids = (
+                active_by_kind.get(kind)
+                if isinstance(active_by_kind, dict)
+                else None
+            )
+            active = enabled and (
+                not isinstance(active_ids, list) or plugin_id in active_ids
+            )
+
+            result.append(
+                {
+                    **entry,
+                    "enabled": enabled,
+                    "active": active,
+                    "source": source,
+                }
+            )
         return result
 
     def list_plugins(self) -> List[Dict[str, Any]]:

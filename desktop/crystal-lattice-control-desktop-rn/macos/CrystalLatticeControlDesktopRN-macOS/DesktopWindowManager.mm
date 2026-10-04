@@ -704,7 +704,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
           [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"AgentPickerWindow" initialProperties:initialProps];
     }
 
-    NSRect frame = NSMakeRect(0, 0, 520, 500);
+    NSRect frame = NSMakeRect(0, 0, 900, 620);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                      backing:NSBackingStoreBuffered
@@ -714,6 +714,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
       title = params[@"title"];
     }
     window.title = title ?: @"New Session";
+    window.minSize = NSMakeSize(720, 480);
     rootView.frame = frame;
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     window.contentView = rootView;

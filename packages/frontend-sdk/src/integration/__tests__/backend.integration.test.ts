@@ -169,6 +169,44 @@ describe('backend integration (real FastAPI server + plugins + SDK)', () => {
     30000,
   );
 
+  it(
+    'exposes safe effective agent defaults through real HTTP',
+    async () => {
+      await ensureServer();
+      const backend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl }),
+      });
+
+      const plugins = await backend.listAgentPlugins('default');
+      const provider = plugins.find(plugin => plugin.kind === 'providers');
+      const systemMessage = plugins.find(
+        plugin => plugin.id === 'system_message',
+      );
+
+      expect(provider).toMatchObject({
+        id: 'deterministic_stream',
+        kind: 'providers',
+        enabled: true,
+        active: true,
+        source: 'implicit',
+      });
+      expect(systemMessage).toMatchObject({
+        kind: 'features',
+        enabled: true,
+        active: true,
+        source: 'implicit',
+      });
+      expect(
+        plugins.every(
+          plugin =>
+            !Object.prototype.hasOwnProperty.call(plugin, 'config') &&
+            !Object.prototype.hasOwnProperty.call(plugin, 'api_key'),
+        ),
+      ).toBe(true);
+    },
+    30000,
+  );
+
   function countMessagesByRole(messages: IndexedMessage[], role: string): number {
     return messages.filter((m) => m.message.role === role).length;
   }

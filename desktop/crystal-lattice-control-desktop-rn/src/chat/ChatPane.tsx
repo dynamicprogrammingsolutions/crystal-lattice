@@ -116,6 +116,7 @@ import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopConnectionDisplayRail } from '../ui/DesktopGlobalDisplayLayer';
 import { DesktopSessionNotificationRail } from '../ui/DesktopSessionNotificationRail';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { setActiveAgentPickerWindow } from '../windows/agentPickerCoordinator';
 import {
   closeDesktopPopover,
   openDesktopPopover,
@@ -3459,6 +3460,11 @@ export const ChatPane = React.memo(function ChatPane({
         // Ignore; agent picker will fall back to first agent.
       }
 
+      setActiveAgentPickerWindow({
+        id: `switch-session-agent:${connectionId}:${sessionId}`,
+        connectionId,
+        backend,
+      });
       DesktopWindowManager?.openAgentPicker({
         mode: 'switchSessionAgent',
         title: 'Switch Agent',

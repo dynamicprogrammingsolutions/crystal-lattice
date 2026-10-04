@@ -57,6 +57,7 @@ import { dismissActiveActionDisplayWindowFromSystem } from './windows/actionDisp
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
+import { clearActiveAgentPickerWindow } from './windows/agentPickerCoordinator';
 import { clearActiveSessionSnapshotsWindow } from './windows/sessionSnapshotsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
@@ -795,6 +796,7 @@ function DesktopRootInner({
     const agentPickerSub = desktopWindowEvents.addListener(
       'agentPickerSelected',
       (payload: any) => {
+        clearActiveAgentPickerWindow();
         const pickedConnectionId = payload?.connectionId;
         const agentId = payload?.agentId;
         const mode = payload?.mode;
@@ -859,6 +861,13 @@ function DesktopRootInner({
       },
     );
 
+    const agentPickerCancelledSub = desktopWindowEvents.addListener(
+      'agentPickerCancelled',
+      () => {
+        clearActiveAgentPickerWindow();
+      },
+    );
+
     const sessionSettingsCancelledSub = desktopWindowEvents.addListener(
       'reactWindowCancelled',
       payload => {
@@ -901,6 +910,7 @@ function DesktopRootInner({
       timeTrackingPluginIdSub.remove();
       timeTrackingInactivitySub.remove();
       agentPickerSub.remove();
+      agentPickerCancelledSub.remove();
       sessionSettingsCancelledSub.remove();
     };
   }, [

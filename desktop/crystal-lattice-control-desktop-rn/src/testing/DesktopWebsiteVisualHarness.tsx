@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type {
@@ -14,11 +14,6 @@ import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 import { ChatPane } from '../chat/ChatPane';
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { AgentPickerWindow } from '../windows/AgentPickerWindow';
-import { SessionPluginsWindow } from '../windows/SessionPluginsWindow';
-import {
-  clearActiveSessionPluginsWindow,
-  setActiveSessionPluginsWindow,
-} from '../windows/sessionPluginsCoordinator';
 
 const SESSION_ID = 'website-visual-session';
 const CONNECTION_ID = 'website-visual';
@@ -147,6 +142,7 @@ function createBackend(plugins: SessionPluginEntry[]): AgentBackend {
     }),
     listAgents: async () => AGENT_DESCRIPTORS.map(agent => agent.id),
     listAgentDescriptors: async () => AGENT_DESCRIPTORS,
+    listAgentPlugins: async () => plugins,
     getSessionAgent: async () => AGENT_DESCRIPTORS[0].id,
     switchSessionAgent: async () => {},
     createSession: async () => ({ session: { session_id: SESSION_ID } }),
@@ -263,40 +259,22 @@ export function DesktopWebsiteVisualHarness({
   );
   const selectedAgentId = claude ? 'claude-anthropic' : 'codex-openai';
 
-  useEffect(() => {
-    const id = `website-visual-plugins:${websiteVisualKind}`;
-    setActiveSessionPluginsWindow({
-      state: {
-        id,
-        connectionId: CONNECTION_ID,
-        connectionName: 'Local workspace',
-        sessionId: SESSION_ID,
-        backend,
-      },
-    });
-    return () => clearActiveSessionPluginsWindow(id);
-  }, [backend, websiteVisualKind]);
-
   return (
     <View
       style={styles.root}
       testID="desktop-website-visual-harness-ready"
       accessibilityLabel={`Desktop website visual ${websiteVisualKind}`}
     >
-      <View style={styles.picker}>
-        <AgentPickerWindow
-          connectionId={CONNECTION_ID}
-          connectionName="Local workspace"
-          agents={AGENT_DESCRIPTORS.map(agent => agent.id)}
-          agentDescriptors={AGENT_DESCRIPTORS}
-          initialAgentId={selectedAgentId}
-          title="Choose an agent"
-          primaryButtonLabel="Use agent"
-        />
-      </View>
-      <View style={styles.plugins}>
-        <SessionPluginsWindow />
-      </View>
+      <AgentPickerWindow
+        connectionId={CONNECTION_ID}
+        connectionName="Local workspace"
+        agents={AGENT_DESCRIPTORS.map(agent => agent.id)}
+        agentDescriptors={AGENT_DESCRIPTORS}
+        backend={backend}
+        initialAgentId={selectedAgentId}
+        title="Choose an agent"
+        primaryButtonLabel="Use agent"
+      />
     </View>
   );
 }
@@ -304,16 +282,7 @@ export function DesktopWebsiteVisualHarness({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: 'transparent',
-  },
-  picker: {
-    flex: 0.95,
-    minWidth: 0,
-  },
-  plugins: {
-    flex: 1.05,
-    minWidth: 0,
   },
   continuityRoot: {
     flex: 1,
