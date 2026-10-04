@@ -178,9 +178,7 @@ class SystemPromptCapture:
                     source, content = captured
                     snapshot = {
                         "source": source,
-                        "sha256": hashlib.sha256(
-                            content.encode("utf-8")
-                        ).hexdigest(),
+                        "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
                         "content": content,
                     }
                     if not self.snapshots or self.snapshots[-1] != snapshot:
@@ -266,8 +264,7 @@ def model_cases() -> list[ModelCase]:
         ModelCase(
             case_id="chatgpt-gpt-5.6-luna",
             agent_id="codex-openai",
-            model=os.getenv("TASK_GUIDANCE_CHATGPT_MODEL")
-            or DEFAULT_CHATGPT_MODEL,
+            model=os.getenv("TASK_GUIDANCE_CHATGPT_MODEL") or DEFAULT_CHATGPT_MODEL,
             auth_mode="chatgpt",
         ),
         ModelCase(
@@ -281,8 +278,7 @@ def model_cases() -> list[ModelCase]:
 
 def mutation_call_limit() -> int:
     return int(
-        os.getenv("TASK_GUIDANCE_MUTATION_CALL_LIMIT")
-        or DEFAULT_MUTATION_CALL_LIMIT
+        os.getenv("TASK_GUIDANCE_MUTATION_CALL_LIMIT") or DEFAULT_MUTATION_CALL_LIMIT
     )
 
 
@@ -372,13 +368,13 @@ def prepare_case(
     if with_premade_task:
         date_prefix = datetime.now().strftime("%Y%m%d")
         premade_task_path = (
-            workspace
-            / "tasks"
-            / f"{date_prefix}-mdm-deny-read-home-path-resolution.md"
+            workspace / "tasks" / f"{date_prefix}-mdm-deny-read-home-path-resolution.md"
         )
         premade_task_path.parent.mkdir(parents=True)
         shutil.copy2(PREMADE_TASK_TEMPLATE, premade_task_path)
-        _run(["git", "add", str(premade_task_path.relative_to(workspace))], cwd=workspace)
+        _run(
+            ["git", "add", str(premade_task_path.relative_to(workspace))], cwd=workspace
+        )
         _run(
             [
                 "git",
@@ -444,9 +440,7 @@ def environment_for_case(prepared: PreparedCase) -> dict[str, str]:
         "BUILTIN_PLUGINS": str((ROOT / "plugins").resolve()),
         "PLUGIN_CACHE_DIR": str(SHARED_PLUGIN_CACHE),
         "WORKING_DIR": str(prepared.workspace),
-        "CLOUD_RUNTIME_BUILD_CONTEXT": str(
-            prepared.case_dir / "cloud-runtime-context"
-        ),
+        "CLOUD_RUNTIME_BUILD_CONTEXT": str(prepared.case_dir / "cloud-runtime-context"),
         "OPENROUTER_API_KEY": os.getenv("OPENROUTER_API_KEY", "unused"),
         "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY", "unused"),
         "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", "unused"),
@@ -456,9 +450,7 @@ def environment_for_case(prepared: PreparedCase) -> dict[str, str]:
         "CLOUD_ORCHESTRATOR_URL": os.getenv(
             "CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.invalid"
         ),
-        "CLOUD_ORCHESTRATOR_TOKEN": os.getenv(
-            "CLOUD_ORCHESTRATOR_TOKEN", "unused"
-        ),
+        "CLOUD_ORCHESTRATOR_TOKEN": os.getenv("CLOUD_ORCHESTRATOR_TOKEN", "unused"),
     }
 
 
@@ -550,9 +542,7 @@ def send_turn(
         )
     )
     failures = [
-        event
-        for event in events
-        if event.get("type") in {"error", "request_cancelled"}
+        event for event in events if event.get("type") in {"error", "request_cancelled"}
     ]
     if failures:
         raise AssertionError(f"agent request failed: {failures[-1]}")
@@ -744,9 +734,7 @@ def assert_no_execution_plan(text: str) -> None:
 
 
 def assert_draft_execution_plan(text: str) -> None:
-    match = re.search(
-        r"(?im)^##\s+(?:execution|implementation)\s+plan\s*$", text
-    )
+    match = re.search(r"(?im)^##\s+(?:execution|implementation)\s+plan\s*$", text)
     if match is None:
         raise AssertionError("missing ## Implementation plan heading")
     plan = text[match.start() :]
@@ -799,16 +787,12 @@ def assert_draft_execution_plan(text: str) -> None:
             positions[index] + len(headings[index]) : section_ends[index]
         ].strip()
         if not body:
-            raise AssertionError(
-                f"execution plan section is empty: {headings[index]}"
-            )
+            raise AssertionError(f"execution plan section is empty: {headings[index]}")
     trailing_h3 = re.findall(
         r"(?m)^###\s+.+$",
         plan[positions[-1] + len(headings[-1]) :],
     )
-    allowed_trailing = (
-        [additional_heading] if additional_position >= 0 else []
-    )
+    allowed_trailing = [additional_heading] if additional_position >= 0 else []
     if trailing_h3 != allowed_trailing:
         raise AssertionError(
             "requirement verification must end the plan except for optional "
@@ -826,9 +810,7 @@ def assert_no_lifecycle_notes(text: str) -> None:
         r"(?im)^#{2,6}\s+(?:implementation|completion)\s+notes\b",
         text,
     ):
-        raise AssertionError(
-            "planning-only work added implementation/completion notes"
-        )
+        raise AssertionError("planning-only work added implementation/completion notes")
 
 
 def assistant_text_after_last_user(session: Session) -> str:
@@ -924,7 +906,9 @@ def describe_tool_call(call: Mapping[str, Any]) -> dict[str, Any]:
         function = call.get("function")
         function = function if isinstance(function, Mapping) else {}
         name = str(call.get("name") or function.get("name") or "")
-        payload = call.get("input") or function.get("arguments") or call.get("arguments")
+        payload = (
+            call.get("input") or function.get("arguments") or call.get("arguments")
+        )
 
     payload_text = json.dumps(jsonable(payload), sort_keys=True)
     normalized_name = name.lower()
@@ -1006,9 +990,7 @@ def _system_message_text(
             sections.append((str(role), content))
     if len(sections) == 1:
         return sections[0][1]
-    return "\n\n".join(
-        f"## {role}\n\n{content.rstrip()}" for role, content in sections
-    )
+    return "\n\n".join(f"## {role}\n\n{content.rstrip()}" for role, content in sections)
 
 
 def _message_content_text(content: Any) -> str:

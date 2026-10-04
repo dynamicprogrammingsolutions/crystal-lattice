@@ -24,8 +24,10 @@ from ..evaluation.matrix import (
     file_readability_cases,
     generated_plan_cases,
     plan_content_cases,
+    planning_session_cases,
     task_creation_assessment_cases,
     task_creation_cases,
+    task_creation_from_plan_cases,
 )
 
 
@@ -37,6 +39,11 @@ EVALUATION_ROOT = SUITE_ROOT / "evaluation"
 def _expected_ids() -> set[str]:
     return {
         *(f"test_task_creation[{case.id}]" for case in task_creation_cases()),
+        *(f"test_planning_session[{case.id}]" for case in planning_session_cases()),
+        *(
+            f"test_task_creation_from_plan[{case.id}]"
+            for case in task_creation_from_plan_cases()
+        ),
         *(f"test_handoff_plan[{case.id}]" for case in handoff_plan_cases()),
         *(f"test_generated_plan[{case.id}]" for case in generated_plan_cases()),
         *(f"test_continuation[{case.id}]" for case in continuation_cases()),

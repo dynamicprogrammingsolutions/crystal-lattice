@@ -48,6 +48,21 @@
       ],
       "stages": {
         "task-creation": {},
+        "planning-session": {
+          "variants": [
+            "guided",
+            "unguided"
+          ],
+          "agent": "gpt",
+          "effort": "max"
+        },
+        "task-creation-from-plan": {
+          "variants": [
+            "standard",
+            "omit-plan"
+          ],
+          "omit_scenario": "tg01-eleventy-archive-handoff"
+        },
         "handoff-plan": {
           "variants": [
             "retain",
@@ -110,6 +125,21 @@
       ],
       "stages": {
         "task-creation": {},
+        "planning-session": {
+          "variants": [
+            "guided",
+            "unguided"
+          ],
+          "agent": "gpt",
+          "effort": "max"
+        },
+        "task-creation-from-plan": {
+          "variants": [
+            "standard",
+            "omit-plan"
+          ],
+          "omit_scenario": null
+        },
         "task-creation-assessment": {
           "agent": "glm",
           "effort": "max"

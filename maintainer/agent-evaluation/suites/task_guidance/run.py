@@ -46,16 +46,18 @@ from .evaluation.matrix import (
     handoff_plan_cases,
     negative_control_cases,
     plan_content_cases,
+    planning_session_cases,
     task_creation_assessment_cases,
     task_creation_cases,
+    task_creation_from_plan_cases,
 )
 from .runner import TaskGuidanceHarness
 
 # Stage groups in dependency order: every group only needs the records
 # (or in-process runs) of the groups before it.
 STAGE_GROUPS: tuple[tuple[str, ...], ...] = (
-    ("task-creation", "handoff-plan", "negative-control"),
-    ("continuation", "generated-plan"),
+    ("task-creation", "planning-session", "handoff-plan", "negative-control"),
+    ("task-creation-from-plan", "continuation", "generated-plan"),
     (
         "task-creation-assessment",
         "handoff-assessment",
@@ -68,6 +70,8 @@ ALL_STAGES: tuple[str, ...] = tuple(stage for group in STAGE_GROUPS for stage in
 
 _STAGE_EXECUTORS = {
     "task-creation": execution.execute_task_creation,
+    "planning-session": execution.execute_planning_session,
+    "task-creation-from-plan": execution.execute_task_creation_from_plan,
     "handoff-plan": execution.execute_handoff_plan,
     "continuation": execution.execute_continuation,
     "generated-plan": execution.execute_generated_plan,
@@ -81,6 +85,8 @@ _STAGE_EXECUTORS = {
 
 _STAGE_CASES = {
     "task-creation": task_creation_cases,
+    "planning-session": planning_session_cases,
+    "task-creation-from-plan": task_creation_from_plan_cases,
     "handoff-plan": handoff_plan_cases,
     "continuation": continuation_cases,
     "generated-plan": generated_plan_cases,

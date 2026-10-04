@@ -45,22 +45,25 @@ STAGES: dict[str, StageSpec] = {
     "planning-session": StageSpec(
         name="planning-session",
         # Fresh fixture-project workspace; scenario request + present-the-plan
-        # ask; tasks guidance in or out via stage-declared overrides.
+        # ask; tasks guidance in or out via the declared variant. The
+        # declared agent/effort cell produces the shared plan every
+        # continuation cell reuses (cross-model continuation).
         workspace="fixture-project",
         parent=None,
         runs_per="scenario × planning variant",
-        config=("variants",),
+        config=("variants", "agent", "effort"),
         executor="run_planning_session",
         record="task-guidance-planning.json",
     ),
     "task-creation-from-plan": StageSpec(
         name="task-creation-from-plan",
         # Continues a planning-session run; tasks guidance included for the
-        # writing turn; agent creates the task files.
+        # writing turn; agent creates the task files. The omit-plan
+        # variant runs only on its designated scenario.
         workspace="parent",
         parent="planning-session",
         runs_per="scenario × producer cell × creation variant",
-        config=("variants",),
+        config=("variants", "omit_scenario"),
         executor="run_task_creation_from_plan",
         record="task-guidance-from-plan.json",
     ),

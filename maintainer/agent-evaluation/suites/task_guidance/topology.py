@@ -20,10 +20,7 @@ PHASE_TERMS = {
 
 
 def task_tree(task_files: Mapping[str, str]) -> dict[str, Any]:
-    files = [
-        _task_file_record(path, text)
-        for path, text in sorted(task_files.items())
-    ]
+    files = [_task_file_record(path, text) for path, text in sorted(task_files.items())]
     paths = {item["path"] for item in files}
     coordinating_files = [
         item["path"]
@@ -62,17 +59,12 @@ def task_tree(task_files: Mapping[str, str]) -> dict[str, Any]:
         "files": files,
         "parent_links": parent_links,
         "dependencies": dependencies,
-        "all_parent_links_resolve": all(
-            item["resolves"] for item in parent_links
-        ),
-        "all_dependencies_resolve": all(
-            item["resolves"] for item in dependencies
-        ),
+        "all_parent_links_resolve": all(item["resolves"] for item in parent_links),
+        "all_dependencies_resolve": all(item["resolves"] for item in dependencies),
         "phase_named_files": [
             item["path"]
             for item in files
-            if item["phase_terms"]
-            and item["path"] not in coordinating_files
+            if item["phase_terms"] and item["path"] not in coordinating_files
         ],
     }
 
@@ -90,9 +82,7 @@ def _task_file_record(path: str, text: str) -> dict[str, Any]:
     requirement_count = len(
         re.findall(r"(?m)^\s*-\s+\[[ xX]\]\s+", requirement_section)
     )
-    normalized_name = (
-        PurePosixPath(path).stem.replace("-", " ") + " " + title
-    ).lower()
+    normalized_name = (PurePosixPath(path).stem.replace("-", " ") + " " + title).lower()
     phase_terms = sorted(
         term for term in PHASE_TERMS if re.search(rf"\b{term}\b", normalized_name)
     )
@@ -103,9 +93,7 @@ def _task_file_record(path: str, text: str) -> dict[str, Any]:
         "parent_task": parent_task,
         "dependencies": dependencies,
         "phase_terms": phase_terms,
-        "has_execution_plan": bool(
-            re.search(r"(?im)^##\s+Execution plan\s*$", text)
-        ),
+        "has_execution_plan": bool(re.search(r"(?im)^##\s+Execution plan\s*$", text)),
         "plan_status": _plan_status(text),
     }
 
@@ -117,10 +105,7 @@ def _dependencies(text: str) -> list[str]:
     )
     if match is None:
         return []
-    return [
-        value.strip()
-        for value in re.findall(r"`([^`]+\.md)`", match.group(1))
-    ]
+    return [value.strip() for value in re.findall(r"`([^`]+\.md)`", match.group(1))]
 
 
 def _section(text: str, heading: str) -> str:

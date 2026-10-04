@@ -48,6 +48,8 @@ markers = [
   "requirement_semantic: structured semantic requirement and testing-plan evaluator",
   "root_guidance_quality: pairwise overall-quality comparison for root guidance",
   "task_creation: live task-creation producer stage",
+  "planning_session: live two-stage planning-session stage",
+  "task_creation_from_plan: live two-stage from-plan creation stage",
   "handoff_plan: live fresh-agent planning stage",
   "continuation: live same-agent continuation stage",
   "generated_plan: live fresh-agent generated-file planning stage",

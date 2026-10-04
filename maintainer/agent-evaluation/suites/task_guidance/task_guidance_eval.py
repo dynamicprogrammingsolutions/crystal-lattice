@@ -138,8 +138,12 @@ def _slug(value: str) -> str:
 
 def _default_ollama_model() -> str:
     config_path = (
-        ROOT / "application" / "python" / "agent_terminal_app"
-        / "default_config" / "config.json"
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
     )
     config = json.loads(config_path.read_text(encoding="utf-8"))
     return str(config["agents"][DEFAULT_OLLAMA_AGENT]["model"])
@@ -506,9 +510,7 @@ def _run_fork(
         investigation_fingerprint=_profile_sha256(profile),
         investigation_session_sha256=parent_hash,
         fork_parent_session_sha256=parent_hash,
-        fork_runtime_parent_session_sha256=_session_sha256(
-            runtime_parent_session
-        ),
+        fork_runtime_parent_session_sha256=_session_sha256(runtime_parent_session),
         fork_workspace_rebase_count=workspace_rebase_count,
         fork_runtime_native_history_rebuilt=workspace_rebase_count > 0,
         source_case=str(source_case.resolve()) if source_case else None,
@@ -656,9 +658,7 @@ def run_command(args: argparse.Namespace) -> int:
             try:
                 _run_existing_task(model_case=model_case, run_id=run_id)
             except BaseException as exc:
-                errors.append(
-                    f"existing-task-plan: {type(exc).__name__}: {exc}"
-                )
+                errors.append(f"existing-task-plan: {type(exc).__name__}: {exc}")
 
     print(f"Run artifacts: {run_dir}")
     if args.run_assertions:
@@ -688,7 +688,8 @@ def _selected_cases(run_dir: Path, case_name: str | None) -> list[Path]:
     selected = [
         case
         for case in cases
-        if case_name in {case.name, str(load_json(case / "metadata.json").get("scenario"))}
+        if case_name
+        in {case.name, str(load_json(case / "metadata.json").get("scenario"))}
     ]
     if not selected:
         raise FileNotFoundError(f"no case matching {case_name!r} under {run_dir}")
@@ -903,9 +904,7 @@ def review_command(args: argparse.Namespace) -> int:
             encoding="utf-8",
         )
         write_json(case_dir / "empirical-review-response.json", response)
-        print(
-            f"Empirical review: {case_dir / 'empirical-review.md'}"
-        )
+        print(f"Empirical review: {case_dir / 'empirical-review.md'}")
     if args.bundle:
         return bundle_run(run_dir, force=True)
     print(

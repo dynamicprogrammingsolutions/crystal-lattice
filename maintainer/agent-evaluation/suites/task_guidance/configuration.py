@@ -84,6 +84,38 @@ def plan_variants(category: str) -> tuple[str, ...]:
     return tuple(stage_config(category, "handoff-plan")["variants"])
 
 
+def planning_variants(category: str) -> tuple[str, ...]:
+    """The planning-session stage's arms for a category.
+
+    ``guided`` compiles the tasks guidance into the planning turn's
+    system message; ``unguided`` compiles none.
+    """
+
+    return tuple(stage_config(category, "planning-session")["variants"])
+
+
+def planning_cell(category: str) -> tuple[str, str]:
+    """The (agent, effort) cell that produces a category's shared plans."""
+
+    config = stage_config(category, "planning-session")
+    return config["agent"], config["effort"]
+
+
+def creation_variants(category: str) -> tuple[str, ...]:
+    """The from-plan stage's creation asks for a category."""
+
+    return tuple(stage_config(category, "task-creation-from-plan")["variants"])
+
+
+def omit_scenario(category: str) -> str | None:
+    """The scenario whose from-plan run also takes the instructed omission.
+
+    ``None`` means the category runs no instructed-omission creation.
+    """
+
+    return stage_config(category, "task-creation-from-plan")["omit_scenario"]
+
+
 # Retired assessment stages and the judge declaration they ran with.
 # Historical frozen datasets still collect into packages, so their
 # assessor provenance stays resolvable after the stage leaves the live

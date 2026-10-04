@@ -13,8 +13,12 @@ from dataclasses import dataclass
 
 from ..configuration import (
     CATEGORIES,
+    creation_variants,
     negative_control,
+    omit_scenario,
     plan_variants,
+    planning_cell,
+    planning_variants,
     producer_cells,
 )
 from ..scenarios import SCENARIOS
@@ -29,6 +33,7 @@ class CellCase:
     variant: str | None = None
     category: str = ""
     stage: str = ""
+    parent_variant: str | None = None
 
 
 def _scenarios_with(stage: str) -> list:
@@ -71,6 +76,83 @@ def handoff_plan_cases() -> tuple[CellCase, ...]:
         for variant in plan_variants(scenario.category)
         for agent, effort in producer_cells(scenario.category)
     )
+
+
+def planning_session_cases() -> tuple[CellCase, ...]:
+    """One case per planning scenario × planning variant.
+
+    Every arm of a category's shared plans is produced by the declared
+    planning cell; the continuation cells reuse these runs.
+    """
+
+    cases = []
+    for scenario in _scenarios_with("planning-session"):
+        agent, effort = planning_cell(scenario.category)
+        for variant in planning_variants(scenario.category):
+            cases.append(
+                CellCase(
+                    id=f"{scenario.scenario_id}-{variant}-{agent}-{effort}",
+                    scenario_id=scenario.scenario_id,
+                    agent=agent,
+                    effort=effort,
+                    variant=variant,
+                    category=scenario.category,
+                    stage="planning-session",
+                )
+            )
+    return tuple(cases)
+
+
+def task_creation_from_plan_cases() -> tuple[CellCase, ...]:
+    """One case per from-plan scenario × producer cell × creation variant.
+
+    Every producer cell continues every planning arm with the standard
+    creation ask; the instructed omit-plan ask runs only on its
+    designated scenario, on top of the guided arm.
+    """
+
+    cases = []
+    for scenario in _scenarios_with("task-creation-from-plan"):
+        category = scenario.category
+        cells = producer_cells(category)
+        designated = omit_scenario(category)
+        for arm in planning_variants(category):
+            if "standard" not in creation_variants(category):
+                continue
+            for agent, effort in cells:
+                cases.append(
+                    CellCase(
+                        id=(f"{scenario.scenario_id}-{arm}-standard-{agent}-{effort}"),
+                        scenario_id=scenario.scenario_id,
+                        agent=agent,
+                        effort=effort,
+                        variant="standard",
+                        category=category,
+                        stage="task-creation-from-plan",
+                        parent_variant=arm,
+                    )
+                )
+        if (
+            "omit-plan" in creation_variants(category)
+            and designated == scenario.scenario_id
+        ):
+            for agent, effort in cells:
+                cases.append(
+                    CellCase(
+                        id=(
+                            f"{scenario.scenario_id}-guided-omit-plan-"
+                            f"{agent}-{effort}"
+                        ),
+                        scenario_id=scenario.scenario_id,
+                        agent=agent,
+                        effort=effort,
+                        variant="omit-plan",
+                        category=category,
+                        stage="task-creation-from-plan",
+                        parent_variant="guided",
+                    )
+                )
+    return tuple(cases)
 
 
 def continuation_cases() -> tuple[CellCase, ...]:

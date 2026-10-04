@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 from typing import Callable, Mapping
 
-from ..configuration import assessment_cell, selected_artifact_root
+from ..configuration import assessment_cell, planning_cell, selected_artifact_root
 from ..file_quality import (
     file_fidelity_prompt,
     file_fidelity_record,
@@ -41,7 +41,7 @@ from ..plan_content import (
     plan_content_record,
     validate_plan_content_assessment,
 )
-from ..runner import PlanRunValue, TaskRunValue, TaskGuidanceHarness
+from ..runner import PlanRunValue, PlanningRunValue, TaskRunValue, TaskGuidanceHarness
 from ..scenarios import TaskGuidanceScenario, scenario_by_id
 from ..semantic import (
     assessment_record,
@@ -248,6 +248,224 @@ def _record_plan_run(
     }
     run.record(STAGES["handoff-plan"].record, record)
     assert not invalid, "\n".join(invalid)
+
+
+# --- planning-session -------------------------------------------------------
+
+
+def execute_planning_session(
+    harness_factory: HarnessFactory,
+    run_label: str,
+    options: Mapping[str, object],
+    case: CellCase,
+) -> None:
+    assert case.variant is not None
+    scenario = scenario_by_id(case.scenario_id)
+    harness = harness_factory(case.agent)
+    fresh, samples = _options(options)
+    runs = harness.run_planning_session(
+        scenario=scenario,
+        variant=case.variant,
+        reasoning_effort=case.effort,
+        fresh=fresh,
+        samples=samples,
+    )
+    for run in runs:
+        _record_planning_session_run(harness, scenario, case, run)
+
+
+def _record_planning_session_run(
+    harness: TaskGuidanceHarness,
+    scenario: TaskGuidanceScenario,
+    case: CellCase,
+    run,
+) -> None:
+    value = _require_planning_value(run.value, run.error)
+    invalid: list[str] = []
+    if run.error is not None or not value.completed or value.errors:
+        invalid.append(f"run failure: {run.error!r}, {value.errors!r}")
+    if not value.response.strip():
+        invalid.append("empty planning response")
+    if run.changed_paths:
+        invalid.append(f"planning mutated files: {run.changed_paths!r}")
+    delivery = value.delivery
+    if delivery.get("agents_occurrences") != 1:
+        invalid.append("AGENTS.md delivery mismatch")
+    expected_tasks = 1 if value.variant == "guided" else 0
+    if delivery.get("tasks_occurrences") != expected_tasks:
+        invalid.append(
+            f"TASKS-v7 delivery mismatch for arm {value.variant}: "
+            f"{delivery.get('tasks_occurrences')!r} != {expected_tasks}"
+        )
+    if delivery.get("include_tasks") is not (value.variant == "guided"):
+        invalid.append("recorded include_tasks flag does not match the arm")
+    if delivery.get("tool_family_matches") is not True:
+        invalid.append("model-family tool schema does not match")
+    record = {
+        "schema_version": 1,
+        "scenario_id": scenario.scenario_id,
+        "category": scenario.category,
+        "variant": value.variant,
+        "target_sha256": hashlib.sha256(scenario.target_path.read_bytes()).hexdigest(),
+        "target": scenario.target,
+        "producer": {
+            "profile": case.agent,
+            "model": harness.agent["model"],
+            "reasoning_effort": case.effort,
+        },
+        "prompt": value.prompt,
+        "response": value.response,
+        "tool_metrics": value.tool_metrics,
+        "delivery": delivery,
+        "valid": not invalid,
+        "invalid_reasons": invalid,
+    }
+    run.record(STAGES["planning-session"].record, record)
+    assert not invalid, "\n".join(invalid)
+
+
+# --- task-creation-from-plan ------------------------------------------------
+
+
+def execute_task_creation_from_plan(
+    harness_factory: HarnessFactory,
+    run_label: str,
+    options: Mapping[str, object],
+    case: CellCase,
+) -> None:
+    assert case.variant is not None
+    assert case.parent_variant is not None
+    scenario = scenario_by_id(case.scenario_id)
+    planning_agent, planning_effort = planning_cell(scenario.category)
+    planning_harness = harness_factory(planning_agent)
+    fresh, samples = _options(options)
+    parents = planning_harness.run_planning_session(
+        scenario=scenario,
+        variant=case.parent_variant,
+        reasoning_effort=planning_effort,
+        fresh=fresh,
+        samples=samples,
+    )
+    harness = harness_factory(case.agent)
+    for parent in parents:
+        parent_value = _require_planning_value(parent.value, parent.error)
+        _require_valid_planning_parent(parent, parent_value)
+        runs = harness.run_task_creation_from_plan(
+            parent=parent,
+            scenario=scenario,
+            variant=case.variant,
+            reasoning_effort=case.effort,
+            fresh=fresh,
+            samples=samples,
+        )
+        for run in runs:
+            _record_from_plan_run(harness, scenario, case, run, parent_value)
+
+
+def _require_valid_planning_parent(parent, parent_value) -> None:
+    parent_invalid: list[str] = []
+    if parent.error is not None:
+        parent_invalid.append(f"parent run error: {parent.error!r}")
+    if not parent_value.completed or parent_value.errors:
+        parent_invalid.append(
+            "parent provider failure: "
+            f"completed={parent_value.completed!r}, "
+            f"errors={parent_value.errors!r}"
+        )
+    if not parent_value.response.strip():
+        parent_invalid.append("parent planning response is empty")
+    if parent.changed_paths:
+        parent_invalid.append(
+            f"parent planning mutated files: {parent.changed_paths!r}"
+        )
+    delivery = parent_value.delivery
+    if delivery.get("agents_occurrences") != 1:
+        parent_invalid.append("parent AGENTS.md delivery mismatch")
+    expected_tasks = 1 if parent_value.variant == "guided" else 0
+    if delivery.get("tasks_occurrences") != expected_tasks:
+        parent_invalid.append("parent TASKS-v7 delivery mismatch")
+    if parent_invalid:
+        raise AssertionError("\n".join(parent_invalid))
+
+
+def _record_from_plan_run(
+    harness: TaskGuidanceHarness,
+    scenario: TaskGuidanceScenario,
+    case: CellCase,
+    run,
+    parent_value,
+) -> None:
+    value = _require_task_value(run.value, run.error)
+    changed = tuple(run.changed_paths)
+    changed_task_paths = tuple(
+        path for path in changed if path.startswith("tasks/") and path.endswith(".md")
+    )
+    invalid_reasons: list[str] = []
+    if run.error is not None:
+        invalid_reasons.append(f"run error: {run.error}")
+    if not value.completed:
+        invalid_reasons.append("request did not complete")
+    if value.errors:
+        invalid_reasons.append(f"provider errors: {value.errors!r}")
+    if not value.response.strip():
+        invalid_reasons.append("assistant response is empty")
+    if not value.task_files:
+        invalid_reasons.append("no task files were produced")
+    if set(value.task_files) != set(changed_task_paths):
+        invalid_reasons.append(
+            "captured task files do not match changed task paths: "
+            f"{sorted(value.task_files)!r} != {sorted(changed_task_paths)!r}"
+        )
+    non_task_changes = [path for path in changed if path not in changed_task_paths]
+    if non_task_changes:
+        invalid_reasons.append(f"non-task changes: {non_task_changes}")
+    delivery = value.delivery
+    if delivery.get("agents_occurrences") != 1:
+        invalid_reasons.append("workspace AGENTS.md was not delivered exactly once")
+    if delivery.get("tasks_occurrences") != 1:
+        invalid_reasons.append("TASKS-v7 was not delivered exactly once")
+    if delivery.get("tool_family_matches") is not True:
+        invalid_reasons.append("model-family tool schema does not match")
+    if delivery.get("suite_wrapper_absent") is not True:
+        invalid_reasons.append("suite-specific guidance wrapper was injected")
+    if case.variant == "omit-plan":
+        invalid_reasons.extend(
+            f"instructed omission violated: {violation}"
+            for violation in plan_is_absent_or_draft(value.task_files)
+        )
+
+    target = scenario.target
+    record = {
+        "schema_version": 1,
+        "scenario_id": scenario.scenario_id,
+        "category": scenario.category,
+        "variant": case.variant,
+        "planning_variant": case.parent_variant,
+        "project": target["project"],
+        "fixture": {
+            "version": FIXTURE_VERSION,
+            "sha256": fixture_sha256(scenario.fixture_id),
+        },
+        "target_sha256": hashlib.sha256(scenario.target_path.read_bytes()).hexdigest(),
+        "target": target,
+        "prompt": value.prompt,
+        "producer": {
+            "profile": case.agent,
+            "model": harness.agent["model"],
+            "reasoning_effort": case.effort,
+        },
+        "changed_paths": changed,
+        "task_files": value.task_files,
+        "task_tree": task_tree(value.task_files),
+        "tool_metrics": value.tool_metrics,
+        "delivery": delivery,
+        "response": value.response,
+        "plan_response": parent_value.response,
+        "valid": not invalid_reasons,
+        "invalid_reasons": invalid_reasons,
+    }
+    run.record(STAGES["task-creation-from-plan"].record, record)
+    assert not invalid_reasons, "\n".join(invalid_reasons)
 
 
 # --- continuation ----------------------------------------------------------
@@ -487,6 +705,15 @@ def _require_plan_value(
     if value is not None:
         return value
     raise AssertionError(f"planning produced no value: {error!r}")
+
+
+def _require_planning_value(
+    value: PlanningRunValue | None,
+    error: object,
+) -> PlanningRunValue:
+    if value is not None:
+        return value
+    raise AssertionError(f"planning session produced no value: {error!r}")
 
 
 # --- assessments -------------------------------------------------------------

@@ -90,9 +90,7 @@ def render_messages_markdown(
         role = raw_message.get("role")
         if role == "assistant":
             raw_metadata = raw_message.get("metadata")
-            message_metadata = (
-                raw_metadata if isinstance(raw_metadata, Mapping) else {}
-            )
+            message_metadata = raw_metadata if isinstance(raw_metadata, Mapping) else {}
             calls = message_metadata.get("tool_calls")
             if isinstance(calls, list):
                 names = [
@@ -127,9 +125,7 @@ def render_messages_markdown(
 
     for position, (message_index, message) in enumerate(visible):
         next_index = (
-            visible[position + 1][0]
-            if position + 1 < len(visible)
-            else len(messages)
+            visible[position + 1][0] if position + 1 < len(visible) else len(messages)
         )
         interval_names: list[str] = []
         for index in range(message_index, next_index):
@@ -137,9 +133,7 @@ def render_messages_markdown(
 
         role = str(message.get("role"))
         raw_metadata = message.get("metadata")
-        message_metadata = (
-            raw_metadata if isinstance(raw_metadata, Mapping) else {}
-        )
+        message_metadata = raw_metadata if isinstance(raw_metadata, Mapping) else {}
         if role == "user":
             label = "User"
         elif message_metadata.get("phase") == "commentary" or interval_names:
@@ -199,7 +193,9 @@ def evaluate_case(
         try:
             action()
         except BaseException as exc:
-            results.append(AssertionResult(name, "FAIL", f"{type(exc).__name__}: {exc}"))
+            results.append(
+                AssertionResult(name, "FAIL", f"{type(exc).__name__}: {exc}")
+            )
         else:
             results.append(AssertionResult(name, "PASS", ""))
 
@@ -224,7 +220,10 @@ def evaluate_case(
         if expected != actual:
             raise AssertionError(f"guidance hash {actual} != {expected}")
 
-    check("The exact task-guidance version is present and hash-matched", guidance_matches_metadata)
+    check(
+        "The exact task-guidance version is present and hash-matched",
+        guidance_matches_metadata,
+    )
 
     scenario = metadata.get("scenario")
 
@@ -693,9 +692,7 @@ def reconstruct_compiled_system_message(
                 overrides.update(
                     {
                         "auth_mode": "chatgpt",
-                        "chatgpt_credentials_path": str(
-                            chatgpt_credentials_path()
-                        ),
+                        "chatgpt_credentials_path": str(chatgpt_credentials_path()),
                         "reasoning_effort": "medium",
                         "reasoning_summary": "detailed",
                     }
@@ -794,8 +791,7 @@ def prepare_case_bundle(case_dir: Path, output_dir: Path) -> dict[str, Any]:
         provenance, compiled = compiled_system_for_case(case_dir, metadata, session)
     except BaseException as exc:
         provenance = (
-            "unavailable because reconstruction failed: "
-            f"{type(exc).__name__}: {exc}"
+            "unavailable because reconstruction failed: " f"{type(exc).__name__}: {exc}"
         )
         compiled = (
             "# Compiled system message unavailable\n\n"
@@ -807,8 +803,7 @@ def prepare_case_bundle(case_dir: Path, output_dir: Path) -> dict[str, Any]:
         encoding="utf-8",
     )
     output_dir.joinpath("system-message-provenance.md").write_text(
-        "# System-message provenance\n\n"
-        f"{provenance.rstrip()}.\n",
+        "# System-message provenance\n\n" f"{provenance.rstrip()}.\n",
         encoding="utf-8",
     )
 
@@ -990,13 +985,7 @@ def main() -> int:
     run_dir = args.run_dir.resolve()
     output = args.output
     if output is None:
-        output = (
-            ROOT
-            / "tmp"
-            / "task-guidance-eval"
-            / "review-bundles"
-            / run_dir.name
-        )
+        output = ROOT / "tmp" / "task-guidance-eval" / "review-bundles" / run_dir.name
     prepared = prepare_review_bundle(run_dir, output, force=args.force)
     print(prepared)
     return 0

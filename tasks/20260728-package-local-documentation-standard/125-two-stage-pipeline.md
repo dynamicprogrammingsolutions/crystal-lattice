@@ -147,14 +147,37 @@ Status: Draft
   shallow-merging `include_tasks=True` over the planning turn's stored
   overrides; `PENDING_EXECUTORS` removed — executor-existence and
   assembly mechanics coverage fully restored, 233 tests green)
-- [ ] Configuration wiring (which categories/scenarios run which arms;
-  the stages enter configuration.json with their variants)
-- [ ] Planning-session executor + validity (executor landed; the
-  validity application — completed, non-empty, no mutations — rides the
-  matrix/records wiring increment)
-- [ ] From-plan executor + validity + omit instruction (executor and the
-  omit ask landed; producer-validity application rides the matrix/records
-  wiring increment)
+- [x] Configuration wiring (landed September 29: both dev categories
+  declare `planning-session` `{variants: [guided, unguided], agent: gpt,
+  effort: max}` — the shared-plan cell — and `task-creation-from-plan`
+  `{variants: [standard, omit-plan], omit_scenario: tg01 | null}`; kind
+  stays one-shot until the trial selects its arm. Catalog schemas are
+  `("variants", "agent", "effort")` and `("variants", "omit_scenario")`;
+  configuration helpers `planning_variants`/`planning_cell`/
+  `creation_variants`/`omit_scenario`; matrix `CellCase.parent_variant`
+  added; live evaluation tests `test_planning_session.py` +
+  `test_task_creation_from_plan.py`; execution recipes with full
+  planning-arm delivery checks (unguided expects `tasks_occurrences ==
+  0` and a matching recorded `include_tasks` flag) and the full
+  task-creation producer validity for from-plan runs plus the
+  instructed-omission check via `plan_is_absent_or_draft`; runner
+  STAGE_GROUPS places planning-session with the producers and
+  from-plan before its assessments; collection test and pytest markers
+  registered. Enumerated: 12 shared plans, 38 from-plan cases (omit on
+  tg01 only), every pre-existing count unchanged; full dry-run 229
+  cases)
+- [x] Planning-session executor + validity (executor September 29,
+  validity wiring with the configuration increment: completed,
+  non-empty response, no mutated files, arm-correct delivery —
+  `agents_occurrences == 1`, `tasks_occurrences` 1 (guided) / 0
+  (unguided), recorded `include_tasks` matches the arm, tool family
+  matches)
+- [x] From-plan executor + validity + omit instruction (executor
+  September 29, validity wiring with the configuration increment: every
+  producer validity check of task-creation applies to the writing turn
+  — including `tasks_occurrences == 1` whatever the planning arm — plus
+  a valid-parent gate and, for omit-plan, the instructed omission
+  checked with `plan_is_absent_or_draft`)
 - [ ] Agent-config variant (strip-thinking)
 - [ ] Plan-content gate on planning runs
 - [ ] Matrix/records/freeze/package wiring
@@ -203,3 +226,17 @@ Status: Draft
   omit-plan creation ask is the instructed no-execution-plan-section
   variant of the standard ask; validity application for both stages is
   downstream of the records wiring and stays open.
+- September 29, 2026 — configuration wiring landed (one commit): the
+  two stages entered configuration.json for the handoff and
+  decomposition categories with the decided shapes. The from-plan
+  executor re-runs (cache-aware) the category's shared planning run of
+  the case's arm through the declared planning harness (gpt/max), then
+  continues it through the case cell's harness — cross-model
+  continuation, so glm and gpt cells measure file creation, not
+  planning luck. The from-plan record carries `planning_variant`,
+  `variant`, and `plan_response` so the plan-content gate (next
+  increment) can judge the presented plan without re-reading the parent
+  run. Omit-plan cases exist only for the designated scenario on the
+  guided arm (tg01 × both producer cells). The full CLI dry-run
+  enumerates 229 cases with every pre-existing stage's count unchanged;
+  233 deterministic tests green.
