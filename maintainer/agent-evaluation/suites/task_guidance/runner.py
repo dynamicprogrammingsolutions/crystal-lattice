@@ -48,6 +48,31 @@ PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 RUNNER_VERSION = "v1"
 IDENTITY_NAMESPACE = "task-guidance"
 
+# Two-stage pipeline variants (subtask 125). The planning arm selects
+# whether the tasks guidance is compiled into the planning turn's system
+# message (the fixture workspace's AGENTS.md has no tasks slot, so the
+# per-request flag is the whole difference between the arms). The creation
+# variant selects the writing ask: the standard guidance-following
+# continuation, or the instructed execution-plan omission.
+PLANNING_VARIANTS = ("guided", "unguided")
+CREATION_VARIANTS = ("standard", "omit-plan")
+PLANNING_SESSION_SUFFIX = (
+    "\n\nInvestigate the repository first. Then present your implementation "
+    "plan for the request above as your response. Do not implement anything "
+    "and do not create or modify any file: present the plan only."
+)
+FROM_PLAN_PROMPTS = {
+    "standard": (
+        "Proceed with the plan you presented: create the task file(s) for it "
+        "under tasks/ now, following the task guidance in full."
+    ),
+    "omit-plan": (
+        "Proceed with the plan you presented: create the task file(s) for it "
+        "under tasks/ now, following the task guidance in full — but do not "
+        "include an execution-plan section in the task file(s)."
+    ),
+}
+
 
 def task_creation_identity(
     *,
@@ -95,6 +120,61 @@ def handoff_plan_identity(
             "variant": variant,
             "effort": reasoning_effort,
             "workspace_fingerprint": workspace_fingerprint,
+        },
+    )
+
+
+def planning_session_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    variant: str,
+    reasoning_effort: str,
+    workspace_fingerprint: object,
+) -> str:
+    """The cache identity of one planning-session request."""
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "planning-session",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "variant": variant,
+            "effort": reasoning_effort,
+            "workspace_fingerprint": workspace_fingerprint,
+        },
+    )
+
+
+def from_plan_identity(
+    *,
+    agent_name: str,
+    scenario: TaskGuidanceScenario,
+    variant: str,
+    reasoning_effort: str,
+    parent_identity: str,
+) -> str:
+    """The cache identity of one plan-continuing creation request.
+
+    The planning run's identity is a component, so a regenerated plan
+    invalidates the creation cache even though the creation request
+    material itself is unchanged.
+    """
+
+    return request_identity(
+        namespace=IDENTITY_NAMESPACE,
+        version=RUNNER_VERSION,
+        components={
+            "stage": "task-creation-from-plan",
+            "agent": agent_name,
+            "model": AGENTS[agent_name]["model"],
+            "scenario": scenario.scenario_id,
+            "variant": variant,
+            "effort": reasoning_effort,
+            "parent_identity": parent_identity,
         },
     )
 
@@ -200,6 +280,22 @@ class TaskRunValue:
     tool_event_count: int
     mutation_count: int
     task_files: Mapping[str, str]
+    tool_calls: tuple[Mapping[str, Any], ...]
+    tool_metrics: Mapping[str, int]
+    delivery: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class PlanningRunValue:
+    prompt: str
+    response: str
+    variant: str
+    completed: bool
+    cancelled: bool
+    errors: tuple[str, ...]
+    duration_seconds: float
+    tool_event_count: int
+    mutation_count: int
     tool_calls: tuple[Mapping[str, Any], ...]
     tool_metrics: Mapping[str, int]
     delivery: Mapping[str, Any]
@@ -347,6 +443,97 @@ class TaskGuidanceHarness:
             ),
             identity=identity,
             workspace=workspace,
+            fresh=fresh,
+            samples=samples,
+        )
+
+    def run_planning_session(
+        self,
+        *,
+        scenario: TaskGuidanceScenario,
+        variant: str,
+        reasoning_effort: str,
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[PlanningRunValue], ...]:
+        """One planning turn: the scenario request plus the plan-only ask.
+
+        ``variant`` selects the planning arm: ``guided`` compiles the
+        tasks guidance into the planning turn's system message;
+        ``unguided`` compiles none. The run writes no files — its
+        response is the presented plan the continuation and the
+        plan-content gate consume.
+        """
+
+        if variant not in PLANNING_VARIANTS:
+            raise ValueError(f"unknown planning variant {variant!r}")
+        workspace = TaskGuidanceWorkspaceFactory(
+            scenario=scenario,
+            bundle=self.bundle,
+        )
+        identity = planning_session_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            variant=variant,
+            reasoning_effort=reasoning_effort,
+            workspace_fingerprint=workspace.fingerprint(),
+        )
+        return self._execute(
+            f"task-guidance-planning-{scenario.scenario_id}-{variant}",
+            lambda context: self._planning_turn(
+                context,
+                scenario=scenario,
+                variant=variant,
+                reasoning_effort=reasoning_effort,
+            ),
+            identity=identity,
+            workspace=workspace,
+            fresh=fresh,
+            samples=samples,
+        )
+
+    def run_task_creation_from_plan(
+        self,
+        *,
+        parent: Run[PlanningRunValue],
+        scenario: TaskGuidanceScenario,
+        variant: str,
+        reasoning_effort: str,
+        fresh: bool = False,
+        samples: int = 1,
+    ) -> tuple[Run[TaskRunValue], ...]:
+        """The writing turn that continues a planning session.
+
+        The run continues the parent planning session (its workspace and
+        session prefix); the tasks guidance is compiled into the writing
+        turn's system message regardless of the planning arm. ``variant``
+        selects the creation ask: ``standard`` follows the guidance in
+        full; ``omit-plan`` additionally instructs the agent to leave the
+        execution-plan section out of the task file(s).
+        """
+
+        if variant not in CREATION_VARIANTS:
+            raise ValueError(f"unknown creation variant {variant!r}")
+        if parent.workspace is None:
+            raise ValueError("planning-session parent has no workspace")
+        identity = from_plan_identity(
+            agent_name=self.agent_name,
+            scenario=scenario,
+            variant=variant,
+            reasoning_effort=reasoning_effort,
+            parent_identity=run_identity(parent),
+        )
+        return self._execute(
+            f"task-guidance-from-plan-{scenario.scenario_id}-{variant}",
+            lambda context: self._from_plan_turn(
+                context,
+                scenario=scenario,
+                variant=variant,
+                reasoning_effort=reasoning_effort,
+            ),
+            identity=identity,
+            workspace=parent.workspace,
+            continue_from=parent,
             fresh=fresh,
             samples=samples,
         )
@@ -621,6 +808,163 @@ class TaskGuidanceHarness:
             delivery=delivery,
         )
 
+    def _planning_turn(
+        self,
+        context: CrystalLatticeContext,
+        *,
+        scenario: TaskGuidanceScenario,
+        variant: str,
+        reasoning_effort: str,
+    ) -> PlanningRunValue:
+        if context.workspace is None:
+            raise ValueError("missing task-guidance workspace")
+        if context.session_or_none is None:
+            context.start(self.agent["agent_id"])
+        include_tasks = variant == "guided"
+        prompt = scenario.prompt + PLANNING_SESSION_SUFFIX
+        context.config.update(
+            request_overrides(
+                self.agent_name,
+                context.workspace,
+                reasoning_effort=reasoning_effort,
+                include_tasks=include_tasks,
+            )
+        )
+        _reload_context_with_defaults(context)
+        delivery = compiled_delivery_evidence(
+            context,
+            agent_name=self.agent_name,
+            runtime_config=self.runtime_config,
+            include_tasks=include_tasks,
+        )
+        context.services.record(
+            "task_guidance.profile",
+            {
+                "name": self.agent_name,
+                "agent_id": self.agent["agent_id"],
+                "model": self.agent["model"],
+                "auth_mode": self.runtime_agent.get("auth_mode"),
+                "reasoning_effort": reasoning_effort,
+            },
+        )
+        context.services.record(
+            "task_guidance.scenario",
+            {
+                "scenario_id": scenario.scenario_id,
+                "category": scenario.category,
+                "target": scenario.target,
+            },
+        )
+        context.services.record(
+            "task_guidance.planning",
+            {"variant": variant, "include_tasks": include_tasks},
+        )
+        context.services.record("task_guidance.delivery", delivery)
+        context.add_message("user", prompt)
+        outcome = context.request(stream=True)
+        calls = tuple(collect_tool_calls(context.session))
+        metrics = tool_metrics(calls)
+        context.services.record("task_guidance.tool_metrics", metrics)
+        return PlanningRunValue(
+            prompt=prompt,
+            response=outcome.final_response,
+            variant=variant,
+            completed=outcome.completed,
+            cancelled=outcome.cancelled,
+            errors=outcome.error_messages,
+            duration_seconds=outcome.duration_seconds,
+            tool_event_count=outcome.tool_event_count,
+            mutation_count=outcome.mutation_count,
+            tool_calls=calls,
+            tool_metrics=metrics,
+            delivery=delivery,
+        )
+
+    def _from_plan_turn(
+        self,
+        context: CrystalLatticeContext,
+        *,
+        scenario: TaskGuidanceScenario,
+        variant: str,
+        reasoning_effort: str,
+    ) -> TaskRunValue:
+        if context.workspace is None:
+            raise ValueError("missing task-guidance workspace")
+        if context.session_or_none is None:
+            raise ValueError("from-plan turn continues a planning session")
+        prompt = FROM_PLAN_PROMPTS[variant]
+        # The planning turn's overrides are stored on the session; this
+        # update shallow-merges over them, flipping include_tasks back on
+        # for the writing turn whatever the planning arm was.
+        context.config.update(
+            request_overrides(
+                self.agent_name,
+                context.workspace,
+                reasoning_effort=reasoning_effort,
+            )
+        )
+        _reload_context_with_defaults(context)
+        delivery = compiled_delivery_evidence(
+            context,
+            agent_name=self.agent_name,
+            runtime_config=self.runtime_config,
+        )
+        parent_message_count = len(context.session.messages)
+        context.services.record(
+            "task_guidance.profile",
+            {
+                "name": self.agent_name,
+                "agent_id": self.agent["agent_id"],
+                "model": self.agent["model"],
+                "auth_mode": self.runtime_agent.get("auth_mode"),
+                "reasoning_effort": reasoning_effort,
+            },
+        )
+        context.services.record(
+            "task_guidance.scenario",
+            {
+                "scenario_id": scenario.scenario_id,
+                "category": scenario.category,
+                "target": scenario.target,
+            },
+        )
+        context.services.record(
+            "task_guidance.from_plan",
+            {"variant": variant, "parent_messages": parent_message_count},
+        )
+        context.services.record("task_guidance.delivery", delivery)
+        context.add_message("user", prompt)
+        outcome = context.request(stream=True)
+        task_files = _workspace_task_files(context.workspace)
+        calls = tuple(
+            call
+            for call in collect_tool_calls(context.session)
+            if int(call.get("message_index", -1)) >= parent_message_count
+        )
+        metrics = tool_metrics(calls)
+        context.services.record("task_guidance.tool_metrics", metrics)
+        context.services.record(
+            "task_guidance.task_files",
+            {
+                "paths": sorted(task_files),
+                "count": len(task_files),
+            },
+        )
+        return TaskRunValue(
+            prompt=prompt,
+            response=outcome.final_response,
+            completed=outcome.completed,
+            cancelled=outcome.cancelled,
+            errors=outcome.error_messages,
+            duration_seconds=outcome.duration_seconds,
+            tool_event_count=outcome.tool_event_count,
+            mutation_count=outcome.mutation_count,
+            task_files=task_files,
+            tool_calls=calls,
+            tool_metrics=metrics,
+            delivery=delivery,
+        )
+
     def _assessment_turn(
         self,
         context: CrystalLatticeContext,
@@ -745,6 +1089,7 @@ def compiled_delivery_evidence(
     *,
     agent_name: str,
     runtime_config: Path,
+    include_tasks: bool = True,
 ) -> dict[str, Any]:
     effective = cast(dict[str, Any], context.effective_config())
     active = context.core.get_plugins_for_config(effective)
@@ -795,7 +1140,7 @@ def compiled_delivery_evidence(
         "runner": "default-system-message",
         "model_family": "codex" if agent_name == "gpt" else "claude",
         "model": AGENTS[agent_name]["model"],
-        "include_tasks": True,
+        "include_tasks": include_tasks,
         "compiled_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
         "agents_sha256": hashlib.sha256(agents.read_bytes()).hexdigest(),
         "tasks_sha256": hashlib.sha256(tasks.read_bytes()).hexdigest(),

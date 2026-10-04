@@ -138,16 +138,23 @@ Status: Draft
   now expects three parented stages; the executor-existence and assembly
   tests skip the two in-flight executors via the documented
   PENDING_EXECUTORS set, which shrinks to empty when increment 2 lands)
-- [ ] Executors (increment 2: run_planning_session +
-  run_task_creation_from_plan on the harness) (the suite's wiring tests reject
-  catalog entries whose harness executors are missing — verified
-  September 28: `test_every_stage_executor_exists_on_the_harness`,
-  `test_stage_executor_matches_the_catalog_workspace_and_parentage`,
-  and the stage-graph invariant in test_stages all fail on a
-  catalog-only addition; increments must add spec + executor + parent
-  wiring in one commit) + configuration wiring
-- [ ] Planning-session executor + validity
-- [ ] From-plan executor + validity + omit instruction
+- [x] Executors (increment 2, landed September 29: `run_planning_session`
+  + `run_task_creation_from_plan` on the harness, with
+  `PlanningRunValue`, `planning_session_identity`/`from_plan_identity`,
+  `PLANNING_VARIANTS`/`CREATION_VARIANTS` + the planning suffix and the
+  two creation asks, `compiled_delivery_evidence` now recording the
+  actual `include_tasks` flag, and the writing turn's request overrides
+  shallow-merging `include_tasks=True` over the planning turn's stored
+  overrides; `PENDING_EXECUTORS` removed — executor-existence and
+  assembly mechanics coverage fully restored, 233 tests green)
+- [ ] Configuration wiring (which categories/scenarios run which arms;
+  the stages enter configuration.json with their variants)
+- [ ] Planning-session executor + validity (executor landed; the
+  validity application — completed, non-empty, no mutations — rides the
+  matrix/records wiring increment)
+- [ ] From-plan executor + validity + omit instruction (executor and the
+  omit ask landed; producer-validity application rides the matrix/records
+  wiring increment)
 - [ ] Agent-config variant (strip-thinking)
 - [ ] Plan-content gate on planning runs
 - [ ] Matrix/records/freeze/package wiring
@@ -174,3 +181,25 @@ Status: Draft
 
 - Runner ordering: new stages appear in `STAGE_GROUPS` between producers
   and assessments; unit test asserts the order.
+
+## Implementation Notes
+
+- September 29, 2026 — increment 2 landed (one commit): the two harness
+  executors. `run_planning_session` builds a fresh
+  `TaskGuidanceWorkspaceFactory` workspace, appends
+  `PLANNING_SESSION_SUFFIX` to the scenario prompt, sets
+  `include_tasks` per variant, records
+  `task_guidance.planning`/`delivery`/`tool_metrics`, and returns
+  `PlanningRunValue` (variant + response + tool stats + delivery; the
+  response is the gate input). `run_task_creation_from_plan` continues
+  the planning run (`continue_from`, parent workspace), records
+  `task_guidance.from_plan` with the parent message count, filters tool
+  calls to the writing turn, and returns a full `TaskRunValue` so every
+  producer-validity consumer applies unchanged. Both go through
+  `_execute` with variant- and parent-aware cache identities.
+  `compiled_delivery_evidence` gained an `include_tasks` keyword so an
+  unguided planning turn records `include_tasks: false` (its
+  `tasks_occurrences` will be 0 from the compiled body itself). The
+  omit-plan creation ask is the instructed no-execution-plan-section
+  variant of the standard ask; validity application for both stages is
+  downstream of the records wiring and stays open.

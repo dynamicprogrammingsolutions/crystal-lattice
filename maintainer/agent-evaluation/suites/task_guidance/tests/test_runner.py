@@ -6,6 +6,10 @@ from pathlib import Path
 from ..configuration import AGENTS, SUITE_ROOT, selected_bundle
 from ..fixtures import TaskGuidanceWorkspaceFactory
 from ..runner import (
+    CREATION_VARIANTS,
+    FROM_PLAN_PROMPTS,
+    PLANNING_SESSION_SUFFIX,
+    PLANNING_VARIANTS,
     RUNNER_VERSION,
     TaskGuidanceHarness,
     _runtime_config_root,
@@ -55,6 +59,19 @@ def test_request_overrides_enable_canonical_task_guidance(tmp_path: Path) -> Non
     assert assessment["include_tasks"] is False
 
 
+def test_two_stage_pipeline_declares_its_variants_and_asks() -> None:
+    # The planning arm is exactly the guidance on/off pair; the delivery
+    # evidence of an unguided planning turn records include_tasks False.
+    assert PLANNING_VARIANTS == ("guided", "unguided")
+    assert PLANNING_SESSION_SUFFIX.lstrip().startswith("Investigate")
+
+    # Every creation variant has its own distinct continuation ask.
+    assert sorted(CREATION_VARIANTS) == sorted(FROM_PLAN_PROMPTS)
+    assert len(set(FROM_PLAN_PROMPTS.values())) == len(FROM_PLAN_PROMPTS)
+    assert "execution-plan" in FROM_PLAN_PROMPTS["omit-plan"]
+    assert "execution-plan" not in FROM_PLAN_PROMPTS["standard"]
+
+
 def test_tool_metrics_separate_investigation_and_mutation_calls() -> None:
     metrics = tool_metrics(
         (
@@ -76,17 +93,12 @@ def test_tool_metrics_separate_investigation_and_mutation_calls() -> None:
     }
 
 
-
-# Stages declared ahead of their harness executors (two-stage pipeline
-# subtask 125): the catalog, configuration wiring, and graph tests land
-# first; the executor pair arrives with increment 2. Shrink to empty then.
-PENDING_EXECUTORS = {"run_planning_session", "run_task_creation_from_plan"}
+# The two-stage pipeline executors (subtask 125) landed with their stage
+# catalog entries; every catalog executor is expected on the harness again.
 
 
 def test_every_stage_executor_exists_on_the_harness() -> None:
     for spec in STAGES.values():
-        if spec.executor in PENDING_EXECUTORS:
-            continue
         assert hasattr(TaskGuidanceHarness, spec.executor), spec.executor
 
 

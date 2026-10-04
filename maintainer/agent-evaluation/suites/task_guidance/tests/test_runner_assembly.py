@@ -41,7 +41,9 @@ from ..runner import (
     TaskGuidanceHarness,
     assessment_identity,
     continuation_identity,
+    from_plan_identity,
     handoff_plan_identity,
+    planning_session_identity,
     task_creation_identity,
 )
 from ..scenarios import scenario_by_id
@@ -99,6 +101,50 @@ def test_handoff_plan_identity_includes_the_variant() -> None:
     assert retain != omit
     assert retain == handoff_plan_identity(variant="retain", **base)
     assert retain.startswith("task-guidance:")
+
+
+def test_planning_session_identity_includes_the_variant() -> None:
+    base = {
+        "agent_name": "glm",
+        "scenario": SCENARIO,
+        "reasoning_effort": "max",
+        "workspace_fingerprint": {"fixture": "v5"},
+    }
+    guided = planning_session_identity(variant="guided", **base)
+    unguided = planning_session_identity(variant="unguided", **base)
+
+    assert guided != unguided
+    assert guided == planning_session_identity(variant="guided", **base)
+    assert guided.startswith("task-guidance:")
+
+
+def test_from_plan_identity_includes_variant_and_parent_identity() -> None:
+    base = {
+        "agent_name": "gpt",
+        "scenario": SCENARIO,
+        "reasoning_effort": "high",
+    }
+    standard = from_plan_identity(
+        variant="standard",
+        parent_identity="task-guidance:v1:plan-a",
+        **base,
+    )
+
+    assert standard != from_plan_identity(
+        variant="omit-plan",
+        parent_identity="task-guidance:v1:plan-a",
+        **base,
+    )
+    assert standard != from_plan_identity(
+        variant="standard",
+        parent_identity="task-guidance:v1:plan-b",
+        **base,
+    )
+    assert standard == from_plan_identity(
+        variant="standard",
+        parent_identity="task-guidance:v1:plan-a",
+        **base,
+    )
 
 
 def test_continuation_identity_includes_the_parent_identity() -> None:
@@ -328,15 +374,7 @@ WORKSPACE_ORIGINS = {
 }
 
 
-@pytest.mark.parametrize(
-    "stage",
-    sorted(
-        name
-        for name in STAGES
-        if STAGES[name].executor
-        not in {"run_planning_session", "run_task_creation_from_plan"}
-    ),
-)
+@pytest.mark.parametrize("stage", sorted(STAGES))
 def test_stage_executor_matches_the_catalog_workspace_and_parentage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -344,10 +382,12 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
 ) -> None:
     """Every stage run starts the way its catalog entry declares.
 
-    Two stages share an earlier task-creation run: the continuation
-    (parent's workspace and session prefix) and the generated-file plan
-    (the parent's written files rebuilt into a fresh workspace); every
-    other stage starts parentless from its declared workspace origin.
+    Three stages share an earlier run: the continuation (parent's
+    workspace and session prefix), the generated-file plan (the parent's
+    written files rebuilt into a fresh workspace), and the from-plan
+    creation (a planning session's workspace and session prefix
+    continued); every other stage starts parentless from its declared
+    workspace origin.
     """
 
     spec = STAGES[stage]
@@ -365,7 +405,7 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
         monkeypatch.setattr(RunModel, "run", fake_run)
 
         parent = None
-        if stage in ("continuation", "generated-plan"):
+        if stage in ("continuation", "generated-plan", "task-creation-from-plan"):
             parent_dir = tmp_path / "glm" / "runs" / "parent-run"
             (parent_dir / "records").mkdir(parents=True)
             (parent_dir / "records" / "run-model.json").write_text(
@@ -391,6 +431,20 @@ def test_stage_executor_matches_the_catalog_workspace_and_parentage(
         if stage == "task-creation":
             harness.run_task_creation(
                 scenario=SCENARIO,
+                reasoning_effort="max",
+            )
+        elif stage == "planning-session":
+            harness.run_planning_session(
+                scenario=SCENARIO,
+                variant="guided",
+                reasoning_effort="max",
+            )
+        elif stage == "task-creation-from-plan":
+            assert parent is not None
+            harness.run_task_creation_from_plan(
+                parent=parent,
+                scenario=SCENARIO,
+                variant="standard",
                 reasoning_effort="max",
             )
         elif stage == "handoff-plan":
