@@ -438,6 +438,61 @@ separate compatibility re-audit; it does not authorize this homepage task to
 regenerate or silently reclassify the accepted projection. The maintained
 website-projection generator continues to verify the accepted output.
 
+## October 4 Revised Candidate Set
+
+Status: awaiting human visual review. No candidate is approved for promotion
+or homepage binding.
+
+The revised set is implemented on `develop` through these task-owned commits:
+
+- `ebb053ac`: read-only agent defaults API/SDK contract and real two-pane
+  Desktop selector;
+- `2bfaf03c`: pin/status default corrections with saved-preference
+  preservation;
+- `4fab5568`: dedicated light/dark user-bubble foreground;
+- `7d46556b`: deterministic standard-blue Desktop capture theme;
+- `29604c23`: real action fixtures, revised product states, native capture,
+  and review-gallery generation.
+
+The review gallery is generated under ignored output at:
+
+```text
+landing_page/artifacts/homepage-visual-review/index.html
+```
+
+It deliberately does not promote sources, generate public derivatives, change
+content bindings, or publish the site.
+
+Candidate-specific facts:
+
+- Codex and Claude use the real consolidated Desktop selector and safe
+  effective-default plugin projection.
+- Provider/application relationship boards use production captures inside
+  explicitly illustrative JSON/connector framing. Red connectors also carry
+  numbered text labels.
+- The application relationship board currently uses a production
+  plugin-contributed action row as its middle proof. Review must decide
+  whether this communicates the relationship adequately or whether a
+  separate real application-plugin registry row remains necessary.
+- Compiled instructions come from the real
+  `show_compiled_system_message` feature action.
+- Cost report content comes from the real `show_cost_report` application
+  action after seeding generic synthetic records through the production
+  SQLite store. Values are illustrative, not provider invoices or company
+  spending.
+- Continuity is presented as one annotated Desktop/phone board using matching
+  session content.
+- The non-development state identifies the configured `zai` profile as
+  GLM-5.3 Flash through Z.ai, includes attached-source work, expands reasoning,
+  and stops before tool calls.
+- The workspace state uses the production status, pin, and title/subtitle
+  contracts, a fresh preference namespace, header-only default pin placement,
+  and the default-pinned status rich list.
+- Published-source promotion still requires a reproducible macOS producer.
+  The current candidate used the latest production JavaScript bundle inside a
+  known-good released native shell because a newly generated local Hermes
+  runtime crashed before evaluating JavaScript.
+
 ## Revision Procedure
 
 When a section does not work in context:

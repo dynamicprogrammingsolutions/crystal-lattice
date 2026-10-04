@@ -620,3 +620,53 @@ Use:
   context-editing/compaction additions; the package explicitly requires a
   separate re-audit for post-source drift, so this task does not regenerate
   or silently reclassify accepted claims.
+- 2026-10-04: Implemented the approved product changes on `develop` without
+  merging them to `main`, per the user's branch boundary:
+  - `ebb053ac` adds the safe read-only agent-profile plugin endpoint, SDK
+    method/cache, real two-pane Desktop selector, compatibility fallback,
+    documentation, and backend-to-SDK integration coverage;
+  - `2bfaf03c` makes pin header-only by default, makes status default-pinned
+    on list and session surfaces, and proves stored preferences remain
+    authoritative;
+  - `4fab5568` adds the shared `bubbleUserText` contract and applies it to
+    light/dark mobile Markdown engines, raw user text, and Desktop user
+    message rendering;
+  - `7d46556b` isolates deterministic standard-blue capture theming from the
+    ordinary macOS system/accent theme;
+  - `29604c23` adds real generated compiled-system/cost action fixtures,
+    revised GLM-5.3/Z.ai and workspace states, stable native selectors,
+    dedicated-simulator selection, and the review-gallery generator.
+- 2026-10-04: Product verification on `develop` passed:
+  - core: 635 passed, 1 expected xfail;
+  - application: 575 passed, 1 skipped;
+  - frontend SDK: 373 unit tests plus 23 real-backend integration tests;
+  - shared RN components: 76 tests;
+  - Desktop: TypeScript plus 45 suites / 204 tests;
+  - mobile: TypeScript plus 56 suites / 290 tests;
+  - plugin-default, HTTP, rich-UI, fixture, and landing visual-framework
+    focused suites.
+- 2026-10-04: The compiled-system fixture executes
+  `show_compiled_system_message` through the actual feature action. The cost
+  fixture seeds generic records through the actual SQLite cost store and
+  executes `show_cost_report` through the actual application action. Captures
+  render the generated payloads through the production action-display
+  component. Cost values are explicitly illustrative and contain no private
+  paths, credentials, or company spending.
+- 2026-10-04: Native iOS capture passed for the required light/dark actions,
+  provider-settings, feature-plugins, continuity, compiled, cost, GLM/Z.ai,
+  and workspace states. Desktop light/dark sources were captured from the
+  current production JavaScript bundle in the known-good released native
+  shell after a newly generated Hermes runtime crashed before JavaScript
+  evaluation. Before source promotion, the default clean macOS producer must
+  be made independently reproducible or the reviewed native-shell input must
+  become an explicit maintained producer option.
+- 2026-10-04: Generated the ignored review gallery at
+  `landing_page/artifacts/homepage-visual-review/index.html`. It includes both
+  themes, relationship boards with red and numbered connectors, real action
+  displays, a framed Desktop/mobile continuity concept, GLM-5.3/Z.ai
+  reasoning, and plugin-driven workspaces. No source promotion, public WebP,
+  homepage binding, or website publication occurred.
+- 2026-10-04: One review item remains explicit in Highlight 2: the application
+  relationship candidate uses a production plugin-contributed action row as
+  its middle proof. Human review must decide whether that is sufficient or a
+  separate production application-plugin registry row is still required.
