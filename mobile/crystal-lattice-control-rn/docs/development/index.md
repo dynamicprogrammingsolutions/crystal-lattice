@@ -18,6 +18,8 @@
   polling, retry, and cross-layer verification.
 - [Markdown display](markdown-display.md) — display preferences, renderer
   selection, capability fallback, and typography.
+- [Website visual capture](website-visual-capture.md) — deterministic product
+  states, real action-display fixtures, sanitization, and capture boundaries.
 
 ## Home and local activity
 

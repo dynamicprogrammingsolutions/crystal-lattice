@@ -643,6 +643,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
                 style={styles.collapseIconButton}
                 hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setReasoningExpanded((prev) => !prev)}
+                testID={`assistant-reasoning-disclosure-${index}`}
               >
                 <Icon
                   name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
@@ -678,10 +679,12 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             <ScrollView
               style={styles.collapsibleScroll}
               nestedScrollEnabled
+              testID={`assistant-reasoning-scroll-${index}`}
             >
               <SelectablePlainText
                 text={reasoning}
                 style={styles.reasoningText}
+                testID={`assistant-reasoning-content-${index}`}
               />
             </ScrollView>
           </View>

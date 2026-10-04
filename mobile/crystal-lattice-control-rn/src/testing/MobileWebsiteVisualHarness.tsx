@@ -12,12 +12,14 @@ import { PinnedActionsProvider } from "../PinnedActionsContext";
 import SessionChatScreen from "../SessionChatScreen";
 import SessionsScreen from "../SessionsScreen";
 import { HomeWorkspaceProvider } from "../HomeWorkspaceContext";
+import ActionResultModal from "../components/ActionResultModal";
 import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
 import SessionPluginsModal from "../components/SessionPluginsModal";
 import SessionSettingsModal from "../components/SessionSettingsModal";
 import SessionSnapshotsModal from "../components/SessionSnapshotsModal";
 import { ThemeProvider, darkTheme, lightTheme, type Theme } from "../theme";
 import codingPlanFixture from "./fixtures/websiteCodingPlanSession.json";
+import actionDisplayFixture from "./fixtures/websiteActionDisplays.json";
 import runtimeUiFixture from "./fixtures/websiteRuntimeUi.json";
 
 const SESSION_SUMMARY = codingPlanFixture.session as SessionSummary;
@@ -36,6 +38,9 @@ const PROVIDER_USAGE_MESSAGE =
 const MOBILE_HERO_MESSAGES =
   runtimeUiFixture.mobile_hero_messages as IndexedMessage[];
 const MOBILE_HERO_UI_SCHEMA = runtimeUiFixture.mobile_hero_ui_schema;
+const COMPILED_ACTION_FIXTURE =
+  actionDisplayFixture.compiled_system_message;
+const COST_ACTION_FIXTURE = actionDisplayFixture.cost_report;
 
 const PROVIDER_SETTINGS_SCHEMA = [
   {
@@ -108,27 +113,13 @@ const FEATURE_PLUGINS = [
   },
 ];
 
-const COMPILED_MESSAGES = [
-  {
-    index: 0,
-    message: {
-      role: "system",
-      content: "You are a research and operations agent.",
-      metadata: {
-        compiled_content:
-          "You are a research and operations agent.\n\nUse the configured source-reading, web research, and structured-output tools. Preserve citations, separate facts from recommendations, and produce an actionable brief.",
-      },
-    },
-  },
-] as IndexedMessage[];
-
 const VIBE_MESSAGES = [
   {
     index: 0,
     message: {
       role: "system",
       content:
-        "You are an operations research agent. Build a cited launch brief from the supplied source notes.",
+        "You are a GLM-5.3 research and operations agent. Build cited recommendations from supplied files and current public sources.",
       metadata: {},
     },
   },
@@ -137,8 +128,26 @@ const VIBE_MESSAGES = [
     message: {
       role: "user",
       content:
-        "Compare the three launch approaches in the attached notes. Identify assumptions, research gaps, risks, and a recommended two-week validation plan.",
+        "Review the attached channel-performance data and launch notes. Verify the time-sensitive benchmarks against current public sources, compare the three launch approaches, and recommend a two-week validation plan with assumptions, risks, and evidence gaps.",
       metadata: {},
+      multipartContent: [
+        {
+          type: "file",
+          content: {
+            filename: "channel-performance.csv",
+            mime_type: "text/csv",
+          },
+          metadata: {},
+        },
+        {
+          type: "file",
+          content: {
+            filename: "launch-notes.md",
+            mime_type: "text/markdown",
+          },
+          metadata: {},
+        },
+      ],
     },
   },
   {
@@ -148,10 +157,10 @@ const VIBE_MESSAGES = [
       content: "",
       metadata: {
         reasoning:
-          "**Planning a source-heavy comparison**\n**Separating evidence, assumptions, and validation steps**\n**Preparing a structured recommendation**",
+          "**Inspecting the attached performance table and launch notes**\n\nI’ll normalize the channel metrics, identify assumptions in each approach, and list the claims that depend on current external benchmarks. Then I’ll check recent public sources, compare the evidence on consistent criteria, and build a two-week validation sequence with explicit decision gates.",
         openai_responses_reasoning: {
           summary_text:
-            "**Planning a source-heavy comparison**\n**Separating evidence, assumptions, and validation steps**\n**Preparing a structured recommendation**",
+            "**Inspecting the attached performance table and launch notes**\n\nI’ll normalize the channel metrics, identify assumptions in each approach, and list the claims that depend on current external benchmarks. Then I’ll check recent public sources, compare the evidence on consistent criteria, and build a two-week validation sequence with explicit decision gates.",
           context: "all_turns",
         },
         has_tool_calls: false,
@@ -160,6 +169,23 @@ const VIBE_MESSAGES = [
     },
   },
 ] as IndexedMessage[];
+
+const VIBE_SESSION_SUMMARY: SessionSummary = {
+  session_id: SESSION_ID,
+  modified: SESSION_SUMMARY.modified,
+  preview: VIBE_MESSAGES[1].message.content,
+  metadata: {
+    agent_id: "zai",
+    status: "in_progress",
+    title: "Validate a launch plan",
+    subtitle: "GLM-5.3 Flash · Z.ai · Research operations",
+  },
+  presentation: {
+    title: "Validate a launch plan",
+    subtitle: "GLM-5.3 Flash · Z.ai · Research operations",
+    meta: "Status: In progress",
+  },
+};
 
 const WORKSPACE_SESSIONS: SessionSummary[] = [
   {
@@ -214,11 +240,9 @@ const WORKSPACE_SESSIONS: SessionSummary[] = [
 
 function createHarnessBackend(kind: string): AgentBackend {
   const displayedMessages =
-    kind === "usage"
+    kind === "usage" || kind === "cost"
       ? [PROVIDER_USAGE_MESSAGE]
-      : kind === "compiled"
-        ? COMPILED_MESSAGES
-        : kind === "vibe"
+      : kind === "vibe"
           ? VIBE_MESSAGES
       : kind === "hero"
         ? MOBILE_HERO_MESSAGES
@@ -233,12 +257,35 @@ function createHarnessBackend(kind: string): AgentBackend {
       applicationActions: true,
       applicationConfig: false,
     }),
-    listAgents: async () => ["codex-openai"],
+    listAgents: async () => kind === "vibe" ? ["zai"] : ["codex-openai"],
+    listAgentDescriptors: async () =>
+      kind === "vibe"
+        ? [
+            {
+              id: "zai",
+              title: "GLM-5.3 Flash · Z.ai",
+              description:
+                "Claude-compatible tools through the configured Z.ai route.",
+              order: 10,
+            },
+          ]
+        : [
+            {
+              id: "codex-openai",
+              title: "Codex · OpenAI",
+              description: "Codex-oriented tools through OpenAI.",
+              order: 10,
+            },
+          ],
     listSessions: async () => [SESSION_SUMMARY],
-    getSessionSummary: async () => SESSION_SUMMARY,
-    getSessionAgent: async () => "codex-openai",
+    getSessionSummary: async () =>
+      kind === "vibe" ? VIBE_SESSION_SUMMARY : SESSION_SUMMARY,
+    getSessionAgent: async () => kind === "vibe" ? "zai" : "codex-openai",
     switchSessionAgent: async () => {},
-    listApplicationActions: async () => [],
+    listApplicationActions: async () =>
+      kind === "cost"
+        ? [COST_ACTION_FIXTURE.action_definition]
+        : [],
     listApplicationUiSchema: async () => [],
     listMessages: async () => ({
       messages: displayedMessages,
@@ -252,7 +299,9 @@ function createHarnessBackend(kind: string): AgentBackend {
       cursorExpired: false,
     }),
     getSessionUiSchema: async () =>
-      kind === "usage"
+      kind === "compiled"
+        ? [COMPILED_ACTION_FIXTURE.ui_element]
+        : kind === "usage" || kind === "cost"
         ? MESSAGE_FOOTER_ELEMENTS
         : kind === "provider-settings"
           ? PROVIDER_SETTINGS_SCHEMA
@@ -260,7 +309,11 @@ function createHarnessBackend(kind: string): AgentBackend {
           ? MOBILE_HERO_UI_SCHEMA
           : SESSION_UI_SCHEMA,
     getSessionApplicationUiSchema: async () =>
-      kind === "hero" ? [] : SESSION_APPLICATION_UI_SCHEMA,
+      kind === "hero"
+        ? []
+        : kind === "cost"
+          ? [COST_ACTION_FIXTURE.ui_element]
+          : SESSION_APPLICATION_UI_SCHEMA,
     getSessionOverrides: async () =>
       kind === "provider-settings"
         ? {}
@@ -302,6 +355,27 @@ function createHarnessBackend(kind: string): AgentBackend {
     listApplicationNotifications: async () => [],
     patchSessionOverrides: async () => {},
     deleteSessionOverride: async () => {},
+    executeAction: async (
+      params: Parameters<AgentBackend["executeAction"]>[0],
+    ) => {
+      if (params.actionId === "show_cost_report") {
+        return COST_ACTION_FIXTURE.response as any;
+      }
+      throw new Error(`Unexpected website fixture action: ${params.actionId}`);
+    },
+    executeSessionAction: async (
+      params: Parameters<
+        NonNullable<AgentBackend["executeSessionAction"]>
+      >[0],
+    ) => {
+      if (params.actionId === "show_compiled_system_message") {
+        return COMPILED_ACTION_FIXTURE.response as any;
+      }
+      if (params.actionId === "show_cost_report") {
+        return COST_ACTION_FIXTURE.response as any;
+      }
+      throw new Error(`Unexpected website fixture action: ${params.actionId}`);
+    },
   } as unknown as AgentBackend;
 }
 
@@ -470,7 +544,7 @@ function MobileWorkspaceVisual({
         <HomeWorkspaceProvider>
           <ApplicationPluginsProvider
             backend={backend}
-            connectionId="website-workspaces"
+            connectionId="website-workspaces-defaults-v2"
           >
             <View
               style={[styles.root, { backgroundColor: theme.background }]}
@@ -478,7 +552,7 @@ function MobileWorkspaceVisual({
             >
               <SessionsScreen
                 backend={backend}
-                connectionId="website-workspaces"
+                connectionId="website-workspaces-defaults-v2"
                 connectionName="Research workspace"
                 cachedSessions={WORKSPACE_SESSIONS}
                 lastLoadedAt={1}
@@ -567,18 +641,21 @@ export function MobileWebsiteVisualHarness({
                   isActive={
                     configuredKind === "actions" ||
                     configuredKind === "usage" ||
+                    configuredKind === "cost" ||
                     configuredKind === "hero" ||
                     configuredKind === "compiled" ||
                     configuredKind === "vibe"
                   }
                   sessionId={SESSION_ID}
-                  sessionSummary={SESSION_SUMMARY}
+                  sessionSummary={
+                    configuredKind === "vibe"
+                      ? VIBE_SESSION_SUMMARY
+                      : SESSION_SUMMARY
+                  }
                   cachedMessages={
-                    configuredKind === "usage"
+                    configuredKind === "usage" || configuredKind === "cost"
                       ? [PROVIDER_USAGE_MESSAGE]
-                      : configuredKind === "compiled"
-                        ? COMPILED_MESSAGES
-                        : configuredKind === "vibe"
+                      : configuredKind === "vibe"
                           ? VIBE_MESSAGES
                       : configuredKind === "hero"
                         ? MOBILE_HERO_MESSAGES
@@ -601,8 +678,23 @@ export function MobileWebsiteVisualHarness({
                   debugTimeline={[]}
                   onAppendDebugTimelineEntry={() => {}}
                   />
+                  {configuredKind === "compiled" ||
+                  configuredKind === "cost" ? (
+                    <ActionResultModal
+                      testID={`website-${configuredKind}-action-display`}
+                      visible
+                      presentationMode="overlay"
+                      display={
+                        (configuredKind === "compiled"
+                          ? COMPILED_ACTION_FIXTURE.response.result.display
+                          : COST_ACTION_FIXTURE.response.result.display) as any
+                      }
+                      onRequestClose={() => {}}
+                    />
+                  ) : null}
                   {configuredKind === "actions" ||
                   configuredKind === "usage" ||
+                  configuredKind === "cost" ||
                   configuredKind === "hero" ||
                   configuredKind === "compiled" ||
                   configuredKind === "vibe" ? null : configuredKind === "snapshots" ? (

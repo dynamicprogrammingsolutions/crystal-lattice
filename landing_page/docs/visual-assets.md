@@ -428,6 +428,41 @@ The landing package is responsible for:
 - content binding;
 - browser presentation.
 
+## Homepage visual review gallery
+
+After the revised Desktop and mobile website captures exist, build the
+review-only homepage gallery:
+
+```bash
+npm run review:homepage-visuals
+```
+
+The command copies the required ignored captures into:
+
+```text
+landing_page/artifacts/homepage-visual-review/
+```
+
+and writes `index.html`. It groups light/dark candidates for the six homepage
+highlights and adds:
+
+- paired Codex/Claude views of the production two-pane agent selector;
+- two configuration→plugin→UI relationship boards with red connectors and
+  numbered text labels;
+- real compiled-system-message and Cost report action displays;
+- one Desktop/phone continuity board;
+- the GLM-5.3/Z.ai research workflow;
+- the plugin-driven session-workspace state.
+
+The JSON snippets, red connectors, labels, and device frames are illustrative
+website annotations. Images inside the boards are production captures. The
+gallery calls out synthetic cost records and Crystal Lattice compatibility
+profiles explicitly.
+
+This command does not promote sources, update public derivatives, change
+expected hashes, bind page media, or publish the website. Human review of the
+gallery is required before any of those actions.
+
 Changing only a crop or WebP quality does not require a new native capture.
 Changing visible application state does.
 

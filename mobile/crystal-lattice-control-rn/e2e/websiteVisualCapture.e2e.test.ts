@@ -19,6 +19,7 @@ type VisualKind =
   | "snapshots"
   | "settings"
   | "usage"
+  | "cost"
   | "hero"
   | "provider-settings"
   | "plugins"
@@ -78,19 +79,39 @@ async function captureTheme(
       .toExist()
       .withTimeout(30000);
   } else if (kind === "compiled") {
-    await waitFor(element(by.id("system-compiled-toggle")))
+    await waitFor(element(by.id("website-compiled-action-display")))
       .toBeVisible()
       .withTimeout(30000);
-    await element(by.id("system-compiled-toggle")).tap();
-    await waitFor(element(by.id("system-compiled-content")))
+  } else if (kind === "cost") {
+    await waitFor(element(by.id("website-cost-action-display")))
       .toBeVisible()
       .withTimeout(30000);
   } else if (kind === "vibe") {
     await waitFor(element(by.id("message-bubble-2")))
       .toBeVisible()
       .withTimeout(30000);
+    await waitFor(element(by.id("assistant-reasoning-disclosure-2")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("assistant-reasoning-disclosure-2")).tap();
+    await waitFor(element(by.id("assistant-reasoning-content-2")))
+      .toExist()
+      .withTimeout(30000);
   } else if (kind === "workspaces") {
     await waitFor(element(by.text("Launch strategy research")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(
+      element(by.id("session-rich-action-launch-research-set_session_status"))
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(
+      by.id("session-rich-action-launch-research-set_session_status")
+    ).tap();
+    await waitFor(
+      element(by.id("session-rich-list-launch-research-set_session_status"))
+    )
       .toBeVisible()
       .withTimeout(30000);
   } else {
@@ -121,6 +142,7 @@ describe("website visual source capture", () => {
       "snapshots",
       "settings",
       "usage",
+      "cost",
       "hero",
       "provider-settings",
       "plugins",

@@ -28,7 +28,9 @@ native accent. Light candidates use standard blue `#007AFF`; dark candidates
 use `#0A84FF`. This override exists only in
 `DesktopWebsiteVisualHarness`. Ordinary application roots and standalone
 windows continue to use `useDesktopTheme()` and follow the macOS appearance
-and accent.
+and accent. The producer passes `-clcWebsiteVisualTheme light|dark` explicitly;
+the harness does not depend on asynchronous system appearance propagation
+before exporting the view.
 
 Current kinds:
 

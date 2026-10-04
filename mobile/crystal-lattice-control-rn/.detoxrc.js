@@ -1,4 +1,5 @@
 const iosDevice = process.env.DETOX_IOS_DEVICE || "iPhone 17 Pro";
+const iosDeviceId = process.env.DETOX_IOS_DEVICE_ID;
 const androidAvd = process.env.DETOX_ANDROID_AVD || "Medium_Phone_API_36.1";
 
 /** @type {Detox.DetoxConfig} */
@@ -42,7 +43,7 @@ module.exports = {
     iosSimulator: {
       type: "ios.simulator",
       device: {
-        type: iosDevice,
+        ...(iosDeviceId ? { id: iosDeviceId } : { type: iosDevice }),
       },
     },
     androidEmulator: {

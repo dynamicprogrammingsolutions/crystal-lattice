@@ -65,6 +65,10 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-light.png",
     usageDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-dark.png",
+    costLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/cost-light.png",
+    costDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/cost-dark.png",
     heroLight:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-light.png",
     heroDark:

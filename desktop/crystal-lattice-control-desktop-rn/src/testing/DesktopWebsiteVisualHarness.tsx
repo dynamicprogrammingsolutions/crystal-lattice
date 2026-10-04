@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, useColorScheme, View } from 'react-native';
+import { Settings, StyleSheet, useColorScheme, View } from 'react-native';
 
 import type {
   AgentBackend,
@@ -9,7 +9,10 @@ import type {
   SessionPluginEntry,
 } from '@crystal-lattice/frontend-sdk';
 import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
-import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
+import {
+  ThemeProvider,
+  type Theme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ChatPane } from '../chat/ChatPane';
 import { buildDesktopCaptureTheme } from '../theme/buildDesktopTheme';
@@ -203,12 +206,11 @@ function createContinuityBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
-function DesktopContinuityVisual(): React.JSX.Element {
-  const appearance = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const theme = useMemo(
-    () => buildDesktopCaptureTheme(appearance),
-    [appearance],
-  );
+function DesktopContinuityVisual({
+  theme,
+}: {
+  theme: Theme;
+}): React.JSX.Element {
   const backend = useMemo(() => createContinuityBackend(), []);
   return (
     <ThemeProvider theme={theme}>
@@ -253,7 +255,12 @@ export interface DesktopWebsiteVisualHarnessProps {
 export function DesktopWebsiteVisualHarness({
   websiteVisualKind = 'agent-codex',
 }: DesktopWebsiteVisualHarnessProps): React.JSX.Element {
-  const appearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const systemAppearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const configuredAppearance = Settings.get('clcWebsiteVisualTheme');
+  const appearance =
+    configuredAppearance === 'dark' || configuredAppearance === 'light'
+      ? configuredAppearance
+      : systemAppearance;
   const theme = useMemo(
     () => buildDesktopCaptureTheme(appearance),
     [appearance],
@@ -264,7 +271,7 @@ export function DesktopWebsiteVisualHarness({
     [claude],
   );
   if (websiteVisualKind === 'cross-device') {
-    return <DesktopContinuityVisual />;
+    return <DesktopContinuityVisual theme={theme} />;
   }
   const selectedAgentId = claude ? 'claude-anthropic' : 'codex-openai';
 
