@@ -16,11 +16,19 @@ and Xcode 26.1. The GitHub-hosted `macos-26` image uses Xcode 26.1.1.
 
 ```bash
 npm ci
-bundle install
-bundle exec pod install --project-directory=macos
-bundle exec fastlane mac verify
-bundle exec fastlane mac build
+npm run ruby:check
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec bundle install
+npm run pod-install
+npm run release:verify
+npm run release:build
 ```
+
+The npm Ruby wrapper accepts an already-correct Ruby/Bundler environment, as
+used by CI, and otherwise uses the `.ruby-version` installation through
+`rbenv exec`. It fails with the expected and detected versions before invoking
+CocoaPods or Fastlane. GUI-launched Xcode sources `macos/.xcode.env` and the
+ignored `.xcode.env.local` so Node can be resolved from the repository
+`.nvmrc` without relying on the GUI process `PATH`.
 
 `verify` runs build-number tests, TypeScript, Jest, and Xcode Release
 configuration inspection. `build` creates an unsigned universal archive for

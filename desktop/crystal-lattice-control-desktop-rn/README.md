@@ -87,40 +87,66 @@ yarn ios
 
 ### macOS
 
-macOS builds require Xcode and CocoaPods.
+macOS builds require Xcode, the Node version in the repository `.nvmrc`, and
+the Ruby version in `.ruby-version`. The desktop package intentionally uses
+the same Ruby and Bundler versions locally and in CI.
 
 ```sh
-cd macos
-pod install
-cd ..
+brew install rbenv ruby-build
+rbenv init
+
+cd desktop/crystal-lattice-control-desktop-rn
+rbenv install -s "$(cat .ruby-version)"
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec gem install bundler -v 4.0.15
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec bundle install
+npm run ruby:check
+npm run pod-install
 npm run macos
 ```
 
-If you prefer using Bundler to pin CocoaPods versions, use `bundle exec pod install --project-directory=macos` instead.
+The npm Ruby commands use the current Ruby when it matches the repository
+versions. If `rbenv` is installed but the shell has not initialized its shims,
+they fall back to the Ruby selected by `.ruby-version` through `rbenv exec`.
 
-#### Troubleshooting: `bundle install` fails building `json`
+#### Troubleshooting Ruby selection
 
-If you see an error like `extconf failed` while installing `json`, you are likely using the system Ruby (`/usr/bin/ruby`) which may not ship buildable headers on newer macOS/Xcode SDKs.
-
-Recommended fix: install a modern Ruby and retry:
+Do not use Apple Ruby from `/usr/bin` or an arbitrary latest Homebrew Ruby.
+Check the active toolchain from the desktop package:
 
 ```sh
-brew install ruby
-echo 'export PATH="/opt/homebrew/opt/ruby/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-cd desktop/crystal-lattice-control-desktop-rn
-rm -rf vendor/bundle
-gem install bundler
-bundle install
-bundle exec pod install --project-directory=macos
+rbenv version
+rbenv which ruby
+ruby --version
+npm run ruby:check
 ```
 
-Alternative (skip Bundler):
+If `rbenv version` is correct but `ruby --version` is not, initialize rbenv in
+the shell after other Ruby `PATH` changes:
 
 ```sh
-brew install cocoapods
-pod install --project-directory=macos
+eval "$(rbenv init - zsh)"
+```
+
+Put that command on its own line near the end of `~/.zshrc`, then open a new
+terminal. `bundle update --bundler` is not a setup command; changing the locked
+Bundler version also changes the CI/release toolchain.
+
+#### Troubleshooting Node in Xcode
+
+The Xcode bundle phases source `macos/.xcode.env` and the ignored
+`macos/.xcode.env.local`. The tracked environment file resolves Node from the
+repository `.nvmrc`, NVM, or the standard Homebrew locations. Install the
+repository Node version before launching Xcode:
+
+```sh
+nvm install
+nvm use
+```
+
+For a custom installation, create `macos/.xcode.env.local` containing:
+
+```sh
+export NODE_BINARY=/absolute/path/to/node
 ```
 
 If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.

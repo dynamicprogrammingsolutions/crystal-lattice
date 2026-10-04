@@ -4130,7 +4130,12 @@ export const ChatPane = React.memo(function ChatPane({
     <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text
+            style={styles.title}
+            numberOfLines={2}
+            selectable
+            testID="chat-header-title"
+          >
             {displayTitle}
           </Text>
           <View style={styles.metaRow}>
@@ -4163,7 +4168,12 @@ export const ChatPane = React.memo(function ChatPane({
               testID={`chat-request-status-${connectionId}-${sessionId}`}
             />
           </View>
-          <Text style={styles.subtitle} numberOfLines={2}>
+          <Text
+            style={styles.subtitle}
+            numberOfLines={2}
+            selectable
+            testID="chat-header-subtitle"
+          >
             {displaySubtitle}
           </Text>
         </View>
@@ -4761,6 +4771,8 @@ export const ChatPane = React.memo(function ChatPane({
               style={styles.sessionStatusBarText}
               numberOfLines={1}
               ellipsizeMode="tail"
+              selectable
+              testID="chat-session-status-footer"
             >
               {statusBarParts.join('   ')}
             </Text>
