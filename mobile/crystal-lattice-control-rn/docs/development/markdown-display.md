@@ -35,6 +35,11 @@ actions, and code consumers use responsive semantic font-size and line-height
 tokens; explicit card/screen/modal titles and layout dimensions remain fixed.
 Both the enriched selectable renderer and the RNMD renderer map the shared
 semantic body and H1–H6 metrics to their renderer-specific style keys.
+For user messages, both renderers use `theme.bubbleUserText` for prose,
+headings, list markers, links, and inline code. Raw user text and
+bubble-owned header/footer copy use the same token. `textOnPrimary` remains
+reserved for solid primary controls rather than the translucent light-theme
+user bubble.
 
 `ConfiguredMarkdownMessageContent` is the production dispatch boundary for
 user/assistant chat markdown and markdown action-display bodies. Raw chat

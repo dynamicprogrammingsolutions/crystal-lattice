@@ -121,7 +121,7 @@ function MarkdownMessageContent({
     [preferences],
   );
 
-  const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
+  const baseTextColor = variant === 'user' ? theme.bubbleUserText : theme.text;
 
   const fallback = (
     <Text style={[typographyStyles.text, { color: baseTextColor }]}>{text}</Text>

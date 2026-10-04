@@ -15,7 +15,7 @@ import MessageBubble, {
 } from '../src/components/MessageBubble';
 import { AttachmentThumbnailStrip } from '../src/components/AttachmentThumbnailStrip';
 import SelectablePlainText from '../src/components/SelectablePlainText';
-import { ThemeProvider, lightTheme } from '../src/theme';
+import { darkTheme, ThemeProvider, lightTheme } from '../src/theme';
 
 
 jest.mock('../src/theme', () => {
@@ -91,6 +91,25 @@ test.each(MARKDOWN_BASE_FONT_SIZES)(
       fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
     });
+  },
+);
+
+test.each([
+  ['light', lightTheme],
+  ['dark', darkTheme],
+] as const)(
+  'uses the dedicated user-bubble foreground in the %s theme',
+  (_name, theme) => {
+    const styles = createMessageBubbleStyles(theme);
+    expect(StyleSheet.flatten(styles.userHeaderText).color).toBe(
+      theme.bubbleUserText,
+    );
+    expect(StyleSheet.flatten(styles.userContentText).color).toBe(
+      theme.bubbleUserText,
+    );
+    expect(StyleSheet.flatten(styles.userFooterText).color).toBe(
+      theme.bubbleUserText,
+    );
   },
 );
 
@@ -225,7 +244,7 @@ test('user markdown mode can render selectable enriched markdown prose', () => {
   expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
     expect.objectContaining({
       fontSize: lightTheme.typography.fontSize.message,
-      color: lightTheme.text,
+      color: lightTheme.bubbleUserText,
     }),
   );
 });
@@ -244,6 +263,9 @@ test('user raw mode renders selectable plain text', () => {
   const selectableText = renderer.root.findByType(SelectablePlainText);
 
   expect(selectableText.props.text).toBe('Raw user text');
+  expect(StyleSheet.flatten(selectableText.props.style).color).toBe(
+    lightTheme.bubbleUserText,
+  );
 });
 
 

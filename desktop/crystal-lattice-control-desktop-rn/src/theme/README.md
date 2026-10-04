@@ -65,7 +65,12 @@ Built in `buildDesktopTheme()` (`desktop/crystal-lattice-control-desktop-rn/src/
 Derived values:
 
 - `textOnPrimary` picks black/white based on accent luminance.
-- Bubble backgrounds and code backgrounds are derived from accent/text with alpha.
+- `bubbleUserBg` composites the accent at a low alpha over the window
+  background.
+- `bubbleUserText` picks black/white against that effective composited
+  background; it is intentionally independent from `textOnPrimary`.
+- Other bubble backgrounds and code backgrounds are derived from accent/text
+  with alpha.
 
 ## macOS sizing defaults (desktop UI)
 

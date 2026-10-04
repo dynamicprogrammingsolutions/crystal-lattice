@@ -26,4 +26,13 @@ test('desktop message content and footer consume responsive theme metrics', () =
     fontSize: theme.typography.fontSize.message,
     lineHeight: theme.typography.lineHeight.message,
   });
+  expect(StyleSheet.flatten(styles.userHeaderText)).toMatchObject({
+    color: theme.bubbleUserText,
+  });
+  expect(StyleSheet.flatten(styles.userContentText)).toMatchObject({
+    color: theme.bubbleUserText,
+  });
+  expect(StyleSheet.flatten(styles.userFooterText)).toMatchObject({
+    color: theme.bubbleUserText,
+  });
 });
