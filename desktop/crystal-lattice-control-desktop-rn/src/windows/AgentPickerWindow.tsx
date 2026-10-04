@@ -8,7 +8,11 @@ import {
   View,
 } from 'react-native';
 
-import { ThemeProvider, useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  ThemeProvider,
+  useTheme,
+  type Theme,
+} from '@crystal-lattice/frontend-rn-components';
 import {
   AgentsController,
   normalizeAgentDescriptors,
@@ -47,6 +51,7 @@ export interface AgentPickerWindowProps {
   agents?: string[];
   agentDescriptors?: AgentDescriptor[];
   backend?: AgentBackend;
+  themeOverride?: Theme;
   mode?: 'createSession' | 'switchSessionAgent';
   sessionId?: string;
   title?: string;
@@ -76,7 +81,7 @@ export function AgentPickerWindow(
 ): React.JSX.Element {
   const systemTheme = useDesktopTheme();
   return (
-    <ThemeProvider theme={systemTheme}>
+    <ThemeProvider theme={props.themeOverride ?? systemTheme}>
       <AgentPickerWindowInner {...props} />
     </ThemeProvider>
   );

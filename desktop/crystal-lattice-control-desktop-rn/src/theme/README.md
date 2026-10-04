@@ -72,6 +72,11 @@ Derived values:
 - Other bubble backgrounds and code backgrounds are derived from accent/text
   with alpha.
 
+Website capture roots deliberately use `buildDesktopCaptureTheme()` for a
+deterministic standard-blue light/dark palette. That function is capture-only;
+ordinary product roots continue to call `useDesktopTheme()` and honor the
+operator's macOS accent.
+
 ## macOS sizing defaults (desktop UI)
 
 RN macOS often renders `StyleSheet.hairlineWidth` too subtly. For desktop separators/borders we generally prefer:

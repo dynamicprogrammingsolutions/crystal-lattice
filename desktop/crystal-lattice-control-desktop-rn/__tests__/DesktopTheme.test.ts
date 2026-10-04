@@ -1,4 +1,7 @@
-import { buildDesktopTheme } from '../src/theme/buildDesktopTheme';
+import {
+  buildDesktopCaptureTheme,
+  buildDesktopTheme,
+} from '../src/theme/buildDesktopTheme';
 import type { MacOSSystemThemePayload } from '../src/theme/types';
 
 function payload(
@@ -31,4 +34,15 @@ test('derives readable user-bubble text from the effective dynamic background', 
 
   expect(light.bubbleUserText).toBe('#000000');
   expect(dark.bubbleUserText).toBe('#FFFFFF');
+});
+
+test('uses a deterministic blue palette for website captures', () => {
+  expect(buildDesktopCaptureTheme('light')).toMatchObject({
+    primary: '#007AFF',
+    bubbleUserText: '#000000',
+  });
+  expect(buildDesktopCaptureTheme('dark')).toMatchObject({
+    primary: '#0A84FF',
+    bubbleUserText: '#FFFFFF',
+  });
 });

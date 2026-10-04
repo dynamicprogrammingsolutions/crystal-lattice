@@ -191,3 +191,9 @@ export function buildDesktopThemeWithFallback(
   }
   return fallbackAppearance === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
 }
+
+export function buildDesktopCaptureTheme(
+  appearance: 'light' | 'dark',
+): Theme {
+  return appearance === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
+}

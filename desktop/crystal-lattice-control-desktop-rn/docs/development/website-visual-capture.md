@@ -23,6 +23,13 @@ The command:
 The harness-owned view export avoids screen-recording permission and does not
 use static website mocks.
 
+Capture roots use `buildDesktopCaptureTheme()` rather than the operator's
+native accent. Light candidates use standard blue `#007AFF`; dark candidates
+use `#0A84FF`. This override exists only in
+`DesktopWebsiteVisualHarness`. Ordinary application roots and standalone
+windows continue to use `useDesktopTheme()` and follow the macOS appearance
+and accent.
+
 Current kinds:
 
 - `agent-codex`: ordered agent descriptors with Codex selected and

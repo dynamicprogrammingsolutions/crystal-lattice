@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useColorScheme, View } from 'react-native';
 
 import type {
   AgentBackend,
@@ -12,7 +12,7 @@ import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react'
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 
 import { ChatPane } from '../chat/ChatPane';
-import { useDesktopTheme } from '../theme/useDesktopTheme';
+import { buildDesktopCaptureTheme } from '../theme/buildDesktopTheme';
 import { AgentPickerWindow } from '../windows/AgentPickerWindow';
 
 const SESSION_ID = 'website-visual-session';
@@ -204,7 +204,11 @@ function createContinuityBackend(): AgentBackend {
 }
 
 function DesktopContinuityVisual(): React.JSX.Element {
-  const theme = useDesktopTheme();
+  const appearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const theme = useMemo(
+    () => buildDesktopCaptureTheme(appearance),
+    [appearance],
+  );
   const backend = useMemo(() => createContinuityBackend(), []);
   return (
     <ThemeProvider theme={theme}>
@@ -249,14 +253,19 @@ export interface DesktopWebsiteVisualHarnessProps {
 export function DesktopWebsiteVisualHarness({
   websiteVisualKind = 'agent-codex',
 }: DesktopWebsiteVisualHarnessProps): React.JSX.Element {
-  if (websiteVisualKind === 'cross-device') {
-    return <DesktopContinuityVisual />;
-  }
+  const appearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const theme = useMemo(
+    () => buildDesktopCaptureTheme(appearance),
+    [appearance],
+  );
   const claude = websiteVisualKind === 'agent-claude';
   const backend = useMemo(
     () => createBackend(claude ? CLAUDE_TOOLS : CODEX_TOOLS),
     [claude],
   );
+  if (websiteVisualKind === 'cross-device') {
+    return <DesktopContinuityVisual />;
+  }
   const selectedAgentId = claude ? 'claude-anthropic' : 'codex-openai';
 
   return (
@@ -271,6 +280,7 @@ export function DesktopWebsiteVisualHarness({
         agents={AGENT_DESCRIPTORS.map(agent => agent.id)}
         agentDescriptors={AGENT_DESCRIPTORS}
         backend={backend}
+        themeOverride={theme}
         initialAgentId={selectedAgentId}
         title="Choose an agent"
         primaryButtonLabel="Use agent"
