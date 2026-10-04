@@ -63,11 +63,11 @@ is explicitly decided.
       status action present in the default action bar.
 - [ ] Published Desktop captures use a deterministic standard blue accent
       similar to mobile, not the operator's personal macOS accent color.
-- [ ] Website claims and captions are reconciled with the accepted draft
-      compatibility baseline from `develop` commit
-      `c52db305e0a815da5831d462a495df68ec4f2eb7`, preserving Available,
-      Conditional, Optional, and Planned distinctions and the non-upstream
-      compatibility disclaimer.
+- [x] Website claims and captions are reconciled with the accepted draft
+      compatibility baseline now maintained under
+      `landing_page/research/current-product-and-compatibility-baseline/`,
+      preserving Available, Conditional, Optional, and Planned distinctions
+      and the non-upstream compatibility disclaimer.
 - [x] Every screenshot-specific hide/reorder behavior is explicitly classified
       as a real product improvement, a maintained capture fixture/plugin, or a
       one-off candidate aid before implementation.
@@ -221,16 +221,29 @@ Review findings:
 The operator's pink macOS accent is personal configuration and is not part of
 the product identity. Published Desktop captures use deterministic blue.
 
-Compatibility source reviewed during planning:
+Compatibility source reviewed during planning and reconciled after the branch
+merge:
 
-- branch: `develop`;
-- commit: `c52db305e0a815da5831d462a495df68ec4f2eb7`;
-- file:
-  `landing_page/research/020-current-product-and-compatibility-baseline/website-compatibility-data.md`;
+- historical review branch: `develop`;
+- historical review commit:
+  `c52db305e0a815da5831d462a495df68ec4f2eb7`;
+- canonical package:
+  `landing_page/research/current-product-and-compatibility-baseline/`;
+- canonical website projection:
+  `landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.md`;
+- accepted product source revision:
+  `add5f5e71de3bb1676851bb840dfd77620f63ddb`;
+- transformation version: `compatibility-baseline-v2`;
 - review state: accepted;
-- maturity: draft;
-- current `main` fact: the file is absent and must be imported or reconciled
-  before its data becomes a maintained source for published claims.
+- maturity: draft.
+
+The canonical package supersedes the historical numbered location and is more
+complete than the earlier projection, so the historical file is not copied
+into a duplicate directory. The accepted website projection verifies against
+its maintained generator. Current extraction also detects later Anthropic
+context-editing and compaction additions; under the package's source-revision
+policy, that drift requires a separate re-audit and does not silently alter
+the accepted classifications used by this website task.
 
 ## Execution plan
 
@@ -317,10 +330,13 @@ code, links/lists, and relevant user-bubble attachment labels. Keep
 
 #### Capture truth and compatibility
 
-Import or reconcile the accepted draft compatibility file from `develop`
-commit `c52db305e0a815da5831d462a495df68ec4f2eb7` into the maintained `main`
-research location before using it as a claim source. The import is content
-provenance work, not permission to advertise Planned rows as current.
+Use the reconciled accepted compatibility package at
+`landing_page/research/current-product-and-compatibility-baseline/` as the
+claim source. Its accepted projection remains pinned to source revision
+`add5f5e71de3bb1676851bb840dfd77620f63ddb`; later product drift requires a
+separate re-audit rather than an automatic regeneration inside this task.
+Reconciliation is content provenance work, not permission to advertise
+Planned rows as current.
 
 Use:
 
@@ -331,8 +347,8 @@ Use:
 
 ### Ordered execution
 
-1. Import/reconcile the compatibility baseline and record its commit
-   provenance in the durable homepage decision document.
+1. Reconcile the compatibility baseline and record its source revision and
+   canonical package provenance in the durable homepage decision document.
 2. Implement the read-only agent-profile plugins endpoint, SDK method/cache,
    and consolidated two-pane Desktop picker with backend/SDK/Desktop tests.
 3. Correct pin/status plugin defaults, docs, fixtures, unit tests, real
@@ -402,9 +418,10 @@ Use:
 
 ### Documentation
 
-- Import/reconcile
-  `landing_page/research/020-current-product-and-compatibility-baseline/website-compatibility-data.md`
-  from the accepted draft on `develop` and preserve source commit provenance.
+- Maintain the accepted website projection at
+  `landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.md`
+  and preserve its source revision, transformation version, historical review
+  commit, and later-drift boundary.
 - Update application HTTP/configuration and frontend SDK docs for the read-only
   agent-profile plugins contract.
 - Update Desktop user/development documentation for the consolidated agent
@@ -436,7 +453,7 @@ Use:
 - [x] **HUMAN JUDGMENT:** Approve this revised Draft execution plan, including
       the agent-profile endpoint, shared bubble foreground token, and status
       default pinned on both list and session-view surfaces.
-- [ ] **AGENT:** Import/reconcile the accepted compatibility baseline.
+- [x] **AGENT:** Import/reconcile the accepted compatibility baseline.
 - [ ] **AGENT:** Implement the consolidated Desktop agent/plugins selector.
 - [ ] **AGENT:** Correct pin/status plugin defaults and saved-preference
       coverage.
@@ -593,3 +610,13 @@ Use:
   session-view surfaces, compatibility-baseline reconciliation, and execution
   of the revised product/capture work. Planned asset promotion remains gated by
   a later human visual confirmation.
+- 2026-10-04: Reconciled the historical numbered compatibility reference with
+  the canonical accepted package at
+  `landing_page/research/current-product-and-compatibility-baseline/`. The
+  accepted website projection is pinned to source revision
+  `add5f5e71de3bb1676851bb840dfd77620f63ddb`, uses transformation
+  `compatibility-baseline-v2`, and passes its maintained website-data
+  generator check. Current extraction detects later Anthropic
+  context-editing/compaction additions; the package explicitly requires a
+  separate re-audit for post-source drift, so this task does not regenerate
+  or silently reclassify accepted claims.

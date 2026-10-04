@@ -397,6 +397,47 @@ values.
 The detailed implementation and verification plan lives in
 `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`.
 
+## Compatibility Claim Provenance
+
+Homepage claims and proof captions use the accepted draft projection in
+`landing_page/research/current-product-and-compatibility-baseline/`.
+The canonical public-copy input is
+`website-compatibility-data.md`, backed by the machine-readable projection,
+claim evidence, matrices, completion manifest, and retained generators in the
+same package.
+
+Provenance:
+
+- historical planning review commit:
+  `c52db305e0a815da5831d462a495df68ec4f2eb7`;
+- accepted product source revision:
+  `add5f5e71de3bb1676851bb840dfd77620f63ddb`;
+- transformation version: `compatibility-baseline-v2`;
+- website projection review state: accepted;
+- website projection maturity: draft.
+
+The canonical unnumbered package supersedes the earlier
+`020-current-product-and-compatibility-baseline` location and contains a more
+complete per-plugin feature projection. Do not create or maintain a duplicate
+copy at the historical path.
+
+Publication rules:
+
+- Available capabilities may support direct current-product claims.
+- Conditional and Optional capabilities retain explicit qualification.
+- Planned capabilities are not presented as shipped.
+- Model-family tool bundles are Crystal Lattice compatibility
+  implementations, not official upstream applications, accounts, or
+  sessions.
+- Provider metadata and hosted entitlement are not described as uniform.
+
+The accepted package is intentionally pinned to its product source revision.
+Running the extractors against the October 4, 2026 repository detects later
+Anthropic context-editing and compaction additions. That drift requires a
+separate compatibility re-audit; it does not authorize this homepage task to
+regenerate or silently reclassify the accepted projection. The maintained
+website-projection generator continues to verify the accepted output.
+
 ## Revision Procedure
 
 When a section does not work in context:
