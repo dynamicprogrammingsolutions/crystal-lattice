@@ -56,7 +56,7 @@ from ..structure import plan_is_absent_or_draft
 from ..topology import task_tree
 from .matrix import CellCase
 
-HarnessFactory = Callable[[str], TaskGuidanceHarness]
+HarnessFactory = Callable[..., TaskGuidanceHarness]
 
 
 class CaseSkipped(Exception):
@@ -346,7 +346,7 @@ def execute_task_creation_from_plan(
         fresh=fresh,
         samples=samples,
     )
-    harness = harness_factory(case.agent)
+    harness = harness_factory(case.agent, thinking=case.thinking)
     for parent in parents:
         parent_value = _require_planning_value(parent.value, parent.error)
         _require_valid_planning_parent(parent, parent_value)
@@ -441,6 +441,7 @@ def _record_from_plan_run(
         "category": scenario.category,
         "variant": case.variant,
         "planning_variant": case.parent_variant,
+        "thinking": case.thinking,
         "project": target["project"],
         "fixture": {
             "version": FIXTURE_VERSION,

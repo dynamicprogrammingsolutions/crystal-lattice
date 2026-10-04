@@ -197,7 +197,13 @@ def _apply_provider_selection(agent: dict, config: dict) -> None:
         config["providers"][selected]["base_url"] = override
 
 
-def agent_config_file(agent_name: str, *, artifact_root: Path, version: str) -> Path:
+def agent_config_file(
+    agent_name: str,
+    *,
+    artifact_root: Path,
+    version: str,
+    thinking: str = "default",
+) -> Path:
     """Resolve one agent's pinned runtime config for an artifact root.
 
     The committed fixture is the crystal-lattice config the agent runs
@@ -205,17 +211,40 @@ def agent_config_file(agent_name: str, *, artifact_root: Path, version: str) -> 
     directory and the provider connection selection. The resolved file
     is written under the artifact root so runs and exports record
     exactly the config they used.
+
+    ``thinking`` selects the reasoning-state variant: ``strip`` appends
+    the interleaved-thinking plugin when the selected provider keeps
+    reasoning inline (ollama) — providers that manage reasoning
+    server-side (zai, openai) keep their default config, and preserve
+    or strip is a request-level setting there.
     """
 
     fixture = SUITE_ROOT / AGENTS[agent_name]["config"]
     config = json.loads(fixture.read_text(encoding="utf-8"))
     _apply_provider_selection(AGENTS[agent_name], config)
+    if thinking == "strip" and agent_name == "glm":
+        selected = next(iter(config["agents"].values()))["provider"]
+        if selected == "ollama":
+            plugin = "path:${env:BUILTIN_PLUGINS}/interleaved-thinking"
+            if plugin not in config["plugins"]:
+                config["plugins"].append(plugin)
     config["plugin_cache_dir"] = str(
         artifact_root / "plugin-cache" / agent_name / version
     )
-    target = artifact_root / "agent-config" / f"{agent_name}-{version}.json"
+    suffix = "" if thinking == "default" else f"-{thinking}"
+    target = artifact_root / "agent-config" / f"{agent_name}-{version}{suffix}.json"
     rendered = json.dumps(config, indent=2, sort_keys=True) + "\n"
     if not target.exists() or target.read_text(encoding="utf-8") != rendered:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(rendered, encoding="utf-8")
     return target
+
+
+def thinking_variants(agent_name: str) -> tuple[str, ...]:
+    """The reasoning-state variants an agent's new-stage cells run.
+
+    Empty means the agent keeps provider-default thinking behavior in
+    every stage (the documented GPT limitation).
+    """
+
+    return tuple(AGENTS[agent_name].get("thinking", ()))

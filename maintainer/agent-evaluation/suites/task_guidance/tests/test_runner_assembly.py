@@ -116,6 +116,12 @@ def test_planning_session_identity_includes_the_variant() -> None:
     assert guided != unguided
     assert guided == planning_session_identity(variant="guided", **base)
     assert guided.startswith("task-guidance:")
+    # The reasoning-state variant is part of the cache identity.
+    assert guided != planning_session_identity(
+        variant="guided",
+        thinking="strip",
+        **base,
+    )
 
 
 def test_from_plan_identity_includes_variant_and_parent_identity() -> None:

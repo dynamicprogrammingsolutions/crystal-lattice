@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..configuration import AGENTS, SUITE_ROOT, selected_bundle
+import pytest
+
+from ..configuration import AGENTS, SUITE_ROOT, selected_bundle, thinking_variants
 from ..fixtures import TaskGuidanceWorkspaceFactory
 from ..runner import (
     CREATION_VARIANTS,
@@ -70,6 +72,88 @@ def test_two_stage_pipeline_declares_its_variants_and_asks() -> None:
     assert len(set(FROM_PLAN_PROMPTS.values())) == len(FROM_PLAN_PROMPTS)
     assert "execution-plan" in FROM_PLAN_PROMPTS["omit-plan"]
     assert "execution-plan" not in FROM_PLAN_PROMPTS["standard"]
+
+
+def test_thinking_variants_declare_the_reasoning_state_dimension() -> None:
+    # GLM cells run both ways; GPT keeps provider-default thinking (the
+    # documented plugin limitation).
+    assert thinking_variants("glm") == ("preserve", "strip")
+    assert thinking_variants("gpt") == ()
+
+
+def test_strip_thinking_config_variant_loads_the_plugin_for_ollama(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ..configuration import agent_config_file
+
+    plugin = "path:${env:BUILTIN_PLUGINS}/interleaved-thinking"
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "ollama")
+    path = agent_config_file(
+        "glm",
+        artifact_root=tmp_path,
+        version=RUNNER_VERSION,
+        thinking="strip",
+    )
+    config = json.loads(path.read_text(encoding="utf-8"))
+    assert plugin in config["plugins"]
+    assert path.name == f"glm-{RUNNER_VERSION}-strip.json"
+
+    # zai manages reasoning server-side: strip is its default behavior,
+    # so no plugin joins the config and the file keeps its own identity.
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "zai")
+    zai = agent_config_file(
+        "glm",
+        artifact_root=tmp_path,
+        version=RUNNER_VERSION,
+        thinking="strip",
+    )
+    zai_config = json.loads(zai.read_text(encoding="utf-8"))
+    assert plugin not in zai_config["plugins"]
+
+
+def test_request_overrides_map_thinking_onto_provider_mechanisms(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("TASK_GUIDANCE_GLM_PROVIDER", raising=False)
+    preserve = request_overrides(
+        "glm",
+        tmp_path,
+        reasoning_effort="max",
+        thinking="preserve",
+    )
+    assert preserve["request_options"]["thinking"] == {
+        "type": "enabled",
+        "clear_thinking": False,
+    }
+    strip = request_overrides(
+        "glm",
+        tmp_path,
+        reasoning_effort="max",
+        thinking="strip",
+    )
+    assert "thinking" not in strip["request_options"]
+
+    # ollama preserves inline thinking by default: preserve is not a
+    # request option there (strip is the config-variant plugin).
+    monkeypatch.setenv("TASK_GUIDANCE_GLM_PROVIDER", "ollama")
+    ollama = request_overrides(
+        "glm",
+        tmp_path,
+        reasoning_effort="max",
+        thinking="preserve",
+    )
+    assert "thinking" not in ollama["request_options"]
+
+
+def test_harness_rejects_unknown_thinking_variants(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGENT_EVAL_ARTIFACT_ROOT", str(tmp_path))
+    with pytest.raises(ValueError, match="unknown thinking variant"):
+        TaskGuidanceHarness("glm", thinking="nonsense")
 
 
 def test_tool_metrics_separate_investigation_and_mutation_calls() -> None:

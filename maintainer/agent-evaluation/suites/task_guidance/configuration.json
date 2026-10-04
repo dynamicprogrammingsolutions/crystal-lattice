@@ -16,6 +16,10 @@
       "efforts": [
         "max"
       ],
+      "thinking": [
+        "preserve",
+        "strip"
+      ],
       "config": "fixtures/runtime/glm.json"
     },
     "gpt": {

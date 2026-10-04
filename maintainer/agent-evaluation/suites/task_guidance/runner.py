@@ -56,6 +56,12 @@ IDENTITY_NAMESPACE = "task-guidance"
 # continuation, or the instructed execution-plan omission.
 PLANNING_VARIANTS = ("guided", "unguided")
 CREATION_VARIANTS = ("standard", "omit-plan")
+# Reasoning-state variants for the two-stage cells (subtask 125): the
+# harness maps the behavioral name onto the per-provider mechanism —
+# ollama strips inline thinking with the interleaved-thinking plugin
+# (a config variant), zai preserves server-side thinking with a request
+# option, and gpt keeps provider-default behavior either way.
+THINKING_VARIANTS = ("default", "preserve", "strip")
 PLANNING_SESSION_SUFFIX = (
     "\n\nInvestigate the repository first. Then present your implementation "
     "plan for the request above as your response. Do not implement anything "
@@ -131,6 +137,7 @@ def planning_session_identity(
     variant: str,
     reasoning_effort: str,
     workspace_fingerprint: object,
+    thinking: str = "default",
 ) -> str:
     """The cache identity of one planning-session request."""
 
@@ -145,6 +152,7 @@ def planning_session_identity(
             "variant": variant,
             "effort": reasoning_effort,
             "workspace_fingerprint": workspace_fingerprint,
+            "thinking": thinking,
         },
     )
 
@@ -156,6 +164,7 @@ def from_plan_identity(
     variant: str,
     reasoning_effort: str,
     parent_identity: str,
+    thinking: str = "default",
 ) -> str:
     """The cache identity of one plan-continuing creation request.
 
@@ -175,6 +184,7 @@ def from_plan_identity(
             "variant": variant,
             "effort": reasoning_effort,
             "parent_identity": parent_identity,
+            "thinking": thinking,
         },
     )
 
@@ -367,9 +377,13 @@ class TaskGuidanceHarness:
         *,
         bundle: Path | None = None,
         label: str | None = None,
+        thinking: str = "default",
     ) -> None:
+        if thinking not in THINKING_VARIANTS:
+            raise ValueError(f"unknown thinking variant {thinking!r}")
         self.agent_name = agent_name
         self.agent = AGENTS[agent_name]
+        self.thinking = thinking
         self.bundle = (bundle or selected_bundle()).resolve()
         artifact_root = selected_artifact_root()
         runtime_config = _runtime_config_root(
@@ -380,6 +394,7 @@ class TaskGuidanceHarness:
             agent_name,
             artifact_root=artifact_root,
             version=RUNNER_VERSION,
+            thinking=thinking,
         )
         environment = WorkspaceAwareEnvironment.from_config(
             agent_config,
@@ -477,6 +492,7 @@ class TaskGuidanceHarness:
             variant=variant,
             reasoning_effort=reasoning_effort,
             workspace_fingerprint=workspace.fingerprint(),
+            thinking=self.thinking,
         )
         return self._execute(
             f"task-guidance-planning-{scenario.scenario_id}-{variant}",
@@ -522,6 +538,7 @@ class TaskGuidanceHarness:
             variant=variant,
             reasoning_effort=reasoning_effort,
             parent_identity=run_identity(parent),
+            thinking=self.thinking,
         )
         return self._execute(
             f"task-guidance-from-plan-{scenario.scenario_id}-{variant}",
@@ -828,6 +845,7 @@ class TaskGuidanceHarness:
                 context.workspace,
                 reasoning_effort=reasoning_effort,
                 include_tasks=include_tasks,
+                thinking=self.thinking,
             )
         )
         _reload_context_with_defaults(context)
@@ -857,7 +875,11 @@ class TaskGuidanceHarness:
         )
         context.services.record(
             "task_guidance.planning",
-            {"variant": variant, "include_tasks": include_tasks},
+            {
+                "variant": variant,
+                "include_tasks": include_tasks,
+                "thinking": self.thinking,
+            },
         )
         context.services.record("task_guidance.delivery", delivery)
         context.add_message("user", prompt)
@@ -901,6 +923,7 @@ class TaskGuidanceHarness:
                 self.agent_name,
                 context.workspace,
                 reasoning_effort=reasoning_effort,
+                thinking=self.thinking,
             )
         )
         _reload_context_with_defaults(context)
@@ -930,7 +953,11 @@ class TaskGuidanceHarness:
         )
         context.services.record(
             "task_guidance.from_plan",
-            {"variant": variant, "parent_messages": parent_message_count},
+            {
+                "variant": variant,
+                "parent_messages": parent_message_count,
+                "thinking": self.thinking,
+            },
         )
         context.services.record("task_guidance.delivery", delivery)
         context.add_message("user", prompt)
@@ -1053,20 +1080,36 @@ class TaskGuidanceHarness:
         )
 
 
+def _selected_provider(agent_name: str) -> str:
+    """The provider connection an agent resolves to (configuration env)."""
+
+    if agent_name != "glm":
+        return "openai"
+    raw = os.getenv("TASK_GUIDANCE_GLM_PROVIDER") or AGENTS[agent_name].get("provider")
+    return str(raw or "").lower()
+
+
 def request_overrides(
     agent_name: str,
     workspace: Path,
     *,
     reasoning_effort: str,
     include_tasks: bool = True,
+    thinking: str = "default",
 ) -> dict[str, object]:
     """Per-request settings layered over the agent's pinned runtime config.
 
     The runtime config fixture pins the plugin wiring and the
     authentication method; only the model, the workspace, the guidance
-    toggles, and the reasoning-effort shape vary per request.
+    toggles, the reasoning-effort shape, and the reasoning-state variant
+    vary per request. Preserve is a request option on zai (the provider
+    keeps reasoning server-side when ``clear_thinking`` is false);
+    ollama preserves by default and strips through the config-variant
+    plugin, so no request option applies there.
     """
 
+    if thinking not in THINKING_VARIANTS:
+        raise ValueError(f"unknown thinking variant {thinking!r}")
     values: dict[str, object] = {
         "model": AGENTS[agent_name]["model"],
         "working_directory": str(workspace),
@@ -1077,7 +1120,10 @@ def request_overrides(
         "web_search_enabled": False,
     }
     if agent_name == "glm":
-        values["request_options"] = {"reasoning_effort": reasoning_effort}
+        options: dict[str, object] = {"reasoning_effort": reasoning_effort}
+        if thinking == "preserve" and _selected_provider(agent_name) == "zai":
+            options["thinking"] = {"type": "enabled", "clear_thinking": False}
+        values["request_options"] = options
     else:
         values["reasoning_effort"] = reasoning_effort
         values["reasoning_summary"] = "detailed"

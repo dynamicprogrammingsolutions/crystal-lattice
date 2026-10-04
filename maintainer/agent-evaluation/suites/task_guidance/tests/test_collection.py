@@ -97,6 +97,22 @@ def _collect(
     return ids
 
 
+def test_from_plan_matrix_expands_declared_thinking_variants() -> None:
+    from ..configuration import thinking_variants
+    from ..evaluation.matrix import task_creation_from_plan_cases
+
+    cases = task_creation_from_plan_cases()
+    glm = [case for case in cases if case.agent == "glm"]
+    gpt = [case for case in cases if case.agent == "gpt"]
+    assert {case.thinking for case in glm} == set(thinking_variants("glm"))
+    assert {case.thinking for case in gpt} == {"default"}
+    # The variant is part of every expanded case id and the ids stay unique.
+    assert all(
+        case.thinking == "default" or f"-{case.thinking}" in case.id for case in cases
+    )
+    assert len({case.id for case in cases}) == len(cases)
+
+
 def test_collect_only_lists_exactly_the_configuration_matrix() -> None:
     assert _collect("-m", "agent_eval") == _expected_ids()
 

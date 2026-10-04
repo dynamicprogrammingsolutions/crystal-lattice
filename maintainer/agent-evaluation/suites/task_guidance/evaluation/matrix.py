@@ -20,6 +20,7 @@ from ..configuration import (
     planning_cell,
     planning_variants,
     producer_cells,
+    thinking_variants,
 )
 from ..scenarios import SCENARIOS
 
@@ -34,6 +35,7 @@ class CellCase:
     category: str = ""
     stage: str = ""
     parent_variant: str | None = None
+    thinking: str = "default"
 
 
 def _scenarios_with(stage: str) -> list:
@@ -103,12 +105,20 @@ def planning_session_cases() -> tuple[CellCase, ...]:
     return tuple(cases)
 
 
+def _cell_thinking(agent: str) -> tuple[str, ...]:
+    """The thinking variants one producer cell runs: declared or default."""
+
+    return thinking_variants(agent) or ("default",)
+
+
 def task_creation_from_plan_cases() -> tuple[CellCase, ...]:
     """One case per from-plan scenario × producer cell × creation variant.
 
     Every producer cell continues every planning arm with the standard
     creation ask; the instructed omit-plan ask runs only on its
-    designated scenario, on top of the guided arm.
+    designated scenario, on top of the guided arm. Cells of agents that
+    declare thinking variants run each way (the reasoning-state
+    dimension); other cells keep provider-default behavior.
     """
 
     cases = []
@@ -120,38 +130,47 @@ def task_creation_from_plan_cases() -> tuple[CellCase, ...]:
             if "standard" not in creation_variants(category):
                 continue
             for agent, effort in cells:
-                cases.append(
-                    CellCase(
-                        id=(f"{scenario.scenario_id}-{arm}-standard-{agent}-{effort}"),
-                        scenario_id=scenario.scenario_id,
-                        agent=agent,
-                        effort=effort,
-                        variant="standard",
-                        category=category,
-                        stage="task-creation-from-plan",
-                        parent_variant=arm,
+                for thinking in _cell_thinking(agent):
+                    token = f"-{thinking}" if thinking != "default" else ""
+                    cases.append(
+                        CellCase(
+                            id=(
+                                f"{scenario.scenario_id}-{arm}-standard-"
+                                f"{agent}-{effort}{token}"
+                            ),
+                            scenario_id=scenario.scenario_id,
+                            agent=agent,
+                            effort=effort,
+                            variant="standard",
+                            category=category,
+                            stage="task-creation-from-plan",
+                            parent_variant=arm,
+                            thinking=thinking,
+                        )
                     )
-                )
         if (
             "omit-plan" in creation_variants(category)
             and designated == scenario.scenario_id
         ):
             for agent, effort in cells:
-                cases.append(
-                    CellCase(
-                        id=(
-                            f"{scenario.scenario_id}-guided-omit-plan-"
-                            f"{agent}-{effort}"
-                        ),
-                        scenario_id=scenario.scenario_id,
-                        agent=agent,
-                        effort=effort,
-                        variant="omit-plan",
-                        category=category,
-                        stage="task-creation-from-plan",
-                        parent_variant="guided",
+                for thinking in _cell_thinking(agent):
+                    token = f"-{thinking}" if thinking != "default" else ""
+                    cases.append(
+                        CellCase(
+                            id=(
+                                f"{scenario.scenario_id}-guided-omit-plan-"
+                                f"{agent}-{effort}{token}"
+                            ),
+                            scenario_id=scenario.scenario_id,
+                            agent=agent,
+                            effort=effort,
+                            variant="omit-plan",
+                            category=category,
+                            stage="task-creation-from-plan",
+                            parent_variant="guided",
+                            thinking=thinking,
+                        )
                     )
-                )
     return tuple(cases)
 
 

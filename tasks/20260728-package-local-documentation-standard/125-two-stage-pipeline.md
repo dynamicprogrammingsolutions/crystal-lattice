@@ -178,7 +178,19 @@ Status: Draft
   — including `tasks_occurrences == 1` whatever the planning arm — plus
   a valid-parent gate and, for omit-plan, the instructed omission
   checked with `plan_is_absent_or_draft`)
-- [ ] Agent-config variant (strip-thinking)
+- [x] Agent-config variant (strip-thinking) (landed September 29:
+  behavioral thinking variants `default`/`preserve`/`strip` map onto
+  per-provider mechanisms — ollama strip =
+  `path:${env:BUILTIN_PLUGINS}/interleaved-thinking` appended by
+  `agent_config_file(..., thinking=...)` (own resolved file name), zai
+  preserve = `request_options.thinking.clear_thinking: false` request
+  override, zai strip and ollama preserve = provider defaults, gpt =
+  provider default both ways (documented limitation). configuration
+  declares `agents.glm.thinking = [preserve, strip]` (gpt none);
+  harnesses and both harness factories are keyed by `(agent, thinking)`;
+  both new-stage cache identities carry the thinking component; the
+  from-plan matrix expands glm cells both ways (gpt cells once) — 51
+  from-plan cases, full dry-run 242, 238 deterministic tests green)
 - [ ] Plan-content gate on planning runs
 - [ ] Matrix/records/freeze/package wiring
 - [ ] Runner stage groups
@@ -240,3 +252,13 @@ Status: Draft
   guided arm (tg01 × both producer cells). The full CLI dry-run
   enumerates 229 cases with every pre-existing stage's count unchanged;
   233 deterministic tests green.
+- September 29, 2026 — strip-thinking increment landed (one commit):
+  the reasoning-state dimension is behavioral at the matrix level
+  (`CellCase.thinking`, glm cells expanded preserve/strip, gpt cells
+  provider-default once) and mechanistic below it: the harness variant
+  picks the resolved agent-config file (plugin appended only when the
+  selected provider is ollama) and `request_overrides` adds the zai
+  preserve option only when the selected provider is zai — so each
+  provider runs its real mechanism, never a no-op copy of the other's.
+  The strip config file keeps its own name
+  (`glm-v1-strip.json`), so run provenance records the exact config.

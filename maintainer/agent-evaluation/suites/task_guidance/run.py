@@ -215,17 +215,21 @@ def run_evaluation(
         ]
 
     options = {"fresh": fresh, "samples": samples}
-    harnesses: dict[str, TaskGuidanceHarness] = {}
+    harnesses: dict[tuple[str, str], TaskGuidanceHarness] = {}
     harness_lock = threading.Lock()
 
-    def harness_factory(agent_name: str) -> TaskGuidanceHarness:
+    def harness_factory(
+        agent_name: str, *, thinking: str = "default"
+    ) -> TaskGuidanceHarness:
+        key = (agent_name, thinking)
         with harness_lock:
-            if agent_name not in harnesses:
-                harnesses[agent_name] = TaskGuidanceHarness(
+            if key not in harnesses:
+                harnesses[key] = TaskGuidanceHarness(
                     agent_name,
                     label=label,
+                    thinking=thinking,
                 )
-            return harnesses[agent_name]
+            return harnesses[key]
 
     semaphores = {
         agent: threading.Semaphore(max(1, int(parallelism.get(agent, 1))))

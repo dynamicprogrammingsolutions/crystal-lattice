@@ -59,17 +59,19 @@ def run_options(request: pytest.FixtureRequest) -> dict[str, object]:
 def agent_harness(
     run_label: str,
 ) -> Iterator[object]:
-    """Session-cached harnesses: one per declared agent, one shared label."""
+    """Session-cached harnesses: one per agent and thinking variant."""
 
-    harnesses: dict[str, TaskGuidanceHarness] = {}
+    harnesses: dict[tuple[str, str], TaskGuidanceHarness] = {}
 
-    def factory(agent_name: str) -> TaskGuidanceHarness:
-        if agent_name not in harnesses:
-            harnesses[agent_name] = TaskGuidanceHarness(
+    def factory(agent_name: str, *, thinking: str = "default") -> TaskGuidanceHarness:
+        key = (agent_name, thinking)
+        if key not in harnesses:
+            harnesses[key] = TaskGuidanceHarness(
                 agent_name,
                 label=run_label,
+                thinking=thinking,
             )
-        return harnesses[agent_name]
+        return harnesses[key]
 
     yield factory
     for harness in harnesses.values():
