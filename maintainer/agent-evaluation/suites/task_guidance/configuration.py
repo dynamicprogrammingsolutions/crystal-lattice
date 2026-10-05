@@ -101,6 +101,13 @@ def planning_cell(category: str) -> tuple[str, str]:
     return config["agent"], config["effort"]
 
 
+def planning_gate_cell(category: str) -> tuple[str, str]:
+    """The (agent, effort) cell that judges a category's planning gate."""
+
+    gate = stage_config(category, "planning-session")["gate"]
+    return gate["agent"], gate["effort"]
+
+
 def creation_variants(category: str) -> tuple[str, ...]:
     """The from-plan stage's creation asks for a category."""
 

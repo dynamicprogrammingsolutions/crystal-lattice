@@ -58,7 +58,11 @@
             "unguided"
           ],
           "agent": "gpt",
-          "effort": "max"
+          "effort": "max",
+          "gate": {
+            "agent": "glm",
+            "effort": "max"
+          }
         },
         "task-creation-from-plan": {
           "variants": [
@@ -135,7 +139,11 @@
             "unguided"
           ],
           "agent": "gpt",
-          "effort": "max"
+          "effort": "max",
+          "gate": {
+            "agent": "glm",
+            "effort": "max"
+          }
         },
         "task-creation-from-plan": {
           "variants": [

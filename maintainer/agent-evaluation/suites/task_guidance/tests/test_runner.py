@@ -249,3 +249,40 @@ def test_workspace_factory_compiles_project_guidance(tmp_path: Path) -> None:
         assert workspace.joinpath("client/src/components/Books.vue").is_file()
     finally:
         factory.cleanup(workspace)
+
+
+def test_plan_gate_evaluation_applies_coverage_threshold() -> None:
+    from ..evaluation.execution import plan_gate_evaluation
+    from ..plan_content import expected_plan_requirement_ids, requirement_grades
+    from ..scenarios import scenario_by_id
+
+    scenario = scenario_by_id("tg01-eleventy-archive-handoff")
+    expected = expected_plan_requirement_ids(scenario)
+    scales = requirement_grades(scenario)
+    top = {
+        requirement_id: {"grade": scales[requirement_id][0], "finding": ""}
+        for requirement_id in expected
+    }
+    perfect = {
+        "requirements": top,
+        "missed_requirements": [],
+    }
+    verdict = plan_gate_evaluation(scenario, perfect)
+    assert verdict["coverage"] == 1.0
+    assert verdict["passed"] is True
+    assert verdict["threshold"] == 0.8
+
+    # Every second requirement graded below the top of its scale.
+    downgraded = {
+        requirement_id: (
+            {"grade": entry["grade"], "finding": ""}
+            if index % 2 == 0
+            else {"grade": scales[requirement_id][-1], "finding": "missed"}
+        )
+        for index, (requirement_id, entry) in enumerate(top.items())
+    }
+    verdict = plan_gate_evaluation(
+        scenario, {"requirements": downgraded, "missed_requirements": []}
+    )
+    assert verdict["coverage"] < 1.0
+    assert verdict["passed"] == (verdict["coverage"] >= verdict["threshold"])

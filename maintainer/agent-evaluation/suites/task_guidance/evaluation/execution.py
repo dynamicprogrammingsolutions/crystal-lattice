@@ -13,7 +13,12 @@ from __future__ import annotations
 import hashlib
 from typing import Callable, Mapping
 
-from ..configuration import assessment_cell, planning_cell, selected_artifact_root
+from ..configuration import (
+    assessment_cell,
+    planning_cell,
+    planning_gate_cell,
+    selected_artifact_root,
+)
 from ..file_quality import (
     file_fidelity_prompt,
     file_fidelity_record,
@@ -35,10 +40,12 @@ from ..handoff_semantic import (
     validate_handoff_semantic,
 )
 from ..plan_content import (
+    expected_plan_requirement_ids,
     normalize_plan_content_assessment,
     parse_plan_content_response,
     plan_content_prompt,
     plan_content_record,
+    requirement_grades,
     validate_plan_content_assessment,
 )
 from ..runner import PlanRunValue, PlanningRunValue, TaskRunValue, TaskGuidanceHarness
@@ -270,8 +277,20 @@ def execute_planning_session(
         fresh=fresh,
         samples=samples,
     )
+    judge, judge_effort = planning_gate_cell(scenario.category)
+    judge_harness = harness_factory(judge)
     for run in runs:
-        _record_planning_session_run(harness, scenario, case, run)
+        record = _record_planning_session_run(harness, scenario, case, run)
+        _gate_planning_run(
+            judge_harness,
+            run,
+            scenario=scenario,
+            case=case,
+            planning_record=record,
+            reasoning_effort=judge_effort,
+            fresh=fresh,
+            samples=samples,
+        )
 
 
 def _record_planning_session_run(
@@ -322,6 +341,95 @@ def _record_planning_session_run(
     }
     run.record(STAGES["planning-session"].record, record)
     assert not invalid, "\n".join(invalid)
+    return record
+
+
+PLANNING_GATE_RECORD = "task-guidance-planning-gate.json"
+
+
+def plan_gate_evaluation(
+    scenario: TaskGuidanceScenario,
+    assessment: Mapping[str, object],
+) -> dict:
+    """The deterministic gate verdict over one normalized plan assessment.
+
+    Coverage is the fraction of the scenario's plan requirements graded
+    at the top of their scale; missing grades cannot reach this function
+    (normalization rejects them), so the gate is coverage plus the
+    scenario's stricter threshold when it declares one.
+    """
+
+    expected = expected_plan_requirement_ids(scenario)
+    scales = requirement_grades(scenario)
+    covered = sum(
+        1
+        for requirement_id in expected
+        if assessment["requirements"][requirement_id]["grade"]
+        == scales[requirement_id][0]
+    )
+    coverage = covered / len(expected)
+    threshold = float(scenario.target.get("plan_gate_min_coverage", 0.8))
+    return {
+        "coverage": coverage,
+        "threshold": threshold,
+        "missed_requirements": list(assessment["missed_requirements"]),
+        "passed": coverage >= threshold,
+    }
+
+
+def _gate_planning_run(
+    judge_harness: TaskGuidanceHarness,
+    run,
+    *,
+    scenario: TaskGuidanceScenario,
+    case: CellCase,
+    planning_record: Mapping[str, object],
+    reasoning_effort: str,
+    fresh: bool,
+    samples: int,
+) -> None:
+    """Judge one planning run and record its gate beside the planning record."""
+
+    prompt = plan_content_prompt(scenario, planning_record)
+    gate_runs = judge_harness.run_assessment(
+        test_id=(
+            f"task-guidance-plan-gate-{scenario.scenario_id}-"
+            f"{case.variant}-s{run.sample_index if hasattr(run, 'sample_index') else 0}"
+        ),
+        prompt=prompt,
+        reasoning_effort=reasoning_effort,
+        fresh=fresh,
+        samples=samples,
+    )
+    for gate_run in gate_runs:
+        value = _require_assessment_value(gate_run)
+        try:
+            assessment = normalize_plan_content_assessment(
+                parse_plan_content_response(value.response),
+                scenario=scenario,
+            )
+            verdict = plan_gate_evaluation(scenario, assessment)
+        except ValueError as error:
+            verdict = None
+            gate_failure = f"gate assessment unusable: {error}"
+        if verdict is not None:
+            gate_failure = None
+            run.record(
+                PLANNING_GATE_RECORD,
+                {
+                    "schema_version": 1,
+                    "scenario_id": scenario.scenario_id,
+                    "variant": case.variant,
+                    "judge": {
+                        "profile": judge_harness.agent_name,
+                        "model": judge_harness.agent["model"],
+                        "reasoning_effort": reasoning_effort,
+                    },
+                    "assessment": assessment,
+                    "gate": verdict,
+                },
+            )
+        assert gate_failure is None, gate_failure
 
 
 # --- task-creation-from-plan ------------------------------------------------

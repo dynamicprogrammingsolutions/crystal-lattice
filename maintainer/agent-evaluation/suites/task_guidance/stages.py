@@ -51,7 +51,7 @@ STAGES: dict[str, StageSpec] = {
         workspace="fixture-project",
         parent=None,
         runs_per="scenario × planning variant",
-        config=("variants", "agent", "effort"),
+        config=("variants", "agent", "effort", "gate"),
         executor="run_planning_session",
         record="task-guidance-planning.json",
     ),

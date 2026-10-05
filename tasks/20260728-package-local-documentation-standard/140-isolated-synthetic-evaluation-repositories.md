@@ -108,7 +108,8 @@ creation and lifecycle ownership.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved (October 4, 2026; execution sequenced after the
+remaining subtask-125 increments per the recorded coordination)
 
 Add an isolated fixture-repository manager beside the optional pinned
 repository helper. The manager owns one shared synthetic Git object database,

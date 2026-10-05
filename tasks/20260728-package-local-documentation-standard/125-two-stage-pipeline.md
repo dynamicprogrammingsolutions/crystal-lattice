@@ -191,7 +191,15 @@ Status: Draft
   both new-stage cache identities carry the thinking component; the
   from-plan matrix expands glm cells both ways (gpt cells once) — 51
   from-plan cases, full dry-run 242, 238 deterministic tests green)
-- [ ] Plan-content gate on planning runs
+- [x] Plan-content gate on planning runs (landed October 4: the
+  planning-session stage declares its gate judge
+  `{gate: {agent: glm, effort: max}}`; after each valid planning run the
+  judge assesses the presented plan with `plan_content_prompt`, and
+  `plan_gate_evaluation` records the deterministic verdict — coverage =
+  fraction of plan requirements at the top of their scale, threshold
+  0.8 overridable per scenario target via `plan_gate_min_coverage`,
+  missing grades rejected upstream by normalization — beside the
+  planning record as `task-guidance-planning-gate.json`)
 - [x] Matrix/records/freeze/package wiring (matrix + per-run records +
   runner wiring landed September 29; the freeze/results/result-package
   expected-set and presentation wiring for the two new stages remains)
@@ -277,3 +285,8 @@ Status: Draft
   cache invalidation covers the identity change, and the two-stage
   stages need no separate migration beyond what 140 migrates for the
   existing parented stages.
+
+- October 4, 2026 — gate increment landed (one commit): the gate rides
+  the planning stage (no new catalog stage), so the gate record lives
+  with the planning run and shares its label. Also October 4: task 140
+  approved (execution sequenced after these increments).
