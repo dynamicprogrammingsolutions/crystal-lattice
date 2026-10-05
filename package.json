@@ -64,6 +64,7 @@
     "desktop:start": "cd desktop/crystal-lattice-control-desktop-rn && npm run start",
     "desktop:start-no-cache": "cd desktop/crystal-lattice-control-desktop-rn && npm run start-no-cache",
     "desktop:macos": "cd desktop/crystal-lattice-control-desktop-rn && npm run macos",
+    "desktop:macos:build": "npm --prefix desktop/crystal-lattice-control-desktop-rn run macos:build --",
     "desktop:ios": "cd desktop/crystal-lattice-control-desktop-rn && npm run ios",
     "desktop:android": "cd desktop/crystal-lattice-control-desktop-rn && npm run android",
     "desktop:test": "cd desktop/crystal-lattice-control-desktop-rn && npm test",
