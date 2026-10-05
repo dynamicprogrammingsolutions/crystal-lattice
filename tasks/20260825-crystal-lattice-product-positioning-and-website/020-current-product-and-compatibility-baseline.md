@@ -397,9 +397,9 @@ their owning tasks.
       classifications and update the 60 normalized catalog rows and 24 claim
       records to `accepted`.
 - [x] Generate the canonical website projection with 24 complete per-plugin
-      application/session feature rows, 9 provider rows × 6 selected columns,
-      and 71 current or planned package-specific tool rows across 6
-      model-family bundles.
+      application/session feature rows, 112 provider-specific feature rows
+      across 10 provider routes, and 71 current or planned package-specific
+      tool rows across 6 model-family bundles.
 - [x] Record user verification or corrections for the canonical website
       projection and update its review state.
 - [x] Write the finding and `completion-manifest.json`, finalize the existing
@@ -713,14 +713,14 @@ their owning tasks.
   7 provider/account, 33 application-feature, and 24 claim-evidence review
   states to `accepted`. Added a separate canonical website selection and
   deterministic transformation. The initial proposed public projection
-  contained 9 grouped application/session feature summaries, 9 provider rows
-  with 6 user-relevant native-capability columns, and 71 package-specific
-  current or planned tool rows across Codex-, Claude-, Gemini-, Qwen-, Grok-,
-  and Kimi-oriented bundles. The grouped feature summaries were superseded by
-  the October 2 post-completion correction below. Implemented tool rows
-  validate against package descriptors; planned rows validate against
-  maintained task files. Internal task paths and numeric task identifiers are
-  stripped from public output.
+  contained 9 grouped application/session feature summaries, a 9-provider
+  wide matrix with 6 user-relevant native-capability columns, and 71
+  package-specific current or planned tool rows across Codex-, Claude-,
+  Gemini-, Qwen-, Grok-, and Kimi-oriented bundles. The grouped feature
+  summaries and wide provider matrix were superseded by the post-completion
+  corrections below. Implemented tool rows validate against package
+  descriptors; planned rows validate against maintained task files. Internal
+  task paths and numeric task identifiers are stripped from public output.
 - **Accepted draft and closure (2026-10-02):** The user accepted the canonical
   website projection as a draft that downstream website work may refine.
   Exhaustive matrices, normalized catalogs, claim evidence, and the website
@@ -789,3 +789,11 @@ their owning tasks.
   repository references to use that path. Outside task content, task
   references now use descriptive links backed by complete task paths rather
   than standalone task numbers.
+- **Provider and tool identity correction (2026-10-05):** Replaced the wide
+  provider grid with 112 provider-specific feature rows grouped under all 10
+  retained provider routes. Unsupported and not-applicable capabilities are
+  omitted instead of rendered as generic negative cells. Every implemented
+  provider feature and model-family tool row now retains its plugin bundle,
+  bundle path, runtime plugin name, and full descriptor entry in the
+  machine-readable output. Planned rows retain their intended package/plugin
+  identity without claiming a current descriptor entry.

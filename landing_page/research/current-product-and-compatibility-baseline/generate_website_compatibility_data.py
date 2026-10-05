@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import csv
 import json
@@ -31,13 +32,257 @@ PUBLIC_STATUSES = {
     "not_verified",
 }
 
-SIMPLE_PROVIDER_STATUS_MAP = {
-    "supported": {"available", "conditional"},
-    "conditional": {"conditional"},
-    "planned": {"planned"},
-    "unsupported": {"unavailable"},
-    "not_applicable": {"not_applicable"},
-    "unknown": {"not_verified"},
+PROVIDER_STATUS_MAP = {
+    "supported": "available",
+    "conditional": "conditional",
+    "planned": "planned",
+}
+
+PROVIDER_PACKAGES = {
+    "openai-api": "openai_responses",
+    "openai-chatgpt": "openai_responses",
+    "openrouter-chat": "openrouter",
+    "openrouter-responses": "openrouter_responses",
+    "anthropic": "anthropic-compatible",
+    "ollama": "reference-openai-compatible-provider",
+    "fireworks": "reference-openai-compatible-provider",
+    "zai": "reference-openai-compatible-provider",
+    "custom-openai-compatible": "reference-openai-compatible-provider",
+    "openrouter-image": "openrouter",
+}
+
+PROVIDER_FEATURE_DESCRIPTIONS = {
+    "api_key_auth": "Authenticates requests with the API key configured for this provider route.",
+    "subscription_account_auth": "Authenticates through a saved subscription-account session rather than a direct API key.",
+    "model_discovery": "Discovers available models through the provider route and applies maintained fallbacks where documented.",
+    "streaming": "Streams provider response events into the Crystal Lattice request pipeline.",
+    "tool_calling": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format.",
+    "reasoning": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model.",
+    "verbosity": "Passes a provider-native response verbosity control for model families that support it.",
+    "usage_tokens": "Normalizes provider usage and token metadata for the application.",
+    "cost_reporting": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage.",
+    "prompt_caching": "Configures and reports the provider's native prompt-caching behavior.",
+    "native_web_search": "Enables the provider's own hosted web-search capability rather than a model-family search tool.",
+    "native_compaction": "Uses provider-native context compaction while preserving continuation state.",
+    "flex_processing": "Selects the provider's lower-priority flex processing mode.",
+    "fast_mode": "Selects the provider's fast, priority, or equivalent processing tier.",
+    "image_input": "Maps image attachments into the provider request format.",
+    "pdf_input": "Maps PDF or file attachments into the provider request or upload flow.",
+    "image_generation": "Uses the provider route to generate image output.",
+    "provider_routing": "Passes provider or endpoint routing controls owned by this route.",
+    "retry_rate_limit": "Applies route-specific retry, throttling, and rate-limit handling.",
+}
+
+PACKAGE_FEATURE_ENTRIES = {
+    "openai_responses": {
+        "api_key_auth": [
+            "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+        ],
+        "model_discovery": [
+            "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+        ],
+        "streaming": [
+            "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+        ],
+        "tool_calling": [
+            "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension"
+        ],
+        "reasoning": [
+            "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension"
+        ],
+        "verbosity": [
+            "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
+        ],
+        "usage_tokens": [
+            "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+        ],
+        "cost_reporting": [
+            "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+        ],
+        "prompt_caching": [
+            "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension"
+        ],
+        "native_web_search": [
+            "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension"
+        ],
+        "native_compaction": [
+            "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension"
+        ],
+        "flex_processing": [
+            "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension"
+        ],
+        "fast_mode": [
+            "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension"
+        ],
+        "image_input": [
+            "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+        ],
+        "pdf_input": [
+            "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+        ],
+        "retry_rate_limit": [
+            "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+        ],
+    },
+    "openrouter": {
+        "api_key_auth": ["openrouter_plugins.openrouter_provider.OpenRouterProvider"],
+        "model_discovery": [
+            "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+        ],
+        "streaming": ["openrouter_plugins.openrouter_provider.OpenRouterProvider"],
+        "tool_calling": [
+            "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension"
+        ],
+        "reasoning": [
+            "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension"
+        ],
+        "verbosity": [
+            "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension"
+        ],
+        "usage_tokens": [
+            "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension"
+        ],
+        "cost_reporting": [
+            "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension"
+        ],
+        "prompt_caching": [
+            "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension"
+        ],
+        "native_web_search": [
+            "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension"
+        ],
+        "image_input": [
+            "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension"
+        ],
+        "image_generation": [
+            "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+        ],
+        "provider_routing": [
+            "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+        ],
+        "retry_rate_limit": [
+            "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+        ],
+    },
+    "openrouter_responses": {
+        "api_key_auth": [
+            "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+        ],
+        "model_discovery": [
+            "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+        ],
+        "streaming": [
+            "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+        ],
+        "tool_calling": [
+            "openrouter_responses_plugins.openrouter_responses_tools_extension.OpenRouterResponsesToolsExtension"
+        ],
+        "reasoning": [
+            "openrouter_responses_plugins.openrouter_responses_reasoning_extension.OpenRouterResponsesReasoningExtension"
+        ],
+        "verbosity": [
+            "openrouter_responses_plugins.openrouter_responses_verbosity_extension.OpenRouterResponsesVerbosityExtension"
+        ],
+        "usage_tokens": [
+            "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension"
+        ],
+        "cost_reporting": [
+            "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension"
+        ],
+        "prompt_caching": [
+            "openrouter_responses_plugins.openrouter_responses_claude_caching_extension.OpenRouterResponsesClaudeCachingExtension"
+        ],
+        "native_web_search": [
+            "openrouter_responses_plugins.openrouter_responses_websearch_extension.OpenRouterResponsesWebSearchExtension"
+        ],
+        "image_input": [
+            "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+        ],
+        "retry_rate_limit": [
+            "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+        ],
+    },
+    "anthropic-compatible": {
+        "api_key_auth": ["anthropic_plugins.provider.AnthropicProvider"],
+        "model_discovery": ["anthropic_plugins.provider.AnthropicProvider"],
+        "streaming": ["anthropic_plugins.provider.AnthropicProvider"],
+        "tool_calling": ["anthropic_plugins.tools_extension.AnthropicToolsExtension"],
+        "reasoning": [
+            "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+            "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension",
+        ],
+        "usage_tokens": ["anthropic_plugins.usage_extension.AnthropicUsageExtension"],
+        "prompt_caching": [
+            "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
+        ],
+        "retry_rate_limit": ["anthropic_plugins.provider.AnthropicProvider"],
+    },
+    "reference-openai-compatible-provider": {
+        "api_key_auth": [
+            "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+        ],
+        "model_discovery": [
+            "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+        ],
+        "streaming": [
+            "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+        ],
+        "tool_calling": [
+            "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension"
+        ],
+        "reasoning": [
+            "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension"
+        ],
+        "usage_tokens": [
+            "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+        ],
+        "cost_reporting": [
+            "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+        ],
+        "image_input": [
+            "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension"
+        ],
+        "provider_routing": [
+            "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+        ],
+        "retry_rate_limit": [
+            "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+        ],
+    },
+}
+
+PROVIDER_FEATURE_ENTRY_OVERRIDES = {
+    ("openai-chatgpt", "subscription_account_auth"): [
+        "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature"
+    ],
+    ("openrouter-image", "api_key_auth"): [
+        "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+    ],
+    ("openrouter-image", "model_discovery"): [
+        "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+    ],
+    ("openrouter-image", "image_input"): [
+        "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension"
+    ],
+    ("openrouter-image", "image_generation"): [
+        "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+    ],
+    ("openrouter-chat", "image_generation"): [
+        "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+    ],
+}
+
+PROVIDER_PLANNED_PLUGIN_NAMES = {
+    ("anthropic", "subscription_account_auth"): ["anthropic_oauth"],
+    ("anthropic", "cost_reporting"): ["anthropic_cost_estimation"],
+    ("anthropic", "native_web_search"): ["anthropic_server_web_tools"],
+    ("anthropic", "native_compaction"): [
+        "anthropic_compaction",
+        "anthropic_context_editing",
+    ],
+    ("anthropic", "fast_mode"): ["anthropic_fast_mode"],
+    ("anthropic", "image_input"): ["anthropic_attachments"],
+    ("anthropic", "pdf_input"): ["anthropic_files"],
 }
 
 APPLICATION_STATUS_MAP = {
@@ -49,14 +294,6 @@ APPLICATION_STATUS_MAP = {
     "unsupported": "unavailable",
     "not_applicable": "not_applicable",
     "unknown": "not_verified",
-}
-
-INTERNAL_KEYS = {
-    "source_plugins",
-    "source_claim_ids",
-    "source_feature_ids",
-    "source_entries",
-    "planning_source",
 }
 
 
@@ -87,6 +324,43 @@ def _descriptor_entries(package_id: str) -> set[str]:
     return {str(value) for value in payload.get("entries") or []}
 
 
+def _runtime_plugin_name(package_id: str, entry: str) -> str:
+    module_name, class_name = entry.rsplit(".", 1)
+    source_path = (
+        ROOT
+        / "plugins"
+        / package_id
+        / "src"
+        / Path(*module_name.split(".")).with_suffix(".py")
+    )
+    if source_path.is_file():
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef) or node.name != class_name:
+                continue
+            for statement in node.body:
+                target_name = None
+                value = None
+                if isinstance(statement, ast.Assign):
+                    if len(statement.targets) == 1 and isinstance(
+                        statement.targets[0], ast.Name
+                    ):
+                        target_name = statement.targets[0].id
+                    value = statement.value
+                elif isinstance(statement, ast.AnnAssign) and isinstance(
+                    statement.target, ast.Name
+                ):
+                    target_name = statement.target.id
+                    value = statement.value
+                if (
+                    target_name == "name"
+                    and isinstance(value, ast.Constant)
+                    and isinstance(value.value, str)
+                ):
+                    return value.value
+    return module_name.rsplit(".", 1)[-1]
+
+
 def _unique(values: list[str], context: str) -> None:
     if len(values) != len(set(values)):
         raise ValueError(f"{context}: duplicate ids")
@@ -106,14 +380,10 @@ def _validate_features(
     selection = source["feature_selection"]
     selected = [str(value) for value in selection["plugin_ids"]]
     _unique(selected, "feature plugin selection")
-    catalog_rows = {
-        str(row["plugin_id"]): row for row in feature_catalog["rows"]
-    }
+    catalog_rows = {str(row["plugin_id"]): row for row in feature_catalog["rows"]}
     excluded_groups = selection.get("excluded_overlaps") or {}
     excluded = [
-        str(plugin_id)
-        for values in excluded_groups.values()
-        for plugin_id in values
+        str(plugin_id) for values in excluded_groups.values() for plugin_id in values
     ]
     _unique(excluded, "feature overlap exclusions")
     overlap = set(selected) & set(excluded)
@@ -167,16 +437,12 @@ def _public_features(
     application_rows: Mapping[str, Mapping[str, str]],
 ) -> dict[str, Any]:
     selection = source["feature_selection"]
-    catalog_rows = {
-        str(row["plugin_id"]): row for row in feature_catalog["rows"]
-    }
+    catalog_rows = {str(row["plugin_id"]): row for row in feature_catalog["rows"]}
     rows = []
     for plugin_id in selection["plugin_ids"]:
         catalog_row = catalog_rows[plugin_id]
         application_row = application_rows[plugin_id]
-        capability_state = str(
-            application_row.get("capability_state") or "unknown"
-        )
+        capability_state = str(application_row.get("capability_state") or "unknown")
         rows.append(
             {
                 "feature_id": plugin_id,
@@ -200,19 +466,43 @@ def _public_features(
     }
 
 
-def _provider_lookup(provider_matrix: Mapping[str, Any]) -> tuple[
-    set[str],
-    dict[str, dict[str, str]],
-]:
-    feature_ids = {
-        str(feature["feature_id"]) for feature in provider_matrix["features"]
+def _provider_lookup(
+    provider_matrix: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    features = {
+        str(feature["feature_id"]): dict(feature)
+        for feature in provider_matrix["features"]
     }
-    lookup: dict[str, dict[str, str]] = {}
-    for provider in provider_matrix["providers"]:
-        lookup[provider["provider_id"]] = {
-            cell["feature_id"]: cell["status"] for cell in provider["cells"]
-        }
-    return feature_ids, lookup
+    providers = {
+        str(provider["provider_id"]): dict(provider)
+        for provider in provider_matrix["providers"]
+    }
+    return features, providers
+
+
+def _provider_feature_entries(
+    provider_id: str,
+    package_id: str,
+    feature_id: str,
+) -> list[str]:
+    override = PROVIDER_FEATURE_ENTRY_OVERRIDES.get((provider_id, feature_id))
+    if override is not None:
+        return list(override)
+    return list(PACKAGE_FEATURE_ENTRIES.get(package_id, {}).get(feature_id) or [])
+
+
+def _provider_feature_description(
+    provider_label: str,
+    feature_id: str,
+    status: str,
+    note: str,
+) -> str:
+    base = PROVIDER_FEATURE_DESCRIPTIONS[feature_id]
+    if status == "planned":
+        base = f"Planned: {base[0].lower()}{base[1:]}"
+    if note:
+        return f"{base} {note}"
+    return base
 
 
 def _validate_providers(
@@ -220,46 +510,127 @@ def _validate_providers(
     provider_matrix: Mapping[str, Any],
 ) -> None:
     selection = source["provider_selection"]
-    columns = selection["columns"]
-    rows = selection["rows"]
-    column_ids = [column["column_id"] for column in columns]
-    _unique(column_ids, "provider columns")
-    _unique([row["provider_id"] for row in rows], "provider rows")
-    feature_ids, provider_lookup = _provider_lookup(provider_matrix)
-    column_source_ids: dict[str, list[str]] = {}
-    for column in columns:
-        source_ids = [str(value) for value in column["source_feature_ids"]]
-        missing = set(source_ids) - feature_ids
-        if missing:
+    selected = [str(value) for value in selection["provider_ids"]]
+    _unique(selected, "provider selection")
+    features, providers = _provider_lookup(provider_matrix)
+    if set(selected) != set(providers):
+        raise ValueError(
+            "provider selection must include every retained provider route; "
+            f"missing={sorted(set(providers) - set(selected))}, "
+            f"extra={sorted(set(selected) - set(providers))}"
+        )
+    if set(selection["access"]) != set(selected):
+        raise ValueError("provider access labels must match selected providers")
+    for provider_id in selected:
+        provider = providers[provider_id]
+        package_id = PROVIDER_PACKAGES.get(provider_id)
+        if package_id is None:
+            raise ValueError(f"provider:{provider_id}: missing plugin bundle")
+        if provider.get("implementation") != package_id:
             raise ValueError(
-                f"provider column {column['column_id']}: unknown source features "
-                f"{sorted(missing)}"
+                f"provider:{provider_id}: plugin bundle {package_id!r} does not "
+                f"match implementation {provider.get('implementation')!r}"
             )
-        column_source_ids[column["column_id"]] = source_ids
-
-    for row in rows:
-        provider_id = row["provider_id"]
-        if provider_id not in provider_lookup:
-            raise ValueError(f"provider:{provider_id}: unknown provider")
-        cells = row["cells"]
-        if set(cells) != set(column_ids):
-            raise ValueError(
-                f"provider:{provider_id}: cells must exactly match selected columns"
-            )
-        for column_id, cell in cells.items():
-            context = f"provider:{provider_id}:{column_id}"
-            display_status = str(cell["status"])
-            _validate_status(display_status, context)
-            source_ids = column_source_ids[column_id]
-            if len(source_ids) != 1:
-                continue
-            detailed_status = provider_lookup[provider_id][source_ids[0]]
-            allowed = SIMPLE_PROVIDER_STATUS_MAP[detailed_status]
-            if display_status not in allowed:
+        descriptor_entries = _descriptor_entries(package_id)
+        for cell in provider["cells"]:
+            feature_id = str(cell["feature_id"])
+            if feature_id not in features:
                 raise ValueError(
-                    f"{context}: {display_status!r} is inconsistent with "
-                    f"detailed status {detailed_status!r}"
+                    f"provider:{provider_id}: unknown feature {feature_id!r}"
                 )
+            source_status = str(cell["status"])
+            if source_status not in PROVIDER_STATUS_MAP:
+                continue
+            context = f"provider:{provider_id}:{feature_id}"
+            display_status = PROVIDER_STATUS_MAP[source_status]
+            _validate_status(display_status, context)
+            if source_status == "planned":
+                planned_names = PROVIDER_PLANNED_PLUGIN_NAMES.get(
+                    (provider_id, feature_id)
+                )
+                if not planned_names:
+                    raise ValueError(
+                        f"{context}: planned feature has no intended plugin name"
+                    )
+                continue
+            entries = _provider_feature_entries(
+                provider_id,
+                package_id,
+                feature_id,
+            )
+            if not entries:
+                raise ValueError(f"{context}: current feature has no plugin entry")
+            missing = set(entries) - descriptor_entries
+            if missing:
+                raise ValueError(
+                    f"{context}: descriptor entries not found {sorted(missing)}"
+                )
+
+
+def _public_providers(
+    source: Mapping[str, Any],
+    provider_matrix: Mapping[str, Any],
+) -> dict[str, Any]:
+    selection = source["provider_selection"]
+    feature_defs, provider_defs = _provider_lookup(provider_matrix)
+    providers = []
+    for provider_id in selection["provider_ids"]:
+        provider = provider_defs[provider_id]
+        package_id = PROVIDER_PACKAGES[provider_id]
+        rows = []
+        for cell in provider["cells"]:
+            feature_id = str(cell["feature_id"])
+            source_status = str(cell["status"])
+            if source_status not in PROVIDER_STATUS_MAP:
+                continue
+            entries = (
+                []
+                if source_status == "planned"
+                else _provider_feature_entries(
+                    provider_id,
+                    package_id,
+                    feature_id,
+                )
+            )
+            plugin_names = (
+                list(PROVIDER_PLANNED_PLUGIN_NAMES[(provider_id, feature_id)])
+                if source_status == "planned"
+                else [_runtime_plugin_name(package_id, entry) for entry in entries]
+            )
+            rows.append(
+                {
+                    "feature_id": feature_id,
+                    "feature": feature_defs[feature_id]["label"],
+                    "status": PROVIDER_STATUS_MAP[source_status],
+                    "source_status": source_status,
+                    "plugin_bundle": package_id,
+                    "plugin_bundle_path": f"plugins/{package_id}",
+                    "plugin_names": plugin_names,
+                    "plugin_entries": entries,
+                    "description": _provider_feature_description(
+                        str(provider["label"]),
+                        feature_id,
+                        source_status,
+                        str(cell.get("note") or ""),
+                    ),
+                }
+            )
+        providers.append(
+            {
+                "provider_id": provider_id,
+                "label": provider["label"],
+                "access": selection["access"][provider_id],
+                "availability": provider.get("availability"),
+                "plugin_bundle": package_id,
+                "plugin_bundle_path": f"plugins/{package_id}",
+                "features": rows,
+            }
+        )
+    return {
+        "title": selection["title"],
+        "description": selection["description"],
+        "providers": providers,
+    }
 
 
 def _validate_model_tools(source: Mapping[str, Any]) -> None:
@@ -300,25 +671,57 @@ def _validate_model_tools(source: Mapping[str, Any]) -> None:
                 )
 
 
-def _strip_internal(value: Any) -> Any:
-    if isinstance(value, list):
-        return [_strip_internal(item) for item in value]
-    if isinstance(value, dict):
-        return {
-            key: _strip_internal(item)
-            for key, item in value.items()
-            if key not in INTERNAL_KEYS
-        }
-    return value
+def _public_model_tools(source: Mapping[str, Any]) -> dict[str, Any]:
+    selection = source["model_tool_selection"]
+    families = []
+    for family in selection["families"]:
+        package_id = family["package_id"]
+        tools = []
+        for tool in family["tools"]:
+            source_entries = list(tool.get("source_entries") or [])
+            plugin_names = (
+                [tool.get("planned_plugin_name") or tool["tool_id"]]
+                if tool["status"] == "planned"
+                else [
+                    _runtime_plugin_name(package_id, entry) for entry in source_entries
+                ]
+            )
+            tools.append(
+                {
+                    "tool_id": tool["tool_id"],
+                    "name": tool["name"],
+                    "status": tool["status"],
+                    "plugin_bundle": package_id,
+                    "plugin_bundle_path": f"plugins/{package_id}",
+                    "plugin_names": plugin_names,
+                    "plugin_entries": source_entries,
+                    "description": tool["description"],
+                }
+            )
+        families.append(
+            {
+                "family_id": family["family_id"],
+                "label": family["label"],
+                "plugin_bundle": package_id,
+                "plugin_bundle_path": f"plugins/{package_id}",
+                "tools": tools,
+            }
+        )
+    return {
+        "title": selection["title"],
+        "description": selection["description"],
+        "families": families,
+    }
 
 
 def _public_payload(
     source: Mapping[str, Any],
     feature_catalog: Mapping[str, Any],
     application_rows: Mapping[str, Mapping[str, str]],
+    provider_matrix: Mapping[str, Any],
 ) -> dict[str, Any]:
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "review_state": source["review_state"],
         "maturity": source["maturity"],
         "revision_policy": source["revision_policy"],
@@ -332,14 +735,14 @@ def _public_payload(
             feature_catalog,
             application_rows,
         ),
-        "providers": _strip_internal(source["provider_selection"]),
-        "model_family_tools": _strip_internal(source["model_tool_selection"]),
+        "providers": _public_providers(source, provider_matrix),
+        "model_family_tools": _public_model_tools(source),
     }
 
 
 def _escape(value: Any) -> str:
-    return str(value if value is not None else "").replace("|", "\\|").replace(
-        "\n", " "
+    return (
+        str(value if value is not None else "").replace("|", "\\|").replace("\n", " ")
     )
 
 
@@ -376,9 +779,7 @@ def _markdown(payload: Mapping[str, Any]) -> str:
             )
         )
     lines.extend(["", "### Represented in the other matrices", ""])
-    for group, plugin_ids in payload["features"][
-        "represented_elsewhere"
-    ].items():
+    for group, plugin_ids in payload["features"]["represented_elsewhere"].items():
         label = str(group).replace("_", " ").title()
         lines.append(
             f"- **{_escape(label)}:** "
@@ -395,22 +796,35 @@ def _markdown(payload: Mapping[str, Any]) -> str:
             "",
         ]
     )
-    header = ["Provider", *[column["label"] for column in providers["columns"]]]
-    lines.append("| " + " | ".join(_escape(value) for value in header) + " |")
-    lines.append("|" + "|".join("---" for _ in header) + "|")
-    for row in providers["rows"]:
-        cells = []
-        for column in providers["columns"]:
-            cell = row["cells"][column["column_id"]]
-            cells.append(cell["label"])
-        provider_label = f"{row['label']}<br><small>{row['access']}</small>"
-        lines.append(
-            "| "
-            + " | ".join(
-                [_escape(provider_label), *[_escape(value) for value in cells]]
-            )
-            + " |"
+    for provider in providers["providers"]:
+        lines.extend(
+            [
+                f"### {_escape(provider['label'])}",
+                "",
+                f"Access: {_escape(provider['access'])}",
+                "",
+                "| Feature | Status | Plugin bundle | Plugin name | Description |",
+                "|---|---|---|---|---|",
+            ]
         )
+        bundle = (
+            f"`{_escape(provider['plugin_bundle'])}`<br>"
+            f"`{_escape(provider['plugin_bundle_path'])}`"
+        )
+        for feature in provider["features"]:
+            names = "<br>".join(
+                f"`{_escape(name)}`" for name in feature["plugin_names"]
+            )
+            lines.append(
+                "| {} | {} | {} | {} | {} |".format(
+                    _escape(feature["feature"]),
+                    _escape(_status_label(payload, feature["status"])),
+                    bundle,
+                    names,
+                    _escape(feature["description"]),
+                )
+            )
+        lines.append("")
 
     model_tools = payload["model_family_tools"]
     lines.extend(
@@ -427,15 +841,22 @@ def _markdown(payload: Mapping[str, Any]) -> str:
             [
                 f"### {_escape(family['label'])}",
                 "",
-                "| Tool | Status | Description |",
-                "|---|---|---|",
+                "| Tool | Status | Plugin bundle | Plugin name | Description |",
+                "|---|---|---|---|---|",
             ]
         )
+        bundle = (
+            f"`{_escape(family['plugin_bundle'])}`<br>"
+            f"`{_escape(family['plugin_bundle_path'])}`"
+        )
         for tool in family["tools"]:
+            names = "<br>".join(f"`{_escape(name)}`" for name in tool["plugin_names"])
             lines.append(
-                "| {} | {} | {} |".format(
+                "| {} | {} | {} | {} | {} |".format(
                     _escape(tool["name"]),
                     _escape(_status_label(payload, tool["status"])),
+                    bundle,
+                    names,
                     _escape(tool["description"]),
                 )
             )
@@ -455,7 +876,12 @@ def _outputs() -> dict[Path, str]:
     )
     _validate_providers(source, provider_matrix)
     _validate_model_tools(source)
-    payload = _public_payload(source, feature_catalog, application_rows)
+    payload = _public_payload(
+        source,
+        feature_catalog,
+        application_rows,
+        provider_matrix,
+    )
     return {
         OUTPUT_JSON: json.dumps(payload, indent=2) + "\n",
         OUTPUT_MARKDOWN: _markdown(payload),

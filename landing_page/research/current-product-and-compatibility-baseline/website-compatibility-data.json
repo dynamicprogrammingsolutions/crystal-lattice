@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "review_state": "accepted",
   "maturity": "draft",
   "revision_policy": "Downstream website work may refine selection, wording, grouping, and presentation while preserving accepted compatibility boundaries and source traceability.",
@@ -302,312 +302,1776 @@
   },
   "providers": {
     "title": "Provider support",
-    "description": "Selected provider-native capabilities that materially change the user experience. General streaming and ordinary tool calling are omitted.",
-    "columns": [
-      {
-        "column_id": "reasoning",
-        "label": "Reasoning"
-      },
-      {
-        "column_id": "prompt_cache",
-        "label": "Prompt cache"
-      },
-      {
-        "column_id": "native_web",
-        "label": "Native web"
-      },
-      {
-        "column_id": "native_compaction",
-        "label": "Native compact"
-      },
-      {
-        "column_id": "processing_tiers",
-        "label": "Processing tiers"
-      },
-      {
-        "column_id": "files_media",
-        "label": "Files and media"
-      }
-    ],
-    "rows": [
+    "description": "Complete provider-grouped feature rows for every retained provider route. Unsupported and not-applicable capabilities are omitted rather than rendered as generic negative cells.",
+    "providers": [
       {
         "provider_id": "openai-api",
-        "label": "OpenAI API",
+        "label": "OpenAI Responses \u2014 API key",
         "access": "API key",
-        "cells": {
-          "reasoning": {
+        "availability": "default_configured",
+        "plugin_bundle": "openai_responses",
+        "plugin_bundle_path": "plugins/openai_responses",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
           },
-          "prompt_cache": {
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
           },
-          "native_web": {
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
           },
-          "native_compaction": {
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_tools"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "processing_tiers": {
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
             "status": "available",
-            "label": "Fast + Flex"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_reasoning"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
           },
-          "files_media": {
+          {
+            "feature_id": "verbosity",
+            "feature": "Native verbosity control",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_verbosity"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
+            ],
+            "description": "Passes a provider-native response verbosity control for model families that support it. Shown for supported model families, currently GPT-5-class models."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
             "status": "available",
-            "label": "Images + PDF"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_usage"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_usage"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage. Locally estimated from response usage and maintained pricing data."
+          },
+          {
+            "feature_id": "prompt_caching",
+            "feature": "Native prompt caching",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_prompt_caching"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension"
+            ],
+            "description": "Configures and reports the provider's native prompt-caching behavior."
+          },
+          {
+            "feature_id": "native_web_search",
+            "feature": "Native provider web search",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_websearch"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension"
+            ],
+            "description": "Enables the provider's own hosted web-search capability rather than a model-family search tool."
+          },
+          {
+            "feature_id": "native_compaction",
+            "feature": "Native provider compaction",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_native_compaction"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension"
+            ],
+            "description": "Uses provider-native context compaction while preserving continuation state."
+          },
+          {
+            "feature_id": "flex_processing",
+            "feature": "Flex processing",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_flex_processing"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension"
+            ],
+            "description": "Selects the provider's lower-priority flex processing mode."
+          },
+          {
+            "feature_id": "fast_mode",
+            "feature": "Fast or priority processing tier",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_fast_mode"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension"
+            ],
+            "description": "Selects the provider's fast, priority, or equivalent processing tier."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_attachments"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "pdf_input",
+            "feature": "PDF or file input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_attachments"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+            ],
+            "description": "Maps PDF or file attachments into the provider request or upload flow. Requires upload-before-send through the Files API."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "openai-chatgpt",
-        "label": "ChatGPT account",
-        "access": "Saved account login",
-        "cells": {
-          "reasoning": {
+        "label": "OpenAI Responses \u2014 saved ChatGPT account",
+        "access": "Saved ChatGPT account",
+        "availability": "default_configured",
+        "plugin_bundle": "openai_responses",
+        "plugin_bundle_path": "plugins/openai_responses",
+        "features": [
+          {
+            "feature_id": "subscription_account_auth",
+            "feature": "Subscription-account authentication",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_chatgpt_auth"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature"
+            ],
+            "description": "Authenticates through a saved subscription-account session rather than a direct API key."
           },
-          "prompt_cache": {
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
             "status": "conditional",
-            "label": "Session key"
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented. Uses saved-account model discovery with maintained fallbacks."
           },
-          "native_web": {
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline. Current ChatGPT route is streaming-only."
           },
-          "native_compaction": {
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_tools"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "processing_tiers": {
-            "status": "conditional",
-            "label": "Fast only"
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_reasoning"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
           },
-          "files_media": {
+          {
+            "feature_id": "verbosity",
+            "feature": "Native verbosity control",
             "status": "conditional",
-            "label": "Images; PDF varies"
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_verbosity"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
+            ],
+            "description": "Passes a provider-native response verbosity control for model families that support it. Model-gated."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_usage"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_usage"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage. API-equivalent local estimate, not subscription billing."
+          },
+          {
+            "feature_id": "prompt_caching",
+            "feature": "Native prompt caching",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_prompt_caching"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension"
+            ],
+            "description": "Configures and reports the provider's native prompt-caching behavior. Session cache keys are supported; 24-hour retention is suppressed."
+          },
+          {
+            "feature_id": "native_web_search",
+            "feature": "Native provider web search",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_websearch"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension"
+            ],
+            "description": "Enables the provider's own hosted web-search capability rather than a model-family search tool."
+          },
+          {
+            "feature_id": "native_compaction",
+            "feature": "Native provider compaction",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_native_compaction"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension"
+            ],
+            "description": "Uses provider-native context compaction while preserving continuation state."
+          },
+          {
+            "feature_id": "fast_mode",
+            "feature": "Fast or priority processing tier",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_fast_mode"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension"
+            ],
+            "description": "Selects the provider's fast, priority, or equivalent processing tier. Uses the ChatGPT backend's priority-tier wire name."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_attachments"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "pdf_input",
+            "feature": "PDF or file input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses_attachments"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension"
+            ],
+            "description": "Maps PDF or file attachments into the provider request or upload flow. Requires provider upload/file support."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openai_responses",
+            "plugin_bundle_path": "plugins/openai_responses",
+            "plugin_names": [
+              "openai_responses"
+            ],
+            "plugin_entries": [
+              "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "openrouter-chat",
-        "label": "OpenRouter",
+        "label": "OpenRouter Chat Completions",
         "access": "API key",
-        "cells": {
-          "reasoning": {
-            "status": "conditional",
-            "label": "By model"
-          },
-          "prompt_cache": {
-            "status": "conditional",
-            "label": "Anthropic routes"
-          },
-          "native_web": {
+        "availability": "default_configured",
+        "plugin_bundle": "openrouter",
+        "plugin_bundle_path": "plugins/openrouter",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
           },
-          "native_compaction": {
-            "status": "unavailable",
-            "label": "No"
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
           },
-          "processing_tiers": {
-            "status": "unavailable",
-            "label": "No"
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
           },
-          "files_media": {
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "conditional",
-            "label": "Images by model"
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_tools"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format. Selected-model capability discovery must report tools support."
+          },
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_reasoning"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model. Selected-model capability discovery must report reasoning support."
+          },
+          {
+            "feature_id": "verbosity",
+            "feature": "Native verbosity control",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_verbosity"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension"
+            ],
+            "description": "Passes a provider-native response verbosity control for model families that support it. Selected-model capability discovery must report verbosity support."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_usage"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application. Requires usage data in the provider response."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_usage"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage. Uses provider-returned cost metadata when present."
+          },
+          {
+            "feature_id": "prompt_caching",
+            "feature": "Native prompt caching",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "claude_caching_extension"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension"
+            ],
+            "description": "Configures and reports the provider's native prompt-caching behavior. Claude-style cache controls apply to compatible Anthropic model routes."
+          },
+          {
+            "feature_id": "native_web_search",
+            "feature": "Native provider web search",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_websearch"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension"
+            ],
+            "description": "Enables the provider's own hosted web-search capability rather than a model-family search tool."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_attachments"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format. Image attachments depend on model/provider acceptance."
+          },
+          {
+            "feature_id": "image_generation",
+            "feature": "Image generation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_image_generation"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+            ],
+            "description": "Uses the provider route to generate image output. Implemented through the separate OpenRouter image-generation route."
+          },
+          {
+            "feature_id": "provider_routing",
+            "feature": "Provider routing controls",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+            ],
+            "description": "Passes provider or endpoint routing controls owned by this route."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_provider.OpenRouterProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
+      },
+      {
+        "provider_id": "openrouter-responses",
+        "label": "OpenRouter Responses",
+        "access": "API key; optional Responses route",
+        "availability": "optional",
+        "plugin_bundle": "openrouter_responses",
+        "plugin_bundle_path": "plugins/openrouter_responses",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
+          },
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
+          },
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
+          },
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_tools"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_tools_extension.OpenRouterResponsesToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
+          },
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_reasoning"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_reasoning_extension.OpenRouterResponsesReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
+          },
+          {
+            "feature_id": "verbosity",
+            "feature": "Native verbosity control",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_verbosity"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_verbosity_extension.OpenRouterResponsesVerbosityExtension"
+            ],
+            "description": "Passes a provider-native response verbosity control for model families that support it."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_usage"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_usage"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_usage_extension.OpenRouterResponsesUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage."
+          },
+          {
+            "feature_id": "prompt_caching",
+            "feature": "Native prompt caching",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_claude_caching"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_claude_caching_extension.OpenRouterResponsesClaudeCachingExtension"
+            ],
+            "description": "Configures and reports the provider's native prompt-caching behavior. Claude-style cache behavior for compatible routes."
+          },
+          {
+            "feature_id": "native_web_search",
+            "feature": "Native provider web search",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses_websearch"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_websearch_extension.OpenRouterResponsesWebSearchExtension"
+            ],
+            "description": "Enables the provider's own hosted web-search capability rather than a model-family search tool."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter_responses",
+            "plugin_bundle_path": "plugins/openrouter_responses",
+            "plugin_names": [
+              "openrouter_responses"
+            ],
+            "plugin_entries": [
+              "openrouter_responses_plugins.openrouter_responses_provider.OpenRouterResponsesProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
+          }
+        ]
       },
       {
         "provider_id": "anthropic",
-        "label": "Anthropic",
+        "label": "Anthropic Messages",
         "access": "API key",
-        "cells": {
-          "reasoning": {
+        "availability": "default_configured",
+        "plugin_bundle": "anthropic-compatible",
+        "plugin_bundle_path": "plugins/anthropic-compatible",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.provider.AnthropicProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
           },
-          "prompt_cache": {
+          {
+            "feature_id": "subscription_account_auth",
+            "feature": "Subscription-account authentication",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_oauth"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: authenticates through a saved subscription-account session rather than a direct API key. OAuth is owned by a separate maintained provider task."
+          },
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
             "status": "available",
-            "label": "Yes"
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.provider.AnthropicProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
           },
-          "native_web": {
-            "status": "planned",
-            "label": "Planned"
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.provider.AnthropicProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
           },
-          "native_compaction": {
-            "status": "planned",
-            "label": "Planned"
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_tools"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.tools_extension.AnthropicToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "processing_tiers": {
-            "status": "planned",
-            "label": "Fast planned"
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_reasoning",
+              "anthropic_reasoning_controls"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+              "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
           },
-          "files_media": {
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_usage"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.usage_extension.AnthropicUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
             "status": "planned",
-            "label": "Images/PDF planned"
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_cost_estimation"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: supplies provider-reported cost data or a clearly identified local estimate derived from usage. Maintained pricing-based cost estimation requirement is not started."
+          },
+          {
+            "feature_id": "prompt_caching",
+            "feature": "Native prompt caching",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_prompt_caching"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
+            ],
+            "description": "Configures and reports the provider's native prompt-caching behavior."
+          },
+          {
+            "feature_id": "native_web_search",
+            "feature": "Native provider web search",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_server_web_tools"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: enables the provider's own hosted web-search capability rather than a model-family search tool. Server web tools are deferred to a maintained provider subtask."
+          },
+          {
+            "feature_id": "native_compaction",
+            "feature": "Native provider compaction",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_compaction",
+              "anthropic_context_editing"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: uses provider-native context compaction while preserving continuation state. Native compaction/context editing is deferred to a maintained provider subtask."
+          },
+          {
+            "feature_id": "fast_mode",
+            "feature": "Fast or priority processing tier",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_fast_mode"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: selects the provider's fast, priority, or equivalent processing tier. Fast mode and service tiers are deferred provider work."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_attachments"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: maps image attachments into the provider request format. Image attachments are deferred provider work."
+          },
+          {
+            "feature_id": "pdf_input",
+            "feature": "PDF or file input",
+            "status": "planned",
+            "source_status": "planned",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic_files"
+            ],
+            "plugin_entries": [],
+            "description": "Planned: maps PDF or file attachments into the provider request or upload flow. Files/PDF/document support is deferred provider work."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "anthropic-compatible",
+            "plugin_bundle_path": "plugins/anthropic-compatible",
+            "plugin_names": [
+              "anthropic"
+            ],
+            "plugin_entries": [
+              "anthropic_plugins.provider.AnthropicProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "ollama",
-        "label": "Ollama",
-        "access": "Local endpoint; model access varies",
-        "cells": {
-          "reasoning": {
+        "label": "Ollama-compatible local route",
+        "access": "Local endpoint; cloud-named models may have external account requirements",
+        "availability": "default_configured",
+        "plugin_bundle": "reference-openai-compatible-provider",
+        "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+        "features": [
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
+          },
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
+          },
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "conditional",
-            "label": "By model/server"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_tools"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "prompt_cache": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_web": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_compaction": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "processing_tiers": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "files_media": {
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
             "status": "conditional",
-            "label": "Images by model"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_reasoning"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible_attachments"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "fireworks",
-        "label": "Fireworks",
+        "label": "Fireworks OpenAI-compatible route",
         "access": "API key",
-        "cells": {
-          "reasoning": {
+        "availability": "default_configured",
+        "plugin_bundle": "reference-openai-compatible-provider",
+        "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
+          },
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
+          },
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
+          },
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "conditional",
-            "label": "By model"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_tools"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "prompt_cache": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_web": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_compaction": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "processing_tiers": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "files_media": {
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
             "status": "conditional",
-            "label": "Images by model"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_reasoning"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible_attachments"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "zai",
-        "label": "Z.ai",
+        "label": "Z.ai OpenAI-compatible route",
         "access": "API key; Coding or General endpoint",
-        "cells": {
-          "reasoning": {
+        "availability": "default_configured",
+        "plugin_bundle": "reference-openai-compatible-provider",
+        "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
+          },
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
+          },
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
+          },
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "conditional",
-            "label": "By model"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_tools"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
           },
-          "prompt_cache": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_web": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "native_compaction": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "processing_tiers": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "files_media": {
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
             "status": "conditional",
-            "label": "Images by model"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_reasoning"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible_attachments"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "provider_routing",
+            "feature": "Provider routing controls",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Passes provider or endpoint routing controls owned by this route. Checked-in General and Coding endpoint choices."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "custom-openai-compatible",
-        "label": "Other OpenAI-compatible",
+        "label": "Custom OpenAI-compatible endpoint",
         "access": "Endpoint-specific",
-        "cells": {
-          "reasoning": {
+        "availability": "optional",
+        "plugin_bundle": "reference-openai-compatible-provider",
+        "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
             "status": "conditional",
-            "label": "By endpoint"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
           },
-          "prompt_cache": {
-            "status": "unavailable",
-            "label": "No"
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
           },
-          "native_web": {
-            "status": "unavailable",
-            "label": "No"
+          {
+            "feature_id": "streaming",
+            "feature": "Streaming responses",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Streams provider response events into the Crystal Lattice request pipeline."
           },
-          "native_compaction": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "processing_tiers": {
-            "status": "unavailable",
-            "label": "No"
-          },
-          "files_media": {
+          {
+            "feature_id": "tool_calling",
+            "feature": "Native tool calling",
             "status": "conditional",
-            "label": "Images by endpoint"
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_tools"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension"
+            ],
+            "description": "Maps Crystal Lattice tool schemas and calls to the provider's native tool-calling format."
+          },
+          {
+            "feature_id": "reasoning",
+            "feature": "Native reasoning controls and metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_reasoning"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension"
+            ],
+            "description": "Exposes provider-native reasoning controls or reasoning metadata when supported by the selected model."
+          },
+          {
+            "feature_id": "usage_tokens",
+            "feature": "Usage and token metadata",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Normalizes provider usage and token metadata for the application."
+          },
+          {
+            "feature_id": "cost_reporting",
+            "feature": "Cost reporting or estimation",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_usage"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"
+            ],
+            "description": "Supplies provider-reported cost data or a clearly identified local estimate derived from usage."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible_attachments"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "retry_rate_limit",
+            "feature": "Retry and rate-limit policy",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "reference-openai-compatible-provider",
+            "plugin_bundle_path": "plugins/reference-openai-compatible-provider",
+            "plugin_names": [
+              "reference_openai_compatible"
+            ],
+            "plugin_entries": [
+              "reference_openai_compatible_provider.provider.OpenAICompatibleProvider"
+            ],
+            "description": "Applies route-specific retry, throttling, and rate-limit handling."
           }
-        }
+        ]
       },
       {
         "provider_id": "openrouter-image",
         "label": "OpenRouter image generation",
         "access": "API key",
-        "cells": {
-          "reasoning": {
-            "status": "not_applicable",
-            "label": "\u2014"
-          },
-          "prompt_cache": {
-            "status": "not_applicable",
-            "label": "\u2014"
-          },
-          "native_web": {
-            "status": "not_applicable",
-            "label": "\u2014"
-          },
-          "native_compaction": {
-            "status": "not_applicable",
-            "label": "\u2014"
-          },
-          "processing_tiers": {
-            "status": "not_applicable",
-            "label": "\u2014"
-          },
-          "files_media": {
+        "availability": "default_configured",
+        "plugin_bundle": "openrouter",
+        "plugin_bundle_path": "plugins/openrouter",
+        "features": [
+          {
+            "feature_id": "api_key_auth",
+            "feature": "API-key authentication",
             "status": "available",
-            "label": "Image input + output"
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_image_generation"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+            ],
+            "description": "Authenticates requests with the API key configured for this provider route."
+          },
+          {
+            "feature_id": "model_discovery",
+            "feature": "Model discovery",
+            "status": "conditional",
+            "source_status": "conditional",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_image_generation"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+            ],
+            "description": "Discovers available models through the provider route and applies maintained fallbacks where documented."
+          },
+          {
+            "feature_id": "image_input",
+            "feature": "Image input",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_image_generation_attachments"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension"
+            ],
+            "description": "Maps image attachments into the provider request format."
+          },
+          {
+            "feature_id": "image_generation",
+            "feature": "Image generation",
+            "status": "available",
+            "source_status": "supported",
+            "plugin_bundle": "openrouter",
+            "plugin_bundle_path": "plugins/openrouter",
+            "plugin_names": [
+              "openrouter_image_generation"
+            ],
+            "plugin_entries": [
+              "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider"
+            ],
+            "description": "Uses the provider route to generate image output."
           }
-        }
+        ]
       }
     ]
   },
@@ -618,468 +2082,996 @@
       {
         "family_id": "codex",
         "label": "Codex-oriented",
-        "package_id": "codex-tools",
+        "plugin_bundle": "codex-tools",
+        "plugin_bundle_path": "plugins/codex-tools",
         "tools": [
           {
             "tool_id": "shell",
             "name": "Shell",
-            "description": "Run commands using the model-appropriate array or shell-command schema.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "shell",
+              "shell_command"
+            ],
+            "plugin_entries": [
+              "codex_tools.shell_tool.ShellArrayTool",
+              "codex_tools.shell_command_tool.ShellCommandTool"
+            ],
+            "description": "Run commands using the model-appropriate array or shell-command schema."
           },
           {
             "tool_id": "apply_patch",
             "name": "Apply patch",
-            "description": "Apply structured multi-file patches with Codex-compatible patch syntax.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "apply_patch"
+            ],
+            "plugin_entries": [
+              "codex_tools.apply_patch_tool.ApplyPatchTool"
+            ],
+            "description": "Apply structured multi-file patches with Codex-compatible patch syntax."
           },
           {
             "tool_id": "view_image",
             "name": "View image",
-            "description": "Load a local image into model-visible input.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "view_image"
+            ],
+            "plugin_entries": [
+              "codex_tools.view_image_tool.ViewImageTool"
+            ],
+            "description": "Load a local image into model-visible input."
           },
           {
             "tool_id": "mcp",
             "name": "MCP tools",
-            "description": "Discover and call configured MCP-server tools.",
-            "status": "optional"
+            "status": "optional",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "codex_mcp_tool"
+            ],
+            "plugin_entries": [
+              "codex_tools.mcp_tool.CodexMCPTool"
+            ],
+            "description": "Discover and call configured MCP-server tools."
           },
           {
             "tool_id": "skills",
             "name": "Skills",
-            "description": "Discover configured skills and expose their instructions to the agent.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "codex_skills"
+            ],
+            "plugin_entries": [
+              "codex_tools.codex_skills_feature.CodexSkillsFeature"
+            ],
+            "description": "Discover configured skills and expose their instructions to the agent."
           },
           {
             "tool_id": "update_plan",
             "name": "Update plan",
-            "description": "Maintain a structured pending, active, and completed task plan.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "update_plan"
+            ],
+            "plugin_entries": [],
+            "description": "Maintain a structured pending, active, and completed task plan."
           },
           {
             "tool_id": "exec_command",
             "name": "Exec command",
-            "description": "Start an interactive or long-running command with a persistent process handle.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "exec_command"
+            ],
+            "plugin_entries": [],
+            "description": "Start an interactive or long-running command with a persistent process handle."
           },
           {
             "tool_id": "write_stdin",
             "name": "Write stdin",
-            "description": "Send input to a command started through Exec command.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "write_stdin"
+            ],
+            "plugin_entries": [],
+            "description": "Send input to a command started through Exec command."
           },
           {
             "tool_id": "request_user_input",
             "name": "Request user input",
-            "description": "Ask a non-blocking question and continue from the user's follow-up answer.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "request_user_input"
+            ],
+            "plugin_entries": [],
+            "description": "Ask a non-blocking question and continue from the user's follow-up answer."
           },
           {
             "tool_id": "spawn_subagent",
             "name": "Spawn subagent",
-            "description": "Start a configured agent in a persistent child session.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "spawn_subagent"
+            ],
+            "plugin_entries": [],
+            "description": "Start a configured agent in a persistent child session."
           },
           {
             "tool_id": "wait_for_subagent",
             "name": "Wait for subagent",
-            "description": "Wait for one or more child-agent runs to make progress or finish.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "wait_for_subagent"
+            ],
+            "plugin_entries": [],
+            "description": "Wait for one or more child-agent runs to make progress or finish."
           },
           {
             "tool_id": "send_subagent_input",
             "name": "Send subagent input",
-            "description": "Continue an existing child session with persistent follow-up input.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "send_subagent_input"
+            ],
+            "plugin_entries": [],
+            "description": "Continue an existing child session with persistent follow-up input."
           },
           {
             "tool_id": "list_subagents",
             "name": "List subagents",
-            "description": "List persistent child sessions and their current status.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "list_subagents"
+            ],
+            "plugin_entries": [],
+            "description": "List persistent child sessions and their current status."
           },
           {
             "tool_id": "close_subagent",
             "name": "Close subagent",
-            "description": "Close or cancel a persistent child-agent run.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "codex-tools",
+            "plugin_bundle_path": "plugins/codex-tools",
+            "plugin_names": [
+              "close_subagent"
+            ],
+            "plugin_entries": [],
+            "description": "Close or cancel a persistent child-agent run."
           }
         ]
       },
       {
         "family_id": "claude",
         "label": "Claude-compatible",
-        "package_id": "claude-tools",
+        "plugin_bundle": "claude-tools",
+        "plugin_bundle_path": "plugins/claude-tools",
         "tools": [
           {
             "tool_id": "bash",
             "name": "Bash",
-            "description": "Run foreground or background shell commands with persistent working-directory behavior.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_bash_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_bash_tool.ClaudeBashTool"
+            ],
+            "description": "Run foreground or background shell commands with persistent working-directory behavior."
           },
           {
             "tool_id": "read",
             "name": "Read",
-            "description": "Read text, images, PDFs, and supported notebook content.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_read_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_read_tool.ClaudeReadTool"
+            ],
+            "description": "Read text, images, PDFs, and supported notebook content."
           },
           {
             "tool_id": "write",
             "name": "Write",
-            "description": "Create or replace files with read-before-write protection.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_write_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_write_tool.ClaudeWriteTool"
+            ],
+            "description": "Create or replace files with read-before-write protection."
           },
           {
             "tool_id": "edit",
             "name": "Edit",
-            "description": "Perform exact text replacements with read-before-edit protection.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_edit_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_edit_tool.ClaudeEditTool"
+            ],
+            "description": "Perform exact text replacements with read-before-edit protection."
           },
           {
             "tool_id": "glob",
             "name": "Glob",
-            "description": "Find files by path pattern.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_glob_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_glob_tool.ClaudeGlobTool"
+            ],
+            "description": "Find files by path pattern."
           },
           {
             "tool_id": "grep",
             "name": "Grep",
-            "description": "Search file contents with multiple result modes.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_grep_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_grep_tool.ClaudeGrepTool"
+            ],
+            "description": "Search file contents with multiple result modes."
           },
           {
             "tool_id": "web_fetch",
             "name": "Web fetch",
-            "description": "Fetch and analyze a specific URL.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_web_fetch_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool"
+            ],
+            "description": "Fetch and analyze a specific URL."
           },
           {
             "tool_id": "web_search",
             "name": "Web search",
-            "description": "Search through configured Gemini or Tavily backends.",
-            "status": "conditional"
+            "status": "conditional",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_web_search_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_web_search_tool.ClaudeWebSearchTool"
+            ],
+            "description": "Search through configured Gemini or Tavily backends."
           },
           {
             "tool_id": "task_stop",
             "name": "Task stop",
-            "description": "Stop a background Bash task.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_task_stop_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool"
+            ],
+            "description": "Stop a background Bash task."
           },
           {
             "tool_id": "mcp",
             "name": "MCP tools",
-            "description": "Discover and call configured MCP-server tools with Claude-style names and results.",
-            "status": "optional"
+            "status": "optional",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_mcp_tool"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_mcp_tool.ClaudeMCPTool"
+            ],
+            "description": "Discover and call configured MCP-server tools with Claude-style names and results."
           },
           {
             "tool_id": "compaction",
             "name": "Compact conversation",
-            "description": "Summarize and rewrite selected history using the Claude-compatible compaction flow.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "claude-tools",
+            "plugin_bundle_path": "plugins/claude-tools",
+            "plugin_names": [
+              "claude_compaction"
+            ],
+            "plugin_entries": [
+              "claude_tools.claude_compaction_feature.ClaudeCompactionFeature"
+            ],
+            "description": "Summarize and rewrite selected history using the Claude-compatible compaction flow."
           }
         ]
       },
       {
         "family_id": "gemini",
         "label": "Gemini-style",
-        "package_id": "gemini-tools",
+        "plugin_bundle": "gemini-tools",
+        "plugin_bundle_path": "plugins/gemini-tools",
         "tools": [
           {
             "tool_id": "read_file",
             "name": "Read file",
-            "description": "Read text or supported media content from a file.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_read_file_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_read_file_tool.GeminiReadFileTool"
+            ],
+            "description": "Read text or supported media content from a file."
           },
           {
             "tool_id": "list_directory",
             "name": "List directory",
-            "description": "List directory entries.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_list_directory_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_list_directory_tool.GeminiListDirectoryTool"
+            ],
+            "description": "List directory entries."
           },
           {
             "tool_id": "grep_search",
             "name": "Grep search",
-            "description": "Search file contents.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_grep_search_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_grep_search_tool.GeminiGrepSearchTool"
+            ],
+            "description": "Search file contents."
           },
           {
             "tool_id": "glob",
             "name": "Glob",
-            "description": "Find files by path pattern.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_glob_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_glob_tool.GeminiGlobTool"
+            ],
+            "description": "Find files by path pattern."
           },
           {
             "tool_id": "write_file",
             "name": "Write file",
-            "description": "Create or replace file content.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_write_file_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_write_file_tool.GeminiWriteFileTool"
+            ],
+            "description": "Create or replace file content."
           },
           {
             "tool_id": "replace",
             "name": "Replace",
-            "description": "Replace exact text in a file.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_replace_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_replace_tool.GeminiReplaceTool"
+            ],
+            "description": "Replace exact text in a file."
           },
           {
             "tool_id": "run_shell_command",
             "name": "Run shell command",
-            "description": "Run a shell command with bounded output.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_shell_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_shell_tool.GeminiShellTool"
+            ],
+            "description": "Run a shell command with bounded output."
           },
           {
             "tool_id": "web_fetch",
             "name": "Web fetch",
-            "description": "Fetch content from a specific URL.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_web_fetch_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool"
+            ],
+            "description": "Fetch content from a specific URL."
           },
           {
             "tool_id": "google_web_search",
             "name": "Google web search",
-            "description": "Search through a configured Gemini or Tavily backend.",
-            "status": "conditional"
+            "status": "conditional",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "gemini_web_search_tool"
+            ],
+            "plugin_entries": [
+              "gemini_tools.gemini_web_search_tool.GeminiWebSearchTool"
+            ],
+            "description": "Search through a configured Gemini or Tavily backend."
           },
           {
             "tool_id": "write_todos",
             "name": "Write todos",
-            "description": "Replace the Gemini-style task list and track task status.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "write_todos"
+            ],
+            "plugin_entries": [],
+            "description": "Replace the Gemini-style task list and track task status."
           },
           {
             "tool_id": "mcp",
             "name": "MCP tools",
-            "description": "Expose configured MCP-server tools with Gemini-compatible naming and results.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "mcp"
+            ],
+            "plugin_entries": [],
+            "description": "Expose configured MCP-server tools with Gemini-compatible naming and results."
           },
           {
             "tool_id": "activate_skill",
             "name": "Activate skill",
-            "description": "Load one selected skill and return its instructions and supporting files.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "activate_skill"
+            ],
+            "plugin_entries": [],
+            "description": "Load one selected skill and return its instructions and supporting files."
           },
           {
             "tool_id": "specialist_agents",
             "name": "Specialist-agent tools",
-            "description": "Expose configured specialist agents as separate blocking tools backed by persistent child sessions.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "gemini-tools",
+            "plugin_bundle_path": "plugins/gemini-tools",
+            "plugin_names": [
+              "specialist_agents"
+            ],
+            "plugin_entries": [],
+            "description": "Expose configured specialist agents as separate blocking tools backed by persistent child sessions."
           }
         ]
       },
       {
         "family_id": "qwen",
         "label": "Qwen-style",
-        "package_id": "qwen-tools",
+        "plugin_bundle": "qwen-tools",
+        "plugin_bundle_path": "plugins/qwen-tools",
         "tools": [
           {
             "tool_id": "read_file",
             "name": "Read file",
-            "description": "Read file content with bounded output.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_read_file_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_read_file_tool.QwenReadFileTool"
+            ],
+            "description": "Read file content with bounded output."
           },
           {
             "tool_id": "list_directory",
             "name": "List directory",
-            "description": "List directory entries.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_list_directory_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_list_directory_tool.QwenListDirectoryTool"
+            ],
+            "description": "List directory entries."
           },
           {
             "tool_id": "grep_search",
             "name": "Grep search",
-            "description": "Search file contents.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_grep_search_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_grep_search_tool.QwenGrepSearchTool"
+            ],
+            "description": "Search file contents."
           },
           {
             "tool_id": "glob",
             "name": "Glob",
-            "description": "Find files by path pattern.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_glob_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_glob_tool.QwenGlobTool"
+            ],
+            "description": "Find files by path pattern."
           },
           {
             "tool_id": "write_file",
             "name": "Write file",
-            "description": "Create or replace file content.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_write_file_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_write_file_tool.QwenWriteFileTool"
+            ],
+            "description": "Create or replace file content."
           },
           {
             "tool_id": "edit",
             "name": "Edit",
-            "description": "Apply exact file edits.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_edit_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_edit_tool.QwenEditTool"
+            ],
+            "description": "Apply exact file edits."
           },
           {
             "tool_id": "bash",
             "name": "Bash",
-            "description": "Run shell commands with bounded output.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_shell_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_shell_tool.QwenShellTool"
+            ],
+            "description": "Run shell commands with bounded output."
           },
           {
             "tool_id": "web_fetch",
             "name": "Web fetch",
-            "description": "Fetch content from a specific URL.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "qwen_web_fetch_tool"
+            ],
+            "plugin_entries": [
+              "qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool"
+            ],
+            "description": "Fetch content from a specific URL."
           },
           {
             "tool_id": "web_search",
             "name": "Web search",
-            "description": "Search through Dashscope, Tavily, or Google backends.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "web_search"
+            ],
+            "plugin_entries": [],
+            "description": "Search through Dashscope, Tavily, or Google backends."
           },
           {
             "tool_id": "todo_write",
             "name": "Todo write",
-            "description": "Replace a Qwen-style todo list with stable item IDs.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "todo_write"
+            ],
+            "plugin_entries": [],
+            "description": "Replace a Qwen-style todo list with stable item IDs."
           },
           {
             "tool_id": "skills",
             "name": "Skills",
-            "description": "Discover and load a selected skill through a Qwen-compatible tool.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "skills"
+            ],
+            "plugin_entries": [],
+            "description": "Discover and load a selected skill through a Qwen-compatible tool."
           },
           {
             "tool_id": "compaction",
             "name": "Compaction",
-            "description": "Compact conversation history and preserve Qwen-style checkpoint replay.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "qwen-tools",
+            "plugin_bundle_path": "plugins/qwen-tools",
+            "plugin_names": [
+              "compaction"
+            ],
+            "plugin_entries": [],
+            "description": "Compact conversation history and preserve Qwen-style checkpoint replay."
           }
         ]
       },
       {
         "family_id": "grok",
         "label": "Grok-style",
-        "package_id": "grok-tools",
+        "plugin_bundle": "grok-tools",
+        "plugin_bundle_path": "plugins/grok-tools",
         "tools": [
           {
             "tool_id": "view_file",
             "name": "View file",
-            "description": "Read file content.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "grok_view_file_tool"
+            ],
+            "plugin_entries": [
+              "grok_tools.grok_view_file_tool.GrokViewFileTool"
+            ],
+            "description": "Read file content."
           },
           {
             "tool_id": "create_file",
             "name": "Create file",
-            "description": "Create a new file.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "grok_create_file_tool"
+            ],
+            "plugin_entries": [
+              "grok_tools.grok_create_file_tool.GrokCreateFileTool"
+            ],
+            "description": "Create a new file."
           },
           {
             "tool_id": "str_replace_editor",
             "name": "String-replace editor",
-            "description": "Edit file content through exact string replacement.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "grok_str_replace_editor_tool"
+            ],
+            "plugin_entries": [
+              "grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool"
+            ],
+            "description": "Edit file content through exact string replacement."
           },
           {
             "tool_id": "bash",
             "name": "Bash",
-            "description": "Run shell commands.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "grok_shell_tool"
+            ],
+            "plugin_entries": [
+              "grok_tools.grok_shell_tool.GrokShellTool"
+            ],
+            "description": "Run shell commands."
           },
           {
             "tool_id": "create_todo_list",
             "name": "Create todo list",
-            "description": "Replace a prioritized Grok-style todo list.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "create_todo_list"
+            ],
+            "plugin_entries": [],
+            "description": "Replace a prioritized Grok-style todo list."
           },
           {
             "tool_id": "update_todo_list",
             "name": "Update todo list",
-            "description": "Patch individual todo items by ID.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "update_todo_list"
+            ],
+            "plugin_entries": [],
+            "description": "Patch individual todo items by ID."
           },
           {
             "tool_id": "search",
             "name": "Unified search",
-            "description": "Search file names and content through one Grok-style interface.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "grok-tools",
+            "plugin_bundle_path": "plugins/grok-tools",
+            "plugin_names": [
+              "search"
+            ],
+            "plugin_entries": [],
+            "description": "Search file names and content through one Grok-style interface."
           }
         ]
       },
       {
         "family_id": "kimi",
         "label": "Kimi-style",
-        "package_id": "kimi-tools",
+        "plugin_bundle": "kimi-tools",
+        "plugin_bundle_path": "plugins/kimi-tools",
         "tools": [
           {
             "tool_id": "read_file",
             "name": "Read file",
-            "description": "Read text content with line-numbered output.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_read_file_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_read_file_tool.KimiReadFileTool"
+            ],
+            "description": "Read text content with line-numbered output."
           },
           {
             "tool_id": "read_media_file",
             "name": "Read media file",
-            "description": "Read image or supported media content for a capable model.",
-            "status": "conditional"
+            "status": "conditional",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_read_media_file_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_read_media_file_tool.KimiReadMediaFileTool"
+            ],
+            "description": "Read image or supported media content for a capable model."
           },
           {
             "tool_id": "write_file",
             "name": "Write file",
-            "description": "Create, replace, or append file content.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_write_file_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_write_file_tool.KimiWriteFileTool"
+            ],
+            "description": "Create, replace, or append file content."
           },
           {
             "tool_id": "str_replace_file",
             "name": "String-replace file",
-            "description": "Apply one or more exact text replacements.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_str_replace_file_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_str_replace_file_tool.KimiStrReplaceFileTool"
+            ],
+            "description": "Apply one or more exact text replacements."
           },
           {
             "tool_id": "glob",
             "name": "Glob",
-            "description": "Find files by path pattern.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_glob_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_glob_tool.KimiGlobTool"
+            ],
+            "description": "Find files by path pattern."
           },
           {
             "tool_id": "grep",
             "name": "Grep",
-            "description": "Search file contents.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_grep_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_grep_tool.KimiGrepTool"
+            ],
+            "description": "Search file contents."
           },
           {
             "tool_id": "shell",
             "name": "Shell",
-            "description": "Run shell commands with a clean-environment option.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_shell_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_shell_tool.KimiShellTool"
+            ],
+            "description": "Run shell commands with a clean-environment option."
           },
           {
             "tool_id": "fetch_url",
             "name": "Fetch URL",
-            "description": "Fetch content from a specific URL.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_fetch_url_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool"
+            ],
+            "description": "Fetch content from a specific URL."
           },
           {
             "tool_id": "search_web",
             "name": "Search web",
-            "description": "Search through a configured web-search backend.",
-            "status": "conditional"
+            "status": "conditional",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_web_search_tool"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_web_search_tool.KimiWebSearchTool"
+            ],
+            "description": "Search through a configured web-search backend."
           },
           {
             "tool_id": "compaction",
             "name": "Compact conversation",
-            "description": "Compact earlier history while preserving a recent message tail.",
-            "status": "available"
+            "status": "available",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "kimi_compaction"
+            ],
+            "plugin_entries": [
+              "kimi_tools.kimi_compaction_feature.KimiCompactionFeature"
+            ],
+            "description": "Compact earlier history while preserving a recent message tail."
           },
           {
             "tool_id": "set_todo_list",
             "name": "Set todo list",
-            "description": "Replace a Kimi-style task list with pending, active, and done states.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "set_todo_list"
+            ],
+            "plugin_entries": [],
+            "description": "Replace a Kimi-style task list with pending, active, and done states."
           },
           {
             "tool_id": "mcp",
             "name": "MCP tools",
-            "description": "Expose configured MCP-server tools with Kimi-compatible names and results.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "mcp"
+            ],
+            "plugin_entries": [],
+            "description": "Expose configured MCP-server tools with Kimi-compatible names and results."
           },
           {
             "tool_id": "skills",
             "name": "Skills",
-            "description": "Discover configured skills and make their instructions readable to Kimi tools.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "skills"
+            ],
+            "plugin_entries": [],
+            "description": "Discover configured skills and make their instructions readable to Kimi tools."
           },
           {
             "tool_id": "task",
             "name": "Task",
-            "description": "Run a blocking task in a persisted child-agent session and return its final answer.",
-            "status": "planned"
+            "status": "planned",
+            "plugin_bundle": "kimi-tools",
+            "plugin_bundle_path": "plugins/kimi-tools",
+            "plugin_names": [
+              "task"
+            ],
+            "plugin_entries": [],
+            "description": "Run a blocking task in a persisted child-agent session and return its final answer."
           }
         ]
       }

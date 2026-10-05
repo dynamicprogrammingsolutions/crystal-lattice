@@ -26,8 +26,8 @@
     "model_family_features": 21,
     "model_family_cells": 252,
     "website_feature_rows": 24,
-    "website_provider_rows": 9,
-    "website_provider_columns": 6,
+    "website_provider_rows": 10,
+    "website_provider_feature_rows": 112,
     "website_model_families": 6,
     "website_tool_rows": 71
   },
@@ -66,19 +66,19 @@
     },
     {
       "path": "website-compatibility-selection.json",
-      "sha256": "ab4bb092853aa62c4a72f31ff88b7cbf2a11f7b5d875d7a4bcac209441128457"
+      "sha256": "d9e5a0382eead294d8148a2b8bb1b55aa6bb0013a9ded5b6b45972da74006ff6"
     },
     {
       "path": "generate_website_compatibility_data.py",
-      "sha256": "f4ac2099b3c4197658327f5f72f485cea250587640a1f8983bd05f5eeef0e255"
+      "sha256": "52fdd20220dae637d424d5d4a1fbc48dc9649d12735bc55bed56d39073e5ddd9"
     },
     {
       "path": "website-compatibility-data.json",
-      "sha256": "324774aa437f9009cb86077886224f908ba44f6b476931a73440201d14f6a6c9"
+      "sha256": "e15fc6648ad877a187b54e1c3f99990857440b7f5de4ce811906e6c360f0a9b3"
     },
     {
       "path": "website-compatibility-data.md",
-      "sha256": "5fc49f68af156dfd6bdba3b772441fa07fcbe7087767ccc4464583d47fc89962"
+      "sha256": "1f65501d7fcd65455aa82409df6c3213eb85c621e4e04e61a7de28a5a9faa16f"
     },
     {
       "path": "claim-evidence.jsonl",
@@ -86,11 +86,11 @@
     },
     {
       "path": "verification-summary.md",
-      "sha256": "0c1210af7cf2c08a508f2ab274d46bb16de1c94262e28d4c091ec1fda1940d28"
+      "sha256": "d883454943a7fb7c1a36225395ac2d0c231ab1109892a8e6b2767bbfa4291110"
     },
     {
       "path": "../../docs/development/research/findings/current-product-and-compatibility-baseline.md",
-      "sha256": "8716c8fd0f7830e88d806a2e91ef64749dd2aef137d678bab352d5ad32e0432a"
+      "sha256": "96b1e45327ae43a611d01ac07321d87ea6808ff74869a5fd571c9ed5e3c96e68"
     }
   ],
   "supporting_outputs": [
@@ -153,6 +153,9 @@
   "post_completion_follow_up": {
     "corrected_at_utc": "2026-10-02",
     "feature_projection": "24 complete per-plugin application/session rows with plugin IDs, repository paths, status, description, and limitations",
+    "provider_projection": "112 provider-specific feature rows across 10 routes with status, description, plugin bundle/path, and plugin name",
+    "model_tool_identity": "71 model-family rows with plugin bundle/path and plugin name",
+    "provider_projection_corrected_at_utc": "2026-10-05",
     "research_package": "landing_page/research/current-product-and-compatibility-baseline/",
     "task_reference_policy": "Outside task content, task references use descriptive links backed by complete task paths.",
     "source_revision_policy": "Accepted extractor and exhaustive matrices remain pinned to add5f5e71de3bb1676851bb840dfd77620f63ddb; later develop drift requires a separate re-audit."
