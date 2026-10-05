@@ -40,7 +40,7 @@ CODEX_COMMIT = "9f42c89c0112771dc29100a6f3fc904049b2655f"
 EVAL_ROOT = ROOT / "tmp" / "task-guidance-eval"
 SHARED_PLUGIN_CACHE = EVAL_ROOT / "plugin-cache"
 
-DEFAULT_CHATGPT_MODEL = "gpt-5.6-luna"
+DEFAULT_CHATGPT_MODEL = "gpt-6-luna"
 DEFAULT_OLLAMA_AGENT = "glm-ollama"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_MUTATION_CALL_LIMIT = 3
@@ -262,7 +262,7 @@ def chatgpt_credentials_path() -> Path:
 def model_cases() -> list[ModelCase]:
     return [
         ModelCase(
-            case_id="chatgpt-gpt-5.6-luna",
+            case_id="chatgpt-gpt-6-luna",
             agent_id="codex-openai",
             model=os.getenv("TASK_GUIDANCE_CHATGPT_MODEL") or DEFAULT_CHATGPT_MODEL,
             auth_mode="chatgpt",

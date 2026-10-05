@@ -24,7 +24,7 @@
     },
     "gpt": {
       "agent_id": "codex-openai",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "efforts": [
         "high",
         "xhigh",

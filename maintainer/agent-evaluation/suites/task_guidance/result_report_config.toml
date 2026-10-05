@@ -1,15 +1,15 @@
-# Report configuration for task-guidance result packages.
-#
-# The price table is pinned per package so later repository pricing updates
-# cannot reprice historical reports. The rates below copy the gpt-5.6-luna
-# standard-tier rows of the maintained OpenAI pricing snapshot that was
-# checked in when these evaluations ran; the provider-reported cost metadata
-# saved in each GPT session was computed from that same snapshot.
-
 [cost]
 currency = "USD"
 
 [cost.prices."gpt-5.6-luna"]
+input_per_1m = 1.0
+cached_input_per_1m = 0.1
+cache_write_per_1m = 1.25
+output_per_1m = 6.0
+
+# gpt-6-luna reuses the pinned gpt-5.6-luna table until its
+# provider-reported rates are published.
+[cost.prices."gpt-6-luna"]
 input_per_1m = 1.0
 cached_input_per_1m = 0.1
 cache_write_per_1m = 1.25

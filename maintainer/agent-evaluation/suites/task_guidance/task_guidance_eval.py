@@ -102,7 +102,7 @@ Examples:
     python maintainer/agent-evaluation/suites/task_guidance/task_guidance_eval.py run \\
       --steps plan,retain-plan,omit-plan \\
       --provider chatgpt \\
-      --model gpt-5.6-luna \\
+      --model gpt-6-luna \\
       --credentials-dir "$HOME/.crystal" \\
       --run-id task-guidance-chatgpt
 

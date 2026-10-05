@@ -22,29 +22,18 @@ from agent_eval.workspace import GitWorkspaceFactory, git_workspace
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 PACKAGE_ROOT = REPOSITORY_ROOT / "maintainer" / "agent-evaluation"
-SCENARIO_ROOT = (
-    PACKAGE_ROOT
-    / "suites"
-    / "documentation_standard"
-    / "scenarios"
-)
+SCENARIO_ROOT = PACKAGE_ROOT / "suites" / "documentation_standard" / "scenarios"
 DEFAULT_REVISION = "c00d14954a503b96a6e2bbdb90a4c31c8af785e1"
 BASELINE_GUIDANCE_REVISION = "3a62b6fc"
 ORIGINAL_DEVELOP_GUIDANCE_REVISION = "f81f36326b58268297ba59c1cacbcda604257c27"
-FOLLOWUP_BASELINE_GUIDANCE_REVISION = (
-    "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
-)
+FOLLOWUP_BASELINE_GUIDANCE_REVISION = "cdeb50a7df92820e487c466b030ea8f5f6dcb993"
 GUIDANCE_INJECTION_VERSION = "v6"
 PROFILE_CONFIG_VERSION = "v10"
 RUNNER_DIRECT_INJECTION = "direct-injection"
 RUNNER_DEFAULT_SYSTEM_MESSAGE = "default-system-message"
 DEFAULT_CONFIG = Path.home() / ".crystal" / "config.json"
 DEFAULT_SYSTEM_CONFIG_DIR = (
-    REPOSITORY_ROOT
-    / "application"
-    / "python"
-    / "agent_terminal_app"
-    / "default_config"
+    REPOSITORY_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
 )
 PLUGIN_RUNTIME_CONSTRAINTS = PACKAGE_ROOT / "constraints" / "plugin-runtime.txt"
 FIXTURE_REVISIONS = {
@@ -161,7 +150,7 @@ PROFILES = {
     "gpt": ModelProfile(
         name="gpt",
         agent_id="codex-openai",
-        model="gpt-5.6-luna",
+        model="gpt-6-luna",
         hosted=True,
         auth_mode="chatgpt",
         plugin_fragments=(
@@ -248,9 +237,7 @@ class GuidanceSource:
             "revision": self.revision,
             "sha256": self.sha256(),
             "files": [item.__dict__ for item in self.files()],
-            "content_override_paths": [
-                path for path, _ in self.content_overrides
-            ],
+            "content_override_paths": [path for path, _ in self.content_overrides],
             "injection_version": GUIDANCE_INJECTION_VERSION,
         }
 
@@ -300,9 +287,7 @@ def _compiled_source(
         "role": role,
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "expected_occurrences": expected_occurrences,
-        "observed_occurrences": (
-            compiled.count(normalized) if normalized else 0
-        ),
+        "observed_occurrences": (compiled.count(normalized) if normalized else 0),
     }
 
 
@@ -321,9 +306,7 @@ def compiled_system_message_evidence(
     active_plugins = context.core.get_plugins_for_config(
         cast(dict[str, Any], effective_config)
     )
-    tool_schemas = context.core.get_tool_schemas(
-        cast(dict[str, Any], effective_config)
-    )
+    tool_schemas = context.core.get_tool_schemas(cast(dict[str, Any], effective_config))
     tool_interfaces: list[dict[str, object]] = []
     for schema in tool_schemas:
         function = schema.get("function")
@@ -372,21 +355,14 @@ def compiled_system_message_evidence(
         tool_family = "codex-tools"
         transport = "responses.instructions"
         standard_paths = (
-            config_root
-            / "codex"
-            / "gpt-5.6-luna"
-            / "instructions_default.md",
+            config_root / "codex" / "gpt-6-luna" / "instructions_default.md",
         )
     else:
         family = "claude"
         tool_family = "claude-tools"
         transport = "leading_system_message"
         claude_root = (
-            REPOSITORY_ROOT
-            / "plugins"
-            / "claude-tools"
-            / "system_messages"
-            / "claude"
+            REPOSITORY_ROOT / "plugins" / "claude-tools" / "system_messages" / "claude"
         )
         standard_paths = tuple(
             claude_root / name
@@ -438,14 +414,12 @@ def compiled_system_message_evidence(
         "tool_interfaces": tool_interfaces,
         "tool_family_matches": (
             any(
-                item.get("name") == "shell"
-                and item.get("command_type") == "array"
+                item.get("name") == "shell" and item.get("command_type") == "array"
                 for item in tool_interfaces
             )
             if profile.name == "gpt"
             else any(
-                item.get("name") == "Bash"
-                and item.get("command_type") == "string"
+                item.get("name") == "Bash" and item.get("command_type") == "string"
                 for item in tool_interfaces
             )
         ),
@@ -651,16 +625,19 @@ class DocumentationEvaluationHarness:
         artifact_root = Path(
             os.getenv(
                 "AGENT_EVAL_ARTIFACT_ROOT",
-                str(REPOSITORY_ROOT / "tmp" / "agent-evaluation" / "documentation-standard"),
+                str(
+                    REPOSITORY_ROOT
+                    / "tmp"
+                    / "agent-evaluation"
+                    / "documentation-standard"
+                ),
             )
         ).expanduser()
         projected_config = _project_config_for_profile(
             config_path,
             artifact_root=artifact_root,
             profile=profile,
-            include_guidance_feature=(
-                runner_mode == RUNNER_DIRECT_INJECTION
-            ),
+            include_guidance_feature=(runner_mode == RUNNER_DIRECT_INJECTION),
         )
         environment = WorkspaceAwareEnvironment.from_config(
             projected_config,
@@ -699,9 +676,7 @@ class DocumentationEvaluationHarness:
         include_tasks: bool,
     ) -> Run[dict[str, object]]:
         if self.runner_mode != RUNNER_DEFAULT_SYSTEM_MESSAGE:
-            raise ValueError(
-                "system-message preflight requires default runner mode"
-            )
+            raise ValueError("system-message preflight requires default runner mode")
         workspace = ScenarioWorkspaceFactory(
             fixture_id=fixture_id,
             candidate_guidance=True,
@@ -811,9 +786,7 @@ class DocumentationEvaluationHarness:
                 context,
                 prompt,
                 guidance=self.guidance,
-                inject_guidance=(
-                    self.runner_mode == RUNNER_DIRECT_INJECTION
-                ),
+                inject_guidance=(self.runner_mode == RUNNER_DIRECT_INJECTION),
                 guidance_instruction_paths=instruction_paths,
                 reasoning_effort=reasoning_effort,
                 include_tasks=include_tasks,
@@ -894,9 +867,7 @@ class DocumentationEvaluationHarness:
         cache_key = None
         if cache:
             cache_variant_suffix = f":{cache_variant}" if cache_variant else ""
-            instruction_paths = (
-                guidance_instruction_paths or self.guidance.paths
-            )
+            instruction_paths = guidance_instruction_paths or self.guidance.paths
             cache_key = (
                 f"documentation-standard:{self.profile.name}:{test_id}:"
                 f"{self.guidance.name}:{self.guidance.sha256()}:"
@@ -1002,9 +973,8 @@ class DocumentationEvaluationHarness:
                 "model": self.profile.model,
                 "hosted": self.profile.hosted,
                 "auth_mode": self.profile.auth_mode,
-                "reasoning_effort": reasoning_effort or (
-                    "high" if self.profile.name == "glm" else None
-                ),
+                "reasoning_effort": reasoning_effort
+                or ("high" if self.profile.name == "glm" else None),
             },
         )
         context.services.record(
@@ -1092,9 +1062,7 @@ class DocumentationEvaluationHarness:
             stream=True,
             max_events=max_events,
             observers=(observe_tool_results,),
-            stop_when=lambda progress: (
-                len(completed_tool_calls) >= max_tool_calls
-            ),
+            stop_when=lambda progress: (len(completed_tool_calls) >= max_tool_calls),
         )
         context.services.record(
             "documentation_standard.completed_tool_calls",
@@ -1256,7 +1224,9 @@ def record_review(
     spec_path = SCENARIO_ROOT / spec_file
     human_questions = extract_section(spec_path, "## Human review")
     value = run.value
-    prompt = value.prompt if value is not None else "(Run failed before prompt execution.)"
+    prompt = (
+        value.prompt if value is not None else "(Run failed before prompt execution.)"
+    )
     response = value.response if value is not None else "(No assistant response.)"
     guidance_name = value.guidance_name if value is not None else None
     guidance_revision = value.guidance_revision if value is not None else None
@@ -1479,12 +1449,9 @@ def _project_config_for_profile(
     }
     config_root = artifact_root / "config"
     config_root.mkdir(parents=True, exist_ok=True)
-    target = (
-        config_root
-        / (
-            f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}-"
-            f"{'direct' if include_guidance_feature else 'default'}.json"
-        )
+    target = config_root / (
+        f"{profile.name}-{source_sha[:16]}-{PROFILE_CONFIG_VERSION}-"
+        f"{'direct' if include_guidance_feature else 'default'}.json"
     )
     rendered = json.dumps(projection, indent=2, sort_keys=True) + "\n"
     if not target.exists() or target.read_text() != rendered:
@@ -1601,10 +1568,7 @@ def _fixture_js_single_file_tool(workspace: Path, branch_variant: str) -> None:
             encoding="utf-8",
         )
     if branch_variant in {"generated-typo", "generated-typo-failing-generator"}:
-        prepared = (
-            workspace
-            / "docs_site/prepared/plugins/js-single-file-tool/index.md"
-        )
+        prepared = workspace / "docs_site/prepared/plugins/js-single-file-tool/index.md"
         prepared.parent.mkdir(parents=True, exist_ok=True)
         prepared.write_text(
             "<!-- generated from plugins/js-single-file-tool/README.md -->\n\n"
@@ -1849,7 +1813,9 @@ Defines durable record encoding, schema migration, and recovery boundaries.
 """,
     }
     if branch_variant in {"approved-task", "approved-task-single-decisions"}:
-        files["tasks/batch-offline-sync.md"] = """# Batch offline synchronization
+        files[
+            "tasks/batch-offline-sync.md"
+        ] = """# Batch offline synchronization
 
 Status: Approved
 
@@ -1864,7 +1830,9 @@ Status: Approved
 Specification and requirements are authorized. Do not implement the protocol.
 """
         if branch_variant == "approved-task-single-decisions":
-            files["tasks/batch-offline-sync.md"] += """
+            files[
+                "tasks/batch-offline-sync.md"
+            ] += """
 Record material decisions in one `decisions.md` file. Do not create a
 `decisions/` directory or separate decision-record files.
 """
@@ -2179,7 +2147,9 @@ provider- or plugin-specific types.
 """,
     }
     if branch_variant == "local-option":
-        files["tasks/ui-options-local-testing.md"] = """# Local option visibility testing
+        files[
+            "tasks/ui-options-local-testing.md"
+        ] = """# Local option visibility testing
 
 Status: Approved
 
@@ -2187,7 +2157,9 @@ Prepare the testing strategy for implementing the option-visibility target in
 `plugins/ui-options`. Do not implement the change or edit test code.
 """
     elif branch_variant == "cross-layer":
-        files["tasks/ui-options-delivery-testing.md"] = """# Option delivery testing
+        files[
+            "tasks/ui-options-delivery-testing.md"
+        ] = """# Option delivery testing
 
 Status: Approved
 
@@ -2205,9 +2177,7 @@ def _fixture_requirement_quality_batch(
     branch_variant: str,
 ) -> None:
     if branch_variant != "base":
-        raise KeyError(
-            f"unknown requirement-quality-batch variant: {branch_variant}"
-        )
+        raise KeyError(f"unknown requirement-quality-batch variant: {branch_variant}")
     _write_synthetic_fixture(
         workspace,
         {
@@ -2235,9 +2205,7 @@ def _fixture_requirement_quality_timeout(
     branch_variant: str,
 ) -> None:
     if branch_variant != "base":
-        raise KeyError(
-            f"unknown requirement-quality-timeout variant: {branch_variant}"
-        )
+        raise KeyError(f"unknown requirement-quality-timeout variant: {branch_variant}")
     _write_synthetic_fixture(
         workspace,
         {
@@ -2267,9 +2235,7 @@ def _fixture_requirement_quality_output(
     branch_variant: str,
 ) -> None:
     if branch_variant != "base":
-        raise KeyError(
-            f"unknown requirement-quality-output variant: {branch_variant}"
-        )
+        raise KeyError(f"unknown requirement-quality-output variant: {branch_variant}")
     _write_synthetic_fixture(
         workspace,
         {
@@ -2407,9 +2373,7 @@ def _fixture_requirement_quality_fastapi(
     branch_variant: str,
 ) -> None:
     if branch_variant != "base":
-        raise KeyError(
-            f"unknown requirement-quality-fastapi variant: {branch_variant}"
-        )
+        raise KeyError(f"unknown requirement-quality-fastapi variant: {branch_variant}")
     _write_synthetic_fixture(
         workspace,
         {
@@ -2612,9 +2576,7 @@ def _fixture_requirement_quality_judge(
     branch_variant: str,
 ) -> None:
     if branch_variant != "base":
-        raise KeyError(
-            f"unknown requirement-quality-judge variant: {branch_variant}"
-        )
+        raise KeyError(f"unknown requirement-quality-judge variant: {branch_variant}")
     _write_synthetic_fixture(
         workspace,
         {

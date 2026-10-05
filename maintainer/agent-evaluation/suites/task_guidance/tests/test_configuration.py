@@ -293,7 +293,7 @@ def test_agents_without_a_provider_map_stay_unselected(
     config = json.loads(path.read_text(encoding="utf-8"))
     entry = config["agents"][AGENTS["gpt"]["agent_id"]]
     assert entry["provider"] == "openai"
-    assert entry["model"] == "gpt-5.6-luna"
+    assert entry["model"] == "gpt-6-luna"
 
 
 def test_runtime_fixtures_carry_only_the_suite_providers() -> None:

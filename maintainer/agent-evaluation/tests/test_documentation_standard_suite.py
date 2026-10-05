@@ -58,7 +58,7 @@ from suites.documentation_standard.guidance_feature import (
 def test_profiles_pin_requested_models() -> None:
     assert PROFILES["glm"].model == "glm-5.3-flash:cloud"
     assert PROFILES["glm"].hosted is False
-    assert PROFILES["gpt"].model == "gpt-5.6-luna"
+    assert PROFILES["gpt"].model == "gpt-6-luna"
     assert PROFILES["gpt"].auth_mode == "chatgpt"
     assert PROFILES["gpt"].hosted is True
 
@@ -156,14 +156,15 @@ def test_current_documentation_guidance_shape_is_concise() -> None:
         assert "does not define separate rules" in text
 
 
-def test_current_guidance_contains_substantial_specification_approval_boundary() -> None:
+def test_current_guidance_contains_substantial_specification_approval_boundary() -> (
+    None
+):
     guide = re.sub(
         r"\s+",
         " ",
-        (
-            REPOSITORY_ROOT
-            / "docs/development/documentation.md"
-        ).read_text(encoding="utf-8").lower(),
+        (REPOSITORY_ROOT / "docs/development/documentation.md")
+        .read_text(encoding="utf-8")
+        .lower(),
     )
 
     assert "before creating a substantial new specification" in guide
@@ -390,7 +391,9 @@ def test_chatgpt_guidance_uses_late_request_feature(tmp_path: Path) -> None:
     assert context.messages == [("user", "Please continue.")]
 
 
-def test_guidance_feature_preserves_compiled_instruction_and_strips_request_item() -> None:
+def test_guidance_feature_preserves_compiled_instruction_and_strips_request_item() -> (
+    None
+):
     feature = DocumentationStandardGuidanceFeature()
     leading = {
         "type": "message",
@@ -526,10 +529,7 @@ def test_default_runner_projection_preserves_agent_tool_family(
 
     assert GUIDANCE_FEATURE_PLUGIN not in plugins
     assert any(tool_family in plugin for plugin in plugins)
-    assert not any(
-        plugin in EVALUATION_TOOL_PLUGINS
-        for plugin in plugins
-    )
+    assert not any(plugin in EVALUATION_TOOL_PLUGINS for plugin in plugins)
 
 
 @pytest.mark.parametrize("profile_name", ("glm", "gpt"))
@@ -563,9 +563,7 @@ def test_default_runner_compiles_standard_message_and_sources(
     evidence = run.value
     assert evidence is not None
     assert evidence["runner"] == RUNNER_DEFAULT_SYSTEM_MESSAGE
-    assert evidence["family"] == (
-        "codex" if profile_name == "gpt" else "claude"
-    )
+    assert evidence["family"] == ("codex" if profile_name == "gpt" else "claude")
     assert evidence["include_tasks"] is include_tasks
     assert evidence["suite_wrapper_absent"] is True
     assert evidence["tool_family_matches"] is True
@@ -595,9 +593,7 @@ def test_changed_task_files_recovers_retained_file_after_cleanup(
         artifact_dir=artifact_dir,
     )
 
-    assert _changed_task_files(run) == {
-        "tasks/20260918-example.md": "# Example task\n"
-    }
+    assert _changed_task_files(run) == {"tasks/20260918-example.md": "# Example task\n"}
 
 
 def test_profile_projection_reuses_path_plugin_from_agent_definition(
@@ -638,9 +634,7 @@ def test_profile_projection_reuses_path_plugin_from_agent_definition(
 
 
 def test_plugin_runtime_constraints_pin_validated_openai_sdk() -> None:
-    assert PLUGIN_RUNTIME_CONSTRAINTS.read_text().splitlines()[-1] == (
-        "openai==2.53.0"
-    )
+    assert PLUGIN_RUNTIME_CONSTRAINTS.read_text().splitlines()[-1] == ("openai==2.53.0")
 
 
 def test_exact_seed_and_branch_prompts_come_from_specification() -> None:
@@ -853,8 +847,7 @@ def test_seed_prompts_name_the_exact_bounded_fixture_paths() -> None:
             "packages/sync-engine/README.md",
             "packages/sync-engine/src/sync.py",
             "packages/sync-engine/tests/test_sync.py",
-            "packages/sync-engine/docs/development/specifications/"
-            "sync-v2/index.md",
+            "packages/sync-engine/docs/development/specifications/" "sync-v2/index.md",
             "packages/sync-engine/docs/development/specifications/"
             "sync-v2/product-spec.md",
             "packages/sync-engine/docs/development/specifications/"
@@ -1002,9 +995,7 @@ def test_batch_single_decisions_variant_records_exact_layout(tmp_path: Path) -> 
 
     apply_fixture(workspace, "batch-sync", "approved-task-single-decisions")
 
-    task = workspace.joinpath("tasks/batch-offline-sync.md").read_text(
-        encoding="utf-8"
-    )
+    task = workspace.joinpath("tasks/batch-offline-sync.md").read_text(encoding="utf-8")
     assert "Status: Approved" in task
     assert "one `decisions.md` file" in task
     assert "Do not create a" in task
@@ -1048,27 +1039,36 @@ def test_fixture_commit_does_not_change_linked_repository_identity(
 
     _commit_fixture(worktree)
 
-    assert subprocess.run(
-        ["git", "config", "--local", "--get", "user.name"],
-        cwd=source,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "Original User"
-    assert subprocess.run(
-        ["git", "config", "--local", "--get", "user.email"],
-        cwd=source,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "original@example.com"
-    assert subprocess.run(
-        ["git", "show", "-s", "--format=%an <%ae>"],
-        cwd=worktree,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip() == "Agent Evaluation <agent-eval@example.invalid>"
+    assert (
+        subprocess.run(
+            ["git", "config", "--local", "--get", "user.name"],
+            cwd=source,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "Original User"
+    )
+    assert (
+        subprocess.run(
+            ["git", "config", "--local", "--get", "user.email"],
+            cwd=source,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "original@example.com"
+    )
+    assert (
+        subprocess.run(
+            ["git", "show", "-s", "--format=%an <%ae>"],
+            cwd=worktree,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "Agent Evaluation <agent-eval@example.invalid>"
+    )
 
 
 def test_maintainer_documentation_ownership_is_separated() -> None:
@@ -1076,9 +1076,7 @@ def test_maintainer_documentation_ownership_is_separated() -> None:
 
     assert not maintainer.joinpath("specifications").exists()
     assert maintainer.joinpath("docs/index.md").is_file()
-    assert maintainer.joinpath(
-        "docs/instruction-delivery-and-authority.md"
-    ).is_file()
+    assert maintainer.joinpath("docs/instruction-delivery-and-authority.md").is_file()
     assert maintainer.joinpath(
         "docs/evaluations/documentation-guidance/"
         "20260918-portable-root-guidance-results.md"
