@@ -41,6 +41,7 @@ WRAPPED_SCRIPTS = {
     "test:plugins:claude",
     "test:plugins:web-fetch-shared",
     "test:plugins:tool-compat-shared",
+    "test:ios:embedded-runtime:bundle",
     "test:ios:embedded-providers:bundle",
     "test:ios:embedded-providers:bundle:api",
     "test:ios:embedded-providers:detox:api",
