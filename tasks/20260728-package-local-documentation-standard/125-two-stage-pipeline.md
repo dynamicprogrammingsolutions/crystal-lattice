@@ -266,3 +266,14 @@ Status: Draft
   provider runs its real mechanism, never a no-op copy of the other's.
   The strip config file keeps its own name
   (`glm-v1-strip.json`), so run provenance records the exact config.
+
+- October 4, 2026 (requirement-id coordination): task 140
+  (`140-isolated-synthetic-evaluation-repositories.md`) claims
+  `TGEVAL-022` for isolated synthetic repositories, so this subtask's
+  documentation increment starts its new requirement rows at
+  `TGEVAL-023`. Task 140 also reworks the workspace/continuation
+  factories this subtask's new stages use (`TaskGuidanceWorkspaceFactory`,
+  `continue_from` lifetimes, workspace fingerprints); its planned
+  cache invalidation covers the identity change, and the two-stage
+  stages need no separate migration beyond what 140 migrates for the
+  existing parented stages.
