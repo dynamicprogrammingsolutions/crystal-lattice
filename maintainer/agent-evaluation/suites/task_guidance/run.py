@@ -172,6 +172,23 @@ def _assessment_stage_for(stage: str) -> str:
     return _ASSESSMENT_STAGE_NAMES[stage]
 
 
+def parse_max_concurrent(raw: str | None) -> int | None:
+    """Optional process-wide case concurrency cap (``--max-concurrent``).
+
+    The runtime environment overlay allows one live workspace root per
+    process, so cases whose workspaces differ cannot truly run in
+    parallel; ``--max-concurrent 1`` serializes every case and is the
+    safe setting until the overlay supports multiple roots.
+    """
+
+    if raw is None:
+        return None
+    value = int(raw)
+    if value < 1:
+        raise SystemExit("--max-concurrent must be >= 1")
+    return value
+
+
 def load_parallelism(path: Path | None) -> dict[str, int]:
     """Per-agent maximum concurrency; absent agents run serially."""
 
@@ -199,6 +216,7 @@ def run_evaluation(
     samples: int,
     parallelism: Mapping[str, int],
     dry_run: bool = False,
+    max_concurrent: int | None = None,
 ) -> list[CaseOutcome]:
     """Execute every selected case, honoring per-agent parallelism."""
 
@@ -238,10 +256,14 @@ def run_evaluation(
     outcomes: list[CaseOutcome] = []
     outcomes_lock = threading.Lock()
 
+    global_semaphore = threading.Semaphore(max_concurrent) if max_concurrent else None
+
     def run_job(stage: str, case) -> CaseOutcome:
         executor = _STAGE_EXECUTORS[stage]
         agent = _job_agent(stage, case)
         semaphore = semaphores[agent]
+        if global_semaphore is not None:
+            global_semaphore.acquire()
         semaphore.acquire()
         try:
             executor(harness_factory, label, options, case)
@@ -253,6 +275,8 @@ def run_evaluation(
             )
         finally:
             semaphore.release()
+            if global_semaphore is not None:
+                global_semaphore.release()
         return CaseOutcome(stage, case.id, agent, "ok")
 
     max_workers = max(1, sum(int(parallelism.get(agent, 1)) for agent in AGENTS))
@@ -315,6 +339,15 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON file mapping agent names to maximum concurrency",
     )
     parser.add_argument(
+        "--max-concurrent",
+        default=None,
+        help=(
+            "process-wide maximum concurrent cases (the runtime env "
+            "overlay allows one live workspace root; use 1 when agents "
+            "would otherwise overlap)"
+        ),
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="list cases without running"
     )
     args = parser.parse_args(argv)
@@ -327,6 +360,7 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             raise SystemExit(f"unknown agents: {unknown}; known: {list(AGENTS)}")
     parallelism = load_parallelism(args.parallelism)
+    max_concurrent = parse_max_concurrent(args.max_concurrent)
 
     print(f"bundle: {selected_bundle()}")
     print(f"artifacts: {selected_artifact_root()}")
@@ -342,6 +376,7 @@ def main(argv: list[str] | None = None) -> int:
         samples=args.samples,
         parallelism=parallelism,
         dry_run=args.dry_run,
+        max_concurrent=max_concurrent,
     )
 
     counts: dict[str, int] = {}

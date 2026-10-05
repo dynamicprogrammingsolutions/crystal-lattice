@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -417,6 +418,12 @@ class TaskGuidanceHarness:
             },
         )
         self.runtime_config = runtime_config
+        # In-process planning memo: dependent executors re-request the
+        # same shared planning run, and the process-wide runtime env
+        # overlay allows one live workspace root, so planning executions
+        # are serialized and their results reused per key.
+        self._planning_lock = threading.Lock()
+        self._planning_runs: dict[tuple[str, str, str], object] = {}
         self.runtime_agent = json.loads(agent_config.read_text(encoding="utf-8"))[
             "agents"
         ][self.agent["agent_id"]]
@@ -482,6 +489,29 @@ class TaskGuidanceHarness:
 
         if variant not in PLANNING_VARIANTS:
             raise ValueError(f"unknown planning variant {variant!r}")
+        key = (scenario.scenario_id, variant, reasoning_effort)
+        with self._planning_lock:
+            if not fresh and key in self._planning_runs:
+                return self._planning_runs[key]
+            runs = self._execute_planning(
+                scenario=scenario,
+                variant=variant,
+                reasoning_effort=reasoning_effort,
+                fresh=fresh,
+                samples=samples,
+            )
+            self._planning_runs[key] = runs
+            return runs
+
+    def _execute_planning(
+        self,
+        *,
+        scenario: TaskGuidanceScenario,
+        variant: str,
+        reasoning_effort: str,
+        fresh: bool,
+        samples: int,
+    ) -> tuple[Run[PlanningRunValue], ...]:
         workspace = TaskGuidanceWorkspaceFactory(
             scenario=scenario,
             bundle=self.bundle,
