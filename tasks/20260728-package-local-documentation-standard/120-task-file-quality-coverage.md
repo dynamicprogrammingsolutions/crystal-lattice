@@ -245,6 +245,14 @@ directories and connections; the matrix command set stays unchanged.
   are complete, retest ONLY the currently promoted b1v3 plus b1v4
   through the parallel runner; do not re-run b0 or earlier candidates.
 
+- October 5, 2026 (model switch + run scope): the suite's GPT pin
+  moved from `gpt-5.6-luna` (tool-loop streaming broken server-side)
+  to `gpt-6-luna`, verified by a live tool-loop probe; all gpt cache
+  identities rotate automatically (model is an identity component).
+  The b1v3 baseline retest runs under the new model with
+  `--max-concurrent 1` (runtime env overlay allows one live workspace
+  root per process). b1v4 remains approved for evaluation only.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the

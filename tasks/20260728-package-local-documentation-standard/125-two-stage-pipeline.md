@@ -290,3 +290,26 @@ Status: Draft
   the planning stage (no new catalog stage), so the gate record lives
   with the planning run and shares its label. Also October 4: task 140
   approved (execution sequenced after these increments).
+
+- October 5, 2026 — trial PASSED (label `d-trial-tg01-r4`, 11/11 ok):
+  both planning arms valid on `gpt-6-luna` (guided delivery
+  `tasks_occurrences == 1`, unguided `== 0` with the recorded
+  `include_tasks: false`), and every from-plan case valid — including
+  all six cross-model glm continuations and the omit-plan instructed
+  omission on both agents. Getting there required three fixes, all
+  committed: (1) `ce64b642` framework continuation support — a
+  `continuation_fingerprint` contract (snapshot schema for Crystal
+  Lattice, full fingerprint fallback elsewhere) replacing the
+  full-environment equality guard, plus foreign-agent session rebind
+  to the single declared agent with provider-native caches dropped;
+  (2) `af1f73a2` planning serialization — an in-process planning memo
+  on the harness (dependent executors reuse the shared run) and a
+  runner `--max-concurrent` cap, because the process-global runtime
+  env overlay (`REPO_ROOT`) allows ONE live workspace root per
+  process, which cross-agent parallel case execution would violate
+  (past full-matrix runs were single-agent zai, so this was latent);
+  (3) `29a367f0` the gpt model switch to `gpt-6-luna` (luna's
+  tool-loop path broke server-side around October 5; 6-luna verified
+  by tool-loop probe). Matrix-wide runs must use `--max-concurrent 1`
+  until the overlay supports multiple roots (candidate follow-up for
+  task 140 or the framework specs).
