@@ -136,6 +136,7 @@ class AgentEval(Generic[ContextT]):
 
         try:
             environment_fingerprint = selected_environment.fingerprint()
+            continuation_fingerprint = _continuation_fingerprint(selected_environment)
         except BaseException as exc:
             return self._failure_with_workspace(
                 run_id=run_id,
@@ -164,8 +165,13 @@ class AgentEval(Generic[ContextT]):
                     phase="environment.restore",
                     exc=ValueError("parent run has no reusable snapshot"),
                 )
-            if stable_hash(continue_from.environment_fingerprint) != stable_hash(
-                environment_fingerprint
+            parent_continuation_fingerprint = (
+                continue_from.continuation_fingerprint
+                if continue_from.continuation_fingerprint is not None
+                else continue_from.environment_fingerprint
+            )
+            if stable_hash(parent_continuation_fingerprint) != stable_hash(
+                continuation_fingerprint
             ):
                 return self._failure_with_workspace(
                     run_id=run_id,
@@ -218,7 +224,9 @@ class AgentEval(Generic[ContextT]):
                 parent_snapshot_sha256=parent_snapshot_sha256,
             )
 
-        lock = self.cache.lock(cache_hash) if self.cache and cache_hash else nullcontext()
+        lock = (
+            self.cache.lock(cache_hash) if self.cache and cache_hash else nullcontext()
+        )
         with lock:
             if self.cache is not None and cache_hash is not None and cache_read:
                 try:
@@ -301,6 +309,7 @@ class AgentEval(Generic[ContextT]):
                         snapshot=cached_snapshot,
                         environment=cached.environment,
                         environment_fingerprint=environment_fingerprint,
+                        continuation_fingerprint=continuation_fingerprint,
                         workspace=prepared_workspace.path,
                         workspace_fingerprint=prepared_workspace.fingerprint,
                         changed_paths=observation.changed_paths,
@@ -328,6 +337,7 @@ class AgentEval(Generic[ContextT]):
                 program=program,
                 environment=selected_environment,
                 environment_fingerprint=environment_fingerprint,
+                continuation_fingerprint=continuation_fingerprint,
                 prepared_workspace=prepared_workspace,
                 continue_from=continue_from,
                 parent_snapshot=parent_snapshot,
@@ -373,9 +383,7 @@ class AgentEval(Generic[ContextT]):
                         untracked_root=(
                             untracked_root if untracked_root.is_dir() else None
                         ),
-                        raw_environment_root=(
-                            run_dir / "raw" / "environment"
-                        ),
+                        raw_environment_root=(run_dir / "raw" / "environment"),
                         records_root=run_dir / "records",
                     )
                 except BaseException as exc:
@@ -397,6 +405,7 @@ class AgentEval(Generic[ContextT]):
         program: Callable[[ContextT], ResultT],
         environment: RunEnvironment[ContextT],
         environment_fingerprint: object,
+        continuation_fingerprint: object,
         prepared_workspace: PreparedWorkspace,
         continue_from: Run[object] | None,
         parent_snapshot: object | None,
@@ -501,6 +510,7 @@ class AgentEval(Generic[ContextT]):
             snapshot=snapshot,
             environment=environment_observation,
             environment_fingerprint=environment_fingerprint,
+            continuation_fingerprint=continuation_fingerprint,
             workspace=prepared_workspace.path,
             workspace_fingerprint=prepared_workspace.fingerprint,
             changed_paths=observation.changed_paths,
@@ -684,14 +694,33 @@ def _capture_error(
 
 def _run_id(name: str) -> str:
     safe_name = "".join(
-        character if character.isalnum() else "-"
-        for character in name.lower()
+        character if character.isalnum() else "-" for character in name.lower()
     ).strip("-")
     safe_name = "-".join(part for part in safe_name.split("-") if part)
     if not safe_name:
         raise ValueError("run name must contain an alphanumeric character")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     return f"{timestamp}-{safe_name}-{uuid.uuid4().hex[:8]}"
+
+
+def _continuation_fingerprint(
+    environment: RunEnvironment[object],
+) -> object:
+    """The environment's snapshot-compatibility surface.
+
+    Environments without an explicit continuation fingerprint keep the
+    strict behavior: continuation stays within one environment
+    configuration.
+    """
+
+    method = getattr(environment, "continuation_fingerprint", None)
+    if callable(method):
+        value = method()
+        # Protocol subclasses inherit a stub that returns None; that
+        # means "not defined" and keeps the strict fingerprint rule.
+        if value is not None:
+            return value
+    return environment.fingerprint()
 
 
 def _serialize_snapshot(

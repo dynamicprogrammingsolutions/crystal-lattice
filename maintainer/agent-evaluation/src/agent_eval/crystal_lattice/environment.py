@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
+from agent_core import Session
+
 import hashlib
 import shutil
 import tempfile
@@ -80,9 +84,7 @@ class CrystalLatticeEnvironment:
             "type": "crystal-lattice",
             "schema": 1,
             "config_path": str(self.config_path),
-            "config_sha256": hashlib.sha256(
-                self.config_path.read_bytes()
-            ).hexdigest(),
+            "config_sha256": hashlib.sha256(self.config_path.read_bytes()).hexdigest(),
             "env_overrides": _hashed_mapping(self.env_overrides),
             "config_env": _hashed_mapping(self.config_env),
             "core_factory": _callable_name(self.core_factory),
@@ -91,6 +93,18 @@ class CrystalLatticeEnvironment:
             "request_driver": _callable_name(self.request_driver),
             "snapshotter": _callable_name(self.snapshotter),
         }
+
+    def continuation_fingerprint(self) -> object:
+        """Snapshot compatibility: the portable session, not the config.
+
+        A Crystal Lattice snapshot is a provider-agnostic application
+        session — restore drops provider-native message caches and
+        rebases the workspace root — so a run produced under one agent
+        configuration can be continued under another. Only the snapshot
+        schema matters for restore; the full :meth:`fingerprint` still
+        pins caching and provenance to one configuration.
+        """
+        return {"type": "crystal-lattice", "snapshot_schema": 1}
 
     @contextmanager
     def open(
@@ -134,7 +148,7 @@ class CrystalLatticeEnvironment:
                     workspace_root=str(workspace) if workspace is not None else None,
                 )
                 if restored is not None:
-                    context.restore_session(restored)
+                    context.restore_session(self._rebind_restored_agent(restored))
                 context.config.update(parent_snapshot.request_defaults)
             elif self.default_agent is not None:
                 context.start(self.default_agent)
@@ -142,6 +156,42 @@ class CrystalLatticeEnvironment:
         finally:
             application.close()
             shutil.rmtree(runtime_root, ignore_errors=True)
+
+    def _rebind_restored_agent(self, session: Session) -> Session:
+        """Continue a foreign-agent session under this environment's agent.
+
+        Cross-agent continuation restores a conversation that was
+        produced under another agent configuration. The messages are
+        portable; the driving agent becomes this environment's single
+        declared agent, and the parent's provider-native message caches
+        are dropped exactly as a workspace rebase would. Configurations
+        that make the target ambiguous (zero or multiple agents) fail
+        loudly instead of guessing.
+        """
+
+        agent_id = session.metadata.get("agent_id")
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError(
+                "restored session has no agent_id; the continuation's "
+                "driving agent is unknown"
+            )
+        config = json.loads(self.config_path.read_text(encoding="utf-8"))
+        declared = list((config.get("agents") or {}).keys())
+        if agent_id in declared:
+            return session
+        if len(declared) != 1:
+            raise ValueError(
+                f"restored session agent {agent_id!r} is not declared and "
+                f"the configuration declares {len(declared)} agents; the "
+                "continuation's driving agent is ambiguous"
+            )
+        value = session.to_dict()
+        metadata = dict(value.get("metadata") or {})
+        metadata["agent_id"] = declared[0]
+        metadata.pop("native_messages", None)
+        metadata.pop("native_messages_integrity", None)
+        value["metadata"] = metadata
+        return Session.from_dict(value)
 
     def snapshot(
         self,
@@ -164,8 +214,7 @@ class CrystalLatticeEnvironment:
     def serialize_snapshot(self, snapshot: object) -> bytes:
         if not isinstance(snapshot, CrystalLatticeSnapshot):
             raise TypeError(
-                "CrystalLatticeEnvironment can only serialize "
-                "CrystalLatticeSnapshot"
+                "CrystalLatticeEnvironment can only serialize " "CrystalLatticeSnapshot"
             )
         return snapshot.to_bytes()
 

@@ -74,7 +74,9 @@ class GitWorkspaceFactory:
         checked_out = _git(target, "rev-parse", "HEAD").strip()
         expected = _git(repository, "rev-parse", self.revision).strip()
         if checked_out != expected:
-            raise RuntimeError(f"unexpected worktree revision: {checked_out} != {expected}")
+            raise RuntimeError(
+                f"unexpected worktree revision: {checked_out} != {expected}"
+            )
         return target
 
     def cleanup(self, workspace: Path) -> None:
@@ -183,6 +185,7 @@ def prepare_workspace(
         source = workspace
         cleanup_method = getattr(workspace, "cleanup", None)
         if callable(cleanup_method):
+
             def cleanup_workspace() -> None:
                 cleanup_method(path)
 
@@ -193,9 +196,7 @@ def prepare_workspace(
 
     git_root = _git_root(path)
     baseline_revision = (
-        _git(git_root, "rev-parse", "HEAD").strip()
-        if git_root is not None
-        else None
+        _git(git_root, "rev-parse", "HEAD").strip() if git_root is not None else None
     )
     initial_status = (
         _git(git_root, "status", "--short", "--untracked-files=all")
@@ -248,9 +249,7 @@ def observe_workspace(workspace: PreparedWorkspace) -> WorkspaceObservation:
         ],
     ).stdout.encode("utf-8", errors="surrogateescape")
     untracked = tuple(
-        line[3:]
-        for line in status.splitlines()
-        if line.startswith("?? ") and line[3:]
+        line[3:] for line in status.splitlines() if line.startswith("?? ") and line[3:]
     )
     return WorkspaceObservation(
         changed_paths=changed_paths,

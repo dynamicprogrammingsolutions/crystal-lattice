@@ -52,6 +52,7 @@ class Run(Generic[ResultT]):
     cache_hit: bool
     parent_run_id: str | None
     snapshot_sha256: str | None
+    continuation_fingerprint: object | None = None
     _workspace_source: object | None = field(default=None, repr=False, compare=False)
     _workspace_reusable: bool = field(default=False, repr=False, compare=False)
 

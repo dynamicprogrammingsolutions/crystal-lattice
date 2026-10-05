@@ -112,10 +112,10 @@ class CacheStore:
                 )
             value = pickle.loads(entry.joinpath("value.pkl").read_bytes())
             snapshot_path = entry / "snapshot.bin"
-            snapshot_data = snapshot_path.read_bytes() if snapshot_path.is_file() else None
-            environment = pickle.loads(
-                entry.joinpath("environment.pkl").read_bytes()
+            snapshot_data = (
+                snapshot_path.read_bytes() if snapshot_path.is_file() else None
             )
+            environment = pickle.loads(entry.joinpath("environment.pkl").read_bytes())
             evidence = pickle.loads(entry.joinpath("evidence.pkl").read_bytes())
             if not isinstance(evidence, tuple) or not all(
                 isinstance(item, Evidence) for item in evidence
@@ -135,9 +135,7 @@ class CacheStore:
                 workspace_patch=patch,
                 untracked_root=untracked_root if untracked_root.is_dir() else None,
                 raw_environment_root=(
-                    raw_environment_root
-                    if raw_environment_root.is_dir()
-                    else None
+                    raw_environment_root if raw_environment_root.is_dir() else None
                 ),
                 records_root=records_root if records_root.is_dir() else None,
             )
@@ -177,9 +175,7 @@ class CacheStore:
             temporary.joinpath("value.pkl").write_bytes(pickle_bytes(value))
             if snapshot_data is not None:
                 temporary.joinpath("snapshot.bin").write_bytes(snapshot_data)
-            temporary.joinpath("environment.pkl").write_bytes(
-                pickle_bytes(environment)
-            )
+            temporary.joinpath("environment.pkl").write_bytes(pickle_bytes(environment))
             temporary.joinpath("evidence.pkl").write_bytes(pickle_bytes(evidence))
             if workspace_patch:
                 temporary.joinpath("workspace.patch").write_bytes(workspace_patch)

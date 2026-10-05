@@ -45,8 +45,7 @@ def jsonable(value: Any) -> Any:
             pass
     if is_dataclass(value) and not isinstance(value, type):
         return {
-            field.name: jsonable(getattr(value, field.name))
-            for field in fields(value)
+            field.name: jsonable(getattr(value, field.name)) for field in fields(value)
         }
     return repr(value)
 
@@ -189,7 +188,9 @@ class ArtifactWriter:
             raise ValueError("record name must contain an alphanumeric character")
         if isinstance(value, str):
             suffix = "" if "." in safe_name else ".md"
-            return self.write_text(f"records/{safe_name}{suffix}", value.rstrip() + "\n")
+            return self.write_text(
+                f"records/{safe_name}{suffix}", value.rstrip() + "\n"
+            )
         suffix = "" if safe_name.endswith(".json") else ".json"
         return self.write_json(f"records/{safe_name}{suffix}", value)
 

@@ -214,9 +214,7 @@ class CrystalLatticeContext:
     def request(
         self,
         *,
-        messages: Mapping[str, object]
-        | Iterable[Mapping[str, object]]
-        | None = None,
+        messages: Mapping[str, object] | Iterable[Mapping[str, object]] | None = None,
         overrides: Mapping[str, object] | None = None,
         driver: RequestDriver | None = None,
         observers: tuple[RequestObserver, ...] = (),
@@ -380,9 +378,7 @@ class CrystalLatticeContext:
         session = self._session
         return {
             "agent_id": (
-                session.metadata.get("agent_id")
-                if session is not None
-                else None
+                session.metadata.get("agent_id") if session is not None else None
             ),
             "session_id": session.session_id if session is not None else None,
             "message_count": len(session.messages) if session is not None else 0,
@@ -390,9 +386,7 @@ class CrystalLatticeContext:
             "tool_event_count": sum(
                 request.tool_event_count for request in self._requests
             ),
-            "mutation_count": sum(
-                request.mutation_count for request in self._requests
-            ),
+            "mutation_count": sum(request.mutation_count for request in self._requests),
             "error_count": sum(
                 len(request.error_messages) for request in self._requests
             ),
@@ -402,11 +396,7 @@ class CrystalLatticeContext:
 
 
 def _artifact_files(root: Path) -> set[str]:
-    return {
-        str(path.relative_to(root))
-        for path in root.rglob("*")
-        if path.is_file()
-    }
+    return {str(path.relative_to(root)) for path in root.rglob("*") if path.is_file()}
 
 
 def _callable_name(value: object) -> str:

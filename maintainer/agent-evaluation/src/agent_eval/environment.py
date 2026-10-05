@@ -18,6 +18,19 @@ class RunEnvironment(Protocol, Generic[ContextT]):
     def fingerprint(self) -> object:
         """Return deterministic compatibility-relevant environment data."""
 
+    def continuation_fingerprint(self) -> object:
+        """Return what a parent run's snapshot needs to restore here.
+
+        The evaluation kernel compares this between a parent run and
+        the environment continuing it. Environments that do not define
+        it fall back to :meth:`fingerprint`, keeping continuation
+        within one environment configuration. An environment whose
+        snapshots are portable across its own configurations (for
+        example a provider-agnostic session) can widen this surface
+        without weakening :meth:`fingerprint`, which still guards
+        caching and provenance.
+        """
+
     def open(
         self,
         *,

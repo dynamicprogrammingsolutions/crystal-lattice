@@ -35,14 +35,10 @@ def write_run_artifacts(
     workspace_observation: WorkspaceObservation,
 ) -> None:
     canonical_evidence = [
-        item
-        for item in evidence
-        if item.visibility is EvidenceVisibility.CANONICAL
+        item for item in evidence if item.visibility is EvidenceVisibility.CANONICAL
     ]
     persisted_evidence = [
-        item
-        for item in evidence
-        if item.visibility is not EvidenceVisibility.INTERNAL
+        item for item in evidence if item.visibility is not EvidenceVisibility.INTERNAL
     ]
     payload = {
         "run_id": run_id,

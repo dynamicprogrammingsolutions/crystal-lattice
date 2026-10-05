@@ -20,6 +20,7 @@ from fixtures.crystal_mini_scenario import (
     ASSESSMENT_RECORD_NAME,
     ECHO_AGENT,
     ECHO_SCENARIO,
+    MINI_AGENTS,
     MINI_GUIDANCE,
     PRODUCER_RECORD_NAME,
     SCENARIO_PROMPTS,
@@ -97,6 +98,113 @@ def test_mini_crystal_lifecycle_produces_assesses_and_freezes(
     assert dataset["statistics"][cell]["count"] == 1
     assert dataset["statistics"][cell]["mean"] == 1.0
     assert cell in render_mini_report(dataset)
+
+
+def test_cross_config_continuation_restores_the_portable_session(
+    tmp_path: Path,
+) -> None:
+    """A parent run continues under a differently configured environment.
+
+    The full environment fingerprint pins caching and provenance to one
+    configuration, but a Crystal Lattice snapshot is a portable
+    application session: continuation compatibility is the snapshot
+    schema, so a parent produced under one agent configuration can be
+    continued under another (the two-stage pipeline's cross-model arm).
+    A session whose agent is not declared rebinds to the single
+    declared agent, and ambiguous configurations fail loudly.
+    """
+
+    from agent_core import Session
+
+    from fixtures.crystal_plugins import GuidanceSystemMessage  # noqa: F401
+
+    parent_harness = MiniCrystalHarness(
+        tmp_path / "parent", agents=(ECHO_AGENT,), label="cross-config"
+    )
+    child_harness = MiniCrystalHarness(
+        tmp_path / "child", agents=(ECHO_AGENT,), label="cross-config"
+    )
+    try:
+        # Different full fingerprints (distinct configs), same
+        # continuation fingerprint (portable snapshot schema).
+        assert (
+            parent_harness.environment.fingerprint()
+            != child_harness.environment.fingerprint()
+        )
+        assert (
+            parent_harness.environment.continuation_fingerprint()
+            == child_harness.environment.continuation_fingerprint()
+        )
+
+        # A foreign-agent session rebinds to the single declared agent
+        # and drops provider-native caches; ambiguity is refused.
+        foreign = Session.from_dict(
+            {
+                "session_id": "rebind-demo",
+                "messages": [{"role": "user", "content": "hi"}],
+                "metadata": {
+                    "agent_id": "some-foreign-agent",
+                    "native_messages": [{"role": "assistant"}],
+                    "native_messages_integrity": "deadbeef",
+                },
+            }
+        )
+        rebound = child_harness.environment._rebind_restored_agent(foreign)
+        assert rebound.metadata["agent_id"] == ECHO_AGENT
+        assert "native_messages" not in rebound.metadata
+        assert "native_messages_integrity" not in rebound.metadata
+        declared = Session.from_dict(
+            {
+                "session_id": "declared-demo",
+                "messages": [],
+                "metadata": {"agent_id": ECHO_AGENT},
+            }
+        )
+        assert child_harness.environment._rebind_restored_agent(declared) is declared
+
+        parent = parent_harness.produce(agent=ECHO_AGENT, scenario=ECHO_SCENARIO)
+        parent.raise_for_error()
+
+        def continue_program(context):
+            # No context.start: the restored session drives the turn.
+            context.config.update(
+                {
+                    "model": MINI_AGENTS[ECHO_AGENT].model,
+                    "guidance_file": str(context.workspace / "AGENTS.md"),
+                    "response_mode": "echo",
+                    "response_text": "continued",
+                }
+            )
+            context.add_message("user", "continue")
+            outcome = context.request()
+            return {
+                "response": outcome.final_response,
+                "completed": outcome.completed,
+                "errors": list(outcome.error_messages),
+                "message_count": len(context.session.messages),
+            }
+
+        continued = child_harness.model.run(
+            "mini-crystal-continue-cross-config",
+            continue_program,
+            identity="mini-crystal:continue:cross-config:1",
+            workspace=None,
+            continue_from=parent,
+        )
+        continued.raise_for_error()
+        assert continued.parent_run_id == parent.run_id
+        assert continued.value["response"] == "continued"
+        # Parent conversation + the continuation turn.
+        assert continued.value["message_count"] >= 2
+        provenance = json.loads(
+            (continued.artifact_dir / "records" / "run-model.json").read_text(
+                encoding="utf-8"
+            ),
+        )
+        assert provenance["cache_hit"] is False
+    finally:
+        parent_harness.close()
+        child_harness.close()
 
 
 def test_provider_failure_is_not_cached_and_retries_naturally(

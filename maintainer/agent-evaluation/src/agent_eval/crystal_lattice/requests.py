@@ -190,10 +190,7 @@ def application_request_driver() -> RequestDriver:
                     stop_reason = "stop_condition"
                     application.cancel_request(request.request_id)
                     break
-                if (
-                    request.max_events is not None
-                    and len(events) >= request.max_events
-                ):
+                if request.max_events is not None and len(events) >= request.max_events:
                     stop_reason = "max_events"
                     application.cancel_request(request.request_id)
                     break

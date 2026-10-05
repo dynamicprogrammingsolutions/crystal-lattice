@@ -71,7 +71,9 @@ def application_session_snapshot(
     return CrystalLatticeSnapshot(
         schema=1,
         session=session.to_dict() if isinstance(session, Session) else None,
-        workspace_root=str(context.workspace) if context.workspace is not None else None,
+        workspace_root=(
+            str(context.workspace) if context.workspace is not None else None
+        ),
         request_defaults=dict(context.config),
     )
 
@@ -104,17 +106,11 @@ def _rebase_value(
     old_root: str | None,
     new_root: str | None,
 ) -> object:
-    if (
-        isinstance(value, str)
-        and old_root
-        and new_root
-        and old_root in value
-    ):
+    if isinstance(value, str) and old_root and new_root and old_root in value:
         return value.replace(old_root, new_root)
     if isinstance(value, list):
         return [
-            _rebase_value(item, old_root=old_root, new_root=new_root)
-            for item in value
+            _rebase_value(item, old_root=old_root, new_root=new_root) for item in value
         ]
     if isinstance(value, dict):
         return {
