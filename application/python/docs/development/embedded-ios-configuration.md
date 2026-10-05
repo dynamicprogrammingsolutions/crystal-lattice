@@ -17,6 +17,14 @@ Application Support config directory and creates `AgentApplication` with a
 config-only placeholder environment. Placeholder values do not need to be
 installed in process-global `os.environ`.
 
+The adjacent `requirements.txt` owns the fully pinned third-party dependency
+closure for this embedded application. Runtime preparation asks pip for
+platform-neutral `py*-none-any` wheels, validates that the installed staging
+tree contains no native extensions or development distributions, and archives
+the complete validated tree. Distribution names therefore do not need a
+second mapping to import-package names; for example, `python-jsonpath`
+automatically contributes the `jsonpath` package.
+
 ## Placeholder ownership
 
 The native settings bridge owns persisted user choices and supplies values for
@@ -124,10 +132,13 @@ Relevant boundaries include:
 pytest application/python/tests/test_embedded_ios_default_config.py -q
 pytest mobile/crystal-lattice-control-rn/python_tests -q
 npm run build:ios:embedded-providers:bundle
+npm run test:ios:embedded-runtime:bundle
 npm run test:ios:embedded-providers:bundle
 npm --prefix mobile/crystal-lattice-control-rn run detox:build:ios
 ```
 
 Archive verification must confirm that the configuration and included plugin
 packages are imported from `crystal_lattice_app.zip`, without repository or
-development-dependency fallback.
+development-dependency fallback. The embedded-application smoke additionally
+imports `agent_app` and its dependency closure from the ZIP and executes a
+credential-free ChatGPT status action through the bundled application layer.

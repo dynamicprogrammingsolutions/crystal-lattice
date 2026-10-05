@@ -145,6 +145,8 @@ platform :ios do
   lane :verify do
     Dir.chdir(APP_ROOT) do
       sh("bundle", "exec", "ruby", "fastlane/spec/build_number_test.rb")
+      sh("npm", "run", "ios:prepare-python")
+      sh("npm", "run", "test:embedded-application-bundle")
       sh("npm", "run", "tsc")
       sh("npm", "test", "--", "--runInBand")
     end
