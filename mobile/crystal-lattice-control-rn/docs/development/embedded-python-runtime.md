@@ -48,6 +48,14 @@ Generated framework and resource trees stay ignored by Git. The preparation
 script builds an importable application archive containing the fixed Python
 source and pure-Python dependency closure.
 
+That third-party closure is maintained in the Python application next to the
+embedded config at
+`agent_terminal_app/default_config/embedded-ios/requirements.txt`. The
+preparation script installs its exact pins as platform-neutral wheels into a
+clean staging tree, rejects native extensions and development distributions,
+and archives the complete validated result. It does not maintain a separate
+list translating pip distribution names to import-package names.
+
 OpenAI Responses and Anthropic use their package-owned
 `provider_transport: "requests"` path in the embedded runtime. Their vendor
 SDKs and native dependencies such as `jiter` and `pydantic-core` are not
@@ -385,17 +393,22 @@ that immutable artifact:
 
 ```bash
 npm run build:ios:embedded-providers:bundle
+npm run test:ios:embedded-runtime:bundle
 npm run test:ios:embedded-providers:bundle
 npm run test:ios:embedded-providers:bundle:api
 ```
 
 The build entry delegates to the mobile package's `ios:prepare-python`
-command. The test entries select positively marked OpenAI Responses and
-OpenRouter provider tests only and never rebuild the artifact. They exclude
-unit, `AgentApplication`, plugin-install, and non-embedded-extension tests.
-Each provider gets a disposable dev-only dependency overlay; provider,
-`agent_core`, and `requests` imports must remain inside the prebuilt ZIP, and
-the archive hash must not change.
+command. The embedded-runtime test starts an isolated interpreter without
+source or site-package fallback, imports the bundled `jsonpath`,
+`agent_app`, ChatGPT application plugin, and mobile runtime, then executes a
+credential-free ChatGPT status action. The provider test entries separately
+select positively marked OpenAI Responses and OpenRouter provider tests only
+and never rebuild the artifact. They exclude unit, `AgentApplication`,
+plugin-install, and non-embedded-extension tests. Each provider gets a
+disposable dev-only dependency overlay; provider, `agent_core`, and
+`requests` imports must remain inside the prebuilt ZIP, and the archive hash
+must not change.
 
 Run the Release simulator API matrix separately:
 
