@@ -795,6 +795,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/100-task-guidance-suite-restructure.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/110-run-exact-freeze-collect.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/120-task-file-quality-coverage.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/140-isolated-synthetic-evaluation-repositories.md`
 
 ## Execution plan
 
@@ -822,6 +823,8 @@ The work is organized standards-first:
      public guidance change;
    - 018 restores the substantial-specification approval boundary after the
      concurrent Test-22 guidance work is reconciled.
+   - 140 moves synthetic fixture worktrees to an isolated shared repository
+     and hardens workspace evidence and cleanup.
 3. Subtask 020 extends the existing site assembler and establishes package
    registration and focused tests.
 4. Subtasks 030, 040, and 050 migrate or classify bounded documentation areas
@@ -924,6 +927,7 @@ Required new or updated documentation includes:
   compare guidance placement.
 - [ ] 095: Add reusable, regenerable evaluation result packages and migrate
   task-guidance baseline/candidate records out of suite fixtures.
+- [ ] 140: Isolate synthetic evaluation worktrees from Crystal Lattice.
 
 ### Requirement verification
 
