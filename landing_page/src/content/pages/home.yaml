@@ -34,7 +34,10 @@ sections:
     presentation: "editorial"
     reviewStatus: "Structural prototype · copy and proof unapproved"
     items:
-      - title: "One workspace for every model family."
+      # List order controls reading order; layout: full-width expands an item.
+      # To use option A, reorder these entries and remove the two full-width flags.
+      - id: feature-model-families
+        title: "One workspace for every model family."
         description: >-
           Use Codex-, Claude-, Gemini-, Qwen-, Kimi-, and Grok-oriented profiles
           without switching between separate model-specific clients. Each
@@ -43,30 +46,24 @@ sections:
         reviewStatus: "Draft · proof needed"
         media:
           kind: "Configured agents"
-          status: "placeholder-needed"
-          desktop: "Two reviewed views: the ordered agent picker with title and description, then Codex selected beside its apply-patch, shell, and image-viewing tools; and Claude selected beside its Claude-specific tools."
-      - title: "Replace the parts you disagree with."
-        description: >-
-          Providers, tools, model defaults, actions, settings, and UI elements
-          are plugin surfaces. Keep the built-in experience where it works and
-          replace only the layers your workflow disagrees with.
-        reviewStatus: "Draft · proof needed"
-        media:
-          kind: "Plugin architecture"
-          status: "placeholder-needed"
-          desktop: "Two reviewed views: provider-specific settings with authentication mode and flex processing, then the plugins window showing independently selectable features."
-      - title: "Transparency by design."
-        description: >-
-          Framework and plugin boundaries make instructions, configuration,
-          tools, state, and provider metadata visible and user-modifiable.
-          Usage, cache, duration, and cost remain visible when the provider
-          supplies them. Open source adds full source-level transparency.
-        reviewStatus: "Draft · proof needed"
-        media:
-          kind: "Inspectable execution"
-          status: "placeholder-needed"
-          desktop: "Compiled system and developer instructions with enabled plugin context, paired with a completed response showing provider usage, cache, duration, reasoning-token, and cost metadata."
-      - title: "Work from anywhere."
+          status: "draft-review"
+          assets:
+            - label: "Codex"
+              description: "An agent configured with Apply Patch, Shell, and View Image tools."
+              src: "/homepage-draft/agent-codex-light.webp"
+              srcDark: "/homepage-draft/agent-codex-dark.webp"
+              alt: "Compact Crystal Lattice Desktop agent picker with Codex selected and Apply Patch, Shell, View Image, and Read File defaults visible."
+              width: 1400
+              height: 980
+            - label: "Claude"
+              description: "An agent configured with Read, Write, Edit, Glob, Grep, and Bash tools."
+              src: "/homepage-draft/agent-claude-light.webp"
+              srcDark: "/homepage-draft/agent-claude-dark.webp"
+              alt: "Compact Crystal Lattice Desktop agent picker with Claude selected and Read, Write, Edit, Glob, Grep, and Bash defaults visible."
+              width: 1400
+              height: 980
+      - id: feature-work-anywhere
+        title: "Work from anywhere."
         description: >-
           Start in the terminal or Desktop app and continue the same session
           from your phone. Connect on the same network or through a self-hosted
@@ -75,8 +72,14 @@ sections:
         media:
           kind: "Cross-device session"
           status: "placeholder-needed"
-          desktop: "Matching Desktop and mobile views of the same named session, latest user and assistant content, and status."
-      - title: "Vibe code—or vibe anything."
+          assets:
+            - label: "Desktop and mobile"
+              description: "Continue the same conversation on a different device."
+              placeholder: >-
+                A Desktop window and a phone showing the same conversation:
+                matching session title, latest question, and answer.
+      - id: feature-vibe-anything
+        title: "Vibe code—or vibe anything."
         description: >-
           Turn the same agent platform toward software work, research,
           operations, content, evaluations, internal automation, or a workflow
@@ -84,9 +87,17 @@ sections:
         reviewStatus: "Draft · proof needed"
         media:
           kind: "Non-development workflow"
-          status: "placeholder-needed"
-          desktop: "A non-development session showing the system message, a user prompt, and initial agent reasoning for tool-heavy work, cropped before any tool calls appear."
-      - title: "Sessions become workspaces."
+          status: "draft-review"
+          assets:
+            - label: "Research and planning"
+              description: "A research workflow using the same session interface."
+              src: "/homepage-draft/vibe-light.webp"
+              srcDark: "/homepage-draft/vibe-dark.webp"
+              alt: "An agent reviewing attached launch data and reasoning about research and validation work before using its tools."
+              width: 520
+              height: 1131
+      - id: session-workbench
+        title: "Sessions become workspaces."
         description: >-
           Titles, subtitles, status, pinned state, snapshots, attachments, and
           actions turn conversations into durable workspaces. These behaviors
@@ -96,7 +107,78 @@ sections:
         media:
           kind: "Durable sessions"
           status: "placeholder-needed"
-          desktop: "A session list with todo, in-progress, and done status; pinned and unpinned rows; and descriptive titles and subtitles, alongside the plugin-provided controls that own those fields."
+          assets:
+            - label: "Organize your sessions"
+              description: "Titles, subtitles, pinning, and status keep ongoing work organized."
+              placeholder: >-
+                Desktop session list with descriptive titles, subtitles, and
+                status. A pin star sits at the top right; archive and status
+                controls remain visible beside the open action menu.
+            - label: "Control the conversation"
+              description: "Fork a conversation or choose how to change its history."
+              placeholder: >-
+                A Desktop conversation with Message actions open, highlighting
+                Fork here, Delete from here, and OpenAI compaction up to here.
+      - id: feature-plugins
+        layout: full-width
+        title: "Replace the parts you disagree with."
+        description: >-
+          Providers, tools, model defaults, actions, settings, and UI elements
+          are plugin surfaces. Keep the built-in experience where it works and
+          replace only the layers your workflow disagrees with.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Plugin architecture"
+          status: "placeholder-needed"
+          assets:
+            - label: "Session actions"
+              description: "Choose the plugins that add actions to each session."
+              placeholder: >-
+                Plugin configuration on the left connects to the open Session
+                actions menu on the right: Edit title, Generate title, and
+                Summarize range. The conversation remains visible behind the menu.
+            - label: "Actions for each message"
+              description: "Fork, summarize, or share a message using the plugins you choose."
+              placeholder: >-
+                Configuration connects to the real Message actions menu.
+                Three plugin packages provide Fork here, Summarize messages
+                up to here, and sharing as both PDF and Markdown.
+            - label: "A session list that fits your work"
+              description: "Choose the plugins that add pinning, archiving, and status to your sessions."
+              placeholder: >-
+                Configuration for pin, archive, and status plugins connects to
+                their controls in a Desktop session list, with the action menu
+                open and the surrounding sessions visible.
+      - id: feature-transparency
+        layout: full-width
+        title: "Transparency by design."
+        description: >-
+          Framework and plugin boundaries make instructions, configuration,
+          tools, state, and provider metadata visible and user-modifiable.
+          Usage, cache, duration, and cost remain visible when the provider
+          supplies them. Open source adds full source-level transparency.
+        reviewStatus: "Draft · proof needed"
+        media:
+          kind: "Inspectable execution"
+          status: "placeholder-needed"
+          assets:
+            - label: "Inspect the instructions"
+              description: "See the system message assembled for a session."
+              placeholder: >-
+                The compiled system message in a Desktop window, showing the
+                instructions assembled for the agent's session.
+            - label: "See where costs go"
+              description: "Compare recorded costs by project and provider."
+              placeholder: >-
+                A Desktop cost report with short project and provider names,
+                several days of activity, and clearly readable sample totals
+                alongside the relevant provider usage metadata.
+            - label: "Track ChatGPT usage"
+              description: "See estimated usage and remaining limits for connected ChatGPT sessions."
+              placeholder: >-
+                A Desktop ChatGPT usage report showing estimated tokens and
+                cost, remaining limits, reset times, and usage history.
+                Sample data.
 
   - type: gettingStarted
     id: getting-started
@@ -484,42 +566,6 @@ sections:
                         "label": "Reasoning effort",
                     },
                 ]
-
-  - type: screenshotGallery
-    id: session-workbench
-    mediaAspect: tall
-    eyebrow: "Session workbench"
-    title: "Treat sessions as workspaces, not disposable chats."
-    body:
-      - >-
-        Agent work is more than a transcript. Built-in session plugins add
-        reusable actions, checkpoints, settings, and other controls to the
-        session workflow.
-      - >-
-        The workbench is plugin-driven too: built-in plugins provide the default
-        behavior, and your own plugins can add or replace workflow actions.
-    gallery:
-      - title: "Chat actions"
-        description: "Message and session actions exposed by plugins."
-        src: "/chat-actions-workbench.webp"
-        srcDark: "/chat-actions-workbench-dark.webp"
-        alt: "Session actions menu showing plugin-provided copy, title, deletion, summarization, and native compaction controls alongside session settings."
-        width: 1000
-        height: 2025
-      - title: "Snapshots"
-        description: "Create, inspect, select, and restore session checkpoints."
-        src: "/session-snapshots-workbench.webp"
-        srcDark: "/session-snapshots-workbench-dark.webp"
-        alt: "Snapshots dialog showing automatic pre-compaction and pre-deletion recovery points with Select, Restore, and Delete controls."
-        width: 1000
-        height: 2025
-      - title: "Settings and plugins"
-        description: "Per-session controls from plugin UI schema."
-        src: "/session-settings-plugins.webp"
-        srcDark: "/session-settings-plugins-dark.webp"
-        alt: "Session settings showing OpenAI model, reasoning, verbosity, prompt cache, web search, and compaction transcript controls contributed by plugins."
-        width: 1000
-        height: 2025
 
   - type: promptBlock
     id: build-plugin

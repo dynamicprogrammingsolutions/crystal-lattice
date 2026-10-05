@@ -59,6 +59,17 @@ export type CodeSnippet = {
   status?: string;
 };
 
+export type FeatureMediaAsset = {
+  label?: string;
+  description?: string;
+  src?: string;
+  srcDark?: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  placeholder?: string;
+};
+
 export type MediaPlaceholder = {
   kind?: string;
   status?: string;
@@ -73,6 +84,7 @@ export type MediaPlaceholder = {
   width?: number;
   height?: number;
   desktop?: string;
+  assets?: FeatureMediaAsset[];
 };
 
 export type HeroSection = SectionBase<"hero"> & {
@@ -147,6 +159,8 @@ export type FeatureShowcaseSection = SectionBase<"featureShowcase"> & {
   presentation?: "cards" | "editorial";
   reviewStatus?: string;
   items?: Array<{
+    id?: string;
+    layout?: "compact" | "full-width";
     title: string;
     description: string;
     reviewStatus?: string;
@@ -210,16 +224,16 @@ export type FeatureCodeShowcaseSection = SectionBase<"featureCodeShowcase"> & {
 
 export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
   body?: string[];
-  mediaAspect?: "standard" | "tall";
   gallery?: Array<{
     title: string;
     description: string;
-    src: string;
+    src?: string;
     srcDark?: string;
     alt?: string;
     width?: number;
     height?: number;
     status?: string;
+    placeholder?: string;
   }>;
 };
 

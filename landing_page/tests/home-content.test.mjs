@@ -26,11 +26,11 @@ test('homepage identifies the project as open source', async () => {
   assert.ok(highlights);
   assert.equal(hero.badge, 'Open Source');
   assert.match(
-    highlights.items[2].description,
+    highlights.items.find(({ id }) => id === 'feature-transparency').description,
     /Framework and plugin boundaries make .* visible and user-modifiable/,
   );
   assert.match(
-    highlights.items[2].description,
+    highlights.items.find(({ id }) => id === 'feature-transparency').description,
     /Open source adds full source-level transparency/,
   );
 });
@@ -58,7 +58,7 @@ test('homepage starts with hero, draft highlights, and getting started', async (
   );
 });
 
-test('homepage renders six draft highlight shells in the prototype order', async () => {
+test('homepage defines four compact user features followed by two configurable deep dives', async () => {
   const home = await loadHome();
   const highlights = home.sections.find(
     (section) => section.id === 'product-highlights',
@@ -72,27 +72,54 @@ test('homepage renders six draft highlight shells in the prototype order', async
     highlights.items.map(({ title }) => title),
     [
       'One workspace for every model family.',
-      'Replace the parts you disagree with.',
-      'Transparency by design.',
       'Work from anywhere.',
       'Vibe code—or vibe anything.',
       'Sessions become workspaces.',
+      'Replace the parts you disagree with.',
+      'Transparency by design.',
     ],
   );
   assert.equal(highlights.items.length, 6);
   for (const item of highlights.items) {
     assert.match(item.reviewStatus, /Draft/);
-    assert.equal(item.media.status, 'placeholder-needed');
-    assert.ok(item.media.desktop);
-    assert.equal(item.media.src, undefined);
+    assert.ok(item.media.assets?.length || item.media.desktop);
+    assert.equal(item.link, undefined);
   }
-  assert.match(highlights.items[0].media.desktop, /Codex selected/);
-  assert.match(highlights.items[0].media.desktop, /Claude selected/);
-  assert.match(highlights.items[1].media.desktop, /authentication mode/);
-  assert.match(highlights.items[1].media.desktop, /flex processing/);
-  assert.match(highlights.items[4].media.desktop, /initial agent reasoning/);
-  assert.match(highlights.items[5].description, /plugin-driven/);
-  assert.match(highlights.items[5].media.desktop, /todo, in-progress, and done/);
+  assert.deepEqual(
+    highlights.items.map(({ layout }) => layout ?? 'compact'),
+    ['compact', 'compact', 'compact', 'compact', 'full-width', 'full-width'],
+  );
+  assert.match(highlights.items[0].media.assets[0].alt, /Codex selected/);
+  assert.match(highlights.items[0].media.assets[1].alt, /Claude selected/);
+  assert.match(highlights.items[3].description, /plugin-driven/);
+  assert.equal(highlights.items[3].id, 'session-workbench');
+});
+
+test('detailed evidence stays inside its owning highlight without duplicate galleries', async () => {
+  const home = await loadHome();
+  const highlights = home.sections.find(({ id }) => id === 'product-highlights');
+  assert.deepEqual(
+    highlights.items.map(({ media }) => media.assets?.length ?? 1),
+    [2, 1, 1, 2, 3, 3],
+  );
+  assert.deepEqual(
+    highlights.items[4].media.assets.map(({ label }) => label),
+    ['Session actions', 'Actions for each message', 'A session list that fits your work'],
+  );
+  assert.deepEqual(
+    highlights.items[5].media.assets.map(({ label }) => label),
+    ['Inspect the instructions', 'See where costs go', 'Track ChatGPT usage'],
+  );
+  assert.equal(
+    home.sections.some(({ id }) =>
+      ['session-workbench', 'transparency-details', 'plugin-action-examples'].includes(id),
+    ),
+    false,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(home),
+    /See what goes into each session|Your plugins shape the controls|Inspect and restore session snapshots/,
+  );
 });
 
 test('getting started owns the supported installation methods in one chooser', async () => {

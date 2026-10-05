@@ -29,7 +29,8 @@ test("renders the approved homepage structure and disabled waitlist slot", async
   ).toHaveCount(6);
   await expect(
     page.locator("#product-highlights [data-proof-placeholder]"),
-  ).toHaveCount(6);
+  ).toHaveCount(9);
+  await expect(page.locator("#product-highlights [data-proof-media]")).toHaveCount(3);
   await expect(
     page.locator("#getting-started [data-getting-started-step]"),
   ).toHaveCount(6);
@@ -124,8 +125,10 @@ test("uses a provisional responsive highlights baseline without overflow", async
 }) => {
   for (const viewport of [
     { width: 1440, height: 1000, expectedColumns: 2 },
+    { width: 1024, height: 900, expectedColumns: 2 },
     { width: 768, height: 900, expectedColumns: 2 },
     { width: 390, height: 844, expectedColumns: 1 },
+    { width: 320, height: 700, expectedColumns: 1 },
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/", { waitUntil: "networkidle" });

@@ -65,6 +65,10 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-light.png",
     usageDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/usage-dark.png",
+    costLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/cost-light.png",
+    costDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/cost-dark.png",
     heroLight:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-light.png",
     heroDark:
@@ -857,13 +861,8 @@ export default defineVisualAssets({
           width: 1000,
           height: 2025,
         },
-        contentBindings: [
-          homeMedia({
-            sectionId: "session-workbench",
-            collection: "gallery",
-            title: "Chat actions",
-          }),
-        ],
+        // Retained source; the duplicate homepage workbench gallery was merged.
+        contentBindings: [],
         variants: {
           light: {
             source: capturedSource({
@@ -932,13 +931,8 @@ export default defineVisualAssets({
           width: 1000,
           height: 2025,
         },
-        contentBindings: [
-          homeMedia({
-            sectionId: "session-workbench",
-            collection: "gallery",
-            title: "Snapshots",
-          }),
-        ],
+        // Retained for future proof; snapshots remain in the workspace description.
+        contentBindings: [],
         variants: {
           light: {
             source: capturedSource({
@@ -1008,13 +1002,8 @@ export default defineVisualAssets({
           width: 1000,
           height: 2025,
         },
-        contentBindings: [
-          homeMedia({
-            sectionId: "session-workbench",
-            collection: "gallery",
-            title: "Settings and plugins",
-          }),
-        ],
+        // Provider controls remain in native-provider-features.
+        contentBindings: [],
         variants: {
           light: {
             source: capturedSource({

@@ -1,0 +1,292 @@
+---
+import ProofImage from "./ProofImage.astro";
+import type { FeatureMediaAsset, MediaPlaceholder } from "../content/pageTypes";
+
+interface Props {
+  media: MediaPlaceholder;
+  wide?: boolean;
+  framed?: boolean;
+}
+
+const { media, wide = false, framed = true } = Astro.props;
+const assets: FeatureMediaAsset[] = media.assets ?? (
+  media.src && media.status !== "placeholder-needed"
+    ? [
+        {
+          src: media.src,
+          srcDark: media.srcDark,
+          alt: media.alt,
+          width: media.width,
+          height: media.height,
+        },
+        ...(media.secondarySrc ? [{
+          src: media.secondarySrc,
+          srcDark: media.secondarySrcDark,
+          alt: media.secondaryAlt,
+          width: media.secondaryWidth ?? media.width,
+          height: media.secondaryHeight ?? media.height,
+        }] : []),
+      ]
+    : [{ placeholder: media.desktop ?? media.alt ?? "Product screenshot." }]
+);
+const multiple = assets.length > 1;
+---
+
+<feature-image-strip class:list={["feature-media", framed && "feature-media--framed"]}>
+  <div
+    class:list={["image-track", multiple && "image-track--scrollable"]}
+    data-image-strip={multiple ? "" : undefined}
+    role={multiple ? "region" : undefined}
+    aria-label={multiple ? `${media.kind ?? "Product"} images` : undefined}
+    tabindex={multiple ? 0 : undefined}
+  >
+    {assets.map((asset) => (
+      <figure class:list={["image-slide", framed && "image-card"]} data-image-card={framed ? "" : undefined}>
+        {framed && (
+          <figcaption class="image-caption">
+            {asset.label && <h4 class="text-[0.9375rem] font-bold leading-tight text-fg-2">{asset.label}</h4>}
+            {asset.description && <p class="mt-4 text-sm leading-snug text-fg-4">{asset.description}</p>}
+          </figcaption>
+        )}
+        <ProofImage
+          asset={asset}
+          alt={asset.alt ?? asset.label ?? media.kind ?? ""}
+          wide={wide}
+        />
+      </figure>
+    ))}
+  </div>
+  {multiple && (
+    <Fragment>
+    <div class="image-arrows" data-image-controls hidden>
+      <button type="button" class="image-arrow" aria-label="Previous image" data-image-step="-1" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="m15 6-6 6 6 6"></path>
+        </svg>
+      </button>
+      <button type="button" class="image-arrow" aria-label="Next image" data-image-step="1">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="m9 6 6 6-6 6"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="image-pagination" data-image-pagination data-image-controls hidden>
+      <div class="image-dots" role="group" aria-label="Choose image">
+        {assets.map((asset, index) => (
+          <button
+            type="button"
+            class="image-dot"
+            data-image-index={index}
+            data-image-label={asset.label ?? `Image ${index + 1}`}
+            aria-label={`Show image ${index + 1} of ${assets.length}${asset.label ? `: ${asset.label}` : ""}`}
+            aria-current={index === 0 ? "true" : "false"}
+          ><span aria-hidden="true"></span></button>
+        ))}
+      </div>
+      <span class="sr-only" data-image-status aria-live="polite" aria-atomic="true"></span>
+    </div>
+    </Fragment>
+  )}
+</feature-image-strip>
+
+<script>
+  class FeatureImageStrip extends HTMLElement {
+    private track: HTMLElement | null = null;
+    private slides: HTMLElement[] = [];
+    private dots: HTMLButtonElement[] = [];
+    private observer: ResizeObserver | null = null;
+    private currentIndex = -1;
+    private trackWidth = 0;
+
+    connectedCallback() {
+      this.track = this.querySelector("[data-image-strip]");
+      if (!this.track) return;
+      this.slides = Array.from(this.track.querySelectorAll(".image-slide"));
+      this.dots = Array.from(this.querySelectorAll("[data-image-index]"));
+      this.currentIndex = -1;
+      this.trackWidth = this.track.clientWidth;
+      this.track.addEventListener("scroll", this.updateCurrent, { passive: true });
+      this.addEventListener("click", this.navigate);
+      this.observer = new ResizeObserver(() => {
+        if (!this.track) return;
+        if (this.track.clientWidth !== this.trackWidth) {
+          this.trackWidth = this.track.clientWidth;
+          this.scrollToImage(Math.max(0, this.currentIndex), false);
+        }
+        this.updateCurrent();
+      });
+      this.observer.observe(this.track);
+      this.updateCurrent();
+      this.querySelectorAll<HTMLElement>("[data-image-controls]").forEach((element) => {
+        element.hidden = false;
+      });
+      this.dataset.navigationReady = "true";
+    }
+
+    disconnectedCallback() {
+      this.track?.removeEventListener("scroll", this.updateCurrent);
+      this.removeEventListener("click", this.navigate);
+      this.observer?.disconnect();
+      this.observer = null;
+      this.track = null;
+      this.slides = [];
+      this.dots = [];
+      delete this.dataset.navigationReady;
+    }
+
+    private imageOffset(index: number) {
+      return this.slides[index].offsetLeft - this.slides[0].offsetLeft;
+    }
+
+    private scrollToImage(index: number, animate = true) {
+      if (!this.track || index < 0 || index >= this.slides.length) return;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      this.track.scrollTo({
+        left: this.imageOffset(index),
+        behavior: animate && !reduceMotion ? "smooth" : "auto",
+      });
+    }
+
+    private navigate = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest<HTMLButtonElement>("button");
+      if (!button || !this.contains(button) || button.disabled) return;
+      if (button.dataset.imageIndex !== undefined) {
+        this.scrollToImage(Number(button.dataset.imageIndex));
+      } else if (button.dataset.imageStep !== undefined) {
+        this.scrollToImage(this.currentIndex + Number(button.dataset.imageStep));
+      }
+    };
+
+    private updateCurrent = () => {
+      if (!this.track || !this.slides.length) return;
+      const left = this.track.scrollLeft;
+      let index = 0;
+      for (let candidate = 1; candidate < this.slides.length; candidate += 1) {
+        if (Math.abs(this.imageOffset(candidate) - left) < Math.abs(this.imageOffset(index) - left)) {
+          index = candidate;
+        }
+      }
+      const frame = this.slides[index].querySelector<HTMLElement>("[data-proof-frame]")!;
+      const bounds = frame.getBoundingClientRect();
+      this.style.setProperty("--image-center", `${bounds.top + bounds.height / 2 - this.getBoundingClientRect().top}px`);
+      if (index === this.currentIndex) return;
+      this.currentIndex = index;
+      this.dots.forEach((dot, dotIndex) => {
+        dot.setAttribute("aria-current", String(dotIndex === index));
+      });
+      this.querySelector<HTMLButtonElement>('[data-image-step="-1"]')!.disabled = index === 0;
+      this.querySelector<HTMLButtonElement>('[data-image-step="1"]')!.disabled = index === this.slides.length - 1;
+      this.querySelector<HTMLElement>("[data-image-status]")!.textContent =
+        `Image ${index + 1} of ${this.slides.length}: ${this.dots[index].dataset.imageLabel}`;
+    };
+  }
+
+  if (!customElements.get("feature-image-strip")) {
+    customElements.define("feature-image-strip", FeatureImageStrip);
+  }
+</script>
+
+<style>
+  .feature-media { display: block; position: relative; min-width: 0; }
+  .image-track { position: relative; min-width: 0; }
+  .image-track--scrollable {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+  feature-image-strip[data-navigation-ready] .image-track { scrollbar-width: none; }
+  feature-image-strip[data-navigation-ready] .image-track::-webkit-scrollbar { display: none; }
+  .image-track--scrollable:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0.75rem;
+  }
+  .image-slide { flex: 0 0 100%; min-width: 0; margin: 0; scroll-snap-align: start; }
+  .image-card {
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--bg-raised);
+  }
+  .image-caption { margin-bottom: 1rem; }
+  .image-arrows {
+    position: absolute;
+    top: var(--image-center, 50%);
+    left: 8px;
+    right: 8px;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 36px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .image-pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+  [data-image-controls][hidden] { display: none; }
+  .image-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg-raised);
+    color: var(--text);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .image-arrow:disabled { opacity: 0.3; cursor: default; }
+  .image-arrow:not(:disabled):hover { background: var(--bg-surface); }
+  .image-dots { display: flex; align-items: center; }
+  .image-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 36px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .image-dot span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-5); }
+  .image-dot[aria-current="true"] span { background: var(--accent); }
+  @supports (grid-template-rows: subgrid) {
+    .feature-media--framed {
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: span 3;
+      min-height: 0;
+    }
+    .feature-media--framed .image-track {
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: 1 / span 2;
+      grid-column: 1;
+      grid-auto-flow: column;
+      grid-auto-columns: 100%;
+      column-gap: 1rem;
+    }
+    .image-card {
+      display: grid;
+      grid-template-rows: subgrid;
+      grid-row: 1 / span 2;
+      row-gap: 1rem;
+    }
+    .image-caption { margin-bottom: 0; }
+    .image-pagination { grid-row: 3; grid-column: 1; margin-top: 0; }
+  }
+</style>

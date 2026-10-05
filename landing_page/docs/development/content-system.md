@@ -76,10 +76,51 @@ rather than embedding a second artifact URL.
 
 Feature-showcase sections may opt into card or editorial presentation and
 attach review status to the section or individual items. The homepage
-prototype uses an unframed, text-led two-column editorial layout attached
-directly to the hero. Missing proof can render as a clearly labeled placeholder
+uses prominent, unframed feature titles attached directly to the hero.
+Each image owns its card, using the provider-example treatment. Missing proof
+can render as a clearly labeled placeholder
 only in an explicitly approved local structural prototype. Draft labels and
 placeholder panels are not publication-ready product evidence.
+
+The homepage keeps all six features in one `featureShowcase.items` list.
+Their list order is their reading order. An optional item
+`layout: full-width` spans the desktop columns and uses a 16:9 image frame;
+omitting it (or using `compact`) uses the normal column and a 3:4 frame.
+All items use 3:4 frames on phones, below the existing 760px breakpoint.
+The selected layout starts with four end-user features, followed by the
+plugin and transparency features for deeper inspection.
+
+To restore option A, reorder the same items to model families, plugins,
+transparency, work from anywhere, vibe-anything, and session workspaces, then
+remove the two `layout: full-width` settings. No component change or duplicate
+feature content is needed. The six-feature group still precedes Getting
+Started in either arrangement.
+
+`ProofImage` owns the inset screenshot canvas, border, and light/dark background.
+It fits the complete screenshot inside the canvas. `FeatureMedia` gives each
+highlight image a card with optional `assets[].label` and
+`assets[].description` displayed above the screenshot. Feature-level copy
+stays outside the image card. Standard provider examples already own an image
+card, so they omit the additional media wrapper to avoid nested outer cards.
+
+`FeatureMedia` supplies
+native horizontal scrolling and a small custom element that synchronizes
+side chevron overlays and dots below the card with scroll position. Chevron
+position follows the actual screenshot center, independently of caption height.
+It handles resized
+frames and removes its listeners/observer when Astro navigation removes the
+element. Single images have no controls. Only pagination follows the image
+card; no text link, caption, or scroll hint is added beneath it.
+
+Shared grid rows align each compact pair's feature copy, image captions, and
+screenshot canvases without fixed
+text heights. At one column every item has independent rows; browsers without
+subgrid retain ordinary vertical item flow. Screenshot galleries also reuse
+the common image frame and keep titles/descriptions above it.
+
+The former extra transparency and plugin-action galleries were folded into
+their owning highlights. The `session-workbench` fragment identifies its
+workspace highlight rather than a second lower-page pitch.
 
 ## Current Section Types
 

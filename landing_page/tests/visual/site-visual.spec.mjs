@@ -23,6 +23,8 @@ const scenarios = [
       ["bridge", "#bridge"],
       ["provider-features", "#native-provider-features"],
       ["session-workbench", "#session-workbench"],
+      ["plugin-highlight", "#feature-plugins"],
+      ["transparency-highlight", "#feature-transparency"],
     ],
   },
   {
@@ -36,6 +38,8 @@ const scenarios = [
       ["bridge", "#bridge"],
       ["provider-features", "#native-provider-features"],
       ["session-workbench", "#session-workbench"],
+      ["plugin-highlight", "#feature-plugins"],
+      ["transparency-highlight", "#feature-transparency"],
     ],
   },
   {

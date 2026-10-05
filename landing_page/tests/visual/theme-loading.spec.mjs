@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+function sortedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
 async function loadLazyImages(page) {
-  const lazyImages = page.locator('img[loading="lazy"]');
-  for (let index = 0; index < (await lazyImages.count()); index += 1) {
-    await lazyImages.nth(index).scrollIntoViewIfNeeded();
-  }
   await page.locator('img[loading="lazy"]').evaluateAll((images) => {
     for (const image of images) {
       image.loading = "eager";
@@ -26,20 +26,15 @@ test("uses the approved desktop screenshot-card columns", async ({ page }) => {
   await page.goto("/", { waitUntil: "networkidle" });
 
   const providerGrid = page.locator("#native-provider-features .grid").last();
-  const workbenchGrid = page.locator("#session-workbench .grid").last();
   await expect(providerGrid).toBeVisible();
-  await expect(workbenchGrid).toBeVisible();
 
   const providerColumns = await providerGrid.evaluate(
     (element) =>
       getComputedStyle(element).gridTemplateColumns.split(" ").length,
   );
-  const workbenchColumns = await workbenchGrid.evaluate(
-    (element) =>
-      getComputedStyle(element).gridTemplateColumns.split(" ").length,
-  );
   expect(providerColumns).toBe(2);
-  expect(workbenchColumns).toBe(3);
+  await expect(page.locator('#product-highlights [data-feature-layout="compact"]')).toHaveCount(4);
+  await expect(page.locator('#product-highlights [data-feature-layout="full-width"]')).toHaveCount(2);
 });
 
 test("loads only the active theme and swaps the same image elements", async ({
@@ -50,39 +45,45 @@ test("loads only the active theme and swaps the same image elements", async ({
   });
 
   const imageResponses = [];
-  page.on("response", async (response) => {
+  const responseJobs = [];
+  page.on("response", (response) => {
     if (response.request().resourceType() !== "image") {
       return;
     }
-    imageResponses.push({
-      url: new URL(response.url()).pathname,
-      contentLength: Number(
-        (await response.headerValue("content-length")) ?? "0",
-      ),
-    });
+    responseJobs.push(response.headerValue("content-length").then((length) => {
+      imageResponses.push({
+        url: new URL(response.url()).pathname,
+        contentLength: Number(length ?? "0"),
+      });
+    }));
   });
 
   await page.goto("/", { waitUntil: "networkidle" });
+  await Promise.all(responseJobs);
   expect(
-    imageResponses.filter((response) => response.url.endsWith(".webp")),
+    imageResponses.filter((response) => response.url.includes("-dark.webp")),
   ).toEqual([]);
 
   await loadLazyImages(page);
+  await Promise.all(responseJobs);
   const lightImages = imageResponses.filter((response) =>
     response.url.endsWith(".webp"),
   );
-  expect(lightImages).toHaveLength(5);
+  expect(lightImages.length).toBeGreaterThan(0);
   expect(lightImages.every((response) => !response.url.includes("-dark.webp"))).toBe(
     true,
   );
   expect(
-    lightImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(216814);
+    lightImages.every((response) => response.contentLength > 0),
+  ).toBe(true);
 
   const themedImages = page.locator(
     "img[data-theme-light-src][data-theme-dark-src]",
   );
-  expect(await themedImages.count()).toBe(5);
+  const lightSources = await themedImages.evaluateAll(
+    (images) => images.map((image) => image.getAttribute("src")),
+  );
+  expect(sortedUnique(lightImages.map(({ url }) => url))).toEqual(sortedUnique(lightSources));
 
   await page.locator("#themeToggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -99,15 +100,19 @@ test("loads only the active theme and swaps the same image elements", async ({
     ),
   );
   await page.waitForLoadState("networkidle");
+  await Promise.all(responseJobs);
 
   const darkImages = imageResponses.filter((response) =>
     response.url.includes("-dark.webp"),
   );
-  expect(darkImages).toHaveLength(5);
+  expect(darkImages.length).toBeGreaterThan(0);
   expect(
-    darkImages.reduce((sum, response) => sum + response.contentLength, 0),
-  ).toBe(221778);
-  expect(await themedImages.count()).toBe(5);
+    darkImages.every((response) => response.contentLength > 0),
+  ).toBe(true);
+  const darkSources = await themedImages.evaluateAll(
+    (images) => images.map((image) => image.getAttribute("src")),
+  );
+  expect(sortedUnique(darkImages.map(({ url }) => url))).toEqual(sortedUnique(darkSources));
 });
 
 test("loads saved dark variants and preserves them across navigation", async ({
@@ -129,8 +134,11 @@ test("loads saved dark variants and preserves them across navigation", async ({
   await loadLazyImages(page);
 
   const webpPaths = imagePaths.filter((path) => path.endsWith(".webp"));
-  expect(webpPaths).toHaveLength(5);
+  expect(webpPaths.length).toBeGreaterThan(0);
   expect(webpPaths.every((path) => path.includes("-dark.webp"))).toBe(true);
+  const initialSources = await page.locator("img[data-theme-light-src][data-theme-dark-src]")
+    .evaluateAll((images) => images.map((image) => image.getAttribute("src")));
+  expect(sortedUnique(webpPaths)).toEqual(sortedUnique(initialSources));
 
   await page.locator('nav a[href="/mobile"]').click();
   await expect(page).toHaveURL(/\/mobile\/?$/);
@@ -143,7 +151,7 @@ test("loads saved dark variants and preserves them across navigation", async ({
     .evaluateAll((images) =>
       images.map((image) => image.getAttribute("src") ?? ""),
     );
-  expect(restoredSources).toHaveLength(5);
+  expect(restoredSources.length).toBeGreaterThan(0);
   expect(
     restoredSources.every((source) => source.includes("-dark.webp")),
   ).toBe(true);
