@@ -253,6 +253,19 @@ directories and connections; the matrix command set stays unchanged.
   `--max-concurrent 1` (runtime env overlay allows one live workspace
   root per process). b1v4 remains approved for evaluation only.
 
+- October 5, 2026 (baseline retest launched): full-matrix b1v3
+  retest under gpt-6-luna running in the background, label
+  `b1v3-gpt6-r1`, command `python -m suites.task_guidance.run --label
+  b1v3-gpt6-r1 --max-concurrent 1` from `maintainer/agent-evaluation`
+  with the repo-root `.env` sourced, log at `/tmp/b1v3-gpt6-r1.log`,
+  started 15:03 UTC October 5 (pid 80257). Serialized execution makes
+  this a multi-hour run (229 cases; producer cases alone run 10–30
+  minutes each). First case (tg01 glm-max task-creation) still in
+  progress at 15:32 UTC — normal for max-effort agentic runs. Monitor
+  with `grep -E '^[.sF] |cases:' /tmp/b1v3-gpt6-r1.log`; the run exits
+  non-zero only on case failures. After completion: b1v4 evaluation
+  (approved, evaluation only) under the same invocation pattern.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
