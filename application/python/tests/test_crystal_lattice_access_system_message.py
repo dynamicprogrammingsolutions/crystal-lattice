@@ -191,6 +191,7 @@ def test_access_helper_reports_full_cli_only_and_unavailable_modes(
     )
     assert full_namespace["include_crystal_lattice_access"]() is True
     assert full_namespace["include_crystal_lattice_cli_access"]() is False
+    assert full_namespace["include_crystal_lattice_delegation_guidance"]() is True
     full_element = full_namespace["get_ui_elements"]()[0]
     assert full_element["disabled"] is False
     assert full_element["label"] == "Include Crystal Lattice Access Guidance"
@@ -203,6 +204,7 @@ def test_access_helper_reports_full_cli_only_and_unavailable_modes(
     )
     assert cli_namespace["include_crystal_lattice_access"]() is False
     assert cli_namespace["include_crystal_lattice_cli_access"]() is True
+    assert cli_namespace["include_crystal_lattice_delegation_guidance"]() is True
     cli_element = cli_namespace["get_ui_elements"]()[0]
     assert cli_element["disabled"] is False
     assert cli_element["label"].endswith("(CLI only)")
@@ -217,6 +219,9 @@ def test_access_helper_reports_full_cli_only_and_unavailable_modes(
     )
     assert unavailable_namespace["include_crystal_lattice_access"]() is False
     assert unavailable_namespace["include_crystal_lattice_cli_access"]() is False
+    assert (
+        unavailable_namespace["include_crystal_lattice_delegation_guidance"]() is False
+    )
     unavailable_element = unavailable_namespace["get_ui_elements"]()[0]
     assert unavailable_element["disabled"] is True
     assert unavailable_element["default"] is False
@@ -290,6 +295,7 @@ def test_access_message_is_owned_by_one_config_mixin_not_helper_code() -> None:
     assert {
         "CRYSTAL_LATTICE_ACCESS",
         "CRYSTAL_LATTICE_CLI_ACCESS",
+        "CRYSTAL_LATTICE_DELEGATION_GUIDANCE",
     }.issubset(variables)
     assert variables["CRYSTAL_LATTICE_ACCESS"]["text"].startswith(
         "# Crystal Lattice Access (CLI and Python SDK)"
@@ -307,15 +313,23 @@ def test_access_message_is_owned_by_one_config_mixin_not_helper_code() -> None:
     ):
         text = variables[variable_name]["text"]
         assert (
-            text.count(
-                "Active session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`"
-            )
-            == 1
+            text.count("Active session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`") == 1
         )
         assert "Shared session root:" not in text
         assert "~/.crystal/sessions" not in text
+        assert text.endswith("{{CRYSTAL_LATTICE_DELEGATION_GUIDANCE}}")
+    delegation_text = variables["CRYSTAL_LATTICE_DELEGATION_GUIDANCE"]["text"]
+    assert delegation_text.startswith("# Delegating work through Crystal Lattice")
+    assert "These instructions are for you, the parent agent." in delegation_text
+    assert "construct a self-contained child user prompt" in delegation_text
+    assert (
+        "selected Crystal Lattice agent's own configured system/developer message"
+        in delegation_text
+    )
+    assert "Do not copy your system message" in delegation_text
     assert "code" not in variables["CRYSTAL_LATTICE_ACCESS"]
     assert "code" not in variables["CRYSTAL_LATTICE_CLI_ACCESS"]
+    assert "code" not in variables["CRYSTAL_LATTICE_DELEGATION_GUIDANCE"]
 
     helper_text = ACCESS_HELPER.read_text(encoding="utf-8")
     assert "Start a delegated task" not in helper_text
@@ -369,15 +383,14 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
                 include_access=True,
             )
             assert "# Crystal Lattice Access" not in disabled, agent_id
+            assert "# Delegating work through Crystal Lattice" not in disabled
             assert "# Crystal Lattice Access (CLI and Python SDK)" in enabled, agent_id
             assert "# Crystal Lattice Access (CLI only)" not in enabled, agent_id
+            assert enabled.count("# Delegating work through Crystal Lattice") == 1
             assert str(full_config.resolve()) in enabled
             assert str(full_sessions.resolve()) in enabled
             assert (
-                enabled.count(
-                    f"Active session root: `{full_sessions.resolve()}`"
-                )
-                == 1
+                enabled.count(f"Active session root: `{full_sessions.resolve()}`") == 1
             )
             assert "from agent_terminal_app import open_runtime" in enabled
             assert "Task Files and Subtasks" not in enabled
@@ -410,6 +423,7 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
             )
             assert "# Crystal Lattice Access (CLI only)" in enabled, agent_id
             assert "# Crystal Lattice Access (CLI and Python SDK)" not in enabled
+            assert enabled.count("# Delegating work through Crystal Lattice") == 1
             assert "from agent_terminal_app import open_runtime" not in enabled
     finally:
         cli_app.close()

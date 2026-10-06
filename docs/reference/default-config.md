@@ -28,17 +28,24 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "system_message": {
         "variables": {
           "CRYSTAL_LATTICE_ACCESS": {
-            "text": "# Crystal Lattice Access (CLI and Python SDK)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nFor the Python SDK, create a short script and execute it with `{{CRYSTAL_LATTICE_PYTHON_VALUE}}`:\n\n```python\nfrom {{CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE}} import open_runtime\n\nwith open_runtime(\n    config_path=r\"{{CRYSTAL_LATTICE_CONFIG_VALUE}}\",\n    session_root=r\"{{CRYSTAL_LATTICE_SESSIONS_VALUE}}\",\n) as runtime:\n    result = runtime.run(\"<task>\", agent_id=\"<agent-id>\")\n    sessions = runtime.list_sessions(include=[\"$.sessions[*].session_id\"])\n    messages = runtime.list_messages(result.session_id)\n    print(result.output_text)\n    print(result.session_id)\n```\n\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "text": "# Crystal Lattice Access (CLI and Python SDK)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by starting a separate run. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nActive session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`\n\nFor the Python SDK, create a short script and execute it with `{{CRYSTAL_LATTICE_PYTHON_VALUE}}`:\n\n```python\nfrom {{CRYSTAL_LATTICE_PYTHON_API_MODULE_VALUE}} import open_runtime\n\nwith open_runtime(\n    config_path=r\"{{CRYSTAL_LATTICE_CONFIG_VALUE}}\",\n    session_root=r\"{{CRYSTAL_LATTICE_SESSIONS_VALUE}}\",\n) as runtime:\n    result = runtime.run(\"<task>\", agent_id=\"<agent-id>\")\n    sessions = runtime.list_sessions(include=[\"$.sessions[*].session_id\"])\n    messages = runtime.list_messages(result.session_id)\n    print(result.output_text)\n    print(result.session_id)\n```\n\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests. They persist sessions by default; use the delegation guidance below for non-retained runs. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.\n\n{{CRYSTAL_LATTICE_DELEGATION_GUIDANCE}}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
             "condition": {
               "inline_code": "include_crystal_lattice_access()"
             }
           },
           "CRYSTAL_LATTICE_CLI_ACCESS": {
-            "text": "# Crystal Lattice Access (CLI only)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by creating a distinct persisted session through the CLI. This runtime does not expose a supported general Python SDK. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nActive config: `{{CRYSTAL_LATTICE_CONFIG_VALUE}}`\nShared session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests in persisted sessions. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.",
+            "text": "# Crystal Lattice Access (CLI only)\n\nYou can delegate a bounded task to another configured Crystal Lattice agent by starting a separate CLI run. This runtime does not expose a supported general Python SDK. When a user gives an agent ID, use that exact value for `<agent-id>` without asking them to select it again.\n\nUse this exact CLI base command; it already selects this runtime's config and session store:\n\n- List configured agents: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} agents --format json`\n- Start a delegated task: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --agent \"<agent-id>\" --prompt \"<task>\" --format json`\n- Continue a completed session: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} run --session \"<session-id>\" --prompt \"<follow-up>\" --format json`\n- Inspect bounded history: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} history --session \"<session-id>\" --start -50 --format json`\n- Enumerate session IDs: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} sessions --include '$.sessions[*].session_id' --format text`\n- Read selected message fields: `{{CRYSTAL_LATTICE_CLI_COMMAND_VALUE}} messages --session \"<session-id>\" --include '$.messages[*].index' --include '$.messages[*].message.role' --include '$.messages[*].message.content' --format text`\n- Programmatic CLI argv: `{{CRYSTAL_LATTICE_CLI_ARGV_JSON_VALUE}}`\n\nSession filters are declared by active application plugins. Both `sessions` and `messages` support repeated RFC 9535 JSONPath `--include` and `--exclude` options; omit them for complete current data.\n\nActive config: `{{CRYSTAL_LATTICE_CONFIG_VALUE}}`\nActive session root: `{{CRYSTAL_LATTICE_SESSIONS_VALUE}}`\nLocal documentation: `{{CRYSTAL_LATTICE_DOCS_VALUE}}`\nPublic documentation: {{CRYSTAL_LATTICE_DOCS_URL_VALUE}}\n\nThese commands run ordinary synchronous requests. They persist sessions by default; use the delegation guidance below for non-retained runs. They do not provide parent-child session metadata, mid-run input, detached lifetime, or persistent subagent recovery.\n\n{{CRYSTAL_LATTICE_DELEGATION_GUIDANCE}}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
             "condition": {
               "inline_code": "include_crystal_lattice_cli_access()"
+            }
+          },
+          "CRYSTAL_LATTICE_DELEGATION_GUIDANCE": {
+            "text": "# Delegating work through Crystal Lattice\n\nThese instructions are for you, the parent agent. A delegated child receives the selected Crystal Lattice agent's own configured system/developer message and the user prompt you provide. Do not copy your system message, hidden reasoning, or conversation transcript into the child prompt.\n\nBefore starting a delegated run, construct a self-contained child user prompt. The child cannot see this conversation. Include the objective, relevant context and inputs, exact scope, constraints, and expected result. Resolve or replace references that are meaningful only in your context. Forward the user's wording directly when it is already self-contained.\n\nHonor an explicitly requested agent, model, reasoning setting, timeout, and persistence mode. Use `agents --details --format json` to inspect safe configured defaults and setting schemas. Apply request-scoped settings with repeated `--set KEY=VALUE` options or the Python `overrides` mapping. Use `--ephemeral` or `persistence=\"ephemeral\"` when no retained child session or later follow-up is needed; otherwise use the default persisted mode and continue it by session ID when a follow-up is useful.\n\nObserve bounded progress, check `status` and `error` before trusting `output_text`, and integrate the child's result into your own work. An ephemeral result has a request-scoped session identity for progress correlation, but that session is not stored and cannot be continued. Ordinary delegated runs do not create a persistent parent-child relationship.",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/crystal_lattice_access.py",
+            "condition": {
+              "inline_code": "include_crystal_lattice_delegation_guidance()"
             }
           },
           "CRYSTAL_LATTICE_CLI_COMMAND_VALUE": {
@@ -593,6 +600,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE_PERMISSIVE_CD_NO_PERSISTENCE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{CRYSTAL_LATTICE_ACCESS}}\n\n{{CRYSTAL_LATTICE_CLI_ACCESS}}"
       }
     },
+    "openai_responses_model_variants": {
+      "$variants": [
+        {
+          "$when": {
+            "model": {
+              "$matches": "^gpt-(?:5\\.(?:[6-9]|[1-9][0-9]+)|(?:[6-9]|[1-9][0-9]+))(?:\\.[0-9]+)*(?:$|-)"
+            }
+          },
+          "reasoning_context": "all_turns"
+        }
+      ]
+    },
     "claude_anthropic_model_variants": {
       "$variants": [
         {
@@ -628,22 +647,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
               "$matches": "^claude-(?:(?:sonnet|opus)-4-6|sonnet-5|opus-4-(?:7|8)|opus-5|(?:fable|mythos)-5|mythos-preview)$"
             }
           },
-          "betas": [
-            "context-management-2025-06-27"
-          ],
           "anthropic_reasoning_mode": "adaptive",
           "anthropic_reasoning_effort": "high",
-          "anthropic_reasoning_display": "summarized",
-          "request_options": {
-            "context_management": {
-              "edits": [
-                {
-                  "type": "clear_thinking_20251015",
-                  "keep": "all"
-                }
-              ]
+          "anthropic_reasoning_display": "summarized"
+        },
+        {
+          "$when": {
+            "model": {
+              "$matches": "^claude-(?:sonnet-5|sonnet-4-6|opus-4-6)$"
             }
-          }
+          },
+          "anthropic_compaction_trigger_tokens": 800000,
+          "anthropic_tool_use_clear_trigger_tokens": 200000
         }
       ]
     }
@@ -665,6 +680,12 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "auth_mode": "api",
       "api_key": "${env:ANTHROPIC_API_KEY}",
       "base_url": "https://api.anthropic.com",
+      "enable_anthropic_compaction": true,
+      "anthropic_compaction_trigger_tokens": 150000,
+      "anthropic_thinking_retention": "all",
+      "enable_anthropic_tool_use_clearing": true,
+      "anthropic_tool_use_clear_trigger_tokens": 100000,
+      "anthropic_tool_uses_to_keep": 5,
       "capabilities": {
         "anthropic_reasoning_controls": true,
         "prompt_caching": true
@@ -683,7 +704,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     },
     "openai": {
       "mixin_refs": [
-        "provider_defaults"
+        "provider_defaults",
+        "openai_responses_model_variants"
       ],
       "provider": "openai_responses",
       "api_key": "${env:OPENAI_API_KEY}",
@@ -697,6 +719,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "enable_flex_processing": true,
       "enable_fast_mode": false,
       "reasoning_summary": "detailed",
+      "enable_openai_automatic_compaction": false,
+      "openai_compaction_trigger_tokens": 200000,
       "enable_prompt_cache_retention_24h": true,
       "system_message_as_instructions": true,
       "strip_leading_system_or_developer_message": true,
@@ -710,7 +734,10 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
-      "reasoning_field": "reasoning"
+      "reasoning_field": "reasoning",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/ollama.json"
+      }
     },
     "fireworks": {
       "mixin_refs": [
@@ -726,20 +753,23 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         2,
         4
       ],
-      "reasoning_field": "reasoning_content"
+      "reasoning_field": "reasoning_content",
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/fireworks.json"
+      }
     },
     "zai": {
       "mixin_refs": [
         "provider_defaults"
       ],
       "provider": "reference_openai_compatible",
-      "base_url": "https://api.z.ai/api/paas/v4",
+      "base_url": "https://api.z.ai/api/coding/paas/v4",
       "endpoint_options": {
         "General": "https://api.z.ai/api/paas/v4",
         "Coding": "https://api.z.ai/api/coding/paas/v4"
       },
       "api_key": "${env:ZAI_API_KEY}",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
       "retry_on_timeout": [
         0,
         5,
@@ -751,6 +781,9 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
           5,
           30
         ]
+      },
+      "token_rates": {
+        "$include": "${env:CONFIG_DIR}/pricing/zai.json"
       }
     }
   },
@@ -781,6 +814,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
     "path:${env:BUILTIN_PLUGINS}/openai_responses",
+    "path:${env:BUILTIN_PLUGINS}/cost-tracking",
     "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
@@ -973,6 +1007,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
   },
   "agents": {
     "cloud-script-author": {
+      "display": {
+        "title": "Cloud Script Author",
+        "description": "Codex-oriented agent for authoring and validating cloud scripts.",
+        "order": 5
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -993,6 +1032,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
+      "display": {
+        "title": "Codex · OpenRouter",
+        "description": "Codex-style tools and instructions through OpenRouter.",
+        "order": 20
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -1006,6 +1050,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
+      "display": {
+        "title": "Codex · OpenAI",
+        "description": "Codex-style tools with automatic OpenAI authentication.",
+        "order": 10
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -1019,6 +1068,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
+      "display": {
+        "title": "Codex · OpenAI API",
+        "description": "Codex-style tools using explicit OpenAI API authentication.",
+        "order": 30
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -1035,6 +1089,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
+      "display": {
+        "title": "GPT-5 · OpenRouter",
+        "description": "GPT-5 coding profile through OpenRouter.",
+        "order": 120
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -1052,6 +1111,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "gpt-5-openai": {
+      "display": {
+        "title": "GPT-5 · OpenAI",
+        "description": "GPT-5 coding profile through OpenAI.",
+        "order": 110
+      },
       "mixin_refs": [
         "codex_developer_message",
         "codex_mcp_defaults",
@@ -1069,6 +1133,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "qwen": {
+      "display": {
+        "title": "Qwen",
+        "description": "Qwen-oriented instructions and tool conventions.",
+        "order": 70
+      },
       "mixin_refs": [
         "qwen_system_message",
         "crystal_lattice_access"
@@ -1083,6 +1152,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "gemini": {
+      "display": {
+        "title": "Gemini",
+        "description": "Gemini-oriented tools with search and file workflows.",
+        "order": 60
+      },
       "mixin_refs": [
         "gemini_system_message",
         "crystal_lattice_access"
@@ -1101,6 +1175,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "web_search_provider": "gemini_api"
     },
     "grok": {
+      "display": {
+        "title": "Grok",
+        "description": "Grok-oriented instructions with web and file tools.",
+        "order": 90
+      },
       "mixin_refs": [
         "grok_system_message",
         "crystal_lattice_access"
@@ -1118,6 +1197,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       ]
     },
     "kimi": {
+      "display": {
+        "title": "Kimi",
+        "description": "Kimi-oriented tools, research guidance, and compaction.",
+        "order": 80
+      },
       "mixin_refs": [
         "kimi_system_message",
         "crystal_lattice_access"
@@ -1140,6 +1224,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "claude-openrouter": {
+      "display": {
+        "title": "Claude · OpenRouter",
+        "description": "Claude-oriented tools and workflows through OpenRouter.",
+        "order": 50
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -1166,6 +1255,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "web_search_provider": "gemini_api"
     },
     "claude-anthropic": {
+      "display": {
+        "title": "Claude · Anthropic",
+        "description": "Claude-oriented tools with native Anthropic controls.",
+        "order": 40
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -1184,6 +1278,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "web_search_provider": "gemini_api"
     },
     "glm": {
+      "display": {
+        "title": "GLM · OpenRouter",
+        "description": "GLM profile using Gemini-oriented tools through OpenRouter.",
+        "order": 100
+      },
       "mixin_refs": [
         "gemini_system_message",
         "crystal_lattice_access"
@@ -1211,10 +1310,20 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "ollama": {
+      "display": {
+        "title": "Ollama · Local",
+        "description": "Lightweight local Ollama agent.",
+        "order": 200
+      },
       "provider": "ollama",
       "model": "qwen3:0.6b"
     },
     "glm-ollama": {
+      "display": {
+        "title": "GLM · Ollama",
+        "description": "GLM cloud profile through Ollama with Claude-oriented tools.",
+        "order": 210
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -1241,6 +1350,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "deepseek-ollama": {
+      "display": {
+        "title": "DeepSeek · Ollama",
+        "description": "DeepSeek cloud profile through Ollama with Claude-oriented tools.",
+        "order": 220
+      },
       "mixin_refs": [
         "claude_system_message",
         "claude_bash_permissive",
@@ -1267,6 +1381,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "kimi-ollama": {
+      "display": {
+        "title": "Kimi · Ollama",
+        "description": "Kimi cloud profile through Ollama.",
+        "order": 230
+      },
       "mixin_refs": [
         "kimi_system_message",
         "crystal_lattice_access"
@@ -1295,6 +1414,11 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "fireworks": {
+      "display": {
+        "title": "Fireworks",
+        "description": "OpenAI-compatible reasoning profile through Fireworks.",
+        "order": 300
+      },
       "provider": "fireworks",
       "model": "fireworks/gpt-oss-20b",
       "request_options": {
@@ -1309,21 +1433,49 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       }
     },
     "zai": {
+      "display": {
+        "title": "Z.ai",
+        "description": "GLM coding profile through the Z.ai provider.",
+        "order": 310
+      },
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_bash_permissive_visible",
+        "claude_mcp_defaults"
+      ],
       "provider": "zai",
-      "model": "glm-4.5-air",
+      "model": "glm-5.3-flash",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
       "request_options": {
+        "reasoning_effort": "max",
         "thinking": {
           "type": "enabled",
           "clear_thinking": false
         }
       },
       "request_options_ui": {
+        "reasoning_effort": {
+          "type": "select",
+          "options": [
+            "low",
+            "high",
+            "max"
+          ],
+          "rich_ui": true
+        },
         "thinking": {
           "clear_thinking": "boolean"
         }
       }
     },
     "openrouter-image": {
+      "display": {
+        "title": "Image Generation · OpenRouter",
+        "description": "Generate image assets through OpenRouter.",
+        "order": 320
+      },
       "provider": "openrouter_image_generation"
     }
   }

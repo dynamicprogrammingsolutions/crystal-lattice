@@ -7,8 +7,10 @@ interactive frontend or HTTP server.
 It covers:
 
 - discovery of the same configured agents used by the application;
+- safe discovery of effective agent defaults and configurable fields;
 - context-managed local runtime construction;
-- atomic synchronous task and follow-up execution;
+- atomic synchronous persisted, non-retained, and follow-up execution;
+- generic request-scoped provider/plugin settings;
 - bounded progress observation;
 - compact structured outcomes;
 - deterministic compact history and explicit full-message retrieval;
@@ -80,13 +82,16 @@ needed.
 
 - Make a configured Crystal Lattice agent naturally callable from Python and
   ordinary shell automation.
+- Let callers inspect safe agent defaults, select generic request settings,
+  and choose explicitly between persisted and non-retained execution.
 - Keep message append and request admission atomic.
 - Use the existing application request coordinator, persistence checkpoints,
   cancellation, and event publication.
 - Return a useful final result even when the caller does not consume events.
 - Preserve enough bounded progress for humans and orchestration code to
   observe request and tool activity.
-- Make follow-ups an ordinary call against the returned session ID.
+- Make follow-ups an ordinary call against a persisted run's returned session
+  ID while keeping non-retained identities explicitly non-resumable.
 - Permit simple parallel investigations through Python futures or shell jobs
   on distinct sessions.
 - Keep compact views derived from canonical persisted history.
