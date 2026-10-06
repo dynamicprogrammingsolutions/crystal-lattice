@@ -2,6 +2,13 @@
 
 Tool Host Node package for Crystal Lattice.
 
+## Protocol
+
+The Python proxy and this Node host jointly implement the
+[cross-package tool-host protocol](../../docs/reference/tool-host-protocol.md).
+Coordinate wire-version, method, state, event, and error changes across both
+implementations.
+
 ## Testing
 
 This package does not currently define a package-local automated test script.

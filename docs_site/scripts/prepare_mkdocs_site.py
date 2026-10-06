@@ -20,7 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GITHUB_BLOB_ROOT = "https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main"
-IGNORED_DOCS_DIRS = {"reference", "plugin-development", "built-in-plugins"}
+IGNORED_DOCS_DIRS = {"plugin-development", "built-in-plugins"}
 REGISTRY_VERSION = 1
 REGISTRY_TOP_LEVEL_KEYS = {"version", "package"}
 REGISTRY_ENTRY_KEYS = {
@@ -432,6 +432,11 @@ def _fixed_source_outputs(
         )
 
     default_config_output = PurePosixPath("reference/default-config.md")
+    if default_config_output in output_paths:
+        raise PreparationError(
+            "generated default configuration output collides with an "
+            f"existing prepared path: {default_config_output.as_posix()!r}"
+        )
     source_outputs[paths.default_config_path.resolve()] = default_config_output
     output_paths.add(default_config_output)
     output_paths.add(PurePosixPath("packages/index.md"))

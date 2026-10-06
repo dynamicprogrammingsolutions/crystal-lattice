@@ -529,7 +529,7 @@ task's requirements or rationale.
 | DOC-DEC-008 | Record a PR or completion commit for the feature; use per-requirement commit SHAs only when they add meaningful evidence. | Approved | File and test references are usually more stable and useful than manually maintained per-requirement commit lists. | Delivery or audit workflows require exact commit-level traceability. |
 | DOC-DEC-009 | Specifications are living target-state documents. Material target or requirement changes require approval through the task workflow and remain visible in Git history. | Approved | The target should evolve with accepted design discoveries without being mistaken for evidence of current implementation. | A domain introduces separately baselined or externally approved specifications. |
 | DOC-DEC-010 | Preserve moved public documentation URLs through compatibility pages or redirects for the initial migration. | Approved | Avoids breaking existing links while package-local ownership changes. | Redirect maintenance becomes permanent debt and a versioned URL-break policy is approved. |
-| DOC-DEC-011 | Prefer generated site reference output with package-local mkdocstrings/JSDoc source directives; separately decide whether committed generated snapshots still provide value. | Approved | Separates authored inputs from generated output and reduces duplicate sources. | Offline snapshot use or release packaging requires committed generated Markdown. |
+| DOC-DEC-011 | Prefer generated site reference output with package-local mkdocstrings/JSDoc source directives; do not commit generated reference snapshots without a separately approved offline or release-packaging need. | Revised and approved during subtask 050 | Separates authored inputs from generated output and removes a redundant third representation with no current build or runtime consumer. | Offline snapshot use or release packaging requires committed generated Markdown. |
 | DOC-DEC-012 | Require a successful normal docs build and no new warnings; global MkDocs strict-mode cleanup is separate unless migration fixes make strict mode practical. | Approved | Existing strict-mode warnings should not silently expand this migration into an unrelated cleanup project. | Strict mode already passes or remaining warnings are small and directly in scope. |
 | DOC-DEC-013 | Use matching concise human-led seven-step quick and detailed contributor workflows: brainstorm/shape, review specifications/requirements/tasks, review/approve the plan, authorize/supervise implementation, question evidence/review the result, request independent AI review when useful, and plan every follow-up. Every initial change and follow-up is planned before implementation. | Approved | A stable lifecycle is easy to follow while conversational, task, and checkpoint-based plans fit different work; independent review and follow-up remain distinct. | Contributors repeatedly need a missing stage or the combined evidence/review step becomes confusing. |
 | DOC-DEC-014 | Explain human ownership, implementing-agent work, and reviewing-agent advice in the opening and relevant workflow steps without a standalone role section. | Approved | Not every stage requires both human and AI activity, and a separate role summary repeats responsibilities that are clearer in context. | Role ambiguity appears in real use or additional organizational roles become necessary. |
@@ -609,22 +609,19 @@ It does not generally watch package-local README or `docs/` paths such as
   examples and has clear Core SDK ownership.
 - `DEVELOPMENT.md` covers application and terminal development but currently
   sits at the repository root.
-- `ARCHITECTURE.md` is cross-package architecture and is a likely root
-  `docs/development/` page after bounded verification.
+- `ARCHITECTURE.md` is a mixed legacy overview retained with a deferred notice;
+  the concise root README overview is current. A full replacement requires a
+  separately scoped cross-package review.
 - `TYPES_AND_PROTOCOLS.md` mixed a useful public mental model with stale Python
   signatures. Subtask 030 replaces that overview, improves maintained
   docstrings, and archives the superseded root page.
-- `application/python/agent_terminal_app/server_endpoints_parity.md` is written
-  as an active `NEW`/`EXISTING` plan and requires current-state classification.
-- `docs/reference/tool-host-protocol.md` describes a cross-package Python/Node
-  contract and needs an explicit contract owner before relocation.
-- Mkdocstrings source directives live separately under
-  `docs_site/source/reference/`, while generated snapshots live under
-  `docs/reference/`.
-- The OpenAI-compatible provider directive currently points at
-  `plugins.openai_provider`, while the current first-party package is
-  `reference_openai_compatible_provider`; this requires correction rather than
-  a blind move.
+- The terminal/HTTP endpoint parity page is archived as a historical phase
+  plan after exact route comparison; it is not a current endpoint reference.
+- `docs/reference/tool-host-protocol.md` is the maintained cross-package
+  Python/Node contract and is linked from both implementation packages.
+- Mkdocstrings directives live with Core and the owning first-party provider
+  package. Generated reference remains in ignored prepared/dist output; the
+  committed snapshot and refresh stage were removed.
 
 ## Proposed final source structure
 
@@ -753,12 +750,12 @@ It does not generally watch package-local README or `docs/` paths such as
 
 | Current page | Likely destination | Required decision |
 |---|---|---|
-| `ARCHITECTURE.md` | `docs/development/architecture.md` | Cross-package ownership is clear, but major paths and architecture claims need a bounded spot-check. |
+| `ARCHITECTURE.md` | Retained with a deferred legacy notice | Current native-history concepts coexist with obsolete transport, tool-execution, configuration, and repository-tree claims; revisit through a comprehensive cross-package architecture review. |
 | `TYPES_AND_PROTOCOLS.md` | Current overview at `core/python/docs/types-and-protocols.md`; exact facts in maintained docstrings; superseded source under `archive/root-docs/` | Preserve the useful code-free mental model, use generated reference for exact Python members, and do not retain stale signatures as current guidance. |
-| `application/python/agent_terminal_app/server_endpoints_parity.md` | `application/python/docs/development/specifications/http-api-parity/` or archive | Its `NEW`/`EXISTING` statuses may no longer reflect current endpoints. |
-| `docs/reference/tool-host-protocol.md` | Root cross-package reference or `packages/tool-host-node/docs/protocol.md` | The protocol is shared by Python and Node; establish explicit ownership before moving it. |
-| `docs/reference/agent_core/**` | `core/python/docs/reference/` or generated-only output | Normalize separate source directives and generated snapshots. |
-| `docs/reference/providers/openai_provider.md` and directive | Owning provider package | Correct the stale import target before or during relocation. |
+| `archive/server-endpoints-parity.md` | Historical archive | All four `EXISTING` and 16 of 19 `NEW` exact routes are live; application settings evolved and HTTP feature completions remain unimplemented. |
+| `docs/reference/tool-host-protocol.md` | Root cross-package reference | Canonical authored contract jointly owned by the Python proxy and Node host. |
+| Core generated reference | `core/python/docs/reference/` directives plus generated package output | Committed snapshots removed; old public routes handed to 060. |
+| Reference OpenAI-compatible provider | Owning plugin `docs/reference/provider.md` directive plus generated built-in-plugin output | Directive imports `reference_openai_compatible_provider.provider`; old public route handed to 060. |
 
 ### Explicitly deferred
 
@@ -781,7 +778,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [x] `tasks/20260728-package-local-documentation-standard/020-package-docs-site-assembly.md`
 - [x] `tasks/20260728-package-local-documentation-standard/030-core-python-documentation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
+- [x] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - [x] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
@@ -910,7 +907,7 @@ Required new or updated documentation includes:
 - [ ] 020: Extend package docs-site assembly and add focused tests.
 - [x] 030: Migrate and lightly verify Core Python documentation.
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.
-- [ ] 050: Triage cross-package architecture, protocol, parity-plan, and generated reference documentation.
+- [x] 050: Triage cross-package architecture, protocol, parity-plan, and generated reference documentation.
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
 - [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
   prompt examples, and instruction-inspection guidance.

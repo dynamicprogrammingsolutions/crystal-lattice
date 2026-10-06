@@ -188,8 +188,8 @@ When extending or changing behavior that affects the mobile app:
     needed).
 
 - Document new mobile-related endpoints and flows in
-  `application/python/README.md` or a dedicated doc file alongside
-  `server_endpoints_parity.md`.
+  `application/python/README.md` or a focused page under
+  `application/python/docs/`.
 
 If in doubt about where to put something, prefer:
 

@@ -105,9 +105,10 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - Do not place new plugins here without explicit user consent.
 
 **Documentation & scripts**
-- Root: `ARCHITECTURE.md` and cross-package documentation entry points.
-- Core package docs: `core/python/docs/index.md`; generated Core API reference:
-  `docs/reference/agent_core/`.
+- Current cross-package overview: `README.md#architecture-overview`;
+  `ARCHITECTURE.md` is a deferred legacy page.
+- Core package docs: `core/python/docs/index.md`; Core API reference directives:
+  `core/python/docs/reference/`.
 - Development documentation and conventions: `docs/development/index.md`.
 - Guidance-maintenance documentation and specifications:
   `maintainer/docs/`.

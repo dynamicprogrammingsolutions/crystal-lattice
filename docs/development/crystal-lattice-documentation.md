@@ -212,8 +212,10 @@ python docs_site/scripts/prepare_mkdocs_site.py
 (cd docs_site && mkdocs build)
 ```
 
-Use `python docs_site/scripts/build_mkdocs_site.py` only when the work also
-intends to refresh committed generated reference snapshots.
+`python docs_site/scripts/build_mkdocs_site.py` runs the preparation and MkDocs
+build stages together. Generated reference pages remain in the ignored
+prepared and built trees; the repository does not commit generated reference
+snapshots.
 
 If a prepared page is wrong, fix its authored source or generator and run the
 normal preparation step when it is in scope. If preparation fails, leave the

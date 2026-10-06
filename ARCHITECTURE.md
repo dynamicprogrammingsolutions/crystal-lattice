@@ -1,5 +1,13 @@
 # AI Agent Platform - Architecture
 
+> **Deferred legacy overview.** This page mixes still-useful Core lifecycle
+> concepts with obsolete transport, configuration, tool-execution, and
+> repository-layout descriptions. It is retained for historical context and is
+> not current architecture guidance. Start with the
+> [repository architecture overview](README.md#architecture-overview) and the
+> nearest package documentation. Replacing this page requires a separately
+> scoped cross-package architecture review.
+
 This document describes the architecture and core design principles of the AI Agent Platform.
 
 ## System Architecture

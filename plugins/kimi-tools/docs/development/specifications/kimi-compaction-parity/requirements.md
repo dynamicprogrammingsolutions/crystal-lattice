@@ -30,7 +30,7 @@ Verification values use `Unverified`, `Automated`, `Human verified`, or
 | KCP-017 | The existing Ollama integration test continues to pass with the new request shape and enablement enforcement. | Implemented | Automated | Documented | `pytest plugins/kimi-tools/tests/test_kimi_compaction_feature_ollama_integration.py -m 'integration and not api and not slow_integration' -q` with a reachable Ollama endpoint |
 | KCP-018 | Ruff and Black pass on the compaction implementation and its unit/Ollama tests. Package-wide unrelated pre-existing lint and formatting are not claimed as compaction verification. | Implemented | Automated | Documented | Focused `ruff check` and `black --check` commands listed in the follow-up task verification |
 | KCP-019 | Current package-user documentation describes manual compaction, enablement, configuration, preserved-tail behavior, model override behavior, and response fallback. | Implemented | Automated | Documented | `plugins/kimi-tools/README.md`; source/doc consistency review against focused tests |
-| KCP-020 | The generated default-configuration reference reflects enabled Kimi compaction in both default Kimi agents. | Implemented | Automated | Documented | `application/python/agent_terminal_app/default_config/config.json`; `docs/reference/default-config.md`; documentation build |
+| KCP-020 | The generated default-configuration reference reflects enabled Kimi compaction in both default Kimi agents. | Implemented | Automated | Documented | `application/python/agent_terminal_app/default_config/config.json`; `generate_default_config_reference`; documentation build |
 
 ## Deferred requirements
 

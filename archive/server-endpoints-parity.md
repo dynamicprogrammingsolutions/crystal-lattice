@@ -1,5 +1,14 @@
 # agent_terminal_app server – endpoint parity plan
 
+> **Historical plan.** This page was archived after comparison with the current
+> FastAPI route declarations. All four routes labeled `EXISTING` and 16 of the
+> 19 routes labeled `NEW` now exist under the documented method and path. The
+> proposed `/config/application` reads evolved into server-settings and
+> application UI/action surfaces; session feature completions remain
+> terminal-only. This page is not a current HTTP reference or product backlog.
+> Use `application/python/README.md`, FastAPI OpenAPI output, and
+> `application/python/agent_terminal_app/server.py` for the current API.
+
 Goal: expose enough HTTP endpoints so that web or other frontends can do
 everything the terminal client can, using the same underlying
 `AgentApplication` behaviour.

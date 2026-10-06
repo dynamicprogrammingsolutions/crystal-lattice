@@ -7,7 +7,7 @@ architecture, security, release, test, or contributor guidance.
 For current information, start with:
 
 - [Repository overview](../README.md)
-- [Architecture](../ARCHITECTURE.md)
+- [Architecture overview](../README.md#architecture-overview)
 - [Contributor guide](../CONTRIBUTING.md)
 - [Development documentation](../docs/development/index.md)
 
@@ -24,6 +24,8 @@ performance expectations, or incomplete proposals.
   planning trees.
 - [`root-tests/`](root-tests/) contains unreferenced ad hoc diagnostic scripts
   formerly discoverable as root tests.
+- [`server-endpoints-parity.md`](server-endpoints-parity.md) preserves the
+  superseded terminal/HTTP endpoint parity phase plan.
 - [`documentation-standard-human-review-20260910.md`](documentation-standard-human-review-20260910.md)
   preserves the human-review guide and findings for the superseded seven-page
   documentation standard.

@@ -27,8 +27,10 @@ responsible for choosing configuration and persisting sessions.
 
 ## Related documentation
 
-- [Generated AgentCore reference](/reference/agent_core/core/)
-- [Generated types and protocols reference](/reference/agent_core/types/)
+- [Generated AgentCore reference](reference/core.md)
+- [Generated types and protocols reference](reference/types.md)
+- [Generated provider-wrapper reference](reference/plugin/provider.md)
+- [Cross-package tool-host protocol](../../../docs/reference/tool-host-protocol.md)
 - [Shared plugin development documentation](../../../plugins/docs/index.md)
 - [Application and terminal documentation](../../../application/python/docs/index.md)
 
