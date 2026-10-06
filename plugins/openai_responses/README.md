@@ -804,6 +804,10 @@ and the implementation classes registered by the bundle.
 - Native compaction action is missing:
   make sure the active provider is `openai_responses` and the bundle was loaded
   from `path:/absolute/path/to/plugins/openai_responses` or equivalent.
+- Native compaction reports `Missing required parameter: 'input[...].status'`:
+  older plugin versions removed required `status` and `id` fields from native
+  web-search history. Update the plugin and retry compaction; existing stored
+  web-search items retain these fields.
 
 ## Tests
 

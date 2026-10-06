@@ -2271,7 +2271,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 compacted["id"] = sanitized["id"]
             return compacted
 
-        for key in ("id", "status", "namespace", "phase"):
+        # Web-search results require their id and status when replayed as input.
+        response_only_fields = (
+            ("namespace", "phase")
+            if item_type == "web_search_call"
+            else ("id", "status", "namespace", "phase")
+        )
+        for key in response_only_fields:
             sanitized.pop(key, None)
 
         content = sanitized.get("content")
