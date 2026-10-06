@@ -10,6 +10,9 @@ from openai_responses_plugins import (
     OpenAIResponsesChatGPTAuthFeature,
     OpenAIResponsesProvider,
 )
+from openai_responses_plugins.openai_responses_runtime import (
+    chatgpt_default_headers,
+)
 
 
 def _write_credentials(path: Path, *, expires_in_seconds: int = 3600) -> None:
@@ -22,12 +25,16 @@ def _write_credentials(path: Path, *, expires_in_seconds: int = 3600) -> None:
         "plan_type": "plus",
         "expires_at": (
             datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
-        ).isoformat().replace("+00:00", "Z"),
+        )
+        .isoformat()
+        .replace("+00:00", "Z"),
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_auto_mode_falls_back_to_api_without_saved_login(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_auto_mode_falls_back_to_api_without_saved_login(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("CONFIG_DIR", str(tmp_path))
     feature = OpenAIResponsesChatGPTAuthFeature()
     provider = OpenAIResponsesProvider()
@@ -43,7 +50,9 @@ def test_auto_mode_falls_back_to_api_without_saved_login(tmp_path: Path, monkeyp
     assert auth_state["requested_mode"] == "auto"
     assert auth_state["effective_mode"] == "api"
     assert auth_state["logged_in"] is False
-    assert state["config"]["chatgpt_credentials_path"] == str(tmp_path / "auth" / "chatgpt-auth.json")
+    assert state["config"]["chatgpt_credentials_path"] == str(
+        tmp_path / "auth" / "chatgpt-auth.json"
+    )
 
     _, request_state = provider.initialize_request([], state)
     request = request_state["request"]
@@ -65,6 +74,7 @@ def test_chatgpt_mode_uses_saved_credentials_and_chatgpt_endpoint(
         "auth_mode": "chatgpt",
         "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
         "chatgpt_credentials_path": str(credentials_path),
+        "chatgpt_originator": "  crystal_lattice_control  ",
     }
 
     state = feature.init(config, {"config": dict(config)})
@@ -73,12 +83,40 @@ def test_chatgpt_mode_uses_saved_credentials_and_chatgpt_endpoint(
     assert auth_state["logged_in"] is True
     assert state["config"]["chatgpt_access_token"] == "chatgpt-access-token"
     assert state["config"]["chatgpt_account_id"] == "acct-123"
+    assert state["config"]["chatgpt_originator"] == "  crystal_lattice_control  "
 
     _, request_state = provider.initialize_request([], state)
     request = request_state["request"]
     assert request["url"] == "https://chatgpt.example.test/backend-api/codex/responses"
     assert request["headers"]["Authorization"] == "Bearer chatgpt-access-token"
     assert request["headers"]["ChatGPT-Account-Id"] == "acct-123"
+    assert request["headers"]["Originator"] == "crystal_lattice_control"
+
+
+@pytest.mark.parametrize("originator", [None, "", "   ", 123])
+def test_chatgpt_default_headers_omit_missing_or_blank_originator(
+    originator: object,
+) -> None:
+    config = {
+        "auth_mode": "chatgpt",
+        "chatgpt_account_id": "acct-123",
+        "chatgpt_originator": originator,
+    }
+
+    assert chatgpt_default_headers(config) == {"ChatGPT-Account-Id": "acct-123"}
+
+
+def test_chatgpt_default_headers_ignore_originator_in_api_mode() -> None:
+    assert (
+        chatgpt_default_headers(
+            {
+                "auth_mode": "api",
+                "chatgpt_account_id": "acct-123",
+                "chatgpt_originator": "crystal_lattice_control",
+            }
+        )
+        == {}
+    )
 
 
 def test_chatgpt_mode_without_saved_credentials_raises_clear_error(
@@ -94,7 +132,9 @@ def test_chatgpt_mode_without_saved_credentials_raises_clear_error(
 
     state = feature.init(config, {"config": dict(config)})
 
-    with pytest.raises(ValueError, match="chatgpt auth_mode requires a valid saved ChatGPT login"):
+    with pytest.raises(
+        ValueError, match="chatgpt auth_mode requires a valid saved ChatGPT login"
+    ):
         provider.initialize_request([], state)
 
 
@@ -116,7 +156,9 @@ def test_chatgpt_mode_nonstreaming_path_raises_clear_error(
     state = feature.init(config, {"config": dict(config)})
     native_messages, request_state = provider.initialize_request([], state)
 
-    with pytest.raises(RuntimeError, match="chatgpt auth_mode requires streaming requests"):
+    with pytest.raises(
+        RuntimeError, match="chatgpt auth_mode requires streaming requests"
+    ):
         provider.call_api(native_messages, request_state)
 
 
@@ -131,15 +173,27 @@ def test_auth_mode_and_endpoint_ui_are_exposed_as_config_elements() -> None:
     )
     feature_elements = feature.get_ui_elements({"model": "gpt-5-mini"})
 
-    auth_config = [element for element in provider_elements if element.get("key") == "auth_mode"]
+    auth_config = [
+        element for element in provider_elements if element.get("key") == "auth_mode"
+    ]
     assert len(auth_config) == 1
     assert auth_config[0]["ui_type"] == "config"
 
-    endpoint_config = [element for element in feature_elements if element.get("key") == "effective_base_url"]
+    endpoint_config = [
+        element
+        for element in feature_elements
+        if element.get("key") == "effective_base_url"
+    ]
     assert len(endpoint_config) == 1
     assert endpoint_config[0]["ui_type"] == "config"
     assert endpoint_config[0]["type"] == "readonly"
     assert endpoint_config[0]["default"] == "https://api.openai.com/v1"
+
+    feature_schema = feature.get_config_schema()
+    assert feature_schema["chatgpt_originator"] == {
+        "type": "string",
+        "description": "Optional Originator header value for ChatGPT-backed requests.",
+    }
 
 
 def test_auth_mode_ui_can_be_restricted_without_changing_provider_modes() -> None:

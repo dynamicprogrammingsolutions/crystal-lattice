@@ -44,6 +44,17 @@ function EmitLongActionDisplay({ backend }: { backend: AgentBackend }): null {
           body: LONG_BODY,
           presentation: 'modal',
           dismissible: true,
+          form: {
+            kind: 'form',
+            inputs: [
+              {
+                name: 'prompt',
+                type: 'multiline',
+                label: 'Prompt',
+                default: 'Initial prompt',
+              },
+            ],
+          },
         },
       }),
     );

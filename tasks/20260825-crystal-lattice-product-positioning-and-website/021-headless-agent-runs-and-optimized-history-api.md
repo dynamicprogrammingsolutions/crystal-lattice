@@ -1795,3 +1795,121 @@ When this outline is converted into executable follow-up work, group it as:
 Persistent child relationships and restart recovery remain owned by the
 separate persistent-subagent work. Storage-level projection optimization may
 remain a separate performance workstream.
+
+### Session-root guidance correction (2026-10-04)
+
+Status: Complete. The implementation was already delivered in `6df88bd0`;
+this note records its correction and the prior personal-config migration.
+
+- **Finding:** The runtime default session root is
+  `./.crystal/sessions`, resolved from the process working directory. The
+  earlier `~/.crystal/sessions` value was not a product default.
+- **Cause:** The headless-run guide showed `~/.crystal/sessions` as an
+  explicit example, and the personal-config migration validation reused that
+  example as its test session root. This made the home path appear
+  authoritative even though the access mixin itself uses the runtime-provided
+  `CRYSTAL_LATTICE_SESSIONS` value.
+- **Correction:** Commit `6df88bd0` adds one concise
+  `Active session root: {{CRYSTAL_LATTICE_SESSIONS_VALUE}}` line to both
+  access variants, changes the guide example to `./.crystal/sessions`,
+  corrects root and application `AGENTS.md` guidance, and adds focused
+  regression assertions. It deliberately does not add routine direct-file or
+  snapshot-inspection instructions.
+- **Personal migration:** The corresponding access text was copied to the
+  existing `~/.crystal/config.json` without enabling it by default or changing
+  personal agents and overrides. A dated backup was created before the
+  migration.
+- **Verification:** The focused access-system-message and runtime-layout
+  suites passed 20 tests. Both maintained and personal access variants contain
+  the active-root line exactly once, contain no hardcoded
+  `~/.crystal/sessions`, and preserve default-off behavior.
+- **Scope:** This is a documentation, guidance, and personal-config migration
+  correction. It does not change session-root resolution, headless API
+  behavior, or the completed task requirements.
+
+### Generic delegation follow-up (2026-10-06)
+
+Status: Complete for the user-approved generic delegation slice. Implementation
+commit `84aed17f` was merged into `develop` in `757cff2a`. The larger
+2026-10-02 further-development outline remains partially implemented; the
+completed original task and native-access follow-up remain complete.
+
+The user narrowed this slice to generic parent prompting and natural Python
+SDK/CLI delegation. The parent receives reusable delegation guidance; the
+child receives its selected agent's configured system/developer message plus
+a self-contained user assignment constructed by the parent. Task-file
+guidance and compatibility-audit orchestration terminology are separate.
+
+#### Delivered scope
+
+- [x] Config-owned parent guidance explains how to supply the child's
+      objective, relevant context and inputs, scope, constraints, and expected
+      result without copying the parent's system message, hidden reasoning, or
+      transcript. It covers requested settings, progress, result checks,
+      persistence, and follow-ups.
+- [x] Python `list_agent_descriptors()` / `describe_agent(...)` and CLI
+      `agents --details` expose safe configured defaults and config schemas.
+      Python `overrides` and repeated CLI `--set KEY=VALUE` apply request-scoped
+      settings through the existing provider/plugin configuration pipeline.
+- [x] Python `persistence="ephemeral"` and CLI `--ephemeral` execute the
+      coordinated request/tool loop without saving a canonical child session.
+      Persisted runs remain the default and support follow-ups. Ephemeral
+      session IDs correlate progress but cannot be continued from the store.
+- [x] A sparse real-model review verifies a `gpt-5.6-luna` parent delegating
+      to `gpt-6-luna` through the same config, with separate child instructions,
+      a self-contained read-only assignment, the correct result, unchanged
+      inputs, and no child session saves or snapshots.
+- [x] Python plugin installation sends pip diagnostics to stderr, preserving
+      clean CLI JSON stdout. A real plugin-installation regression assertion
+      covers that boundary.
+
+#### Verification and documentation
+
+- The explicitly enabled real ChatGPT test
+  `test_luna_parent_delegates_ephemeral_self_contained_review` passed on macOS
+  in 144.94 seconds. The parent chose the production CLI with
+  `--ephemeral --set model=gpt-6-luna`. Provider observers forwarded actual
+  requests/events unchanged and recorded bounded prompt/answer evidence,
+  model identities, and instruction fingerprints without credentials or
+  reasoning. Store observers detected writes throughout the run.
+- The child and parent correctly reported the only planted discrepancy:
+  `index.csv` listed `alpha.md` as `draft`, while `notes/alpha.md` said
+  `approved`. Only the parent session was retained.
+- Before merging, the Core default suite passed 636 tests with 27 deselected
+  and one expected failure; the application default suite passed 579 tests
+  with one skipped and 114 deselected. The later installation-output fix was
+  followed by another successful 636-test Core run.
+- On the merged `develop` tree, 53 focused runtime, access-guidance,
+  runtime-layout, and effective-default-config tests passed, followed by all
+  16 CLI subprocess integration tests and 15 documentation-preparation tests.
+  Changed-file Ruff, targeted Pyright, and whitespace checks also passed
+  before the merge.
+- Maintained documentation is under
+  `application/python/docs/headless-agent-runs.md`,
+  `application/python/docs/configuration-system-messages.md`, and
+  `application/python/docs/development/specifications/headless-agent-runs/`.
+  The specification records the real-provider gate and requirement
+  `HLR-064`. The generated default-config reference was refreshed through its
+  generator after the merge to preserve current `develop` configuration.
+- The native installation smoke helper now exercises ephemeral CLI and SDK
+  runs, but native archive/installer scenarios were not rerun for this slice.
+  The new GLM ephemeral-review gate was not run. Earlier native persisted
+  delegation evidence remains recorded in the preceding completion notes.
+
+#### Remaining outline scope
+
+The broad follow-up is not complete. Remaining items include current effective
+parent context and automatic inheritance; headless compiled-instruction
+inspection and child-only instruction composition; schema-aware setting
+validation and effective-setting result reporting; result telemetry and config
+overlays; batch runners, budgets, and additional checkpoint/output contracts;
+tool/mutation policy enforcement; one-runtime CLI cross-session search;
+snapshot APIs and storage-level projection optimization; environment
+diagnostics; and the full advanced investigation recipe.
+
+Configured-agent discovery reports defaults, not a running parent's complete
+effective context. A prompt's read-only constraint is guidance, not a tool
+sandbox. Ephemeral execution prevents canonical session persistence; it does
+not suppress provider usage journals or ordinary runtime diagnostics.
+Persistent parent-child relationships and restart recovery remain outside
+this completed slice.

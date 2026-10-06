@@ -39,6 +39,7 @@ import {
 import {
   classifyChatScrollAwayMotion,
   classifyChatScrollReturnToBottom,
+  isLikelyUserScrollActivity,
   refreshChatScrollMotionGeometry,
   shouldDetachForChatScrollAwayMotion,
   shouldReattachForChatScrollReturnToBottom,
@@ -86,6 +87,7 @@ const AWAY_MOTION_GEOMETRY_SETTLE_MS = 100;
 const AWAY_MOTION_SEMANTIC_SETTLE_MS = 250;
 const AWAY_MOTION_PROGRAMMATIC_WINDOW_MS = 500;
 const RETURN_TO_BOTTOM_MIN_TOWARD_PX = 0.5;
+const USER_SCROLL_ACTIVITY_THROTTLE_MS = 250;
 
 function readGlobalBoolean(name: string): boolean {
   const value = (globalThis as any)[name];
@@ -116,7 +118,9 @@ function scrollToOffsetY(target: any, offsetY: number) {
   }
 }
 
-function readScrollMetricsFromEvent(event: NativeSyntheticEvent<NativeScrollEvent>): {
+function readScrollMetricsFromEvent(
+  event: NativeSyntheticEvent<NativeScrollEvent>,
+): {
   offsetY: number | null;
   contentHeight: number | null;
   viewportHeight: number | null;
@@ -159,6 +163,7 @@ export function useProactiveChatScrollPersistence(params: {
   diagnosticsVerbose?: boolean;
   onDiagnosticEvent?: (event: ScrollPersistenceDiagnosticEvent) => void;
   onUserNavigationIntent?: () => void;
+  onUserScrollActivity?: () => void;
   /** @deprecated Use contentFollowLeaseMs. */
   bottomFollowWindowMs?: number;
   /** @deprecated Use manualBottomConvergenceMaxMs. */
@@ -172,11 +177,16 @@ export function useProactiveChatScrollPersistence(params: {
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollBeginDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
-  onMomentumScrollBegin: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollBegin: (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => void;
   onMomentumScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (event: LayoutChangeEvent) => void;
   onContentSizeChange: (width: number, height: number) => void;
-  requestPersist: (reason: string, options?: { force?: boolean; immediate?: boolean }) => void;
+  requestPersist: (
+    reason: string,
+    options?: { force?: boolean; immediate?: boolean },
+  ) => void;
   resetRestore: (reason: string) => void;
   scrollToTop: (animated?: boolean) => void;
   scrollToBottom: (animated?: boolean) => void;
@@ -223,6 +233,7 @@ export function useProactiveChatScrollPersistence(params: {
     diagnosticsVerbose: configuredDiagnosticsVerbose,
     onDiagnosticEvent,
     onUserNavigationIntent,
+    onUserScrollActivity,
     bottomFollowWindowMs,
     manualBottomFollowWindowMs,
     initialBottomFollowWindowMs,
@@ -232,9 +243,13 @@ export function useProactiveChatScrollPersistence(params: {
   const contentFollowLeaseMs =
     configuredContentFollowLeaseMs ?? bottomFollowWindowMs ?? 1000;
   const manualBottomConvergenceMaxMs =
-    configuredManualBottomConvergenceMaxMs ?? manualBottomFollowWindowMs ?? 3000;
+    configuredManualBottomConvergenceMaxMs ??
+    manualBottomFollowWindowMs ??
+    3000;
   const initialBottomConvergenceMaxMs =
-    configuredInitialBottomConvergenceMaxMs ?? initialBottomFollowWindowMs ?? 5000;
+    configuredInitialBottomConvergenceMaxMs ??
+    initialBottomFollowWindowMs ??
+    5000;
   const contentFollowEnabled =
     configuredContentFollowEnabled ?? bottomLockEnabled ?? false;
   const diagnosticsEnabled =
@@ -247,9 +262,10 @@ export function useProactiveChatScrollPersistence(params: {
 
   const initialAnchor = isChatScrollAnchor(cachedScrollAnchor)
     ? cachedScrollAnchor
-    : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
-      ? cachedScrollAnchor
-      : null;
+    : messageViewportAnchorsEnabled &&
+      isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+    ? cachedScrollAnchor
+    : null;
 
   const listRef = useRef<any>(null);
   const offsetYRef = useRef(0);
@@ -259,9 +275,8 @@ export function useProactiveChatScrollPersistence(params: {
   const geometryRevisionRef = useRef(0);
   const lastGeometryChangeAtMsRef = useRef(0);
   const lastSemanticContentChangeAtMsRef = useRef(0);
-  const lastObservedNativeMotionSampleRef = useRef<ChatScrollMotionSample | null>(
-    null,
-  );
+  const lastObservedNativeMotionSampleRef =
+    useRef<ChatScrollMotionSample | null>(null);
   const lastProgrammaticWriteRef = useRef<ChatScrollProgrammaticWrite | null>(
     null,
   );
@@ -276,9 +291,9 @@ export function useProactiveChatScrollPersistence(params: {
     isNearBottom: true,
   });
 
-  const initialAnchorRef = useRef<ChatScrollAnchor | ChatMessageViewportScrollAnchor | null>(
-    initialAnchor,
-  );
+  const initialAnchorRef = useRef<
+    ChatScrollAnchor | ChatMessageViewportScrollAnchor | null
+  >(initialAnchor);
   const hasRestoredRef = useRef(false);
   const wasEnabledRef = useRef(enabled);
   const lastBottomContentRevisionRef = useRef(bottomContentRevision);
@@ -291,17 +306,32 @@ export function useProactiveChatScrollPersistence(params: {
     }),
   );
   const runtimeOperationRef = useRef<RuntimeEdgeOperation | null>(null);
-  const pendingOperationFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
-  const pendingOperationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runRuntimeOperationRef = useRef<(operationId: number) => void>(() => {});
-  const scheduleRuntimeOperationRef = useRef<(operationId: number) => void>(() => {});
-  const dispatchCoordinatorRef = useRef<(event: ChatScrollCoordinatorEvent) => void>(() => {});
-  const interactionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const followLeaseExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const userInteractionActiveRef = useRef(false);
-  const cancelRuntimeOperationOnUnmountRef = useRef<(operationId: number, reason: string) => void>(
+  const pendingOperationFrameRef = useRef<ReturnType<
+    typeof requestAnimationFrame
+  > | null>(null);
+  const pendingOperationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const runRuntimeOperationRef = useRef<(operationId: number) => void>(
     () => {},
   );
+  const scheduleRuntimeOperationRef = useRef<(operationId: number) => void>(
+    () => {},
+  );
+  const dispatchCoordinatorRef = useRef<
+    (event: ChatScrollCoordinatorEvent) => void
+  >(() => {});
+  const interactionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const followLeaseExpiryTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const userInteractionActiveRef = useRef(false);
+  const lastUserScrollActivityAtMsRef = useRef(Number.NEGATIVE_INFINITY);
+  const cancelRuntimeOperationOnUnmountRef = useRef<
+    (operationId: number, reason: string) => void
+  >(() => {});
   const persistNowOnUnmountRef = useRef<
     (reason: string, options?: { force?: boolean }) => Promise<void>
   >(async () => {});
@@ -334,18 +364,18 @@ export function useProactiveChatScrollPersistence(params: {
         event === 'followLeaseRenewed'
           ? 1000
           : event === 'persistSkipped'
-            ? 1000
-            : event === 'awayMotionCandidate'
-              ? 250
-              : event === 'manualBottomReattachCandidate'
-                ? 250
+          ? 1000
+          : event === 'awayMotionCandidate'
+          ? 250
+          : event === 'manualBottomReattachCandidate'
+          ? 250
           : event === 'operationObservation' ||
-              event === 'geometryChanged' ||
-              event === 'followLeaseSkipped' ||
-              event === 'awayMotionIgnored' ||
-              event === 'manualBottomReattachIgnored'
-            ? 500
-            : 0;
+            event === 'geometryChanged' ||
+            event === 'followLeaseSkipped' ||
+            event === 'awayMotionIgnored' ||
+            event === 'manualBottomReattachIgnored'
+          ? 500
+          : 0;
       const now = Date.now();
       const previous = lastConsoleDiagnosticAtRef.current[event] ?? 0;
       if (rateLimitMs > 0 && now - previous < rateLimitMs) {
@@ -390,8 +420,7 @@ export function useProactiveChatScrollPersistence(params: {
       awayMotionDiagnosticMinPx: AWAY_MOTION_DIAGNOSTIC_MIN_PX,
       awayMotionGeometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
       awayMotionSemanticSettleMs: AWAY_MOTION_SEMANTIC_SETTLE_MS,
-      awayMotionProgrammaticWindowMs:
-        AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
+      awayMotionProgrammaticWindowMs: AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
     });
   }, [
     bottomConvergenceMaxMs,
@@ -466,6 +495,21 @@ export function useProactiveChatScrollPersistence(params: {
     [updateDerivedScrollState],
   );
 
+  const reportUserScrollActivity = useCallback(
+    (atMs = Date.now()) => {
+      if (
+        !enabled ||
+        atMs - lastUserScrollActivityAtMsRef.current <
+          USER_SCROLL_ACTIVITY_THROTTLE_MS
+      ) {
+        return;
+      }
+      lastUserScrollActivityAtMsRef.current = atMs;
+      onUserScrollActivity?.();
+    },
+    [enabled, onUserScrollActivity],
+  );
+
   const observeNativeMotionForDiagnostics = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>, eventSource: string) => {
       const metrics = readScrollMetricsFromEvent(event);
@@ -500,8 +544,24 @@ export function useProactiveChatScrollPersistence(params: {
         return;
       }
       if (
-        coordinatorRef.current.bottomAffinity === 'manuallyDetached'
+        isLikelyUserScrollActivity({
+          previous,
+          current,
+          minMovementPx: AWAY_MOTION_GEOMETRY_EPSILON_PX,
+          geometryEpsilonPx: AWAY_MOTION_GEOMETRY_EPSILON_PX,
+          lastGeometryChangeAtMs: lastGeometryChangeAtMsRef.current,
+          geometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
+          lastSemanticContentChangeAtMs:
+            lastSemanticContentChangeAtMsRef.current,
+          semanticContentSettleMs: AWAY_MOTION_SEMANTIC_SETTLE_MS,
+          recentProgrammaticWrite: lastProgrammaticWriteRef.current,
+          programmaticWriteWindowMs: AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
+          activeOperation: coordinatorRef.current.operation != null,
+        })
       ) {
+        reportUserScrollActivity(now);
+      }
+      if (coordinatorRef.current.bottomAffinity === 'manuallyDetached') {
         const diagnostic = classifyChatScrollReturnToBottom({
           previous,
           current,
@@ -513,8 +573,7 @@ export function useProactiveChatScrollPersistence(params: {
           lastSemanticContentChangeAtMs:
             lastSemanticContentChangeAtMsRef.current,
           recentProgrammaticWrite: lastProgrammaticWriteRef.current,
-          programmaticWriteWindowMs:
-            AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
+          programmaticWriteWindowMs: AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
         });
         if (!diagnostic) {
           return;
@@ -562,8 +621,7 @@ export function useProactiveChatScrollPersistence(params: {
         geometryEpsilonPx: AWAY_MOTION_GEOMETRY_EPSILON_PX,
         lastGeometryChangeAtMs: lastGeometryChangeAtMsRef.current,
         geometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
-        lastSemanticContentChangeAtMs:
-          lastSemanticContentChangeAtMsRef.current,
+        lastSemanticContentChangeAtMs: lastSemanticContentChangeAtMsRef.current,
         semanticContentSettleMs: AWAY_MOTION_SEMANTIC_SETTLE_MS,
         recentProgrammaticWrite: lastProgrammaticWriteRef.current,
         programmaticWriteWindowMs: AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
@@ -612,23 +670,20 @@ export function useProactiveChatScrollPersistence(params: {
         type: 'manualAwayMotionDetected',
         reason: diagnostic.reason,
         nowMs: now,
-        deltaBottomGapPx: Number(
-          diagnostic.details.deltaBottomGapPx ?? 0,
-        ),
+        deltaBottomGapPx: Number(diagnostic.details.deltaBottomGapPx ?? 0),
         deltaOffsetY: Number(diagnostic.details.deltaOffsetY ?? 0),
         recentProgrammaticWrite,
         movementOpposesProgrammaticTarget,
       });
     },
-    [bottomThresholdPx, emitDiagnostic],
+    [bottomThresholdPx, emitDiagnostic, reportUserScrollActivity],
   );
 
   const markGeometryChangedForMotionDiagnostics = useCallback(
     (previousValue: number | null, nextValue: number) => {
       if (
         previousValue == null ||
-        Math.abs(previousValue - nextValue) >
-          AWAY_MOTION_GEOMETRY_EPSILON_PX
+        Math.abs(previousValue - nextValue) > AWAY_MOTION_GEOMETRY_EPSILON_PX
       ) {
         geometryRevisionRef.current += 1;
         lastGeometryChangeAtMsRef.current = Date.now();
@@ -638,16 +693,15 @@ export function useProactiveChatScrollPersistence(params: {
   );
 
   const refreshObservedMotionGeometryBaseline = useCallback(() => {
-    lastObservedNativeMotionSampleRef.current =
-      refreshChatScrollMotionGeometry(
-        lastObservedNativeMotionSampleRef.current,
-        {
-          atMs: Date.now(),
-          contentHeight: contentHeightRef.current,
-          viewportHeight: layoutHeightRef.current,
-          geometryRevision: geometryRevisionRef.current,
-        },
-      );
+    lastObservedNativeMotionSampleRef.current = refreshChatScrollMotionGeometry(
+      lastObservedNativeMotionSampleRef.current,
+      {
+        atMs: Date.now(),
+        contentHeight: contentHeightRef.current,
+        viewportHeight: layoutHeightRef.current,
+        geometryRevision: geometryRevisionRef.current,
+      },
+    );
   }, []);
 
   const cancelRuntimeOperation = useCallback(
@@ -685,7 +739,8 @@ export function useProactiveChatScrollPersistence(params: {
 
   const dispatchCoordinator = useCallback(
     (event: ChatScrollCoordinatorEvent) => {
-      const previousLeaseExpiry = coordinatorRef.current.followLease?.expiresAtMs ?? null;
+      const previousLeaseExpiry =
+        coordinatorRef.current.followLease?.expiresAtMs ?? null;
       const next = reduceChatScrollCoordinator(coordinatorRef.current, event);
       coordinatorRef.current = next.state;
       const nextLeaseExpiry = next.state.followLease?.expiresAtMs ?? null;
@@ -736,8 +791,11 @@ export function useProactiveChatScrollPersistence(params: {
         typeof measuredTargetOffsetY === 'number'
           ? measuredTargetOffsetY
           : operation.edge === 'bottom'
-            ? Math.max(0, (contentHeightRef.current ?? 0) - (layoutHeightRef.current ?? 0))
-            : 0;
+          ? Math.max(
+              0,
+              (contentHeightRef.current ?? 0) - (layoutHeightRef.current ?? 0),
+            )
+          : 0;
 
       if (
         listEdgeMethodsEnabled &&
@@ -756,7 +814,10 @@ export function useProactiveChatScrollPersistence(params: {
         target.scrollToOffset({ offset: targetOffsetY, animated });
       } else if (typeof target.scrollTo === 'function') {
         target.scrollTo({ y: targetOffsetY, animated });
-      } else if (operation.edge === 'bottom' && typeof target.scrollToEnd === 'function') {
+      } else if (
+        operation.edge === 'bottom' &&
+        typeof target.scrollToEnd === 'function'
+      ) {
         target.scrollToEnd({ animated });
       } else {
         return false;
@@ -903,7 +964,7 @@ export function useProactiveChatScrollPersistence(params: {
     runtime.geometryDirty = false;
 
     getMacScrollViewMetrics(listRef.current)
-      .then((metrics) => {
+      .then(metrics => {
         const currentOperation = coordinatorRef.current.operation;
         const currentRuntime = runtimeOperationRef.current;
         if (
@@ -969,8 +1030,9 @@ export function useProactiveChatScrollPersistence(params: {
           if (
             currentRuntime.stableSinceMs == null ||
             currentRuntime.stableTargetOffsetY == null ||
-            Math.abs(currentRuntime.stableTargetOffsetY - observation.targetOffsetY) >
-              bottomThresholdPx
+            Math.abs(
+              currentRuntime.stableTargetOffsetY - observation.targetOffsetY,
+            ) > bottomThresholdPx
           ) {
             currentRuntime.stableSinceMs = now;
             currentRuntime.stableTargetOffsetY = observation.targetOffsetY;
@@ -1051,7 +1113,12 @@ export function useProactiveChatScrollPersistence(params: {
         return;
       }
       const runtime = runtimeOperationRef.current;
-      if (writeEdge(operation, options.animated, { reason: 'navigationInitial' }) && runtime) {
+      if (
+        writeEdge(operation, options.animated, {
+          reason: 'navigationInitial',
+        }) &&
+        runtime
+      ) {
         runtime.corrections += 1;
       }
       scheduleRuntimeOperationRef.current(operation.id);
@@ -1100,12 +1167,7 @@ export function useProactiveChatScrollPersistence(params: {
         restoreComplete: hasRestoredRef.current,
       });
     },
-    [
-      contentFollowEnabled,
-      contentFollowLeaseMs,
-      dispatchCoordinator,
-      enabled,
-    ],
+    [contentFollowEnabled, contentFollowLeaseMs, dispatchCoordinator, enabled],
   );
 
   const suppressNextBottomContentFollow = useCallback(() => {
@@ -1117,7 +1179,9 @@ export function useProactiveChatScrollPersistence(params: {
   }, []);
 
   useEffect(() => {
-    if (Object.is(lastBottomContentRevisionRef.current, bottomContentRevision)) {
+    if (
+      Object.is(lastBottomContentRevisionRef.current, bottomContentRevision)
+    ) {
       return;
     }
     lastBottomContentRevisionRef.current = bottomContentRevision;
@@ -1149,9 +1213,13 @@ export function useProactiveChatScrollPersistence(params: {
 
     const anchor = initialAnchorRef.current;
     if (!anchor || anchor.pinnedToBottom) {
-      emitDiagnostic('restoreStarted', !anchor ? 'noAnchorBottom' : 'pinnedBottom', {
-        maxDurationMs: initialBottomConvergenceMaxMs,
-      });
+      emitDiagnostic(
+        'restoreStarted',
+        !anchor ? 'noAnchorBottom' : 'pinnedBottom',
+        {
+          maxDurationMs: initialBottomConvergenceMaxMs,
+        },
+      );
       hasRestoredRef.current = true;
       startNavigation({
         edge: 'bottom',
@@ -1196,12 +1264,18 @@ export function useProactiveChatScrollPersistence(params: {
     if (isChatScrollAnchor(anchor)) {
       const maxOffsetY = Math.max(0, contentHeight - layoutHeight);
       const targetOffsetY = Math.max(0, maxOffsetY - anchor.bottomGapPx);
-      emitDiagnostic('restoreStarted', 'offsetAnchor', { anchor, targetOffsetY });
+      emitDiagnostic('restoreStarted', 'offsetAnchor', {
+        anchor,
+        targetOffsetY,
+      });
       scrollToOffsetY(target, targetOffsetY);
       offsetYRef.current = targetOffsetY;
       updateDerivedScrollState();
       hasRestoredRef.current = true;
-      emitDiagnostic('restoreCompleted', 'offsetAnchor', { anchor, targetOffsetY });
+      emitDiagnostic('restoreCompleted', 'offsetAnchor', {
+        anchor,
+        targetOffsetY,
+      });
       return;
     }
 
@@ -1231,7 +1305,10 @@ export function useProactiveChatScrollPersistence(params: {
         return;
       }
       const now = Date.now();
-      if (!options?.force && now - lastPersistAtRef.current < persistThrottleMs) {
+      if (
+        !options?.force &&
+        now - lastPersistAtRef.current < persistThrottleMs
+      ) {
         return;
       }
       lastPersistAtRef.current = now;
@@ -1242,7 +1319,10 @@ export function useProactiveChatScrollPersistence(params: {
         return;
       }
 
-      const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+      const maxOffsetY = Math.max(
+        0,
+        metrics.contentHeight - metrics.viewportHeight,
+      );
       const bottomGapPx = Math.max(0, maxOffsetY - metrics.offsetY);
       const pinnedToBottom = bottomGapPx <= bottomThresholdPx;
       let anchor: ChatScrollAnchor | ChatMessageViewportScrollAnchor =
@@ -1258,8 +1338,13 @@ export function useProactiveChatScrollPersistence(params: {
         const match = visibleKey ? /^msg-(-?\d+)$/.exec(visibleKey) : null;
         if (match) {
           const messageIndex = Number(match[1]);
-          const offsetFromViewportTop = Number(visibleAnchor.offsetFromViewportTop ?? NaN);
-          if (Number.isFinite(messageIndex) && Number.isFinite(offsetFromViewportTop)) {
+          const offsetFromViewportTop = Number(
+            visibleAnchor.offsetFromViewportTop ?? NaN,
+          );
+          if (
+            Number.isFinite(messageIndex) &&
+            Number.isFinite(offsetFromViewportTop)
+          ) {
             anchor = createChatMessageViewportScrollAnchor({
               messageIndex,
               offsetFromViewportTop,
@@ -1344,9 +1429,10 @@ export function useProactiveChatScrollPersistence(params: {
   useEffect(() => {
     initialAnchorRef.current = isChatScrollAnchor(cachedScrollAnchor)
       ? cachedScrollAnchor
-      : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
-        ? cachedScrollAnchor
-        : null;
+      : messageViewportAnchorsEnabled &&
+        isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+      ? cachedScrollAnchor
+      : null;
     maybeRestoreScroll();
   }, [cachedScrollAnchor, maybeRestoreScroll, messageViewportAnchorsEnabled]);
 
@@ -1357,7 +1443,11 @@ export function useProactiveChatScrollPersistence(params: {
       resetRestore('becameEnabled');
     }
     if (wasEnabled && !enabled) {
-      dispatchCoordinator({ type: 'clear', reason: 'becameDisabled', nowMs: Date.now() });
+      dispatchCoordinator({
+        type: 'clear',
+        reason: 'becameDisabled',
+        nowMs: Date.now(),
+      });
     }
   }, [dispatchCoordinator, enabled, resetRestore]);
 
@@ -1379,7 +1469,9 @@ export function useProactiveChatScrollPersistence(params: {
       if (operationId != null) {
         cancelRuntimeOperationOnUnmountRef.current(operationId, 'unmount');
       }
-      persistNowOnUnmountRef.current('unmount', { force: true }).catch(() => {});
+      persistNowOnUnmountRef
+        .current('unmount', { force: true })
+        .catch(() => {});
     };
   }, []);
 
@@ -1387,11 +1479,19 @@ export function useProactiveChatScrollPersistence(params: {
     (reason: string) => {
       emitDiagnostic('geometryChanged', reason, {
         contentHeight:
-          contentHeightRef.current == null ? null : Math.round(contentHeightRef.current),
+          contentHeightRef.current == null
+            ? null
+            : Math.round(contentHeightRef.current),
         viewportHeight:
-          layoutHeightRef.current == null ? null : Math.round(layoutHeightRef.current),
+          layoutHeightRef.current == null
+            ? null
+            : Math.round(layoutHeightRef.current),
       });
-      dispatchCoordinator({ type: 'geometryChanged', reason, nowMs: Date.now() });
+      dispatchCoordinator({
+        type: 'geometryChanged',
+        reason,
+        nowMs: Date.now(),
+      });
     },
     [dispatchCoordinator, emitDiagnostic],
   );
@@ -1476,11 +1576,7 @@ export function useProactiveChatScrollPersistence(params: {
         nowMs: Date.now(),
       });
     },
-    [
-      applyEventMetrics,
-      dispatchCoordinator,
-      observeNativeMotionForDiagnostics,
-    ],
+    [applyEventMetrics, dispatchCoordinator, observeNativeMotionForDiagnostics],
   );
 
   const finishInteraction = useCallback(
@@ -1501,19 +1597,16 @@ export function useProactiveChatScrollPersistence(params: {
         nowMs: Date.now(),
       });
     },
-    [
-      applyEventMetrics,
-      dispatchCoordinator,
-      observeNativeMotionForDiagnostics,
-    ],
+    [applyEventMetrics, dispatchCoordinator, observeNativeMotionForDiagnostics],
   );
 
   const onScrollBeginDrag = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      reportUserScrollActivity();
       onUserNavigationIntent?.();
       beginInteraction('dragging', 'scrollBeginDrag', event);
     },
-    [beginInteraction, onUserNavigationIntent],
+    [beginInteraction, onUserNavigationIntent, reportUserScrollActivity],
   );
 
   const onScrollEndDrag = useCallback(
@@ -1561,9 +1654,13 @@ export function useProactiveChatScrollPersistence(params: {
         const operationId = coordinatorRef.current.operation?.id;
         if (operationId != null) {
           scheduleRuntimeOperationRef.current(operationId);
-          emitDiagnostic('persistSkipped', 'programmaticMomentumDuringOperation', {
-            operationId,
-          });
+          emitDiagnostic(
+            'persistSkipped',
+            'programmaticMomentumDuringOperation',
+            {
+              operationId,
+            },
+          );
         } else {
           requestPersist('programmaticMomentumEnd');
         }

@@ -4,7 +4,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -206,7 +205,10 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={[styles.footerText, styles.userFooterText]}>
+            <Text
+              style={[styles.footerText, styles.userFooterText]}
+              selectable
+            >
               {footerParts.join('   ')}
             </Text>
           </View>
@@ -309,7 +311,9 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -405,19 +409,15 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
                   nestedScrollEnabled
                   testID={`tool-result-scroll-${index}`}
                 >
-                  <MacTextView
-                    style={styles.readOnlyBoundedText}
-                    initialText={content}
-                    editable={false}
-                    autoGrow
-                    minHeight={theme.typography.lineHeight.message}
-                    textColor={theme.text}
-                    fontSize={theme.typography.fontSize.message}
-                    fontFamily="Menlo"
-                    lineHeight={theme.typography.lineHeight.message}
-                    textContainerInset={0}
+                  <View
+                    accessible
+                    accessibilityLabel={`tool-result-${index}`}
                     testID={`tool-result-${index}`}
-                  />
+                  >
+                    <Text style={styles.contentText} selectable>
+                      {content}
+                    </Text>
+                  </View>
                 </ScrollView>
               </View>
             )}
@@ -432,7 +432,9 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -593,39 +595,33 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
               nestedScrollEnabled
               testID={`assistant-reasoning-scroll-${index}`}
             >
-              <MacTextView
-                style={styles.readOnlyBoundedText}
-                initialText={reasoning}
-                editable={false}
-                autoGrow
-                minHeight={theme.typography.lineHeight.small}
-                textColor={theme.textSecondary}
-                fontSize={theme.typography.fontSize.small}
-                fontFamily="Menlo"
-                lineHeight={theme.typography.lineHeight.small}
-                italic
-                textContainerInset={0}
+              <View
+                accessible
+                accessibilityLabel={`assistant-reasoning-${index}`}
                 testID={`assistant-reasoning-${index}`}
-              />
+              >
+                <Text style={styles.reasoningText} selectable>
+                  {reasoning}
+                </Text>
+              </View>
             </ScrollView>
           </View>
         )}
 
         {content ? (
           renderMode === 'raw' ? (
-            <MacTextView
-              style={styles.rawReadonlyInput}
-              initialText={content}
-              editable={false}
-              autoGrow
-              minHeight={theme.typography.lineHeight.message}
-              textColor={theme.text}
-              fontSize={theme.typography.fontSize.message}
-              fontFamily="Menlo"
-              lineHeight={theme.typography.lineHeight.message}
-              textContainerInset={0}
+            <View
+              accessible
+              accessibilityLabel={`assistant-raw-message-${index}`}
               testID={`assistant-raw-message-${index}`}
-            />
+            >
+              <Text
+                style={[styles.contentText, styles.rawReadonlyText]}
+                selectable
+              >
+                {content}
+              </Text>
+            </View>
           ) : (
             <MarkdownMessageContent text={content} variant="assistant" />
           )
@@ -692,19 +688,13 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
                 return (
                   <View key={callId || idx} style={styles.toolCallItem}>
                     <Text style={styles.toolCallName}>{toolName}</Text>
-                    <MacTextView
-                      style={styles.toolCallArgsReadOnly}
-                      initialText={displayText}
-                      editable={false}
-                      autoGrow
-                      minHeight={theme.typography.lineHeight.tiny}
-                      textColor={theme.textSecondary}
-                      fontSize={theme.typography.fontSize.tiny}
-                      fontFamily="Menlo"
-                      lineHeight={theme.typography.lineHeight.tiny}
-                      textContainerInset={0}
+                    <Text
+                      style={styles.toolCallArgs}
+                      selectable
                       testID={`assistant-tool-call-${index}-${idx}`}
-                    />
+                    >
+                      {displayText}
+                    </Text>
                   </View>
                 );
               })}
@@ -714,7 +704,9 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -897,10 +889,6 @@ const createStyles = (theme: Theme) =>
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       marginLeft: 8,
     },
-    toolCallArgsReadOnly: {
-      width: '98%',
-      marginLeft: 8,
-    },
     contentText: {
       fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
@@ -931,9 +919,6 @@ const createStyles = (theme: Theme) =>
     collapsibleScroll: {
       paddingHorizontal: 4,
       paddingVertical: 4,
-    },
-    readOnlyBoundedText: {
-      width: '100%',
     },
     collapsedHintText: {
       marginTop: 2,
@@ -1013,9 +998,8 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
-    rawReadonlyInput: {
+    rawReadonlyText: {
       marginTop: 2,
-      width: '100%',
     },
   });
 

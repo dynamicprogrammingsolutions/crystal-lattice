@@ -471,8 +471,8 @@ def test_human_time_spans_ingest_through_public_action_path(
     tmp_path: Path,
 ) -> None:
     """Spans flow through ``execute_application_action`` (the HTTP route's
-    entry): session-less spans use the runtime working-directory default,
-    retries dedup, overlaps merge, and ingestion never mutates sessions."""
+    entry): every span uses the runtime working-directory default, retries
+    dedup, overlaps merge, and ingestion never mutates sessions."""
 
     db_path = tmp_path / "durations.sqlite3"
     app = _make_app(tmp_path, db_path)
@@ -491,8 +491,6 @@ def test_human_time_spans_ingest_through_public_action_path(
                     "to": "2026-09-25T08:05:00Z",
                 },
                 {
-                    # No plugin-config working directory: application
-                    # initialization defaults this target from WORKING_DIR.
                     "session_id": None,
                     "from": "2026-09-25T09:00:00Z",
                     "to": "2026-09-25T09:02:00Z",
@@ -507,13 +505,16 @@ def test_human_time_spans_ingest_through_public_action_path(
         "absorbed": 0,
         "duplicate": False,
     }
+    application_working_directory = str(Path.cwd().resolve())
     totals = duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     )
     assert totals == {"span_count": 1, "total_ms": 5 * 60 * 1000}
     assert duration_store.human_time_project_totals(
-        db_path, working_directory=str(Path.cwd().resolve())
-    ) == {"span_count": 1, "total_ms": 2 * 60 * 1000}
+        db_path, working_directory=application_working_directory
+    ) == {"span_count": 2, "total_ms": 7 * 60 * 1000}
 
     # A retry of the accepted batch is recognized and skipped.
     retry = app.execute_application_action(
@@ -533,7 +534,9 @@ def test_human_time_spans_ingest_through_public_action_path(
     assert retry["duplicate"] is True
     assert retry["recorded"] == 0
     assert duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
 
     # A new batch with an overlapping same-session span merges into one.
@@ -554,7 +557,9 @@ def test_human_time_spans_ingest_through_public_action_path(
     assert merged["recorded"] == 1
     assert merged["merged"] == 1
     assert duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     ) == {"span_count": 1, "total_ms": 8 * 60 * 1000}
 
     # Ingestion never mutates sessions (no save path).
@@ -619,14 +624,16 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
     assert second_md.get("human_time_turn_delta") == 3 * 60 * 1000
     assert second_md.get("human_time_turn_delta_formatted") == "3m"
 
-    # And the report action includes the current-project total and factual
-    # all-time per-session diagnostics.
+    # Human project attribution follows the application working directory,
+    # while the report's current-project summary follows this synthetic
+    # session's configured project. The session-id diagnostic remains
+    # independent of that project distinction.
     report = app.execute_application_action(
         "duration_tracking_app",
         "show_duration_report",
         {"session_id": session.session_id},
     )
-    assert "- Human time: `8m`" in report["display"]["body"]
+    assert "- Human time: `0ms`" in report["display"]["body"]
     assert "- Current session stored total: `8m`" in report["display"]["body"]
     assert report["human_time"] == {"span_count": 1, "total_ms": 8 * 60 * 1000}
 

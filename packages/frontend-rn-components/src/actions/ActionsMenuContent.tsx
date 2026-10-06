@@ -151,7 +151,8 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
                 </View>
               ) : null}
               <Text
-                numberOfLines={1}
+                testID={`actions-menu-label-${String(action.key)}`}
+                numberOfLines={2}
                 ellipsizeMode="tail"
                 style={[
                   styles.menuItemText,
@@ -232,6 +233,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     minWidth: 0,
+    minHeight: 44,
+    paddingVertical: 6,
   },
   iconButton: {
     width: 34,

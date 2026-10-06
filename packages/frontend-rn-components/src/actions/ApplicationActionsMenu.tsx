@@ -99,7 +99,14 @@ export function ApplicationActionsMenu(
                 })}
               </View>
             ) : null}
-            <Text style={[styles.label, { color: disabled ? theme.textMuted : theme.text }]}>
+            <Text
+              numberOfLines={2}
+              style={[styles.label, {
+                color: disabled ? theme.textMuted : theme.text,
+                fontSize: theme.typography.fontSize.message,
+                lineHeight: theme.typography.lineHeight.message,
+              }]}
+            >
               {action.label}
             </Text>
           </TouchableOpacity>
@@ -125,15 +132,18 @@ const styles = StyleSheet.create({
   item: {
     minHeight: 44,
     paddingHorizontal: 12,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
   },
   icon: {
     width: 34,
+    flexShrink: 0,
     alignItems: 'center',
   },
   label: {
     marginLeft: 8,
     flex: 1,
+    minWidth: 0,
   },
 });

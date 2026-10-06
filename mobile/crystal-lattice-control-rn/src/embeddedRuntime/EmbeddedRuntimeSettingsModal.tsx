@@ -9,10 +9,16 @@ import {
   View,
 } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
-import type {
-  ActionDisplayFollowupAction,
-  ActionDisplayPayload,
+import {
+  runApplicationAction,
+  type AgentBackend,
+  type ActionUiElement,
+  type ActionDisplayFollowupAction,
+  type ActionDisplayPayload,
 } from "@crystal-lattice/frontend-sdk";
+import { useDisplayFollowupDialog } from "@crystal-lattice/frontend-sdk-react";
+import { ApplicationActionDialog } from "@crystal-lattice/frontend-rn-components";
+import { useMobileApplicationActionDialogFieldRenderers } from "../components/applicationActionDialogRenderers";
 
 import ActionDisplayCard from "../components/ActionDisplayCard";
 import PanelModalFrame from "../components/PanelModalFrame";
@@ -344,16 +350,38 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       actionOwner?: string;
       inputs?: Record<string, unknown>;
       preserveDisplay?: boolean;
+      element?: ActionUiElement;
+      dialogValues?: Record<string, any>;
+      formValues?: Record<string, any>;
     }
   ): Promise<void> => {
     setChatGPTActionId(actionId);
     try {
-      const result = await executeEmbeddedRuntimeApplicationAction({
+      const execute = (inputs?: Record<string, unknown>) => executeEmbeddedRuntimeApplicationAction({
         pluginId: options?.pluginId ?? "chatgpt_auth",
         actionId,
         actionOwner: options?.actionOwner,
-        inputs: options?.inputs,
+        inputs,
       });
+      const actionResult = options?.element ? await runApplicationAction({
+        backend: {
+          executeAction: async ({ inputs }: { inputs: Record<string, unknown> }) => ({
+            status: "ok",
+            plugin: options.pluginId ?? "chatgpt_auth",
+            action_id: actionId,
+            result: await execute(inputs),
+          }),
+        } as unknown as AgentBackend,
+        element: options.element,
+        actionsById: {},
+        context: { dialogValues: options.dialogValues, formValues: options.formValues },
+      }) : null;
+      const result = actionResult
+        ? actionResult.response?.result
+        : await execute(options?.inputs);
+      if (!result) {
+        throw new Error(actionResult?.errorMessage || "Action failed.");
+      }
       if (options?.preserveDisplay !== true) {
         setChatGPTDisplay(result.display ?? null);
       }
@@ -384,8 +412,23 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     }
   };
 
+  const actionFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
+  const displayFollowupDialog = useDisplayFollowupDialog<null>(
+    async (element, { action, formValues }, dialogValues) => {
+      await runChatGPTAction(action.action_id, {
+        pluginId: action.plugin,
+        actionOwner: action.action_owner,
+        element,
+        formValues,
+        dialogValues,
+        preserveDisplay: action.preserve_display === true,
+      });
+    }
+  );
+
   const followChatGPTDisplayAction = async (
-    action: ActionDisplayFollowupAction
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>
   ): Promise<void> => {
     if (action.kind === "dismiss") {
       setChatGPTDisplay(null);
@@ -400,12 +443,9 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       return;
     }
     if (action.kind === "run_action") {
-      await runChatGPTAction(action.action_id, {
-        pluginId: action.plugin,
-        actionOwner: action.action_owner,
-        inputs: action.fixed_params as Record<string, unknown> | undefined,
-        preserveDisplay: action.preserve_display === true,
-      });
+      if (chatGPTDisplay) {
+        displayFollowupDialog.openForAction(action, chatGPTDisplay, null, formValues);
+      }
     }
   };
 
@@ -415,13 +455,25 @@ const EmbeddedRuntimeSettingsModal: React.FC<
       testID="embedded-runtime-settings"
       title="On-device Provider Settings"
       subtitle="Changes save automatically. Keys stay in iOS Keychain. Test validates without saving."
-      onRequestClose={onRequestClose}
+      onRequestClose={displayFollowupDialog.activeElement
+        ? displayFollowupDialog.handleCancel : onRequestClose}
       statusText={status.message}
       statusTone={status.tone === "busy" ? "busy" : status.tone}
       showSpinner={status.tone === "busy"}
       scroll
       scrollTestID="embedded-runtime-settings-scroll"
       contentStyle={styles.modal}
+      overlayChildren={displayFollowupDialog.activeElement ? (
+        <ApplicationActionDialog
+          visible
+          presentationMode="overlay"
+          dialog={displayFollowupDialog.activeElement.dialog}
+          titleFallback={displayFollowupDialog.activeElement.label}
+          fieldRenderers={actionFieldRenderers}
+          onSubmit={displayFollowupDialog.handleSubmit}
+          onCancel={displayFollowupDialog.handleCancel}
+        />
+      ) : null}
     >
       {drafts && configuration ? (
         <>
@@ -527,9 +579,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   activeActionId={chatGPTActionId}
                   bodyTestID="embedded-provider-openai-chatgpt-display"
                   onDismiss={() => setChatGPTDisplay(null)}
-                  onFollowupAction={(action) =>
-                    void followChatGPTDisplayAction(action)
+                  onFollowupAction={(action, formValues) =>
+                    void followChatGPTDisplayAction(action, formValues)
                   }
+                  fieldRenderers={actionFieldRenderers}
                   compact
                   bounded
                 />

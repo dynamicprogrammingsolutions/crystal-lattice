@@ -300,6 +300,66 @@ def _patch_extension_client(
     )
 
 
+@pytest.mark.parametrize("auth_mode", ["api", "chatgpt"])
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_compaction_preserves_web_search_input_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    auth_mode: str,
+    status: str,
+) -> None:
+    client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "output": [{"type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    _ScriptedCompactionProvider.scripted_client = client
+    _patch_extension_client(monkeypatch)
+    native_search = {
+        "type": "web_search_call",
+        "id": "ws_1",
+        "status": status,
+        "action": {"type": "search", "query": "OpenAI Responses API"},
+        "_metadata": {"response_id": "resp_1"},
+    }
+    extension = OpenAIResponsesNativeCompactionExtension()
+    extension.execute_action(
+        "compact_native_history_sync",
+        session=Session(
+            session_id="session-search",
+            messages=[
+                Message(
+                    role="assistant",
+                    content="Search result",
+                    metadata={"native_indices": [0]},
+                )
+            ],
+        ),
+        native_messages=[native_search],
+        params={},
+        context=None,
+        state={
+            "config": {**_config(), "auth_mode": auth_mode},
+            "request": {"instructions": "You are a precise assistant."},
+        },
+    )
+
+    calls = (
+        client.responses.create_calls
+        if auth_mode == "chatgpt"
+        else client.responses.compact_calls
+    )
+    assert calls[0]["input"][0] == {
+        "type": "web_search_call",
+        "id": "ws_1",
+        "status": status,
+        "action": {"type": "search", "query": "OpenAI Responses API"},
+    }
+    assert native_search["_metadata"] == {"response_id": "resp_1"}
+    assert native_search["id"] == "ws_1"
+    assert native_search["status"] == status
+
+
 def test_compaction_action_uses_sdk_and_sanitizes_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

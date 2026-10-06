@@ -58,4 +58,28 @@ final class ActionDisplayWindowUITests: XCTestCase {
     expectation(for: closed, evaluatedWith: actionWindow)
     waitForExpectations(timeout: 10)
   }
+
+  func testMultilineActionFieldKeepsFocusWhenTypingSpaces() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_ACTION_DISPLAY_HARNESS"] = "1"
+    app.launchArguments.append("--action-display-harness")
+    app.launch()
+    app.activate()
+
+    let actionWindow = app.windows["actionDisplayWindow"]
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 20), app.debugDescription)
+
+    let input = actionWindow.descendants(matching: .any)
+      .matching(identifier: "action-form-input-prompt")
+      .firstMatch
+    XCTAssertTrue(input.waitForExistence(timeout: 20), app.debugDescription)
+
+    input.click()
+    input.typeKey("a", modifierFlags: .command)
+    input.typeKey(.delete, modifierFlags: [])
+    input.typeText("alpha beta")
+
+    let value = input.value as? String
+    XCTAssertEqual(value, "alpha beta", app.debugDescription)
+  }
 }

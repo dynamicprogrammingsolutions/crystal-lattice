@@ -332,7 +332,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Set NODE_BINARY or add node to PATH.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "ENV_PATH=\"$SRCROOT/.xcode.env\"\nif [ -f \"$ENV_PATH\" ]; then\n  . \"$ENV_PATH\"\nfi\nif [ -f \"$ENV_PATH.local\" ]; then\n  . \"$ENV_PATH.local\"\nfi\nif [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Install the version in the repository .nvmrc or set NODE_BINARY in macos/.xcode.env.local.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 		038EBB609777869271167CC2 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -418,7 +418,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Set NODE_BINARY or add node to PATH.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
+			shellScript = "ENV_PATH=\"$SRCROOT/.xcode.env\"\nif [ -f \"$ENV_PATH\" ]; then\n  . \"$ENV_PATH\"\nfi\nif [ -f \"$ENV_PATH.local\" ]; then\n  . \"$ENV_PATH.local\"\nfi\nif [ -z \"${NODE_BINARY:-}\" ]; then\n  NODE_BINARY=\"$(command -v node || true)\"\nfi\nif [ -z \"${NODE_BINARY}\" ]; then\n  echo \"error: Node.js was not found. Install the version in the repository .nvmrc or set NODE_BINARY in macos/.xcode.env.local.\" >&2\n  exit 1\nfi\nexport NODE_BINARY\n../node_modules/react-native-macos/scripts/react-native-xcode.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

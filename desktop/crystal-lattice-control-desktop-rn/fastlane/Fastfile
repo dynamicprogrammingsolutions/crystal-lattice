@@ -8,6 +8,7 @@ require "open3"
 require "shellwords"
 require "tempfile"
 require_relative "build_number"
+require_relative "release_output"
 
 opt_out_usage
 default_platform(:mac)
@@ -124,8 +125,8 @@ end
 
 def build_archive!(signed:)
   build_number = release_build_number
-  FileUtils.rm_rf(OUTPUT_DIRECTORY)
-  FileUtils.mkdir_p(OUTPUT_DIRECTORY)
+  previous = CrystalLatticeMacReleaseOutput.prepare(OUTPUT_DIRECTORY)
+  UI.message("Previous build retained at: #{previous}") if previous
 
   UI.message(
     "Building #{PRODUCT_NAME} #{marketing_version} (#{build_number}) " \
@@ -334,6 +335,7 @@ platform :mac do
     Dir.chdir(APP_ROOT) do
       sh("bundle", "exec", "ruby", "fastlane/spec/build_number_test.rb")
       sh("bundle", "exec", "ruby", "fastlane/spec/notary_key_test.rb")
+      sh("bundle", "exec", "ruby", "fastlane/spec/release_output_test.rb")
       sh("npm", "run", "tsc")
       sh("npm", "test", "--", "--runInBand")
       sh(
@@ -366,10 +368,18 @@ platform :mac do
 
   desc "Build, sign, notarize, staple, and validate the universal DMG"
   lane :release do
+    require_environment!(
+      "DESKTOP_MATCH_GIT_URL",
+      "MATCH_PASSWORD",
+      "DEVELOPER_ID_APPLICATION_IDENTITY",
+    )
+    release_build_number
+    api_key = app_store_connect_key
+    # Check the notarization key before verification or moving previous output.
+    with_notary_key { |path| File.read(path) }
     source_state = capture_release_source_state!
     verify unless true_env?("SKIP_DESKTOP_VERIFICATION")
 
-    api_key = app_store_connect_key
     setup_ci(
       keychain_name: "crystal_lattice_desktop_release",
       timeout: 0,
@@ -380,6 +390,14 @@ platform :mac do
     )
 
     app_path = build_archive!(signed: true)
-    package_and_notarize!(app_path, source_state: source_state)
+    dmg_path = package_and_notarize!(app_path, source_state: source_state)
+    UI.success("Ready for review: #{PRODUCT_NAME} #{marketing_version} (#{release_build_number})")
+    UI.message("DMG: #{dmg_path}")
+    UI.message("SHA-256: #{Digest::SHA256.file(dmg_path).hexdigest}")
+    UI.message("Metadata: #{File.join(OUTPUT_DIRECTORY, 'release-metadata.json')}")
+    UI.message("Notarization: #{File.join(OUTPUT_DIRECTORY, 'notarization.json')}")
+    UI.message("Source tree clean: #{source_state.fetch(:clean)}")
+    UI.message("Open to install: #{Shellwords.join(['open', dmg_path])}")
+    dmg_path
   end
 end

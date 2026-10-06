@@ -12,7 +12,8 @@ const sdkReactRoot = path.resolve(__dirname, '../../packages/frontend-sdk-react'
 const rnComponentsRoot = path.resolve(__dirname, '../../packages/frontend-rn-components');
 
 const config = {
-  watchFolders: [sdkRoot, sdkReactRoot, rnComponentsRoot],
+  watchFolders: [sdkRoot, sdkReactRoot, rnComponentsRoot,
+    path.resolve(__dirname, '../../test/fixture')],
   resolver: {
     unstable_enableSymlinks: true,
     extraNodeModules: {

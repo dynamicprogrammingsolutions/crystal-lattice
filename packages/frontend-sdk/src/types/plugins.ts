@@ -1,3 +1,5 @@
+import type { ActionDialog } from '../sessions/sessionListContracts';
+
 export interface ActionInputParam {
   type?: string;
   required?: boolean;
@@ -85,6 +87,7 @@ export interface ActionDisplayRunActionAction {
   action_owner?: string;
   fixed_params?: Record<string, unknown>;
   param_map?: Record<string, string>;
+  dialog?: ActionDialog;
   preserve_display?: boolean;
 }
 

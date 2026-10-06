@@ -64,6 +64,33 @@ def assert_headless_access(
         session_root=cli_sessions,
     )
     cli_session_id = _result_session_id(cli_result)
+    ephemeral_cli_result = _run_json(
+        [
+            *(str(part) for part in command),
+            "--config",
+            str(smoke_config),
+            "--sessions-dir",
+            str(cli_sessions),
+            "run",
+            "--agent",
+            ACCESS_AGENT_ID,
+            "--ephemeral",
+            "--set",
+            "model=headless-access-ephemeral",
+            "--prompt",
+            "CLI_EPHEMERAL_ACCESS_SMOKE",
+            "--format",
+            "json",
+            "--no-progress",
+        ],
+        cwd=workspace,
+        env=env,
+    )
+    _assert_ephemeral_result(
+        ephemeral_cli_result,
+        marker="CLI_EPHEMERAL_ACCESS_SMOKE",
+        session_root=cli_sessions,
+    )
     listed_session_ids = _run_text(
         [
             *(str(part) for part in command),
@@ -149,6 +176,16 @@ def assert_headless_access(
                 f"            exclude=[{TOOL_MESSAGE_EXCLUDE_JSONPATH!r}],",
                 "        )",
                 "        assert 'SDK_ACCESS_SMOKE' in json.dumps(messages)",
+                "        ephemeral = runtime.run(",
+                "            'SDK_EPHEMERAL_ACCESS_SMOKE',",
+                "            agent_id='headless-access-smoke',",
+                "            overrides={'model': 'headless-access-ephemeral'},",
+                "            persistence='ephemeral',",
+                "        )",
+                "        assert ephemeral.status == 'succeeded'",
+                "        assert ephemeral.persistence == 'ephemeral'",
+                "        assert 'SDK_EPHEMERAL_ACCESS_SMOKE' in ephemeral.output_text",
+                "        assert runtime.application.load_session_record(ephemeral.session_id) is None",
                 "print(json.dumps(result.to_dict(), sort_keys=True))",
                 "",
             ]
@@ -331,6 +368,7 @@ def _assert_access_result(
     expected = (
         marker,
         "# Crystal Lattice Access (CLI and Python SDK)",
+        "# Delegating work through Crystal Lattice",
         str(config_path.resolve()),
         str(session_root.resolve()),
         python_value,
@@ -354,4 +392,29 @@ def _assert_access_result(
     if not list(session_root.rglob(f"{session_id}.json")):
         raise RuntimeError(
             f"Headless access session was not persisted under {session_root}: {session_id}"
+        )
+
+
+def _assert_ephemeral_result(
+    result: dict,
+    *,
+    marker: str,
+    session_root: Path,
+) -> None:
+    if result.get("status") != "succeeded":
+        raise RuntimeError(f"Ephemeral headless access request failed: {result!r}")
+    if result.get("persistence") != "ephemeral":
+        raise RuntimeError(
+            f"Ephemeral headless access result has wrong persistence: {result!r}"
+        )
+    output = result.get("output_text")
+    if not isinstance(output, str) or marker not in output:
+        raise RuntimeError(
+            f"Ephemeral headless access result omitted {marker!r}: {result!r}"
+        )
+    session_id = _result_session_id(result)
+    if list(session_root.rglob(f"{session_id}.json")):
+        raise RuntimeError(
+            "Ephemeral headless access unexpectedly persisted a session under "
+            f"{session_root}: {session_id}"
         )

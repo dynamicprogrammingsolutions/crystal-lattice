@@ -927,21 +927,36 @@ def record_human_time_spans(
 
 
 def human_time_session_totals(
-    db_path: Path, *, working_directory: str, session_id: str
+    db_path: Path, *, session_id: str, working_directory: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Return the human-time total and span count for one workspace session."""
+    """Return the human-time total and span count for one session.
+
+    Session ids are globally unique telemetry identifiers. A working-directory
+    filter remains available for report queries that intentionally need a
+    project-specific view.
+    """
 
     conn = _connect(db_path)
     try:
         _ensure_schema(conn)
-        row = conn.execute(
-            """
-            SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
-            FROM human_time_spans
-            WHERE working_directory = ? AND session_id = ?
-            """,
-            (working_directory, session_id),
-        ).fetchone()
+        if working_directory is None:
+            row = conn.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+                FROM human_time_spans
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT COUNT(*), COALESCE(SUM(duration_ms), 0)
+                FROM human_time_spans
+                WHERE working_directory = ? AND session_id = ?
+                """,
+                (working_directory, session_id),
+            ).fetchone()
         return {
             "span_count": int(row[0]) if row else 0,
             "total_ms": int(row[1]) if row else 0,

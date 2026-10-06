@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Button, StyleSheet, Text, View } from 'react-native';
 
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 import type {
@@ -11,6 +11,8 @@ import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react'
 
 import { ChatPane } from '../chat/ChatPane';
 import { useDesktopTheme } from '../theme/useDesktopTheme';
+import MessageActionsBar from '../chat/MessageActionsBar';
+import menuLabelActions from '../../../../test/fixture/action-menu-labels.json';
 
 const SESSION_ID = 'desktop-rich-session-ui';
 
@@ -313,6 +315,8 @@ export function DesktopRichSessionUiHarness(props: {
   const composeText = props.composeText ?? '';
   const [model, setModel] = useState('claude-a');
   const [lastAction, setLastAction] = useState('none');
+  const [messagePins, setMessagePins] = useState<string[]>([]);
+  const [longMenu, setLongMenu] = useState(false);
   const [watched, setWatched] = useState(false);
   const [noteEditCount, setNoteEditCount] = useState(0);
   const [summary, setSummary] = useState<SessionSummary>({
@@ -362,6 +366,12 @@ export function DesktopRichSessionUiHarness(props: {
             >
               {lastAction}
             </Text>
+            <View
+              accessible
+              testID="desktop-rich-session-ui-action-marker"
+              accessibilityLabel={`Desktop rich action ${lastAction}`}
+              style={styles.accessibilityMarker}
+            />
             <Text testID="desktop-rich-session-ui-watchlist-state">
               {watched ? 'watched' : 'not-watched'}
             </Text>
@@ -376,6 +386,11 @@ export function DesktopRichSessionUiHarness(props: {
             <Text testID="desktop-rich-session-ui-note-state">
               {noteEditCount}
             </Text>
+            <Button
+              title="Long action menu"
+              testID="message-menu-long-list"
+              onPress={() => setLongMenu(true)}
+            />
             <View
               accessible
               testID="desktop-rich-session-ui-note-marker"
@@ -383,6 +398,18 @@ export function DesktopRichSessionUiHarness(props: {
               style={styles.accessibilityMarker}
             />
           </View>
+          <MessageActionsBar
+            pinned={messagePins}
+            onChangePinned={setMessagePins}
+            onAction={setLastAction}
+            extraActions={longMenu ? [
+              ...menuLabelActions,
+              ...Array.from({ length: 18 }, (_, index) => ({
+                ...menuLabelActions[1],
+                key: `long-${index}`,
+              })),
+            ] : menuLabelActions}
+          />
           <ChatPane
             isVisible
             isActive

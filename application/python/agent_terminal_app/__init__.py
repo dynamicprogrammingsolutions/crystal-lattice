@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         RunError,
         RunProgress,
         RunProgressKind,
+        RunPersistence,
         RunStatus,
         open_runtime,
     )
@@ -42,6 +43,7 @@ __all__ = [
     "RunError",
     "RunProgress",
     "RunProgressKind",
+    "RunPersistence",
     "RunStatus",
     "app",
     "open_runtime",
@@ -59,6 +61,7 @@ def __getattr__(name: str):
         "RunError",
         "RunProgress",
         "RunProgressKind",
+        "RunPersistence",
         "RunStatus",
         "open_runtime",
     }:
@@ -70,6 +73,7 @@ def __getattr__(name: str):
             RunError,
             RunProgress,
             RunProgressKind,
+            RunPersistence,
             RunStatus,
             open_runtime,
         )
@@ -82,6 +86,7 @@ def __getattr__(name: str):
             "RunError": RunError,
             "RunProgress": RunProgress,
             "RunProgressKind": RunProgressKind,
+            "RunPersistence": RunPersistence,
             "RunStatus": RunStatus,
             "open_runtime": open_runtime,
         }[name]

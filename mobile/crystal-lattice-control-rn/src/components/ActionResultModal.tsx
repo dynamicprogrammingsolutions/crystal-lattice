@@ -27,6 +27,8 @@ export interface ActionResultModalProps {
   ) => void;
   activeActionId?: string | null;
   fieldRenderers?: ApplicationActionDialogFieldRenderers;
+  overlayChildren?: React.ReactNode;
+  onOverlayRequestClose?: () => void;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -45,6 +47,8 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
   onFollowupAction,
   activeActionId,
   fieldRenderers,
+  overlayChildren,
+  onOverlayRequestClose,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -55,11 +59,10 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
     <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
       <View
         testID={testID}
-        accessibilityViewIsModal
-        style={[
-          styles.overlay,
-          presentationMode === 'overlay' && styles.absoluteOverlay,
-        ]}
+        accessibilityViewIsModal={!overlayChildren}
+        accessibilityElementsHidden={!!overlayChildren}
+        importantForAccessibility={overlayChildren ? 'no-hide-descendants' : 'auto'}
+        style={styles.overlay}
       >
         <TouchableWithoutFeedback onPress={() => {}}>
           <View style={styles.panel}>
@@ -87,7 +90,12 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
   }
 
   if (presentationMode === 'overlay') {
-    return content;
+    return (
+      <View style={styles.absoluteOverlay}>
+        {content}
+        {overlayChildren}
+      </View>
+    );
   }
 
   return (
@@ -95,15 +103,25 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
       visible
       transparent
       animationType="fade"
-      onRequestClose={dismissible ? onRequestClose : () => {}}
+      onRequestClose={
+        overlayChildren && onOverlayRequestClose
+          ? onOverlayRequestClose
+          : dismissible ? onRequestClose : () => {}
+      }
     >
-      {content}
+      <View style={styles.modalRoot}>
+        {content}
+        {overlayChildren}
+      </View>
     </Modal>
   );
 };
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
+    modalRoot: {
+      flex: 1,
+    },
     overlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.35)',

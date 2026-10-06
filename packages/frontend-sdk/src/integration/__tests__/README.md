@@ -22,6 +22,11 @@ To run an integration file directly, use the integration Vitest config:
 npm exec -- vitest run --config vitest.integration.config.ts src/integration/__tests__/<file>.ts
 ```
 
+`backend.compaction-menu.integration.test.ts` checks the plugin-owned
+**OpenAI compaction up to here** label, confirmation, stable IDs/parameters,
+and disabled-feature eligibility through real FastAPI, `FetchTransport`, and
+`RestAgentBackend`. It makes no provider requests and requires no credentials.
+
 The package scripts select exact files. Environment variables are kept for
 credentials, optional modes, and AWS danger interlocks. Provider-backed tests may
 need keys in the shell or in the repository root `.env`, depending on the suite.
@@ -35,7 +40,7 @@ forwarded after `--`.
 
 | Category | Command | Runs / requirements |
 | --- | --- | --- |
-| Local backend | `npm run integration:action-display-forms` | Dummy action display embedded form flow through SDK `runApplicationAction`. |
+| Local backend | `npm run integration:action-display-forms` | Neutral embedded form and follow-up dialog values through SDK `runApplicationAction` and the public backend. |
 | Local backend | `npm run integration:website-runtime-ui` | Canonical website config and promoted UI fixture through FastAPI, `FetchTransport`, and `RestAgentBackend`. |
 | Local backend | `npm run integration:backend` | `backend.integration.test.ts` with deterministic local providers. |
 | Local backend | `npm run integration:session-status` | Explicit-ID request status through real FastAPI, HTTP transport, and `RestAgentBackend`. |

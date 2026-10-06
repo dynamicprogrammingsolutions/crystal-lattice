@@ -94,6 +94,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useDisplayFollowupDialog,
   useSessionSettingsController,
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
@@ -1589,6 +1590,7 @@ export const ChatPane = React.memo(function ChatPane({
     listEdgeMethodsEnabled:
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
     onUserNavigationIntent: cancelRangeNavigation,
+    onUserScrollActivity: recordSessionActivity,
   });
 
   useEffect(() => {
@@ -3126,6 +3128,37 @@ export const ChatPane = React.memo(function ChatPane({
     ],
   );
 
+  const displayFollowupDialog = useDisplayFollowupDialog<ActionDisplayEntry>(
+    async (element, { action, source: entry, formValues }, dialogValues) => {
+      setActiveDisplayActionId(action.id);
+      try {
+        await executePluginAction(element, {
+          ...entry.context,
+          formValues,
+          dialogValues,
+        });
+      } finally {
+        setActiveDisplayActionId(null);
+      }
+    },
+  );
+  const displayFollowupPrefill = useMemo(() => {
+    const context = displayFollowupDialog.context?.source.context;
+    return {
+      session: context?.sessionSummary,
+      message: context?.messageContext
+        ? { index: context.messageContext.index, ...context.messageContext.message }
+        : undefined,
+    };
+  }, [displayFollowupDialog.context]);
+  useMacOSApplicationActionDialog({
+    ownerId: `chat-display-followup:${connectionId}:${sessionId}`,
+    activeElement: displayFollowupDialog.activeElement,
+    prefillContext: displayFollowupPrefill,
+    onCancel: displayFollowupDialog.handleCancel,
+    onSubmit: displayFollowupDialog.handleSubmit,
+  });
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -3149,33 +3182,10 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
       if (action.kind === 'run_action') {
-        setActiveDisplayActionId(action.id);
-        try {
-          await executePluginAction(
-            {
-              ui_type: 'action_result_followup',
-              plugin: action.plugin,
-              id: action.id,
-              label: action.label,
-              action_id: action.action_id,
-              action_owner: action.action_owner,
-              fixed_params: action.fixed_params as
-                | Record<string, any>
-                | undefined,
-              param_map: action.param_map,
-              form: entry.display.form,
-            },
-            {
-              ...entry.context,
-              formValues,
-            },
-          );
-        } finally {
-          setActiveDisplayActionId(null);
-        }
+        displayFollowupDialog.openForAction(action, entry.display, entry, formValues);
       }
     },
-    [executePluginAction],
+    [displayFollowupDialog.openForAction],
   );
 
   const applyMessageLimitAndReload = useCallback(
@@ -4130,7 +4140,12 @@ export const ChatPane = React.memo(function ChatPane({
     <View style={styles.root}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text
+            style={styles.title}
+            numberOfLines={2}
+            selectable
+            testID="chat-header-title"
+          >
             {displayTitle}
           </Text>
           <View style={styles.metaRow}>
@@ -4163,7 +4178,12 @@ export const ChatPane = React.memo(function ChatPane({
               testID={`chat-request-status-${connectionId}-${sessionId}`}
             />
           </View>
-          <Text style={styles.subtitle} numberOfLines={2}>
+          <Text
+            style={styles.subtitle}
+            numberOfLines={2}
+            selectable
+            testID="chat-header-subtitle"
+          >
             {displaySubtitle}
           </Text>
         </View>
@@ -4313,10 +4333,7 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={event => {
-                  recordSessionActivity();
-                  transcriptScroll.onScrollBeginDrag(event);
-                }}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4358,10 +4375,7 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={event => {
-                  recordSessionActivity();
-                  transcriptScroll.onScrollBeginDrag(event);
-                }}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={
                   FLATLIST_FORWARD_SCROLL_END_DRAG
@@ -4410,10 +4424,7 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={event => {
-                  recordSessionActivity();
-                  transcriptScroll.onScrollBeginDrag(event);
-                }}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4454,10 +4465,7 @@ export const ChatPane = React.memo(function ChatPane({
                 onLayout={transcriptScroll.onLayout}
                 onContentSizeChange={transcriptScroll.onContentSizeChange}
                 onScroll={transcriptScroll.onScroll}
-                onScrollBeginDrag={event => {
-                  recordSessionActivity();
-                  transcriptScroll.onScrollBeginDrag(event);
-                }}
+                onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
                 onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
                 onScrollEndDrag={transcriptScroll.onScrollEndDrag}
                 onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
@@ -4761,6 +4769,8 @@ export const ChatPane = React.memo(function ChatPane({
               style={styles.sessionStatusBarText}
               numberOfLines={1}
               ellipsizeMode="tail"
+              selectable
+              testID="chat-session-status-footer"
             >
               {statusBarParts.join('   ')}
             </Text>

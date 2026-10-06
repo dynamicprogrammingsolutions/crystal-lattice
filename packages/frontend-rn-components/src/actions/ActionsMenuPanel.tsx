@@ -107,6 +107,7 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
       </View>
       <View style={styles.body}>
         <ScrollView
+          testID="actions-menu-scroll"
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -133,6 +134,7 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
 const styles = StyleSheet.create({
   root: {
     width: '100%',
+    flexShrink: 1,
     borderRadius: 12,
   },
   headerRow: {

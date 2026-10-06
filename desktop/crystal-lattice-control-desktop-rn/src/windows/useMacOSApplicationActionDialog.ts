@@ -39,6 +39,7 @@ export interface UseMacOSApplicationActionDialogOptions {
   prefillContext?: any;
   onSubmit: (values: Record<string, any>) => void | Promise<void>;
   onCancel: () => void;
+  presentation?: 'popover' | 'window';
 }
 
 export function useMacOSApplicationActionDialog({
@@ -47,6 +48,7 @@ export function useMacOSApplicationActionDialog({
   prefillContext,
   onSubmit,
   onCancel,
+  presentation = APPLICATION_ACTION_DIALOG_PRESENTATION,
 }: UseMacOSApplicationActionDialogOptions): void {
   const ownerPrefix = useMemo(() => `${ownerId}:`, [ownerId]);
 
@@ -104,9 +106,6 @@ export function useMacOSApplicationActionDialog({
         return;
       }
 
-      // Match the previous behavior: if there is no active dialog state,
-      // still close any leftover window/popover.
-      closeNativeDialog();
       return;
     }
 
@@ -117,7 +116,7 @@ export function useMacOSApplicationActionDialog({
         ownerId,
         dialogId,
         kind,
-        presentation: APPLICATION_ACTION_DIALOG_PRESENTATION,
+        presentation,
       });
     }
 
@@ -149,7 +148,7 @@ export function useMacOSApplicationActionDialog({
     // Ensure the native view is fresh (avoid window reuse / leftover contents).
     closeNativeDialog();
 
-    if (APPLICATION_ACTION_DIALOG_PRESENTATION === 'window') {
+    if (presentation === 'window') {
       DesktopWindowManager?.openApplicationActionDialogWindow({ title });
       return;
     }
@@ -172,7 +171,7 @@ export function useMacOSApplicationActionDialog({
       width: 420,
       height,
     });
-  }, [activeElement, closeNativeDialog, onCancel, onSubmit, ownerPrefix, prefillContext]);
+  }, [activeElement, closeNativeDialog, onCancel, onSubmit, ownerPrefix, prefillContext, presentation]);
 
   useEffect(() => {
     return () => {

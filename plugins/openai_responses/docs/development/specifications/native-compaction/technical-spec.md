@@ -98,6 +98,9 @@ settings, service tier, prompt-cache settings, and other request state.
 
 Internal metadata and response-only fields are removed from compact input.
 Opaque compaction items retain only their accepted wire fields.
+Web-search call items preserve `id`, `status`, and `action`: these are accepted
+input fields, and the OpenAI Responses schema requires them when replaying
+search results. Ordinary follow-up requests preserve the same fields.
 
 ## API/V1 protocol
 
@@ -255,3 +258,7 @@ Acceptance coverage includes:
 
 Low-level parsing and helper tests may exist without corresponding requirement
 IDs when they do not define an additional user-visible contract.
+
+Saved-login ChatGPT native-compaction tests default to `gpt-6-luna`. The
+`OPENAI_RESPONSES_CHATGPT_MODEL` environment variable selects another model for
+an explicitly configured investigation.

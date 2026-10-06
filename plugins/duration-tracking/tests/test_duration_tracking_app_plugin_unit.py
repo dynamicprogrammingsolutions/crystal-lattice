@@ -26,6 +26,11 @@ class _FakeApp:
         return (None, self._session_config, None)
 
 
+class _FailOnSessionLoadApp:
+    def load_session(self, session_id: str) -> None:
+        raise AssertionError(f"human-time ingestion loaded session {session_id!r}")
+
+
 def _state() -> dict:
     return {"config": {}}
 
@@ -270,8 +275,8 @@ def test_show_duration_report_includes_human_time_line(tmp_path: Path) -> None:
         spans=[
             {
                 "session_id": "session-1",
-                "from": "2026-09-25T08:00:00Z",
-                "to": "2026-09-25T08:05:00Z",
+                "from": _local_time_iso(hour=8),
+                "to": _local_time_iso(hour=8, minute=5),
             }
         ],
     )
@@ -282,8 +287,8 @@ def test_show_duration_report_includes_human_time_line(tmp_path: Path) -> None:
         spans=[
             {
                 "session_id": None,
-                "from": "2026-09-25T09:00:00Z",
-                "to": "2026-09-25T09:02:00Z",
+                "from": _local_time_iso(hour=9),
+                "to": _local_time_iso(hour=9, minute=2),
             }
         ],
     )
@@ -490,7 +495,7 @@ def _wd(raw: str) -> str:
 
 def _ingest(
     plugin: DurationTrackingAppPlugin,
-    app: _FakeApp,
+    app: Any,
     state: dict,
     spans: list,
     *,
@@ -505,20 +510,13 @@ def _ingest(
     )
 
 
-def test_record_human_time_spans_resolves_per_span_targets(
+def test_record_human_time_spans_uses_application_target_without_loading_sessions(
     tmp_path: Path,
 ) -> None:
-    """Session spans follow their session's config; session-less spans the
-    plugin config (working directory and store location)."""
+    """All spans use the application plugin's store and server project."""
 
-    session_db = tmp_path / "session.sqlite3"
     app_db = tmp_path / "app.sqlite3"
-    app = _FakeApp(
-        {
-            "duration_tracking_db_path": str(session_db),
-            "working_directory": "/tmp/ws",
-        }
-    )
+    app = _FailOnSessionLoadApp()
     state = {
         "config": {
             "working_directory": "/tmp/app-ws",
@@ -553,19 +551,22 @@ def test_record_human_time_spans_resolves_per_span_targets(
         "duplicate": False,
     }
     assert duration_store.human_time_session_totals(
-        session_db, working_directory=_wd("/tmp/ws"), session_id="session-1"
+        app_db, working_directory=_wd("/tmp/app-ws"), session_id="session-1"
     ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
     assert duration_store.human_time_project_totals(
         app_db, working_directory=_wd("/tmp/app-ws")
-    ) == {"span_count": 1, "total_ms": 2 * 60 * 1000}
+    ) == {"span_count": 2, "total_ms": 7 * 60 * 1000}
 
 
 def test_record_human_time_spans_duplicate_request(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
-    app = _FakeApp(
-        {"duration_tracking_db_path": str(db_path), "working_directory": "/tmp/ws"}
-    )
-    state = {"config": {}}
+    app = _FailOnSessionLoadApp()
+    state = {
+        "config": {
+            "working_directory": "/tmp/ws",
+            "db_path": str(db_path),
+        }
+    }
     plugin = DurationTrackingAppPlugin()
 
     first = _ingest(
@@ -610,14 +611,17 @@ def test_record_human_time_spans_duplicate_request(tmp_path: Path) -> None:
     ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
 
 
-def test_record_human_time_spans_unknown_session_skips_span(
+def test_record_human_time_spans_accepts_opaque_session_ids(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "durations.sqlite3"
-    app = _FakeApp(
-        {"duration_tracking_db_path": str(db_path), "working_directory": "/tmp/ws"}
-    )
-    state = {"config": {}}
+    app = _FailOnSessionLoadApp()
+    state = {
+        "config": {
+            "working_directory": "/tmp/ws",
+            "db_path": str(db_path),
+        }
+    }
     plugin = DurationTrackingAppPlugin()
 
     result = _ingest(
@@ -637,47 +641,52 @@ def test_record_human_time_spans_unknown_session_skips_span(
             },
         ],
     )
-    assert result["recorded"] == 0
-    assert result["skipped"] == 1
+    assert result["recorded"] == 2
+    assert result["skipped"] == 0
     assert duration_store.human_time_session_totals(
         db_path, working_directory=_wd("/tmp/ws"), session_id="session-1"
-    ) == {"span_count": 0, "total_ms": 0}
+    ) == {"span_count": 1, "total_ms": 2 * 60 * 1000}
+    assert duration_store.human_time_session_totals(
+        db_path, working_directory=_wd("/tmp/ws"), session_id="missing-session"
+    ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
 
 
-def test_record_human_time_spans_session_less_without_config_skipped(
+def test_record_human_time_spans_without_application_working_directory_fails(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "durations.sqlite3"
     app = _FakeApp(
         {"duration_tracking_db_path": str(db_path), "working_directory": "/tmp/ws"}
     )
-    # No plugin-config working_directory: session-less spans cannot be
-    # keyed and are skipped.
+    # Missing application attribution is a configuration error, not a
+    # span-level rejection that the uploader may discard.
     state = {"config": {}}
     plugin = DurationTrackingAppPlugin()
 
-    result = _ingest(
-        plugin,
-        app,
-        state,
-        [
-            {
-                "session_id": None,
-                "from": "2026-09-25T09:00:00Z",
-                "to": "2026-09-25T09:02:00Z",
-            }
-        ],
-    )
-    assert result["recorded"] == 0
-    assert result["skipped"] == 1
+    with pytest.raises(ValueError, match="working_directory is not configured"):
+        _ingest(
+            plugin,
+            app,
+            state,
+            [
+                {
+                    "session_id": None,
+                    "from": "2026-09-25T09:00:00Z",
+                    "to": "2026-09-25T09:02:00Z",
+                }
+            ],
+        )
 
 
 def test_record_human_time_spans_malformed_spans_skipped(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
-    app = _FakeApp(
-        {"duration_tracking_db_path": str(db_path), "working_directory": "/tmp/ws"}
-    )
-    state = {"config": {}}
+    app = _FailOnSessionLoadApp()
+    state = {
+        "config": {
+            "working_directory": "/tmp/ws",
+            "db_path": str(db_path),
+        }
+    }
     plugin = DurationTrackingAppPlugin()
 
     result = _ingest(
@@ -709,10 +718,13 @@ def test_record_human_time_spans_overlap_resolution_applies(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "durations.sqlite3"
-    app = _FakeApp(
-        {"duration_tracking_db_path": str(db_path), "working_directory": "/tmp/ws"}
-    )
-    state = {"config": {}}
+    app = _FailOnSessionLoadApp()
+    state = {
+        "config": {
+            "working_directory": "/tmp/ws",
+            "db_path": str(db_path),
+        }
+    }
     plugin = DurationTrackingAppPlugin()
 
     _ingest(

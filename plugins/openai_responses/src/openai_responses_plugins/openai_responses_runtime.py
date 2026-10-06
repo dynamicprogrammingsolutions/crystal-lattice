@@ -87,10 +87,14 @@ def resolve_base_url(config: Dict[str, Any]) -> str:
 def chatgpt_default_headers(config: Dict[str, Any]) -> Dict[str, str]:
     if effective_auth_mode(config) != "chatgpt":
         return {}
+    headers: Dict[str, str] = {}
     account_id = config.get("chatgpt_account_id")
     if isinstance(account_id, str) and account_id.strip():
-        return {"ChatGPT-Account-Id": account_id.strip()}
-    return {}
+        headers["ChatGPT-Account-Id"] = account_id.strip()
+    originator = config.get("chatgpt_originator")
+    if isinstance(originator, str) and originator.strip():
+        headers["Originator"] = originator.strip()
+    return headers
 
 
 def authorization_header_value(config: Dict[str, Any], token: str) -> str:

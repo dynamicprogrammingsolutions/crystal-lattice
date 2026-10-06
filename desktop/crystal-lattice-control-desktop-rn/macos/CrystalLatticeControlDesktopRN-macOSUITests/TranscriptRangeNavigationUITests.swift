@@ -185,7 +185,7 @@ final class TranscriptRangeNavigationUITests: XCTestCase {
     )
   }
 
-  private func assertBoundedReadOnlyBlockScrolls(
+  private func assertBoundedSelectableBlockScrolls(
     app: XCUIApplication,
     disclosureId: String,
     textId: String,
@@ -224,7 +224,7 @@ final class TranscriptRangeNavigationUITests: XCTestCase {
     XCTAssertGreaterThan(
       abs(text.frame.minY - textBefore),
       20,
-      "Expected the bounded region to scroll its native text. \(app.debugDescription)",
+      "Expected the bounded region to scroll its selectable text. \(app.debugDescription)",
       file: file,
       line: line
     )
@@ -233,7 +233,7 @@ final class TranscriptRangeNavigationUITests: XCTestCase {
 
   func testExpandedReasoningScrollsInsideBoundedRegion() throws {
     let app = launchHarness(textSurfaceScenario: "reasoning")
-    assertBoundedReadOnlyBlockScrolls(
+    assertBoundedSelectableBlockScrolls(
       app: app,
       disclosureId: "assistant-reasoning-disclosure-101",
       textId: "assistant-reasoning-101"
@@ -242,7 +242,7 @@ final class TranscriptRangeNavigationUITests: XCTestCase {
 
   func testExpandedToolResultScrollsInsideBoundedRegion() throws {
     let app = launchHarness(textSurfaceScenario: "tool")
-    assertBoundedReadOnlyBlockScrolls(
+    assertBoundedSelectableBlockScrolls(
       app: app,
       disclosureId: "tool-result-disclosure-101",
       textId: "tool-result-101"

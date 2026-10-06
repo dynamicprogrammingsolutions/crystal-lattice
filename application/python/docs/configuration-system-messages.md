@@ -102,11 +102,12 @@ Maintained vendor templates end with:
 {{CRYSTAL_LATTICE_CLI_ACCESS}}
 ```
 
-The mixin contains both complete Markdown values under `text`, followed by
-small named variables that read only the corresponding runtime access values.
-The full section uses `include_crystal_lattice_access()`; the CLI-only section
-uses `include_crystal_lattice_cli_access()`. The conditions are mutually
-exclusive.
+The mixin contains both complete access values and a separate parent-only
+`CRYSTAL_LATTICE_DELEGATION_GUIDANCE` value under `text`, followed by small
+named variables that read only the corresponding runtime access values. The
+full section uses `include_crystal_lattice_access()`; the CLI-only section uses
+`include_crystal_lattice_cli_access()`. Those access conditions are mutually
+exclusive. The delegation section accompanies either valid mode.
 
 The helper contributes the `include_crystal_lattice_access` checkbox,
 defaulting to false, and validates availability. It contains no command, SDK,
@@ -120,6 +121,10 @@ the problem.
 
 The CLI invocation includes the active `--config` and `--sessions-dir`, which
 is important when the agent is working in another project's directory.
+
+The parent-only section distinguishes three things explicitly: instructions
+given to the parent, the selected child's normal configured system/developer
+message, and the self-contained child user prompt constructed by the parent.
 
 See [Local headless agent runs](headless-agent-runs.md#let-a-configured-agent-delegate-from-another-project)
 for the rendered behavior, runtime-layout differences, and existing-config

@@ -13,6 +13,8 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
 from agent_app.plugin_sources.install import (
     InstallRequest,
     PipTargetInstallStrategy,
@@ -54,7 +56,9 @@ def _make_dev_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def test_localpath_source_loads_provider(tmp_path: Path) -> None:
+def test_localpath_source_loads_provider(
+    tmp_path: Path, capfd: pytest.CaptureFixture[str]
+) -> None:
     repo = _make_dev_repo(tmp_path)
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir(parents=True)
@@ -65,6 +69,9 @@ def test_localpath_source_loads_provider(tmp_path: Path) -> None:
     res = mgr.resolve_all([spec])
     assert res.errors == []
     assert [getattr(cls, "__name__", "") for cls in res.classes] == ["DevProvider"]
+    output = capfd.readouterr()
+    assert output.out == "", "Plugin installation must preserve machine-readable stdout"
+    assert "myplugins" in output.err
 
 
 def test_descriptor_reads_local_workspace_dependencies(tmp_path: Path) -> None:
@@ -585,7 +592,8 @@ def test_non_preinstalled_bundled_installer_uses_pip_with_dependencies(
     original_sys_path = list(sys.path)
     monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_root))
 
-    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+    def fake_check_call(cmd, *, stdout):  # type: ignore[no-untyped-def]
+        assert stdout is sys.stderr
         commands.append(list(cmd))
         target = Path(cmd[cmd.index("--target") + 1])
         target.mkdir(parents=True, exist_ok=True)
@@ -696,7 +704,8 @@ def test_pip_target_installer_uses_configured_pip_cache_dir(
     commands: list[list[str]] = []
     original_sys_path = list(sys.path)
 
-    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+    def fake_check_call(cmd, *, stdout):  # type: ignore[no-untyped-def]
+        assert stdout is sys.stderr
         commands.append(list(cmd))
         return 0
 
@@ -729,7 +738,8 @@ def test_pip_target_installer_uses_plugin_python_override_when_frozen(
     commands: list[list[str]] = []
     original_sys_path = list(sys.path)
 
-    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+    def fake_check_call(cmd, *, stdout):  # type: ignore[no-untyped-def]
+        assert stdout is sys.stderr
         commands.append(list(cmd))
         return 0
 
@@ -786,7 +796,8 @@ def test_pip_target_installer_uses_cache_for_local_dependency_metadata(
     commands: list[list[str]] = []
     original_sys_path = list(sys.path)
 
-    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+    def fake_check_call(cmd, *, stdout):  # type: ignore[no-untyped-def]
+        assert stdout is sys.stderr
         commands.append(list(cmd))
         return 0
 

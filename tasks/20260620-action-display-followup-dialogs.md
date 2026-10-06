@@ -4,15 +4,15 @@ Allow returned action display follow-up actions to open the same kind of form di
 
 ## Requirements checklist
 
-- [ ] Extend display follow-up `run_action` entries to accept `dialog`, `param_map`, and related action UI element fields.
-- [ ] Reuse the existing action dialog form schema and rendering path.
-- [ ] Implement the behavior on the React Native mobile app.
-- [ ] Implement the behavior on the React Native macOS desktop app.
-- [ ] Add SDK-level unit and integration coverage.
-- [ ] Add React Native component/integration coverage for mobile.
-- [ ] Add React Native component/integration coverage for desktop when relevant to the desktop test setup.
-- [ ] Document the follow-up dialog protocol and examples in plugin/action documentation.
-- [ ] Keep existing display follow-up actions backward compatible.
+- [x] Extend display follow-up `run_action` entries to accept `dialog`, `param_map`, and related action UI element fields.
+- [x] Reuse the existing action dialog form schema and rendering path.
+- [x] Implement the behavior on the React Native mobile app.
+- [x] Implement the behavior on the React Native macOS desktop app.
+- [x] Add SDK-level unit and integration coverage.
+- [x] Add React Native component/integration coverage for mobile.
+- [x] Add React Native component/integration coverage for desktop when relevant to the desktop test setup.
+- [x] Document the follow-up dialog protocol and examples in plugin/action documentation.
+- [x] Keep existing display follow-up actions backward compatible.
 
 ## Context
 
@@ -156,6 +156,33 @@ Update frontend SDK integration README if relevant:
 - Existing session action dialogs are unchanged.
 - SDK and React Native tests cover the behavior.
 
-## Proposed Future Work Note
+## Completion Notes
 
-This task is intentionally postponed until there is a workflow that needs a separate dialog. For the MCP OAuth mobile workaround, prefer the embedded display form from `tasks/20260620-action-display-embedded-forms.md` first.
+Completed as the explicitly approved first slice of
+`tasks/20261004-mobile-action-form-and-result-usability.md`.
+
+- The SDK now transports a common optional dialog and builds follow-up action
+  elements through `buildDisplayFollowupActionElement`. The shared React hook
+  retains the originating result and form context until submit or cancel.
+- Mobile and desktop use their production action-dialog renderers. Mobile
+  modal results host an accessible dialog overlay inside the source modal;
+  desktop global results use a dialog window. Immediate follow-ups and
+  embedded forms remain covered by regression tests.
+- Neutral fixtures prove cancellation without execution, required validation,
+  mixed `$dialog.*`/`$form.*` mapping, explicit empty values, original backend
+  context, both `preserve_display` states, and returned replacement results.
+- Decisive public-backend checks passed through `FetchTransport` and
+  `RestAgentBackend`: SDK action-display integration (2 tests), mobile
+  action-display integration (2 tests), and desktop global-display
+  integration (3 tests). These use the neutral demonstration plugin.
+- Default suites passed: SDK 374 tests, SDK React 25, shared RN 76, mobile 300,
+  desktop 216. Application and SDK React TypeScript checks passed. The extra
+  standalone SDK TypeScript check has 58 unchanged diagnostics in unrelated
+  files, confirmed by comparing the compiler output with this slice's changes
+  removed in memory; it is not counted as a passed check.
+- Current protocol examples and cancellation/mapping guidance are maintained
+  in `plugins/docs/actions.md`; the fixture workflow is described in
+  `plugins/dummy-action-display-form-app/README.md`.
+- Native iOS/Android keyboard, scrolling, and datetime selection are later
+  slices of the owning task. Arbitrary-length form layout and the ChatGPT
+  report's migration are not claimed complete here.

@@ -14,7 +14,8 @@ const rnComponentsRoot = path.resolve(__dirname, '../../packages/frontend-rn-com
 const macTextViewRoot = path.resolve(__dirname, '../../packages/react-native-mac-text-view');
 
 const config = {
-  watchFolders: [sdkRoot, sdkReactRoot, rnComponentsRoot, macTextViewRoot],
+  watchFolders: [sdkRoot, sdkReactRoot, rnComponentsRoot, macTextViewRoot,
+    path.resolve(__dirname, '../../test/fixture')],
   resolver: {
     unstable_enableSymlinks: true,
     extraNodeModules: {

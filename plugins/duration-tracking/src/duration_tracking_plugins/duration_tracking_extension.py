@@ -464,16 +464,12 @@ class DurationTrackingExtension(FeaturePlugin):
                 filtered_metadata = {
                     key: value
                     for key, value in metadata.items()
-                    if not (
-                        isinstance(key, str) and key.startswith("human_time_")
-                    )
+                    if not (isinstance(key, str) and key.startswith("human_time_"))
                 }
                 removed_human_metadata = filtered_metadata != metadata
                 metadata = filtered_metadata
             projected_message = (
-                {**message, "metadata": metadata}
-                if removed_human_metadata
-                else message
+                {**message, "metadata": metadata} if removed_human_metadata else message
             )
             native_indices = metadata.get("native_indices")
             if not isinstance(native_indices, list):
@@ -811,25 +807,22 @@ class DurationTrackingExtension(FeaturePlugin):
         config = state.get("config") if isinstance(state, dict) else None
         if isinstance(config, dict) and config.get("track_durations") is False:
             return {}
-        working_directory = self._working_directory(config)
         session_id = self._session_id_from_state(state)
-        if working_directory is None or session_id is None:
+        if session_id is None:
             return {}
         db_path = duration_store.resolve_duration_db_path(
             config if isinstance(config, dict) else None
         )
         try:
             human_totals = duration_store.human_time_session_totals(
-                db_path, working_directory=working_directory, session_id=session_id
+                db_path, session_id=session_id
             )
         except Exception:
             return {}
         human_total_ms = int(human_totals.get("total_ms") or 0)
         return {
             "human_time_session_total": human_total_ms,
-            "human_time_session_total_formatted": _format_duration_ms(
-                human_total_ms
-            ),
+            "human_time_session_total_formatted": _format_duration_ms(human_total_ms),
         }
 
     @staticmethod

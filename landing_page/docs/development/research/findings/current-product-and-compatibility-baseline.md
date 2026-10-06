@@ -59,9 +59,10 @@ A smaller website projection was accepted as a downstream draft:
 
 - 24 complete per-plugin application/session feature rows that avoid provider
   and model-tool duplication and retain each plugin's actual repository path;
-- 9 provider rows with 6 selected user-relevant columns;
+- 112 provider-specific feature rows grouped under all 10 retained provider
+  routes, with plugin bundle/path and plugin name;
 - 71 current or planned tool rows across Codex-, Claude-, Gemini-, Qwen-,
-  Grok-, and Kimi-oriented bundles.
+  Grok-, and Kimi-oriented bundles, with the same plugin bundle/name identity.
 
 The draft is retained as
 [Website Compatibility Data](../../../../research/current-product-and-compatibility-baseline/website-compatibility-data.md)

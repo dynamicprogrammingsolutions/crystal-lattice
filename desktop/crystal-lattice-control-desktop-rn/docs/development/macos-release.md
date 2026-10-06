@@ -5,9 +5,73 @@ for macOS 14 or later. The distributable is an app-only DMG. Fastlane is the
 local source of truth for signing, notarization, stapling, and release checks;
 the GitHub Actions workflow calls the same lane.
 
-The local universal Developer ID build, notarization, stapling, Gatekeeper,
-and launch smoke have been verified. The hosted GitHub Actions run remains
-pending until the workflow is committed and available on `main`.
+The first release completed both the local and hosted GitHub Actions paths.
+Local review builds use the same release lane; publication is a separate
+explicit action.
+
+## Local review DMG
+
+From the repository root, build an installable review DMG with:
+
+```bash
+npm run desktop:macos:build
+```
+
+This delegates to the desktop package's `macos:build` script and the existing
+Ruby wrapper, then runs `fastlane mac release`. The npm script enables all
+release verification and forces read-only signing retrieval. It builds the
+current working tree, including uncommitted changes. It neither installs nor
+publishes the result.
+
+Set up Node/npm dependencies, the pinned Ruby/Bundler environment, and
+CocoaPods first. Copy `fastlane/.env.example` to the ignored `fastlane/.env`
+inside the desktop package and restrict it to its owner (`chmod 600`).
+Configure the existing credentials; a new certificate or signing repository is
+not needed while the current ones remain valid:
+
+| Desktop setting | Existing signing configuration |
+| --- | --- |
+| `APPLE_TEAM_ID` | Existing Apple team |
+| `DESKTOP_MATCH_GIT_URL`, `DESKTOP_MATCH_GIT_BRANCH` | Existing mobile `MATCH_GIT_URL`, `MATCH_GIT_BRANCH` |
+| `MATCH_PASSWORD` | Existing signing-repository encryption password |
+| `DESKTOP_APP_STORE_CONNECT_KEY_ID`, `DESKTOP_APP_STORE_CONNECT_ISSUER_ID` | Existing mobile `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` |
+| `DESKTOP_APP_STORE_CONNECT_KEY_PATH` | Absolute path to the existing owner-only `.p8` file; alternatively use the documented inline-key variables |
+| `DEVELOPER_ID_APPLICATION_IDENTITY` | Exact Developer ID Application identity name or SHA-1 fingerprint used to sign the DMG |
+| `MACOS_MARKETING_VERSION`, `MACOS_BUILD_NUMBER` | Deliberately selected version and positive integer build number |
+
+Keep the desktop bundle ID from the example; do not copy the mobile bundle ID.
+The signing repository also requires working SSH access. A configured
+`MATCH_GIT_PRIVATE_KEY` may refer to the existing read-only deploy key; otherwise
+the local SSH configuration is used. Enter any Keychain password only at the
+local prompt. Never put credentials in command arguments, documentation, or
+tracked files. Fastlane loads the package-local `.env`; ignored files are not
+automatically shared between worktrees.
+
+An exported setting overrides the local `.env`, for example:
+
+```bash
+MACOS_BUILD_NUMBER=5 npm run desktop:macos:build
+```
+
+The lane checks credentials before verification/build work. It preserves the
+preceding `build/macos-release/` directory in a unique directory under
+`build/macos-release-history/` before starting the archive. This includes old
+DMGs, checksums and metadata, even if the new attempt fails. History is retained
+until explicitly removed, so account for archive disk usage.
+
+Success prints the absolute DMG path, version/build, checksum, metadata and
+notarization-log paths, source cleanliness, and the exact `open` command.
+Output remains under `build/macos-release/`. Open the DMG, quit the existing
+app, then drag the app onto its Applications shortcut to install. The CLI is
+separate and Metro is not required.
+
+Before accepting a new candidate, mount the actual DMG and check its app's
+signature, Gatekeeper acceptance, and ordinary launch without Metro.
+Notarization does not prove runtime correctness. Preserve a working DMG until
+this launch check passes. Local uncommitted builds have
+`source_tree_clean = false`; the public candidate validator still requires a
+clean reviewed source commit. The local command does not change the public
+version or website download.
 
 ## Local toolchain and lanes
 
@@ -16,11 +80,19 @@ and Xcode 26.1. The GitHub-hosted `macos-26` image uses Xcode 26.1.1.
 
 ```bash
 npm ci
-bundle install
-bundle exec pod install --project-directory=macos
-bundle exec fastlane mac verify
-bundle exec fastlane mac build
+npm run ruby:check
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec bundle install
+npm run pod-install
+npm run release:verify
+npm run release:build
 ```
+
+The npm Ruby wrapper accepts an already-correct Ruby/Bundler environment, as
+used by CI, and otherwise uses the `.ruby-version` installation through
+`rbenv exec`. It fails with the expected and detected versions before invoking
+CocoaPods or Fastlane. GUI-launched Xcode sources `macos/.xcode.env` and the
+ignored `.xcode.env.local` so Node can be resolved from the repository
+`.nvmrc` without relying on the GUI process `PATH`.
 
 `verify` runs build-number tests, TypeScript, Jest, and Xcode Release
 configuration inspection. `build` creates an unsigned universal archive for

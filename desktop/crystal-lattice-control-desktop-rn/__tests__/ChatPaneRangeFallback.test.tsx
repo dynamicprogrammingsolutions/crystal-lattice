@@ -122,6 +122,13 @@ describe('ChatPane compaction range fallback', () => {
     const sessionId = screen.getByTestId('chat-header-session-id');
     expect(sessionId.props.children).toBe('session-1');
     expect(sessionId.props.selectable).toBe(true);
+    expect(screen.getByTestId('chat-header-title').props.selectable).toBe(true);
+    expect(screen.getByTestId('chat-header-subtitle').props.selectable).toBe(
+      true,
+    );
+    expect(
+      screen.getByTestId('chat-session-status-footer').props.selectable,
+    ).toBe(true);
 
     // The invalid absolute range is requested once, then the default
     // suffix window is loaded automatically.

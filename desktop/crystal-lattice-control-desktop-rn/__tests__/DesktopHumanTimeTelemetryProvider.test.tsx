@@ -214,17 +214,14 @@ describe('DesktopHumanTimeTelemetryProvider', () => {
       await drainMicrotasks();
     });
 
-    const allPending = await loadHumanTimeSpans(
-      'a',
-      asyncStorageKeyValueStore,
-    );
+    const allPending = await loadHumanTimeSpans('a', asyncStorageKeyValueStore);
     expect(allPending).toHaveLength(2);
-    expect(
-      Date.parse(allPending[1].to) - Date.parse(allPending[1].from),
-    ).toBe(30_000);
+    expect(Date.parse(allPending[1].to) - Date.parse(allPending[1].from)).toBe(
+      30_000,
+    );
   });
 
-  it('uploads valid neighbors, retains only rejected spans, and shows no unavailable warning', async () => {
+  it('uploads valid neighbors, discards rejected spans, and shows no unavailable warning', async () => {
     const rejected = {
       sessionId: 'missing-session',
       from: '2026-09-24T10:00:00.000Z',
@@ -275,10 +272,10 @@ describe('DesktopHumanTimeTelemetryProvider', () => {
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(3));
     await expect(
       loadHumanTimeSpans('a', asyncStorageKeyValueStore),
-    ).resolves.toEqual([rejected]);
+    ).resolves.toEqual([]);
     expect(warnings).toEqual([]);
     expect(desktopHumanTimeDiagnosticsBridge.getSnapshot().pendingCount).toBe(
-      1,
+      0,
     );
     unsubscribe();
   });

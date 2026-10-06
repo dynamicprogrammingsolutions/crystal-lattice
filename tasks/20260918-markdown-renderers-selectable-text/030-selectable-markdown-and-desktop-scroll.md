@@ -126,13 +126,11 @@ Status: Approved
 
 First exercise the production `ChatPane` and `DesktopMessageBubble` in a
 deterministic long transcript. Add a native macOS regression that toggles an
-assistant message to raw view, positions the pointer over a tall read-only
+assistant message to raw view, positions the pointer over a tall selectable
 multiline body, and wheels. Measure the parent transcript's offset before and
-after. Reproduce interception first. Because disabling the framework input's
-scrolling does not forward the wheel, replace it with the repository-owned
-read-only auto-growing native text view and verify that the parent moves, the
-text remains copyable, and the row measures the complete multiline content
-from a zero top offset.
+after. Reproduce interception first. Render static plaintext with `Text
+selectable` so React Native paragraph layout owns the complete height and no
+input-owned vertical scroll offset exists.
 
 On the production chat header's session ID alone, add `Text selectable` with
 a stable test identifier. Keep the existing layout and verify the unchanged
@@ -162,19 +160,17 @@ selection, and mobile work remain deferred.
 
 ### Implementation decisions and open questions
 
-- Use the repository-owned native read-only auto-growing text view for plain
-  content that needs reliable height and wheel forwarding. Use `Text
-  selectable` where attributed nested styling must be preserved, starting
-  with the chat header ID and syntax-highlighted code root.
+- Use `Text selectable` for static plaintext, including assistant raw text,
+  bounded reasoning/tool content, tool-call arguments, chat metadata, and
+  message/session footers. Reserve the repository-owned `MacTextView` for
+  editable multiline controls.
 - First human gate: the user confirms selection/copy and layout of the chat
   header ID in the real desktop app before any other field is made selectable.
 - User-approved decision: retain `Text selectable` for the chat header ID.
   Spelling and grammar menu entries are not ideal but are acceptable there.
-- Use the native read-only auto-growing text view for plain text inside
-  intentionally bounded reasoning/tool regions. Preserve syntax highlighting
-  in markdown code blocks, remove nested scrolling entirely, and make their
-  root code text selectable instead of flattening highlighted runs into the
-  plain native view.
+- Use normal selectable text inside intentionally bounded reasoning/tool
+  regions. Preserve syntax highlighting in markdown code blocks, remove
+  nested scrolling entirely, and make their root code text selectable.
 - Second human gate: the user confirms the chosen method and expected click
   interaction before any clickable Sessions or home collection row changes.
   Titles, subtitles, and footers should copy the rendered value; IDs should
@@ -195,18 +191,22 @@ selection, and mobile work remain deferred.
 
 - [x] Reproduce and measure wheel interception over the production desktop raw
       assistant body using a native macOS test and long transcript.
-- [x] Replace the raw read-only `TextInput` with the native auto-growing
-      read-only text view and prove wheel routing and full-height layout.
+- [x] Replace the raw read-only `TextInput` with ordinary selectable text and
+      prove wheel routing and full-height layout.
 - [x] Trial `Text selectable` on only the desktop chat header session ID,
       with focused component test; native selection awaits the human gate.
 - [x] Human gate 1: user verified that `Text selectable` selects, but rejected
       the editing menu initially; the user subsequently accepted the spelling
       entries and chose to retain the selectable header ID.
-- [x] Apply the native read-only text view to expanded reasoning, tool
-      results, and tool-call arguments while retaining bounded inner scrolling.
+- [x] Render expanded reasoning, tool results, and tool-call arguments as
+      selectable text while retaining bounded parent scrolling.
 - [x] Make syntax-highlighted markdown code selectable, unbounded, and
       non-scrollable; verify wheel input scrolls the transcript.
-- [ ] Trial chat title/subtitle and static message footers after gate 1.
+- [x] Make chat title/subtitle, static message footers, and the session status
+      footer selectable after gate 1.
+- [x] Remove read-only display behavior added to `MacTextView`, restore native
+      spelling/grammar preferences, and use fixed-height `MacTextView` only for
+      desktop plugin-provided multiline action editing.
 - [ ] Human gate 2: user verifies the method and click contract before any
       selectable text changes in clickable Sessions/home collection rows.
 - [ ] Trial title/subtitle/ID in clickable rows after gate 2 only if native
@@ -227,11 +227,11 @@ selection, and mobile work remain deferred.
   native boundary. After gate 2, verify copy plus normal single/double-click
   actions for any changed Sessions/home collection rows. Leave the
   requirement unchecked until RNMD prose is done.
-- Requirement 4: the 90-line raw body measures taller than the viewport,
-  starts from a zero native clip offset, and is revealed by scrolling the
-  transcript. Reasoning and tool results measure their full native content
-  inside their declared bounded parents. Markdown code has no nested scroll
-  boundary and expands to its complete wrapped height.
+- Requirement 4: the 90-line raw selectable paragraph measures taller than
+  the viewport and is revealed by scrolling the transcript. Reasoning and
+  tool results measure their full text content inside their declared bounded
+  parents. Markdown code has no nested scroll boundary and expands to its
+  complete wrapped height.
 - Requirement 5, partial evidence: use actual wheel, drag selection, keyboard
   copy, and row click gestures on macOS; leave the requirement unchecked
   pending RNMD native interaction verification.
@@ -270,35 +270,63 @@ selection, and mobile work remain deferred.
   selectable. The user later accepted the AppKit spelling/grammar entries and
   requested restoring this version because the replacement input was not
   selectable.
-- Replaced the raw React Native `TextInput` with the repository's native
-  `MacTextView` in read-only auto-grow mode. The shared native component now
-  forwards read-only wheel events, resets the clip origin to zero, suppresses
-  text checking and undo, presents a copy-only menu, and supports explicit
-  font family, line height, and inset values.
-- After regenerating the native spec, the production ChatPane XCUITest passes:
-  a control wheel over ordinary text moves the transcript, the 90-line raw
-  block measures taller than the viewport, and the same gesture over the raw
-  block moves its parent row. Focused Jest tests and package TypeScript
-  validation also pass.
-- Verification completed:
-  - focused Jest across chat header, raw text, reasoning/tool blocks, tool
-    calls, and markdown rendering: 13/13 passing;
-  - shared package TypeScript:
-    `desktop/.../node_modules/.bin/tsc -p packages/react-native-mac-text-view/tsconfig.json --noEmit`,
-    passing;
-  - complete native `TranscriptRangeNavigationUITests`, 5/5 passing,
-    covering existing range preservation, raw transcript wheel routing,
-    markdown-code transcript wheel routing, and bounded reasoning/tool
-    scrolling.
-- Expanded reasoning, expanded tool results, and tool-call arguments now use
-  the same native read-only auto-growing text surface. Native tests prove that
-  reasoning and tool results scroll their existing bounded regions without
-  moving the transcript.
+- Initial implementation, later superseded: the raw React Native `TextInput`,
+  expanded reasoning/tool content, and tool-call arguments temporarily used
+  read-only auto-growing `MacTextView` instances. That stage added wheel
+  forwarding, clip reset, a copy-only menu, forced text-checking state, and
+  display-only typography props to the shared native component.
 - Markdown code blocks retain the syntax highlighter but no longer mount any
   nested `ScrollView`. Long lines wrap, the block expands beyond the viewport,
   its root code `Text` is selectable, and a native wheel test proves input
   over the code block moves the transcript.
-- Desktop `npx tsc --noEmit --pretty false` reports errors in the SDK URL
-  typings, existing ChatPane references before declaration and undefined
-  strings, and a theme shadow property in ActionResultInlineCard. No errors
-  refer to the changed lines.
+- Follow-up correction: static read-only `MacTextView` usage was removed after
+  its native-to-JavaScript auto-grow event could be lost during Fabric mount
+  and collapse long text to the one-line fallback. Raw assistant text,
+  expanded reasoning/tool content, and tool-call arguments now use `Text
+  selectable`, matching the existing user-message path.
+- The chat title/subtitle, all message footers, and the session status footer
+  are selectable. Clickable Sessions and home collection rows remain unchanged
+  pending their separate human interaction gate.
+- Audit of commit `0665d097` found that `setEditable:` forced every editable
+  `MacTextView` spelling, grammar, correction, substitution, link, and data
+  detection option on. Those assignments and the read-only copy menu, wheel
+  forwarding, clip reset, and display-only typography props were removed.
+  User preferences once again control AppKit text-checking options.
+- No application-level Space-key submit or blur handler was found in the
+  plugin action form. Desktop `multiline` action fields now use a fixed-height
+  editable `MacTextView`; a new `submitOnEnter={false}` mode preserves ordinary
+  newline entry. Single-line action fields remain React Native `TextInput`.
+- Final verification on October 4, 2026:
+  - focused desktop Jest: 19/19 passing across static selectable surfaces,
+    chat header/footer fields, action multiline fields, and markdown code;
+  - desktop TypeScript and the shared `react-native-mac-text-view` package
+    TypeScript checks both pass;
+  - native `ActionDisplayWindowUITests`: 2/2 passing, including typing
+    `alpha beta` through the plugin multiline field without Space dropping
+    focus;
+  - native `TranscriptRangeNavigationUITests`: 5/5 passing for range
+    preservation, raw text and markdown-code transcript scrolling, and
+    bounded reasoning/tool scrolling.
+
+### Draft desktop RNMD follow-up (not executed)
+
+The next selectable-text modification should remain desktop-only and begin at
+RNMD's `textgroup` boundary. Override `textgroup` with `Text selectable` so
+paragraphs, headings, blockquotes, list contents, table-cell prose, nested
+strong/emphasis/strike/inline-code runs, and inline links retain their existing
+children and styles under one selectable root for each compatible group.
+
+Do not independently make every styled leaf selectable when it already sits
+inside a selectable textgroup; that would fragment selection. Keep fenced and
+indented code on their existing syntax-highlighted selectable path. Treat list
+markers separately because RNMD renders them outside the content textgroup,
+and retain current layout if making the marker selectable changes alignment.
+
+Add focused renderer tests for paragraphs, all heading sizes, unordered and
+ordered list content, blockquotes, table cells, nested emphasis/strike/code,
+and links. Add a macOS native harness containing those elements and verify
+drag selection/copy plus transcript wheel routing. Link click versus drag
+selection remains a human verification gate: clicking must still open the
+link, while a drag that begins on link text must not unexpectedly navigate.
+This per-textgroup pass does not promise selection across separate markdown
+blocks and does not include mobile changes.

@@ -87,40 +87,103 @@ yarn ios
 
 ### macOS
 
-macOS builds require Xcode and CocoaPods.
+macOS builds require Xcode, the Node version in the repository `.nvmrc`, and
+the Ruby version in `.ruby-version`. The desktop package intentionally uses
+the same Ruby and Bundler versions locally and in CI.
 
 ```sh
-cd macos
-pod install
-cd ..
+brew install rbenv ruby-build
+rbenv init
+
+cd desktop/crystal-lattice-control-desktop-rn
+rbenv install -s "$(cat .ruby-version)"
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec gem install bundler -v 4.0.15
+RBENV_VERSION="$(cat .ruby-version)" rbenv exec bundle install
+npm run ruby:check
+npm run pod-install
 npm run macos
 ```
 
-If you prefer using Bundler to pin CocoaPods versions, use `bundle exec pod install --project-directory=macos` instead.
+The npm Ruby commands use the current Ruby when it matches the repository
+versions. If `rbenv` is installed but the shell has not initialized its shims,
+they fall back to the Ruby selected by `.ruby-version` through `rbenv exec`.
 
-#### Troubleshooting: `bundle install` fails building `json`
+#### Build a signed macOS DMG locally
 
-If you see an error like `extconf failed` while installing `json`, you are likely using the system Ruby (`/usr/bin/ruby`) which may not ship buildable headers on newer macOS/Xcode SDKs.
-
-Recommended fix: install a modern Ruby and retry:
+After installing the JavaScript dependencies and CocoaPods dependencies above,
+configure the existing signing credentials as described in
+[macOS release maintenance](docs/development/macos-release.md#local-review-dmg).
+Then run this from the repository root:
 
 ```sh
-brew install ruby
-echo 'export PATH="/opt/homebrew/opt/ruby/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-
-cd desktop/crystal-lattice-control-desktop-rn
-rm -rf vendor/bundle
-gem install bundler
-bundle install
-bundle exec pod install --project-directory=macos
+npm run desktop:macos:build
 ```
 
-Alternative (skip Bundler):
+The command runs the same Fastlane release lane as the customer build:
+verification, a universal Apple silicon/Intel Release archive with bundled
+JavaScript, Developer ID signing, DMG creation, Apple notarization, stapling,
+and validation. It requires signing credentials and network access but no
+running Metro server. Signing retrieval is read-only and verification is
+enabled.
+
+On success, the command prints the DMG's absolute path, version/build, checksum,
+and an `open` command. The default version's DMG can be opened from the root:
 
 ```sh
-brew install cocoapods
-pod install --project-directory=macos
+open "desktop/crystal-lattice-control-desktop-rn/build/macos-release/Crystal-Lattice-Desktop-v0.9.0-universal.dmg"
+```
+
+Quit the running app, then drag **Crystal Lattice Desktop** onto the
+**Applications** shortcut in the mounted DMG and confirm Replace if prompted.
+The build command does not install, change your version, publish, or push.
+Rebuild after editing code; prior output is retained under the ignored
+`build/macos-release-history/` directory.
+
+`npm run desktop:install` installs JavaScript dependencies; it does not install
+the macOS app. Local review builds use the ordinary application bundle identifier
+and share preferences with the distributed version. The CLI runtime remains a
+separate process. A signed/notarized build must still be launch-tested; keep a
+known-good DMG until the new app has been checked.
+
+#### Troubleshooting Ruby selection
+
+Do not use Apple Ruby from `/usr/bin` or an arbitrary latest Homebrew Ruby.
+Check the active toolchain from the desktop package:
+
+```sh
+rbenv version
+rbenv which ruby
+ruby --version
+npm run ruby:check
+```
+
+If `rbenv version` is correct but `ruby --version` is not, initialize rbenv in
+the shell after other Ruby `PATH` changes:
+
+```sh
+eval "$(rbenv init - zsh)"
+```
+
+Put that command on its own line near the end of `~/.zshrc`, then open a new
+terminal. `bundle update --bundler` is not a setup command; changing the locked
+Bundler version also changes the CI/release toolchain.
+
+#### Troubleshooting Node in Xcode
+
+The Xcode bundle phases source `macos/.xcode.env` and the ignored
+`macos/.xcode.env.local`. The tracked environment file resolves Node from the
+repository `.nvmrc`, NVM, or the standard Homebrew locations. Install the
+repository Node version before launching Xcode:
+
+```sh
+nvm install
+nvm use
+```
+
+For a custom installation, create `macos/.xcode.env.local` containing:
+
+```sh
+export NODE_BINARY=/absolute/path/to/node
 ```
 
 If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.

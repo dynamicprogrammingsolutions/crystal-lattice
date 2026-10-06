@@ -258,7 +258,6 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             db_path=db_path,
             state=state,
             session_id=session_id,
-            working_directory=working_directory,
         )
 
         llm_total_ms = int(project_summary.get("llm_total_ms") or 0)
@@ -437,12 +436,11 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
         db_path: Path,
         state: Dict[str, Any],
         session_id: str,
-        working_directory: str,
     ) -> tuple:
         """Return factual all-time collection diagnostics for the report."""
 
         diagnostics: Dict[str, Any] = {
-            "session_collection_ready": True,
+            "session_collection_ready": False,
             "sessionless_collection_ready": False,
             "shared_store": False,
             "session": None,
@@ -456,6 +454,7 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
         application_db_path = self._default_db_path(state)
         diagnostics.update(
             {
+                "session_collection_ready": (application_working_directory is not None),
                 "sessionless_collection_ready": (
                     application_working_directory is not None
                 ),
@@ -464,17 +463,18 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
         )
         human_time: Optional[Dict[str, Any]] = None
         try:
-            session_diagnostics = duration_store.human_time_diagnostics(
-                db_path,
-                working_directory=working_directory,
-                session_id=session_id,
-            )
-            diagnostics["session"] = session_diagnostics
-            if int(session_diagnostics.get("span_count") or 0) > 0:
-                human_time = {
-                    "span_count": session_diagnostics["span_count"],
-                    "total_ms": session_diagnostics["total_ms"],
-                }
+            if application_working_directory is not None:
+                session_diagnostics = duration_store.human_time_diagnostics(
+                    application_db_path,
+                    working_directory=application_working_directory,
+                    session_id=session_id,
+                )
+                diagnostics["session"] = session_diagnostics
+                if int(session_diagnostics.get("span_count") or 0) > 0:
+                    human_time = {
+                        "span_count": session_diagnostics["span_count"],
+                        "total_ms": session_diagnostics["total_ms"],
+                    }
         except Exception:
             diagnostics["session"] = None
         try:
@@ -619,50 +619,25 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
     def _resolve_span_target(
         self,
         span: Any,
-        app: Any,
-        state: Dict[str, Any],
-        default_db_path: Path,
+        working_directory: str,
     ) -> Optional[Dict[str, Any]]:
-        """Resolve one span's store location and working directory.
-
-        Spans with a session id follow their session's resolved config (the
-        same keying as the LLM/tool rows); unknown sessions skip the span.
-        Session-less spans use the plugin config's ``working_directory``
-        (defaulted from the runtime ``WORKING_DIR`` during initialization);
-        without either value they cannot be keyed and skip.
-        """
+        """Attach application-level project attribution to one span."""
 
         if not isinstance(span, dict):
             return None
         session_id = span.get("session_id")
-        if session_id is None:
-            plugin_wd = self._resolve_working_directory(self._plugin_config(state))
-            if plugin_wd is None:
-                return None
-            return {**span, "working_directory": plugin_wd}
-        if not isinstance(session_id, str) or not session_id:
+        if session_id is not None and (
+            not isinstance(session_id, str) or not session_id
+        ):
             return None
-        ctx = app.load_session(session_id)
-        if ctx is None:
-            return None
-        base_config = ctx[1] if isinstance(ctx, tuple) and len(ctx) > 1 else None
-        base_config = base_config if isinstance(base_config, dict) else {}
-        working_directory = self._resolve_working_directory(base_config)
-        if working_directory is None:
-            return None
-        override = base_config.get("duration_tracking_db_path")
-        db_path = (
-            Path(override).expanduser()
-            if isinstance(override, str) and override.strip()
-            else default_db_path
-        )
-        return {**span, "working_directory": working_directory, "_db_path": db_path}
+        return {**span, "working_directory": working_directory}
 
     def _record_human_time_spans(
         self, app: Any, state: Dict[str, Any], params: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Record one frontend-reported human time span batch (machine-facing)."""
 
+        _ = app
         request_id = params.get("request_id")
         if not isinstance(request_id, str) or not request_id.strip():
             raise ValueError("request_id is required")
@@ -675,16 +650,20 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 f"{duration_store.HUMAN_TIME_SPANS_BATCH_CAP}-span cap"
             )
 
-        default_db_path = self._default_db_path(state)
-        resolved_spans: List[tuple[Path, Dict[str, Any]]] = []
+        working_directory = self._resolve_working_directory(self._plugin_config(state))
+        if working_directory is None:
+            raise ValueError(
+                "duration tracking application working_directory is not configured"
+            )
+        db_path = self._default_db_path(state)
+        resolved_spans: List[Dict[str, Any]] = []
         skipped = 0
         for span in spans:
-            resolved = self._resolve_span_target(span, app, state, default_db_path)
+            resolved = self._resolve_span_target(span, working_directory)
             if resolved is None:
                 skipped += 1
                 continue
-            db_path = resolved.pop("_db_path", default_db_path)
-            resolved_spans.append((db_path, resolved))
+            resolved_spans.append(resolved)
 
         totals: Dict[str, int] = {
             "recorded": 0,
@@ -692,31 +671,25 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             "skipped": skipped,
             "absorbed": 0,
         }
-        invalid_count = duration_store.count_invalid_human_time_spans(
-            [span for _db_path, span in resolved_spans]
-        )
+        invalid_count = duration_store.count_invalid_human_time_spans(resolved_spans)
         totals["skipped"] += invalid_count
         if totals["skipped"] > 0:
             return {**totals, "duplicate": False}
 
-        groups: Dict[Path, List[Dict[str, Any]]] = {}
-        for db_path, resolved in resolved_spans:
-            groups.setdefault(db_path, []).append(resolved)
+        if not resolved_spans:
+            return {**totals, "duplicate": False}
 
-        all_duplicates = bool(groups)
-        for db_path, group_spans in groups.items():
-            result = duration_store.record_human_time_spans(
-                db_path,
-                working_directory=None,
-                request_id=request_id,
-                spans=group_spans,
-            )
-            for key, value in result.items():
-                if isinstance(value, bool):
-                    continue
-                totals[key] = totals.get(key, 0) + int(value)
-            all_duplicates = all_duplicates and bool(result.get("duplicate"))
-        return {**totals, "duplicate": all_duplicates}
+        result = duration_store.record_human_time_spans(
+            db_path,
+            working_directory=None,
+            request_id=request_id,
+            spans=resolved_spans,
+        )
+        return {
+            **totals,
+            **{key: value for key, value in result.items() if key != "duplicate"},
+            "duplicate": bool(result.get("duplicate")),
+        }
 
 
 __all__ = ["DurationTrackingAppPlugin"]

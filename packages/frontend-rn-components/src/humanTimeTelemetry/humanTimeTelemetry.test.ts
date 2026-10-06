@@ -52,7 +52,7 @@ describe("shared human-time telemetry", () => {
     expect(submit).toHaveBeenCalledOnce();
   });
 
-  it("isolates rejected spans and removes only confirmed neighbors", async () => {
+  it("isolates rejected spans and removes them from the active queue", async () => {
     const store = memoryStore();
     const rejected = {
       sessionId: "missing",
@@ -92,7 +92,9 @@ describe("shared human-time telemetry", () => {
     });
 
     await expect(uploader.flush()).resolves.toBe("partial-failure");
-    await expect(loadSpans("connection", store)).resolves.toEqual([rejected]);
+    await expect(loadSpans("connection", store)).resolves.toEqual([]);
+    expect(executeAction).toHaveBeenCalledTimes(3);
+    await expect(uploader.flush()).resolves.toBe("empty");
     expect(executeAction).toHaveBeenCalledTimes(3);
   });
 });

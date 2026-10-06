@@ -10,6 +10,11 @@ import {
   type EmbeddedRuntimePublicConfiguration,
 } from "../src/embeddedRuntime/embeddedPythonRuntime";
 import { lightTheme, ThemeProvider } from "../src/theme";
+import { NEUTRAL_FOLLOWUP_DISPLAY } from "../../../test/fixture/displayFollowupDialog";
+
+jest.mock("@crystal-lattice/frontend-rn-components", () => ({
+  ...jest.requireActual("@crystal-lattice/frontend-rn-components"),
+}));
 
 jest.mock("../src/embeddedRuntime/embeddedPythonRuntime", () => ({
   configureEmbeddedPythonRuntime: jest.fn(),
@@ -385,4 +390,28 @@ test("shows candidate validation failure without persisting it", async () => {
     ).toBe("The API key was rejected.")
   );
   expect(configureEmbeddedPythonRuntime).not.toHaveBeenCalled();
+});
+
+test("provider settings use neutral result dialogs and generic parameter mapping", async () => {
+  jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValueOnce({
+    display: NEUTRAL_FOLLOWUP_DISPLAY,
+  });
+  const { screen } = renderModal();
+  await waitFor(() => expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy());
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-chatgpt"));
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-chatgpt-login_start"));
+  fireEvent.press(await screen.findByText("Enter value"));
+  expect(screen.getByText("Edit value")).toBeTruthy();
+  fireEvent.press(screen.getByTestId("application-action-dialog-cancel"));
+  expect(screen.getByText("Neutral result")).toBeTruthy();
+  expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenCalledTimes(1);
+  fireEvent.press(screen.getByText("Enter value"));
+  fireEvent.changeText(screen.getByTestId("action-form-input-value"), "settings value");
+  fireEvent.press(screen.getByTestId("application-action-dialog-primary"));
+  await waitFor(() => expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenLastCalledWith({
+    pluginId: "fixture",
+    actionId: "save",
+    actionOwner: "application",
+    inputs: { source: "neutral-result", value: "settings value", cleared: "", note: "kept note" },
+  }));
 });

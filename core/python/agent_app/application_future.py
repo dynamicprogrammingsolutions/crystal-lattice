@@ -2729,16 +2729,19 @@ class AgentApplication:
         self,
         session_id: str,
         request_id: str,
+        *,
+        expire_session_notifications: bool = True,
     ) -> None:
-        try:
-            self._session_notifications.expire_request(session_id, request_id)
-        except Exception as exc:
-            self._logger.warning(
-                "session_request_notification_expiration_failed",
-                session_id=session_id,
-                request_id=request_id,
-                error=str(exc),
-            )
+        if expire_session_notifications:
+            try:
+                self._session_notifications.expire_request(session_id, request_id)
+            except Exception as exc:
+                self._logger.warning(
+                    "session_request_notification_expiration_failed",
+                    session_id=session_id,
+                    request_id=request_id,
+                    error=str(exc),
+                )
         try:
             mutations = self._require_application_notification_store().expire_request(
                 request_id,
@@ -2929,6 +2932,41 @@ class AgentApplication:
             timeout=timeout,
         )
 
+    def run_ephemeral_request_with_message(
+        self,
+        core: AgentCore,
+        base_config: Dict[str, Any],
+        session: Session,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        timeout: float | None = None,
+    ) -> SessionRequestResult:
+        """Run one coordinated request without writing its session to storage."""
+
+        return self._session_request_coordinator.run_ephemeral(
+            core,
+            base_config,
+            session,
+            overrides,
+            stream=stream,
+            on_checkpoint=on_checkpoint,
+            on_event=on_event,
+            message={
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+                "multipart_content": multipart_content,
+            },
+            timeout=timeout,
+        )
+
     def get_active_session_request_id(self, session_id: str) -> str | None:
         """Return the active coordinated request id for one session."""
 
@@ -3012,6 +3050,125 @@ class AgentApplication:
 
         descriptors.sort(key=lambda item: (item[0], item[1], item[2]["id"]))
         return [descriptor for _order, _index, descriptor in descriptors]
+
+    def describe_agent_run(self, agent_id: str) -> Dict[str, Any]:
+        """Return safe effective defaults and configurable fields for one agent."""
+
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        if agent_id not in self._agent_base_configs:
+            raise KeyError(f"Unknown agent_id {agent_id!r}")
+
+        descriptor = next(
+            (
+                item
+                for item in self.list_agent_descriptors()
+                if item.get("id") == agent_id
+            ),
+            {
+                "id": agent_id,
+                "title": agent_id,
+                "description": "",
+                "order": 0,
+            },
+        )
+        raw_agents = self._config.get("agents")
+        raw_agent = raw_agents.get(agent_id) if isinstance(raw_agents, dict) else None
+        provider_route = (
+            raw_agent.get("provider")
+            if isinstance(raw_agent, dict)
+            and isinstance(raw_agent.get("provider"), str)
+            else None
+        )
+
+        base_config = self._get_agent_base_config(agent_id)
+        plugin_runtime = self._get_agent_plugin_runtime(agent_id)
+        effective_config = resolve_request_config(base_config, None)
+        core = self._build_core_with_enabled_ids(
+            self._agent_plugin_ids.get(agent_id),
+            selected_provider_config=effective_config,
+            plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
+        )
+        safe_setting_keys = (
+            "model",
+            "enable_reasoning",
+            "reasoning_effort",
+        )
+        effective_settings = {
+            key: effective_config[key]
+            for key in safe_setting_keys
+            if key in effective_config
+            and isinstance(
+                effective_config[key],
+                (str, int, float, bool, type(None)),
+            )
+        }
+        provider_plugin = effective_config.get("provider")
+        try:
+            config_schema = [
+                self._sanitize_public_config_schema_entry(item)
+                for item in core.get_config_schema()
+                if isinstance(item, Mapping)
+                and not self._is_sensitive_config_key(item.get("key"))
+            ]
+        except Exception:
+            config_schema = []
+
+        return {
+            **descriptor,
+            "provider_route": provider_route,
+            "provider_plugin": (
+                provider_plugin if isinstance(provider_plugin, str) else None
+            ),
+            "effective_settings": effective_settings,
+            "config_schema": config_schema,
+        }
+
+    @staticmethod
+    def _is_sensitive_config_key(value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        normalized = value.lower().replace("-", "_")
+        return any(
+            part in normalized
+            for part in (
+                "api_key",
+                "authorization",
+                "credential",
+                "password",
+                "secret",
+                "token",
+            )
+        )
+
+    @classmethod
+    def _sanitize_public_config_schema_entry(
+        cls,
+        value: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        sanitized: Dict[str, Any] = {}
+        for key, item in value.items():
+            if cls._is_sensitive_config_key(key):
+                continue
+            if isinstance(item, Mapping):
+                sanitized[key] = cls._sanitize_public_config_schema_entry(item)
+            elif isinstance(item, list):
+                sanitized[key] = [
+                    (
+                        cls._sanitize_public_config_schema_entry(nested)
+                        if isinstance(nested, Mapping)
+                        else nested
+                    )
+                    for nested in item
+                ]
+            else:
+                sanitized[key] = item
+        return sanitized
+
+    def list_agent_run_descriptors(self) -> List[Dict[str, Any]]:
+        """Return safe effective run metadata for every enabled agent."""
+
+        return [self.describe_agent_run(agent_id) for agent_id in self.list_agents()]
 
     def get_agent_plugins(self, agent_id: str) -> Optional[List[str]]:
         """Return the default enabled plugin id list for an agent.
@@ -4592,6 +4749,7 @@ class AgentApplication:
         stream: bool = False,
         request_id: Optional[str] = None,
         baseline_file_state: SessionFileState | None = None,
+        persist_session: bool = True,
     ) -> Iterator[Dict[str, Any]]:
         """Core-first request API that yields events.
 
@@ -4603,13 +4761,15 @@ class AgentApplication:
         Key differences from the legacy API:
 
         - Checkpoint persistence is handled internally by the application
+          unless ``persist_session`` is false
         - The caller decides whether and how to expose public events externally
         - Tool loops are handled internally, with a configurable maximum
           depth (:class:`_ToolLoopConfig`).
         """
 
         rid = request_id or self._new_request_id()
-        self._require_live_session_writable(session.session_id)
+        if persist_session:
+            self._require_live_session_writable(session.session_id)
 
         request_context = {
             "session_id": session.session_id,
@@ -4617,33 +4777,36 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
-        try:
-            with self.acquire_session_lock(session.session_id):
-                session, request_reconcile_baseline = (
-                    self._reconcile_session_with_store(
-                        baseline_session=session,
-                        baseline_file_state=baseline_file_state,
-                        current_session=session,
-                        persist_on_success=False,
-                        conflict_prefix="Concurrent session modification detected before request start; ",
-                        backup_on_conflict=True,
-                        conflict_request_id=rid,
+        if persist_session:
+            try:
+                with self.acquire_session_lock(session.session_id):
+                    session, request_reconcile_baseline = (
+                        self._reconcile_session_with_store(
+                            baseline_session=session,
+                            baseline_file_state=baseline_file_state,
+                            current_session=session,
+                            persist_on_success=False,
+                            conflict_prefix="Concurrent session modification detected before request start; ",
+                            backup_on_conflict=True,
+                            conflict_request_id=rid,
+                        )
                     )
-                )
-        except SessionConflictError as exc:
-            yield {
-                "type": "error",
-                "session_id": session.session_id,
-                "request_id": rid,
-                "detail": exc.detail,
-            }
-            self._expire_request_notifications(session.session_id, rid)
-            yield {
-                "type": "request_completed",
-                "session_id": session.session_id,
-                "request_id": rid,
-            }
-            return
+            except SessionConflictError as exc:
+                yield {
+                    "type": "error",
+                    "session_id": session.session_id,
+                    "request_id": rid,
+                    "detail": exc.detail,
+                }
+                self._expire_request_notifications(session.session_id, rid)
+                yield {
+                    "type": "request_completed",
+                    "session_id": session.session_id,
+                    "request_id": rid,
+                }
+                return
+        else:
+            request_reconcile_baseline = None
         original_session = session
 
         core, base_config, session, _results = self.run_session_lifecycle(
@@ -4693,13 +4856,18 @@ class AgentApplication:
                 "request_id": rid,
                 "detail": f"Tool preparation failed: {detail}",
             }
-            self._expire_request_notifications(session.session_id, rid)
+            self._expire_request_notifications(
+                session.session_id,
+                rid,
+                expire_session_notifications=persist_session,
+            )
             yield {
                 "type": "request_completed",
                 "session_id": session.session_id,
                 "request_id": rid,
             }
-            self.record_checkpoint(session.session_id, None)
+            if persist_session:
+                self.record_checkpoint(session.session_id, None)
             return
 
         cancellation = self._register_request_cancellation(rid)
@@ -4728,6 +4896,8 @@ class AgentApplication:
         def _persist_checkpoint(current_session: Session) -> Session:
             nonlocal request_baseline_session
             nonlocal request_baseline_file_state
+            if not persist_session:
+                return current_session
             with self.acquire_session_lock(current_session.session_id):
                 baseline_session = request_baseline_session or current_session
                 baseline_file_state = request_baseline_file_state
@@ -4753,6 +4923,8 @@ class AgentApplication:
         def _sync_phase_session_for_request(current_session: Session) -> Session:
             nonlocal request_baseline_session
             nonlocal request_baseline_file_state
+            if not persist_session:
+                return current_session
             with self.acquire_session_lock(current_session.session_id):
                 if request_baseline_session is None:
                     return current_session
@@ -4903,9 +5075,14 @@ class AgentApplication:
                             self._expire_request_notifications(
                                 latest_session.session_id,
                                 rid,
+                                expire_session_notifications=persist_session,
                             )
                             yield event
-                            self.record_checkpoint(latest_session.session_id, None)
+                            if persist_session:
+                                self.record_checkpoint(
+                                    latest_session.session_id,
+                                    None,
+                                )
                             continue
 
                         yield event

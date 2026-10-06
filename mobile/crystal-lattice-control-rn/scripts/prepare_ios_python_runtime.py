@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -14,7 +15,7 @@ import zipfile
 
 
 PYTHON_SUPPORT_TAG = "3.12-b10"
-RUNTIME_LAYOUT_VERSION = "17"
+RUNTIME_LAYOUT_VERSION = "18"
 ARCHIVE_NAME = "Python-3.12-iOS-support.b10.tar.gz"
 ARCHIVE_URL = (
     "https://github.com/beeware/Python-Apple-support/releases/download/"
@@ -34,16 +35,23 @@ CACHE_DIR = (
     Path.home() / "Library" / "Caches" / "CrystalLattice" / "python-apple-support"
 )
 CACHE_ARCHIVE = CACHE_DIR / ARCHIVE_NAME
-PURE_DEPENDENCY_CACHE = CACHE_DIR / "pure-dependencies-v1"
-PURE_DEPENDENCIES = (
-    "certifi==2024.2.2",
-    "charset-normalizer==3.4.4",
-    "idna==3.18",
-    "jsonpath-ng==1.7.0",
-    "ply==3.11",
-    "requests==2.31.0",
-    "structlog==25.5.0",
-    "urllib3==2.2.1",
+PURE_DEPENDENCY_CACHE = CACHE_DIR / "pure-dependencies-v2"
+PURE_DEPENDENCY_SITE_PACKAGES = PURE_DEPENDENCY_CACHE / "site-packages"
+NATIVE_DEPENDENCY_SUFFIXES = frozenset(
+    {".a", ".dll", ".dylib", ".framework", ".pyd", ".so", ".xcframework"}
+)
+FORBIDDEN_RUNTIME_DISTRIBUTIONS = frozenset(
+    {
+        "black",
+        "coverage",
+        "mypy",
+        "pyright",
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "python-dotenv",
+        "ruff",
+    }
 )
 APP_PLUGIN_PACKAGES = (
     ("chatgpt-auth-app", "chatgpt_auth_app"),
@@ -75,6 +83,7 @@ EMBEDDED_CONFIG_ROOT = (
     / "embedded-ios"
 )
 EMBEDDED_CONFIG_PATH = EMBEDDED_CONFIG_ROOT / "config.json"
+EMBEDDED_REQUIREMENTS_PATH = EMBEDDED_CONFIG_ROOT / "requirements.txt"
 APPLICATION_PACKAGE_INIT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "__init__.py"
 )
@@ -187,9 +196,11 @@ def source_digest() -> str:
         for path in sorted(source_root.rglob("*.py")):
             digest.update(str(path.relative_to(REPO_ROOT)).encode("utf-8"))
             digest.update(path.read_bytes())
-    for requirement in PURE_DEPENDENCIES:
-        digest.update(requirement.encode("utf-8"))
-    for path in (APPLICATION_PACKAGE_INIT, EMBEDDED_CONFIG_PATH):
+    for path in (
+        APPLICATION_PACKAGE_INIT,
+        EMBEDDED_CONFIG_PATH,
+        EMBEDDED_REQUIREMENTS_PATH,
+    ):
         digest.update(path.relative_to(REPO_ROOT).as_posix().encode("utf-8"))
         digest.update(path.read_bytes())
     if REVIEWER_CA_PATH.is_file():
@@ -198,14 +209,140 @@ def source_digest() -> str:
     return digest.hexdigest()
 
 
+def normalized_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def embedded_requirements() -> tuple[str, ...]:
+    requirements: list[str] = []
+    names: set[str] = set()
+    for line_number, raw_line in enumerate(
+        EMBEDDED_REQUIREMENTS_PATH.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        line = raw_line.partition("#")[0].strip()
+        if not line:
+            continue
+        if line.count("==") != 1:
+            raise RuntimeError(
+                "Embedded iOS requirements must use exact pins: "
+                f"{EMBEDDED_REQUIREMENTS_PATH}:{line_number}: {line!r}"
+            )
+        name, version = (part.strip() for part in line.split("==", 1))
+        if (
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)
+            or not version
+            or any(character.isspace() for character in version)
+        ):
+            raise RuntimeError(
+                "Invalid embedded iOS requirement: "
+                f"{EMBEDDED_REQUIREMENTS_PATH}:{line_number}: {line!r}"
+            )
+        normalized_name = normalized_distribution_name(name)
+        if normalized_name in names:
+            raise RuntimeError(
+                f"Duplicate embedded iOS requirement for {name!r}"
+            )
+        if normalized_name in FORBIDDEN_RUNTIME_DISTRIBUTIONS:
+            raise RuntimeError(
+                f"Development dependency is forbidden in the iOS runtime: {name}"
+            )
+        names.add(normalized_name)
+        requirements.append(f"{name}=={version}")
+    if not requirements:
+        raise RuntimeError("Embedded iOS requirements must not be empty")
+    return tuple(requirements)
+
+
+def _installed_distribution_names(source: Path) -> set[str]:
+    names: set[str] = set()
+    for metadata_path in sorted(source.glob("*.dist-info/METADATA")):
+        for line in metadata_path.read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines():
+            if line.startswith("Name:"):
+                name = line.partition(":")[2].strip()
+                if name:
+                    names.add(normalized_distribution_name(name))
+                break
+    return names
+
+
+def validate_pure_dependency_tree(source: Path) -> None:
+    if not source.is_dir():
+        raise RuntimeError(f"Embedded dependency staging directory is missing: {source}")
+
+    invalid_files: list[str] = []
+    for path in sorted(source.rglob("*")):
+        if path.is_symlink():
+            invalid_files.append(f"{path.relative_to(source)} (symlink)")
+            continue
+        if (
+            path.is_dir()
+            and path.suffix.lower() in NATIVE_DEPENDENCY_SUFFIXES
+        ):
+            invalid_files.append(str(path.relative_to(source)))
+            continue
+        if not path.is_file():
+            continue
+        relative = path.relative_to(source)
+        suffixes = {suffix.lower() for suffix in path.suffixes}
+        if suffixes & NATIVE_DEPENDENCY_SUFFIXES:
+            invalid_files.append(str(relative))
+    if invalid_files:
+        raise RuntimeError(
+            "Embedded iOS dependencies must be platform-neutral pure Python; "
+            f"unsupported files: {invalid_files[:10]}"
+        )
+
+    wheel_paths = sorted(source.glob("*.dist-info/WHEEL"))
+    if not wheel_paths:
+        raise RuntimeError("Embedded dependency staging contains no wheel metadata")
+    invalid_wheels: list[str] = []
+    for wheel_path in wheel_paths:
+        text = wheel_path.read_text(encoding="utf-8", errors="replace")
+        tags = [
+            line.partition(":")[2].strip()
+            for line in text.splitlines()
+            if line.startswith("Tag:")
+        ]
+        if (
+            "Root-Is-Purelib: true" not in text
+            or not tags
+            or any(not tag.endswith("-none-any") for tag in tags)
+        ):
+            invalid_wheels.append(str(wheel_path.relative_to(source)))
+    if invalid_wheels:
+        raise RuntimeError(
+            "Embedded iOS dependencies must come from platform-neutral wheels; "
+            f"invalid wheel metadata: {invalid_wheels[:10]}"
+        )
+
+    forbidden = sorted(
+        _installed_distribution_names(source) & FORBIDDEN_RUNTIME_DISTRIBUTIONS
+    )
+    if forbidden:
+        raise RuntimeError(
+            "Embedded iOS dependency staging contains development distributions: "
+            f"{forbidden}"
+        )
+
+
 def ensure_pure_dependencies() -> Path:
+    embedded_requirements()
+    requirements_text = EMBEDDED_REQUIREMENTS_PATH.read_text(encoding="utf-8")
     marker = PURE_DEPENDENCY_CACHE / ".requirements"
-    expected = "\n".join(PURE_DEPENDENCIES) + "\n"
-    if marker.is_file() and marker.read_text(encoding="utf-8") == expected:
-        return PURE_DEPENDENCY_CACHE
+    if (
+        marker.is_file()
+        and marker.read_text(encoding="utf-8") == requirements_text
+        and PURE_DEPENDENCY_SITE_PACKAGES.is_dir()
+    ):
+        validate_pure_dependency_tree(PURE_DEPENDENCY_SITE_PACKAGES)
+        return PURE_DEPENDENCY_SITE_PACKAGES
 
     shutil.rmtree(PURE_DEPENDENCY_CACHE, ignore_errors=True)
-    PURE_DEPENDENCY_CACHE.mkdir(parents=True)
+    PURE_DEPENDENCY_SITE_PACKAGES.mkdir(parents=True)
     subprocess.run(
         [
             sys.executable,
@@ -214,13 +351,24 @@ def ensure_pure_dependencies() -> Path:
             "install",
             "--disable-pip-version-check",
             "--target",
-            str(PURE_DEPENDENCY_CACHE),
-            *PURE_DEPENDENCIES,
+            str(PURE_DEPENDENCY_SITE_PACKAGES),
+            "--only-binary=:all:",
+            "--platform",
+            "any",
+            "--implementation",
+            "py",
+            "--python-version",
+            "3.12",
+            "--abi",
+            "none",
+            "--requirement",
+            str(EMBEDDED_REQUIREMENTS_PATH),
         ],
         check=True,
     )
-    marker.write_text(expected, encoding="utf-8")
-    return PURE_DEPENDENCY_CACHE
+    validate_pure_dependency_tree(PURE_DEPENDENCY_SITE_PACKAGES)
+    marker.write_text(requirements_text, encoding="utf-8")
+    return PURE_DEPENDENCY_SITE_PACKAGES
 
 
 def add_python_tree(
@@ -245,6 +393,22 @@ def add_package_tree(
         if path.suffix not in {".json", ".pem", ".py"}:
             continue
         archive.write(path, destination / path.relative_to(source))
+
+
+def add_pure_dependency_tree(
+    archive: zipfile.ZipFile,
+    source: Path,
+) -> None:
+    validate_pure_dependency_tree(source)
+    for path in sorted(source.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(source)
+        if relative.parts[0] == "bin" or "__pycache__" in relative.parts:
+            continue
+        if path.suffix == ".pyc":
+            continue
+        archive.write(path, relative)
 
 
 def create_application_archive(destination: Path) -> None:
@@ -350,26 +514,7 @@ def create_application_archive(destination: Path) -> None:
             / "config.json",
         )
         add_python_tree(archive, PYTHON_APP_SOURCE, Path())
-        for package_name in (
-            "certifi",
-            "charset_normalizer",
-            "idna",
-            "jsonpath_ng",
-            "ply",
-            "requests",
-            "structlog",
-            "urllib3",
-        ):
-            package_path = dependencies / package_name
-            if package_path.is_dir():
-                add_package_tree(archive, package_path, Path(package_name))
-            else:
-                module_path = dependencies / f"{package_name}.py"
-                if not module_path.is_file():
-                    raise RuntimeError(
-                        f"Pure Python dependency is missing after installation: {package_name}"
-                    )
-                archive.write(module_path, module_path.name)
+        add_pure_dependency_tree(archive, dependencies)
 
 
 def patch_python_build_utils(framework_root: Path) -> None:

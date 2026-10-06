@@ -357,3 +357,84 @@ and collect those decisions for user confirmation.
   explicit accessibility activation boundaries. This corrected the
   simulator-observed modal interaction where a visible control could miss a
   coordinate tap and leave the selected provider disabled or non-default.
+
+## Post-completion follow-up
+
+### 2026-10-05 — Declarative embedded dependencies and release smoke
+
+Status: Approved
+
+The TestFlight build exposed `No module named 'jsonpath'` while invoking
+ChatGPT application actions. Source development remained healthy because the
+developer environment had `python-jsonpath` installed. The generated iOS ZIP
+contained the newly merged `agent_app.json_projection` consumer and the
+unrelated `jsonpath_ng` package, but not the `jsonpath` package supplied by
+the `python-jsonpath` distribution.
+
+The correction replaces the preparation script's duplicated hardcoded pip
+requirement and import-package copy lists with one fully pinned requirements
+file owned beside the Python embedded config. Preparation installs
+platform-neutral wheels into a clean staging tree, rejects native extensions
+and development distributions, and archives the complete validated tree.
+Distribution-to-import naming differences no longer require bundler changes.
+
+The TestFlight verification boundary also gains a separate
+embedded-application ZIP smoke. It runs without source or site-package
+fallback, imports `jsonpath`, `agent_app`, the ChatGPT application plugin, and
+the mobile runtime from the generated ZIP, then executes the credential-free
+ChatGPT status action. The existing provider-package ZIP suites retain their
+provider-only scope.
+
+Follow-up checklist:
+
+- [x] Add the pinned embedded requirements file, including
+  `python-jsonpath==2.2.1`.
+- [x] Install only platform-neutral wheels and archive the complete validated
+  dependency staging tree.
+- [x] Reject native extensions, symlinks, and known development
+  distributions.
+- [x] Include the requirements file in runtime rebuild provenance.
+- [x] Add a root package command for the isolated embedded-application bundle
+  smoke.
+- [x] Run the bundle smoke from Fastlane release verification.
+- [x] Rebuild the immutable archive and record passing source, archive, and
+  release-gate evidence.
+
+Follow-up evidence:
+
+- The rebuilt archive has SHA-256
+  `3f4b7034d4fdfa7ea9a18922454de3599ef83ead2779c6576c7b7ab44894ede5`
+  and contains `jsonpath`, `python_jsonpath-2.2.1.dist-info`, and
+  `agent_app/json_projection.py` with no native extensions or known
+  development packages.
+- `npm run test:ios:embedded-runtime:bundle` imported `jsonpath`,
+  `agent_app`, `chatgpt_auth_app`, and `crystal_lattice_mobile_runtime`
+  directly from the ZIP and completed the credential-free
+  **ChatGPT Login Status** action.
+- The existing immutable provider suite passed from the same archive:
+  2 OpenRouter integration tests passed and 9 were intentionally deselected;
+  the archive digest remained unchanged during that suite.
+- Mobile Python verification passed 37 tests; focused embedded-config and
+  root-script verification passed 17 tests; the final focused preparation and
+  root-script rerun passed 21 tests. Focused Ruff and `git diff --check`
+  passed.
+- The exact `fastlane ios verify` lane passed under the pinned Ruby/Bundler
+  environment: 5 build-number tests, embedded runtime preparation, the new
+  archive action smoke, TypeScript, and 56 Jest suites / 290 tests.
+- Public documentation preparation completed successfully with
+  `docs_site/scripts/prepare_mkdocs_site.py`.
+
+### 2026-10-06 — Local provider settings usability
+
+The user's subsequent settings corrections and proposed execution plan are
+recorded in
+`tasks/20260910-ios-embedded-runtime-poc/027-local-agent-provider-settings-usability.md`.
+That task permits independent session API/ChatGPT overrides, replacing this
+task's earlier global-only authentication policy. The original requirements
+and implementation evidence above retain the historical behavior.
+
+Subtask `027` also records the requested Local-agent/OpenAI/Default-model
+labels, always-available API-key and ChatGPT controls, separate Global
+Settings Reviewer exposure and provider enablement, and removal of
+Make-default controls. Its OpenAI card grouping remains an open decision and
+its execution plan is Draft; creating the task does not start implementation.

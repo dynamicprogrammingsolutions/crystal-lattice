@@ -131,23 +131,21 @@ executeAction({
 
 The action returns span-level counts
 (`recorded`, `merged`, `skipped`, `absorbed`, `duplicate`) and never
-mutates sessions. Working-directory resolution: spans with a session id
-load that session's resolved config (the same keying as the LLM/tool
-rows; an unknown session contributes a skipped count); session-less spans use the
-`application.duration_tracking.working_directory` config value when set,
-otherwise the application plugin defaults it from the runtime `WORKING_DIR`
-(the absolute server launch directory). Explicit configuration still wins.
-Without either value, session-less spans cannot be keyed and contribute a
-skipped count. This default affects only project attribution; database
-resolution remains shared with duration tracking and continues to use the
-Crystal data directory unless explicitly overridden.
+mutates or loads sessions. Every span in a batch uses the application plugin's
+`working_directory`: the explicit
+`application.duration_tracking.working_directory` value when set, otherwise
+the runtime `WORKING_DIR` (the absolute server launch directory). A
+`session_id` is stored as an opaque telemetry identifier; it does not need to
+name a currently loadable session or configured agent. The whole batch uses
+the application plugin's shared database path, which defaults to the Crystal
+data directory unless explicitly overridden.
 
-Validation and target resolution are all-or-none for one upload batch. If
-any span is malformed, references an unknown session, or cannot resolve a
-working directory, the action returns a positive `skipped` count without
-recording a request marker or any spans from that batch. Frontends therefore
-retain and diagnose the complete batch instead of silently deleting a
-partially accepted upload.
+Validation is all-or-none for one upload batch. If any span is malformed, the
+action returns a positive `skipped` count without recording a request marker
+or any spans from that batch. Frontends isolate the batch, upload valid
+neighbors, and remove a singleton span that the server confirms is permanently
+invalid from the active queue. A missing application working directory is a
+configuration error rather than a span-level rejection.
 
 ### Frontend collection (mobile)
 
@@ -175,9 +173,9 @@ The mobile app owns collection (see its
   spans too, and the app shows a one-time dismissible warning banner until
   the setting changes. Transient failures retry on a fixed 30-second timer;
   a positive server `skipped` count causes the frontend to isolate the batch,
-  upload and remove each accepted span, and retain only rejected entries.
-  Rejected span data does not imply that the plugin is unavailable and does
-  not trigger that warning banner.
+  upload and remove each accepted span, and discard singleton entries that the
+  server confirms it cannot accept. Rejected span data does not imply that the
+  plugin is unavailable and does not trigger that warning banner.
 - **Diagnostics.** A compact section under the Global Settings telemetry
   plugin field shows collection/connection state, the open and last collected
   surfaces, pending span count, latest upload result, and a ten-row recent

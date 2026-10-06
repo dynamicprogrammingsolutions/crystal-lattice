@@ -1769,3 +1769,19 @@ Candidate Test 18 failed a fresh repeat after consuming the 30-call budget.
 Candidate Test 27 passed a fresh repeat after failing the complete matrix.
 See
 `maintainer/docs/evaluations/documentation-guidance/20260912-guidance-rewrite-results.md`.
+
+### October 4, 2026 synthetic-repository worktree correction
+
+An audit found that documentation-standard and task-guidance synthetic
+repositories were created as detached linked worktrees of Crystal Lattice,
+even though their fixture builders replace the Crystal Lattice tree with
+independent Eleventy, FastAPI, and Flask/Vue repositories. Interrupted or
+silently failed cleanup left 58 such worktrees registered under one
+development worktree.
+
+- FOLLOWED BY:
+  `tasks/20260728-package-local-documentation-standard/140-isolated-synthetic-evaluation-repositories.md`
+
+The durable follow-up is Draft and requires separate approval before
+execution. Cleanup of the existing linked worktrees is intentionally planned
+in the requesting conversation rather than persisted as a task.

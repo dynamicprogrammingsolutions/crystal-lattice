@@ -49,6 +49,7 @@ export interface ApplicationActionDialogPrefillContext {
 
 export interface ApplicationActionDialogProps {
   visible: boolean;
+  presentationMode?: 'native' | 'overlay';
   dialog: any;
   titleFallback?: string;
   prefillContext?: ApplicationActionDialogPrefillContext;
@@ -655,6 +656,7 @@ export function ApplicationActionDialogLayout({
 
 export function ApplicationActionDialog({
   visible,
+  presentationMode = 'native',
   dialog,
   titleFallback,
   prefillContext,
@@ -670,24 +672,34 @@ export function ApplicationActionDialog({
     return null;
   }
 
+  const content = (
+    <KeyboardAvoidingView
+      accessibilityViewIsModal
+      style={[
+        styles.modalOverlay,
+        presentationMode === 'overlay' && styles.absoluteOverlay,
+      ]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <ApplicationActionDialogLayout
+        dialog={dialog}
+        titleFallback={titleFallback}
+        prefillContext={prefillContext}
+        fieldRenderers={fieldRenderers}
+        renderField={renderField}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        style={styles.modalCard}
+      />
+    </KeyboardAvoidingView>
+  );
+  if (presentationMode === 'overlay') {
+    return content;
+  }
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
-        <ApplicationActionDialogLayout
-          dialog={dialog}
-          titleFallback={titleFallback}
-          prefillContext={prefillContext}
-          fieldRenderers={fieldRenderers}
-          renderField={renderField}
-          onSubmit={onSubmit}
-          onCancel={onCancel}
-          style={styles.modalCard}
-        />
-      </KeyboardAvoidingView>
+      {content}
     </Modal>
   );
 }
@@ -699,6 +711,11 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.modalBackdrop,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    absoluteOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+      elevation: 1,
     },
     modalCard: {
       width: '80%',

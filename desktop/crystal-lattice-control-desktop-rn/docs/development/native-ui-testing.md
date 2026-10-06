@@ -4,6 +4,9 @@ Desktop unit and real-backend component tests verify data flow and routing.
 XCUITest verifies native popovers, windows, and geometry that cannot be
 reliably proven below the native boundary.
 
+Run macOS UI tests and simulator UI automation sequentially to avoid focus
+changes dismissing transient popovers. Their builds can run concurrently.
+
 XCUITest must never terminate an already-running Crystal Lattice process.
 Ordinary Release instances can coexist with the Debug test harness and are not
 blockers. If an existing Xcode test or Debug-harness session prevents
@@ -63,6 +66,18 @@ Its focused XCUITest verifies native popover selection and placed actions:
 ```bash
 npm run test:macos-ui:rich-session-ui
 ```
+
+It also mounts the production `MessageActionsBar` with shared menu-label
+fixtures from `test/fixture/action-menu-labels.json`. The compaction label is
+checked against the real plugin's HTTP schema by the frontend SDK integration
+test; the longer synthetic label exercises wrapping only. The focused native
+method `testMessageActionNamesWrapAndKeepPinsIndependent` checks popup width,
+row height, pin behavior, dismissal, and attaches a review screenshot. The
+mobile rich-session-UI Detox suite exercises the same production menu and
+fixture and saves its screenshot under its `artifacts/detox/action-popup-review/`.
+Both tests switch to an oversized action list and prove that the last pin
+remains reachable by scrolling within the bounded popup. These are native UI
+checks, not network end-to-end tests.
 
 Harnesses report theme-derived values and measured frames. Native assertions
 compare those values and relative geometry instead of copying display-preset

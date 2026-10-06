@@ -13,6 +13,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
+import { DesktopWindowManager } from './desktopWindowManager';
 
 function togglePinnedKey(pinned: readonly string[], key: string): string[] {
   if (pinned.includes(key)) {
@@ -34,9 +35,21 @@ function ActionsPopoverViewInner(): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const state = useActiveActionsPopoverMenu();
+  const activeMenuId = state?.data.id;
 
   const [menuId, setMenuId] = useState<string | null>(null);
   const [pinnedLocal, setPinnedLocal] = useState<string[]>([]);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [contentSize, setContentSize] = useState({ menuId: '', height: 0 });
+
+  useEffect(() => {
+    if (activeMenuId && contentSize.menuId === activeMenuId && headerHeight > 0) {
+      DesktopWindowManager?.resizeActionsPopover?.({
+        menuId: activeMenuId,
+        height: headerHeight + contentSize.height,
+      });
+    }
+  }, [activeMenuId, headerHeight, contentSize]);
 
   useEffect(() => {
     const nextId = state?.data.id ?? null;
@@ -59,11 +72,17 @@ function ActionsPopoverViewInner(): React.JSX.Element {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+      <View
+        style={styles.header}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+      >
+        <Text style={styles.headerTitle} numberOfLines={2}>
           {state.data.title}
         </Text>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Close ${state.data.title}`}
+          testID="actions-popover-close"
           style={(pressState) => {
             const hovered = (pressState as any).hovered as boolean | undefined;
             return [styles.closeButton, (hovered || pressState.pressed) && styles.closeButtonHovered];
@@ -74,7 +93,14 @@ function ActionsPopoverViewInner(): React.JSX.Element {
         </Pressable>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        testID="actions-popover-scroll"
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        onContentSizeChange={(_width, height) =>
+          setContentSize({ menuId: state.data.id, height })
+        }
+      >
         <ActionsMenuContent
           actions={state.data.actions}
           pinnedKeys={pinnedLocal}

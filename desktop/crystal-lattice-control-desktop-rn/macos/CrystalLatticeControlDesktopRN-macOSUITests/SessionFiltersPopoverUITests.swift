@@ -1,6 +1,71 @@
 import XCTest
 
 final class SessionFiltersPopoverUITests: XCTestCase {
+  func testMessageActionNamesWrapAndKeepPinsIndependent() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"
+    app.launch()
+    let harness = app.windows["DesktopRichSessionUiHarnessWindow"]
+    XCTAssertTrue(harness.waitForExistence(timeout: 15))
+    dismissDevelopmentWarningBanner(in: harness)
+    let openMenu = element(app, "message-actions-menu")
+    XCTAssertTrue(openMenu.waitForExistence(timeout: 10), app.debugDescription)
+    openMenu.click()
+    let popover = harness.popovers.firstMatch
+    XCTAssertTrue(popover.waitForExistence(timeout: 10), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: popover)
+    let compaction = element(popover, "actions-menu-action-compact_native_history_through_message")
+    let longAction = element(popover, "actions-menu-action-long_plugin_action")
+    let copy = element(popover, "actions-menu-action-copy")
+    XCTAssertTrue(longAction.waitForExistence(timeout: 10), app.debugDescription)
+    waitForLabel(compaction, "OpenAI compaction up to here")
+    XCTAssertGreaterThan(popover.frame.width, 320)
+    XCTAssertLessThan(popover.frame.width, harness.frame.width)
+    XCTAssertGreaterThan(longAction.frame.height, copy.frame.height + 5)
+    XCTAssertLessThanOrEqual(longAction.frame.maxY, popover.frame.maxY)
+    let pin = element(popover, "actions-menu-pin-compact_native_history_through_message")
+    pin.click()
+    waitForLabel(pin, "Unpin OpenAI compaction up to here")
+    XCTAssertTrue(popover.exists)
+    waitForLabel(element(app, "desktop-rich-session-ui-action-marker"), "Desktop rich action none")
+    let attachment = XCTAttachment(screenshot: popover.screenshot())
+    attachment.name = "Two-line message actions"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    element(popover, "actions-popover-close").click()
+    waitForDisappearance(popover)
+
+    element(app, "message-menu-long-list").click()
+    openMenu.click()
+    XCTAssertTrue(popover.waitForExistence(timeout: 10))
+    dismissDevelopmentWarningBanner(in: popover)
+    XCTAssertLessThan(popover.frame.height, harness.frame.height)
+    let lastPin = element(popover, "actions-menu-pin-long-17")
+    let scroll = popover.scrollViews.firstMatch
+    for _ in 0..<6 {
+      if lastPin.frame.maxY <= popover.frame.maxY && lastPin.isHittable { break }
+      scroll.scroll(byDeltaX: 0, deltaY: -400)
+    }
+    XCTAssertTrue(lastPin.isHittable)
+    XCTAssertLessThanOrEqual(lastPin.frame.maxY, popover.frame.maxY)
+    lastPin.click()
+    waitForLabel(lastPin, "Unpin Summarize this conversation and preserve every decision")
+    element(popover, "actions-popover-close").click()
+    waitForDisappearance(popover)
+  }
+
+  private func dismissDevelopmentWarningBanner(in root: XCUIElement) {
+    // Dismiss the Debug-only LogBox overlay through its normal close control,
+    // keeping the rendered menu unobscured in the review screenshot.
+    let banner = root.descendants(matching: .other).matching(
+      NSPredicate(format: "label CONTAINS %@", "Open debugger to view warnings.")
+    ).firstMatch
+    if banner.exists {
+      let close = banner.children(matching: .other).firstMatch
+      if close.exists { close.click() }
+    }
+  }
+
   func testRichSessionUiModelAndPlacedActions() throws {
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"

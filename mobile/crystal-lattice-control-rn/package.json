@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "start": "react-native start --port 8082",
     "test": "jest",
+    "test:embedded-application-bundle": "python3 scripts/run_embedded_application_bundle_smoke.py",
     "test:components": "jest",
     "test:components:integration": "jest --config jest.integration.config.js --runInBand",
     "test:integration": "jest --config jest.integration.config.js --runInBand",

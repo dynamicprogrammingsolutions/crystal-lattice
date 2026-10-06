@@ -7,6 +7,7 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "macos": "react-native run-macos",
+    "macos:build": "DESKTOP_MATCH_READONLY=true SKIP_DESKTOP_VERIFICATION=false node scripts/run_bundled_ruby_command.js fastlane mac release",
     "lint": "eslint .",
     "start": "react-native start",
     "rn": "react-native",
@@ -22,9 +23,10 @@
     "test:macos-ui:transcript-range": "CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/TranscriptRangeNavigationUITests",
     "test:macos-ui:action-display": "CLC_ENABLE_ACTION_DISPLAY_HARNESS=1 FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ActionDisplayWindowUITests",
     "test:macos-ui:human-time": "jest --config jest.macos-ui.config.js --runInBand --runTestsByPath __native__/humanTimeTelemetry.native.test.ts",
-    "pod-install": "bundle exec pod install --project-directory=macos",
-    "release:verify": "bundle exec fastlane mac verify",
-    "release:build": "bundle exec fastlane mac build"
+    "ruby:check": "node scripts/run_bundled_ruby_command.js --check",
+    "pod-install": "node scripts/run_bundled_ruby_command.js pod install --project-directory=macos",
+    "release:verify": "node scripts/run_bundled_ruby_command.js fastlane mac verify",
+    "release:build": "node scripts/run_bundled_ruby_command.js fastlane mac build"
   },
   "dependencies": {
     "@crystal-lattice/frontend-rn-components": "file:../../packages/frontend-rn-components",

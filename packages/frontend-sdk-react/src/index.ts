@@ -55,6 +55,8 @@ export { useAgentsController } from './useAgentsController';
 
 export type { UsePluginActionDialogResult } from './usePluginActionDialog';
 export { usePluginActionDialog } from './usePluginActionDialog';
+export { useDisplayFollowupDialog } from './useDisplayFollowupDialog';
+export type { DisplayFollowupDialogContext } from './useDisplayFollowupDialog';
 
 export { useHydrateControllerFromCache } from './useHydrateControllerFromCache';
 
