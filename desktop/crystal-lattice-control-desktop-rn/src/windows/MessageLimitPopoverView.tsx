@@ -37,7 +37,7 @@ function MessageLimitPopoverViewInner(): React.JSX.Element {
     >
       {active.title ? (
         <View style={styles.header}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text style={styles.headerTitle} numberOfLines={2}>
             {active.title}
           </Text>
           <Pressable

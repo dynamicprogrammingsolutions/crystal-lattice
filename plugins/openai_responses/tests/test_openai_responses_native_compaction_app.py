@@ -664,6 +664,8 @@ def test_session_ui_uses_application_owned_background_action(
         if item.get("id") == "compact_native_history_through_message"
     )
     assert through_message["ui_type"] == "message_action"
+    assert through_message["label"] == "OpenAI compaction up to here"
+    assert through_message["dialog"]["title"] == "OpenAI compaction up to here"
     assert through_message["order"] == 25
     assert through_message["action_id"] == "compact_native_history"
     assert through_message["action_owner"] == "application"

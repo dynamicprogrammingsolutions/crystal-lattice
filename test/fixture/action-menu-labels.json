@@ -1,0 +1,16 @@
+[
+  {
+    "key": "compact_native_history_through_message",
+    "label": "OpenAI compaction up to here",
+    "iconName": "archive",
+    "defaultPinnedRoles": [],
+    "allowedRoles": ["user", "assistant"]
+  },
+  {
+    "key": "long_plugin_action",
+    "label": "Summarize this conversation and preserve every decision",
+    "iconName": "file-text",
+    "defaultPinnedRoles": [],
+    "allowedRoles": ["user", "assistant"]
+  }
+]

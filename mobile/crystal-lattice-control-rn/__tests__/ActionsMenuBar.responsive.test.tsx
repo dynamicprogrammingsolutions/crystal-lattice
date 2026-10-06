@@ -4,6 +4,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 
 import {
   ActionsMenuBar,
+  ApplicationActionsMenu,
   type ActionDefinition,
 } from "@crystal-lattice/frontend-rn-components";
 
@@ -204,7 +205,7 @@ test("lets a long state use the width left by a short title and truncates adapti
 
   const modelTitle = rendered.getByText("Model");
   const modelState = rendered.getByTestId("actions-menu-state-config:model");
-  expect(modelTitle.props.numberOfLines).toBe(1);
+  expect(modelTitle.props.numberOfLines).toBe(2);
   expect(modelTitle.props.ellipsizeMode).toBe("tail");
   expect(modelState.props.numberOfLines).toBe(1);
   expect(modelState.props.ellipsizeMode).toBe("tail");
@@ -225,4 +226,62 @@ test("lets a long state use the width left by a short title and truncates adapti
     flexShrink: 1,
     minWidth: 0,
   });
+});
+
+test("message menus wrap names and retain disabled rows and independent pins", () => {
+  const onAction = jest.fn();
+  const onChangePinned = jest.fn();
+  const label = "OpenAI compaction up to here";
+  const rendered = render(
+    <ThemeProvider theme={lightTheme}>
+      <ActionsMenuBar
+        title="Message actions"
+        baseActions={[
+          { key: "compact", label, iconName: "archive" },
+          { key: "fork", label: "Fork here", iconName: "git-branch" },
+        ]}
+        pinned={[]}
+        onChangePinned={onChangePinned}
+        onAction={onAction}
+        isActionDisabled={(key) => key === "compact"}
+        renderIcon={({ name }) => <Text>{name}</Text>}
+      />
+    </ThemeProvider>
+  );
+  fireEvent.press(rendered.getByLabelText("Open Message actions"));
+  expect(rendered.getByTestId("actions-menu-label-compact").props.numberOfLines).toBe(2);
+  fireEvent.press(rendered.getByTestId("actions-menu-action-compact"));
+  expect(onAction).not.toHaveBeenCalled();
+  fireEvent.press(rendered.getByTestId("actions-menu-pin-compact"));
+  expect(onChangePinned).toHaveBeenCalledWith(["compact"]);
+  expect(rendered.getByLabelText(label)).toBeTruthy();
+  fireEvent.press(rendered.getByTestId("actions-menu-action-fork"));
+  expect(onAction).toHaveBeenCalledWith("fork");
+  expect(rendered.queryByTestId("actions-menu-label-compact")).toBeNull();
+});
+
+test("custom application menu rows use two lines and dispatch the original element", () => {
+  const onExecuteAction = jest.fn();
+  const action = {
+    ui_type: "application_action" as const,
+    plugin: "reports",
+    id: "usage",
+    action_id: "usage",
+    label: "Show detailed usage and costs for all workspaces",
+    icon: "bar-chart",
+    dialog: { kind: "none" as const },
+  };
+  const rendered = render(
+    <ThemeProvider theme={lightTheme}>
+      <ApplicationActionsMenu
+        actions={[action]}
+        onExecuteAction={onExecuteAction}
+        renderIcon={({ name }) => <Text>{name}</Text>}
+      />
+    </ThemeProvider>
+  );
+  fireEvent.press(rendered.getByTestId("application-actions-menu"));
+  expect(rendered.getByText(action.label).props.numberOfLines).toBe(2);
+  fireEvent.press(rendered.getByTestId("application-action-reports-usage"));
+  expect(onExecuteAction).toHaveBeenCalledWith(action);
 });

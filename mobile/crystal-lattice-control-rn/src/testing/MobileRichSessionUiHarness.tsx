@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Button, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import type {
@@ -17,6 +17,8 @@ import {
 import SessionChatScreen from "../SessionChatScreen";
 import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
 import { ThemeProvider, lightTheme } from "../theme";
+import MessageActionsBar from "../components/MessageActionsBar";
+import menuLabelActions from "../../../../test/fixture/action-menu-labels.json";
 
 const SESSION_ID = "rich-session-ui";
 const CONNECTION_ID = "rich-session-ui-followup-v2";
@@ -337,6 +339,8 @@ export function MobileRichSessionUiHarness(props: {
   const activeRequestId = props.activeRequestId ?? null;
   const [model, setModel] = useState("claude-a");
   const [lastAction, setLastAction] = useState("none");
+  const [messagePins, setMessagePins] = useState<string[]>([]);
+  const [longMenu, setLongMenu] = useState(false);
   const backend = useMemo(
     () =>
       createHarnessBackend({
@@ -366,7 +370,24 @@ export function MobileRichSessionUiHarness(props: {
           <View style={styles.statusRow}>
             <Text testID="rich-session-ui-model">{model}</Text>
             <Text testID="rich-session-ui-last-action">{lastAction}</Text>
+            <Button
+              title="Long action menu"
+              testID="message-menu-long-list"
+              onPress={() => setLongMenu(true)}
+            />
           </View>
+          <MessageActionsBar
+            pinned={messagePins}
+            onChangePinned={setMessagePins}
+            onAction={setLastAction}
+            extraActions={longMenu ? [
+              ...menuLabelActions,
+              ...Array.from({ length: 18 }, (_, index) => ({
+                ...menuLabelActions[1],
+                key: `long-${index}`,
+              })),
+            ] : menuLabelActions}
+          />
           <PinnedActionsProvider>
             <HomeWorkspaceProvider>
               <WatchlistStateMarker />
