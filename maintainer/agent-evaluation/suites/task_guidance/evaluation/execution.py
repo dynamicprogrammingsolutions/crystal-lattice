@@ -10,6 +10,8 @@ upstream records are missing or hold no valid subject.
 
 from __future__ import annotations
 
+import json
+
 import hashlib
 from typing import Callable, Mapping
 
@@ -1014,6 +1016,31 @@ def execute_plan_content_assessment(
             )
 
 
+JUDGE_JSON_RETRIES = 2
+
+
+def _parse_judge_response(run, parse, rerun):
+    """Parse a judge JSON response, retrying malformed output.
+
+    A judge response that still fails JSON parsing (after the parsers'
+    own fence/brace fallback) is re-requested up to ``JUDGE_JSON_RETRIES``
+    times within the same logical assessment; re-runs bypass the cache
+    read so the same malformed response is not re-served, and a
+    successful final retry becomes the cached one.
+    """
+
+    current = run
+    for retry in range(JUDGE_JSON_RETRIES + 1):
+        value = _require_assessment_value(current)
+        try:
+            return parse(value.response), current
+        except json.JSONDecodeError:
+            if retry == JUDGE_JSON_RETRIES:
+                raise
+        current = rerun()[0]
+    raise AssertionError("unreachable retry loop")  # pragma: no cover
+
+
 def execute_file_fidelity_assessment(
     harness_factory: HarnessFactory,
     run_label: str,
@@ -1048,9 +1075,21 @@ def execute_file_fidelity_assessment(
             samples=samples,
         )
         for run in runs:
-            value = _require_assessment_value(run)
+            judge_parsed, run = _parse_judge_response(
+                run,
+                parse_file_fidelity,
+                lambda: harness.run_assessment(
+                    test_id=(
+                        f"task-guidance-file-fidelity-{scenario.scenario_id}-"
+                        f"{subject.profile}-{subject.effort}-s{subject.sample_index}"
+                    ),
+                    prompt=prompt,
+                    reasoning_effort=judge_effort,
+                    fresh=True,
+                ),
+            )
             parsed = normalize_file_fidelity(
-                parse_file_fidelity(value.response),
+                judge_parsed,
                 scenario=scenario,
             )
             validate_file_fidelity(parsed)
@@ -1102,9 +1141,21 @@ def execute_file_readability_assessment(
             samples=samples,
         )
         for run in runs:
-            value = _require_assessment_value(run)
+            judge_parsed, run = _parse_judge_response(
+                run,
+                parse_file_readability,
+                lambda: harness.run_assessment(
+                    test_id=(
+                        f"task-guidance-file-readability-{scenario.scenario_id}-"
+                        f"{subject.profile}-{subject.effort}-s{subject.sample_index}"
+                    ),
+                    prompt=prompt,
+                    reasoning_effort=judge_effort,
+                    fresh=True,
+                ),
+            )
             parsed = normalize_file_readability(
-                parse_file_readability(value.response),
+                judge_parsed,
                 scenario=scenario,
                 record=subject.record,
             )
