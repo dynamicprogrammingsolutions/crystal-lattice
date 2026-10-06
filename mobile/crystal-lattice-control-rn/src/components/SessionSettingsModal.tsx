@@ -25,6 +25,7 @@ import {
   buildSessionSettingItems,
   SessionSettingsHost,
   usePluginActionDialog,
+  useDisplayFollowupDialog,
   useSessionSettingsController,
   type SessionSettingRenderCtx,
   type SessionSettingsRenderers,
@@ -222,7 +223,8 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const executeSettingsAction = useCallback(
     async (
       element: ActionUiElement,
-      dialogValues: Record<string, any> | undefined
+      dialogValues: Record<string, any> | undefined,
+      formValues?: Record<string, any>
     ) => {
       if (!backend) {
         Alert.alert("No connection", "Connect to a server to run actions.");
@@ -241,6 +243,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
           context: {
             sessionId,
             dialogValues,
+            formValues,
             clientValues,
           },
           effects: {
@@ -269,6 +272,11 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
       }
     },
     [acquireClientValues, backend, controller, sessionId]
+  );
+  const displayFollowupDialog = useDisplayFollowupDialog<null>(
+    async (element, { formValues }, values) => {
+      await executeSettingsAction(element, values, formValues);
+    }
   );
 
   const {
@@ -1083,6 +1091,23 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         display={actionDisplay}
         onRequestClose={() => setActionDisplay(null)}
         fieldRenderers={actionDialogFieldRenderers}
+        onOverlayRequestClose={displayFollowupDialog.handleCancel}
+        onFollowupAction={(action, formValues) => {
+          if (action.kind === "run_action" && actionDisplay) {
+            displayFollowupDialog.openForAction(action, actionDisplay, null, formValues);
+          }
+        }}
+        overlayChildren={displayFollowupDialog.activeElement ? (
+          <ApplicationActionDialog
+            presentationMode="overlay"
+            visible
+            dialog={displayFollowupDialog.activeElement.dialog}
+            titleFallback={displayFollowupDialog.activeElement.label}
+            fieldRenderers={actionDialogFieldRenderers}
+            onSubmit={displayFollowupDialog.handleSubmit}
+            onCancel={displayFollowupDialog.handleCancel}
+          />
+        ) : null}
       />
     </>
   );

@@ -224,14 +224,52 @@ For manual testing, the `plugins/dummy-action-display-form-app` plugin exposes
 a `Show display form` session action that returns an embedded form and echoes
 submitted values in a confirmation display.
 
-### Future follow-up dialog proposal
+### Follow-up action dialogs
 
-Some workflows may eventually need a display action that opens a separate form
-dialog rather than showing fields inline in the display. The proposed future
-shape is for a `run_action` display action to include a `dialog` object that
-reuses the same action-dialog schema, with submitted values mapped through
-`$dialog.<field_name>`. This is not part of the current implemented contract;
-it is tracked in `tasks/20260620-action-display-followup-dialogs.md`.
+A display follow-up of kind `run_action` can include `dialog` using the ordinary
+action-dialog schema. Mobile opens the production action dialog; macOS uses its
+native dialog presenter, with a dialog window for globally presented results.
+A follow-up without a dialog, or with `kind: "none"`, executes immediately.
+
+```json
+{
+  "kind": "run_action",
+  "id": "edit-value",
+  "label": "Enter value",
+  "plugin": "example",
+  "action_id": "save_value",
+  "fixed_params": {"source": "result"},
+  "param_map": {
+    "value": "$dialog.value",
+    "note": "$form.note"
+  },
+  "dialog": {
+    "kind": "form",
+    "title": "Edit value",
+    "inputs": [
+      {"name": "value", "type": "string", "label": "Value", "required": true}
+    ]
+  },
+  "preserve_display": true
+}
+```
+
+`$dialog.<field>` addresses the separate dialog; `$form.<field>` still addresses
+the originating [embedded display form](#embedded-display-forms), if present.
+The frontend retains the originating action context and embedded values while
+the dialog is open. Cancel closes the dialog without executing the action or
+removing the source result. Form validation runs before submission.
+
+Opening a dialog does not dismiss the source display. After submission,
+`preserve_display` applies through the host's existing result-presentation
+policy: `true` retains the source unless a returned display replaces it; other
+values allow the host to remove the source when execution starts. Dialog
+submission uses the same action runner, parameter mapping, and session-scoped
+endpoint selection as ordinary actions.
+
+The neutral `plugins/dummy-action-display-form-app` demonstration package
+contributes **Show follow-up dialog**, which returns a result with **Enter
+value**. Submit its generic form to see the echoed value in the next result.
 
 ## Dynamic lifecycle names
 

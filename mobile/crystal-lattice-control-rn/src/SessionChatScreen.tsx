@@ -100,6 +100,7 @@ import {
 import {
   useChatController,
   useAgentsController,
+  useDisplayFollowupDialog,
 } from "@crystal-lattice/frontend-sdk-react";
 import {
   buildConfigSchemaByKey,
@@ -2472,6 +2473,29 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ]
   );
 
+  const displayFollowupDialog = useDisplayFollowupDialog<ActionDisplayEntry>(
+    async (element, { action, source: entry, formValues }, dialogValues) => {
+      if (
+        (entry.display.presentation ?? "modal") !== "inline" &&
+        action.preserve_display !== true
+      ) {
+        setActionResultDisplay((current) =>
+          current?.key === entry.key ? null : current
+        );
+      }
+      setActiveDisplayActionId(action.id);
+      try {
+        await executePluginAction(element, {
+          ...entry.context,
+          formValues,
+          dialogValues,
+        });
+      } finally {
+        setActiveDisplayActionId(null);
+      }
+    }
+  );
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -2513,41 +2537,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
       if (action.kind === "run_action") {
-        if (
-          (entry.display.presentation ?? "modal") !== "inline" &&
-          action.preserve_display !== true
-        ) {
-          setActionResultDisplay((current) =>
-            current?.key === entry.key ? null : current
-          );
-        }
-        setActiveDisplayActionId(action.id);
-        try {
-          await executePluginAction(
-            {
-              ui_type: "action_result_followup",
-              plugin: action.plugin,
-              id: action.id,
-              label: action.label,
-              action_id: action.action_id,
-              action_owner: action.action_owner,
-              fixed_params: action.fixed_params as
-                | Record<string, any>
-                | undefined,
-              param_map: action.param_map,
-              form: entry.display.form,
-            },
-            {
-              ...entry.context,
-              formValues,
-            }
-          );
-        } finally {
-          setActiveDisplayActionId(null);
-        }
+        displayFollowupDialog.openForAction(action, entry.display, entry, formValues);
       }
     },
-    [backend, executePluginAction]
+    [backend, displayFollowupDialog.openForAction]
   );
 
   const recoverChatAfterResume = useCallback(
@@ -2689,7 +2682,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setImageAttachVisible(false);
     setImageAttachElement(null);
     handleCancelPluginDialog();
-  }, [handleCancelPluginDialog]);
+    displayFollowupDialog.handleCancel();
+  }, [handleCancelPluginDialog, displayFollowupDialog.handleCancel]);
 
   useEffect(() => {
     if (isActive) return;
@@ -5778,7 +5772,41 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             );
           }}
           fieldRenderers={actionDialogFieldRenderers}
+          onOverlayRequestClose={displayFollowupDialog.handleCancel}
+          overlayChildren={displayFollowupDialog.activeElement ? (
+            <ApplicationActionDialog
+              presentationMode="overlay"
+              visible={!!displayFollowupDialog.activeElement}
+              dialog={displayFollowupDialog.activeElement?.dialog}
+              titleFallback={displayFollowupDialog.activeElement?.label}
+              prefillContext={{
+                session: displayFollowupDialog.context?.source.context.sessionSummary,
+                message: displayFollowupDialog.context?.source.context.messageContext
+                  ? {
+                      index: displayFollowupDialog.context.source.context.messageContext.index,
+                      ...displayFollowupDialog.context.source.context.messageContext.message,
+                    }
+                  : undefined,
+              }}
+              fieldRenderers={actionDialogFieldRenderers}
+              onSubmit={displayFollowupDialog.handleSubmit}
+              onCancel={displayFollowupDialog.handleCancel}
+            />
+          ) : null}
         />
+        {!actionResultDisplay ? (
+          <ApplicationActionDialog
+            visible={!!displayFollowupDialog.activeElement}
+            dialog={displayFollowupDialog.activeElement?.dialog}
+            titleFallback={displayFollowupDialog.activeElement?.label}
+            prefillContext={{
+              session: displayFollowupDialog.context?.source.context.sessionSummary,
+            }}
+            fieldRenderers={actionDialogFieldRenderers}
+            onSubmit={displayFollowupDialog.handleSubmit}
+            onCancel={displayFollowupDialog.handleCancel}
+          />
+        ) : null}
         {debugVisible && (
           <View style={styles.debugOverlay}>
             <DebugEventsView

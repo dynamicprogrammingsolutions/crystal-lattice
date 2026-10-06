@@ -3,6 +3,8 @@ export type { AgentDescriptor } from "./types/agents";
 export type { AgentPluginEntry } from "./types/agentPlugins";
 export { normalizeAgentPluginEntries } from "./types/agentPlugins";
 
+export { buildDisplayFollowupActionElement } from './plugins/displayFollowupAction';
+
 export type {
   SessionSummary,
   SessionSummaryPresentation,

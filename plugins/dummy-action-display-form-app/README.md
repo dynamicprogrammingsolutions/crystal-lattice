@@ -15,6 +15,13 @@ Submit maps values through `$form.<field>` and returns a confirmation display.
 Cancel uses the generic `dismiss` action and should close the display without a
 backend call.
 
+The separate **Show follow-up dialog** action returns a neutral result with an
+**Enter value** button. The button opens the ordinary action dialog containing
+a required value and an optional note. Cancel leaves the source result intact;
+submit maps `$dialog.value` and `$dialog.note` to a backend action and returns
+**Follow-up submitted**, echoing both values. This flow is also used by SDK,
+mobile, and desktop integration tests.
+
 Example config entry:
 
 ```json

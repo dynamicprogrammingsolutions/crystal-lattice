@@ -30,14 +30,17 @@ import {
   type NotificationDismissalCacheState,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ApplicationActionDialog,
   NotificationBannerHost,
   type NotificationBannerHostItem,
 } from '@crystal-lattice/frontend-rn-components';
+import { useDisplayFollowupDialog } from '@crystal-lattice/frontend-sdk-react';
 
 import { useApplicationPlugins } from '../ApplicationPluginsContext';
 import ActionResultInlineCard from './ActionResultInlineCard';
 import ActionResultModal from './ActionResultModal';
 import { handleGeneratedFileFollowupAction } from '../utils/generatedFileActions';
+import { useMobileApplicationActionDialogFieldRenderers } from './applicationActionDialogRenderers';
 
 interface GlobalDisplayLayerProps {
   backend: AgentBackend | null;
@@ -53,7 +56,11 @@ interface GlobalDisplayContextValue {
   followup: (
     action: ActionDisplayFollowupAction,
     envelope: DisplayEnvelope,
+    formValues?: Record<string, any>,
   ) => Promise<void>;
+  followupDialog: React.ReactNode;
+  cancelFollowupDialog: () => void;
+  followupDialogSourceKey?: string;
 }
 
 const GlobalDisplayContext = createContext<GlobalDisplayContextValue | null>(null);
@@ -84,6 +91,7 @@ export function MobileDisplayHost({
   testID?: string;
 }): React.JSX.Element | null {
   const context = useContext(GlobalDisplayContext);
+  const fieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const items = useMemo(() => {
     if (!context) return [];
     return context.items.filter((envelope) => {
@@ -124,11 +132,12 @@ export function MobileDisplayHost({
             <ActionResultInlineCard
               key={envelope.id}
               display={envelope.display}
+              fieldRenderers={fieldRenderers}
               onDismiss={() => {
                 void context.dismiss(envelope);
               }}
-              onFollowupAction={(action) => {
-                void context.followup(action, envelope);
+              onFollowupAction={(action, formValues) => {
+                void context.followup(action, envelope, formValues);
               }}
             />
           ))}
@@ -137,13 +146,19 @@ export function MobileDisplayHost({
       <ActionResultModal
         visible={modal !== null}
         display={modal?.display ?? null}
+        fieldRenderers={fieldRenderers}
         testID="global-notification-modal"
         onRequestClose={() => {
           if (modal) void context.dismiss(modal);
         }}
-        onFollowupAction={(action) => {
-          if (modal) void context.followup(action, modal);
+        onFollowupAction={(action, formValues) => {
+          if (modal) void context.followup(action, modal, formValues);
         }}
+        overlayChildren={
+          modal && displayEnvelopeLifecycleKey(modal) === context.followupDialogSourceKey
+            ? context.followupDialog : null
+        }
+        onOverlayRequestClose={context.cancelFollowupDialog}
       />
     </>
   );
@@ -155,6 +170,7 @@ export default function GlobalDisplayLayer({
   children,
 }: GlobalDisplayLayerProps): React.JSX.Element | null {
   const { actionsById, actionsByKey = {} } = useApplicationPlugins();
+  const fieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const [transientItems, setTransientItems] = useState<DisplayEnvelope[]>([]);
   const [applicationNotifications, setApplicationNotifications] = useState<
     ApplicationNotification[]
@@ -321,43 +337,19 @@ export default function GlobalDisplayLayer({
     [backend, connectionId, dismissalCache, dismissLocally],
   );
 
-  const followup = useCallback(
-    async (action: ActionDisplayFollowupAction, envelope: DisplayEnvelope) => {
-      if (action.kind === 'dismiss') {
-        await dismiss(envelope);
-        return;
-      }
-      if (action.kind === 'open_url') {
-        await Linking.openURL(action.url);
-        return;
-      }
-      if (action.kind === 'copy_text') {
-        Clipboard.setString(action.text);
-        return;
-      }
-      if (action.kind === 'download_attachment_asset' && backend) {
-        await handleGeneratedFileFollowupAction({ backend, action });
-        return;
-      }
-      if (action.kind !== 'run_action' || !backend) return;
-
+  const followupDialog = useDisplayFollowupDialog<DisplayEnvelope>(
+    async (element, { source: envelope, formValues }, dialogValues) => {
+      if (!backend) return;
       const result = await runApplicationAction({
         backend,
-        element: {
-          ui_type: 'display_followup',
-          plugin: action.plugin,
-          id: action.id,
-          label: action.label,
-          action_id: action.action_id,
-          action_owner: action.action_owner,
-          fixed_params: action.fixed_params as Record<string, any> | undefined,
-          param_map: action.param_map,
-        },
+        element,
         actionsById,
         actionsByKey,
         context: {
           connectionId: connectionId ?? undefined,
           sessionId: envelope.sessionId ?? undefined,
+          formValues,
+          dialogValues,
         },
       });
       if (!result.ok) {
@@ -377,8 +369,37 @@ export default function GlobalDisplayLayer({
         );
       }
     },
-    [actionsById, actionsByKey, backend, connectionId, dismiss],
   );
+  const followup = useCallback(
+    async (
+      action: ActionDisplayFollowupAction,
+      envelope: DisplayEnvelope,
+      formValues?: Record<string, any>,
+    ) => {
+      if (action.kind === 'dismiss') {
+        await dismiss(envelope);
+        return;
+      }
+      if (action.kind === 'open_url') {
+        await Linking.openURL(action.url);
+        return;
+      }
+      if (action.kind === 'copy_text') {
+        Clipboard.setString(action.text);
+        return;
+      }
+      if (action.kind === 'download_attachment_asset' && backend) {
+        await handleGeneratedFileFollowupAction({ backend, action });
+        return;
+      }
+      if (action.kind !== 'run_action' || !backend) return;
+      followupDialog.openForAction(action, envelope.display, envelope, formValues);
+    },
+    [backend, dismiss, followupDialog.openForAction],
+  );
+  useEffect(() => {
+    followupDialog.handleCancel();
+  }, [backend, connectionId, followupDialog.handleCancel]);
 
   if (!backend) return <>{children}</>;
   const applicationItems = applicationNotifications
@@ -429,6 +450,18 @@ export default function GlobalDisplayLayer({
         }) === revisionKey,
     );
   });
+  const hasModal = followupDialog.context?.source.display.presentation === 'modal';
+  const dialogContent = followupDialog.activeElement ? (
+    <ApplicationActionDialog
+      presentationMode={hasModal ? 'overlay' : 'native'}
+      visible={!!followupDialog.activeElement}
+      dialog={followupDialog.activeElement?.dialog}
+      titleFallback={followupDialog.activeElement?.label}
+      fieldRenderers={fieldRenderers}
+      onSubmit={followupDialog.handleSubmit}
+      onCancel={followupDialog.handleCancel}
+    />
+  ) : null;
   return (
     <GlobalDisplayContext.Provider
       value={{
@@ -437,9 +470,14 @@ export default function GlobalDisplayLayer({
         dismissalCacheState,
         dismiss,
         followup,
+        followupDialog: dialogContent,
+        cancelFollowupDialog: followupDialog.handleCancel,
+        followupDialogSourceKey: followupDialog.context
+          ? displayEnvelopeLifecycleKey(followupDialog.context.source) : undefined,
       }}
     >
       {children}
+      {!hasModal ? dialogContent : null}
     </GlobalDisplayContext.Provider>
   );
 }

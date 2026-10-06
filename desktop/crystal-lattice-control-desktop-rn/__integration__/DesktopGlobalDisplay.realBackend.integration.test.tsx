@@ -1,10 +1,28 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import {
   FetchTransport,
   RestAgentBackend,
+  emitDisplayPresentation,
+  normalizeDisplayEnvelope,
+  runApplicationAction,
+  type ActionUiElement,
 } from '@crystal-lattice/frontend-sdk';
+jest.mock('react-native/Libraries/Utilities/Platform', () => ({
+  default: { OS: 'macos', select: (values: any) => values.macos ?? values.default },
+}));
+jest.mock('@crystal-lattice/frontend-rn-components', () => ({
+  ...jest.requireActual('@crystal-lattice/frontend-rn-components'),
+}));
+jest.mock('../src/windows/desktopWindowManager', () => ({
+  DesktopWindowManager: {
+    openReactWindow: jest.fn(), closeReactWindow: jest.fn(),
+    openApplicationActionDialogWindow: jest.fn(), closeApplicationActionDialogWindow: jest.fn(),
+    openApplicationActionDialogPopover: jest.fn(), closeApplicationActionDialogPopover: jest.fn(),
+  },
+  desktopWindowEvents: null,
+}));
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 import { startBackendServer, type StartedServer } from '../../../packages/frontend-sdk/src/integration/harness';
 
@@ -14,6 +32,8 @@ import {
   DesktopGlobalDisplayLayer,
 } from '../src/ui/DesktopGlobalDisplayLayer';
 import { DesktopSessionNotificationRail } from '../src/ui/DesktopSessionNotificationRail';
+import { ApplicationActionDialogWindow } from '../src/windows/ApplicationActionDialogWindow';
+import { clearActiveApplicationActionDialog } from '../src/windows/applicationActionDialogCoordinator';
 
 const CONFIG = {
   providers: {
@@ -24,15 +44,53 @@ const CONFIG = {
     'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
     'path:${env:REPO_ROOT}/plugins/dummy-application-notification-app',
     'path:${env:REPO_ROOT}/plugins/dummy-session-notification-app',
+    'path:${env:REPO_ROOT}/plugins/dummy-action-display-form-app',
   ],
 };
 
 let started: StartedServer | null = null;
 
 afterEach(async () => {
+  clearActiveApplicationActionDialog();
   await started?.stop();
   started = null;
 });
+
+test('submits a neutral follow-up through the production desktop dialog and real HTTP backend', async () => {
+  started = await startBackendServer({ config: CONFIG, startupTimeoutMs: 30000 });
+  const backend = new RestAgentBackend({ transport: new FetchTransport({ baseUrl: started.baseUrl }) });
+  const created = await backend.createSession({ agentId: 'default' });
+  const sessionId = created.session.session_id;
+  const schema = await backend.getSessionApplicationUiSchema(sessionId, {
+    pluginId: 'dummy_action_display_form_app',
+  });
+  const shown = await runApplicationAction({
+    backend,
+    element: schema.find((item: any) => item.id === 'dummy_show_followup_dialog') as ActionUiElement,
+    actionsById: {}, context: { sessionId },
+  });
+  const rendered = render(
+    <ThemeProvider theme={buildDesktopTheme(null)}>
+      <DesktopGlobalDisplayLayer
+        openConnectionsById={{ local: { status: 'open', baseUrl: started.baseUrl, backend } }}
+        connectionNameById={{ local: 'Fixture backend' }}
+      >
+        <DesktopConnectionDisplayRail />
+        <ApplicationActionDialogWindow presentation="window" />
+      </DesktopGlobalDisplayLayer>
+    </ThemeProvider>,
+  );
+  act(() => emitDisplayPresentation(backend, normalizeDisplayEnvelope({
+    source: 'action_response', connectionId: 'local', sessionId,
+    ownershipScope: 'connection', display: shown.display!,
+  })));
+  fireEvent.press(screen.getByText('Enter value'));
+  fireEvent.changeText(screen.getByTestId('action-form-input-value'), 'Desktop HTTP value');
+  fireEvent.press(screen.getByTestId('application-action-dialog-primary'));
+  await waitFor(() => expect(screen.getByText('Follow-up submitted')).toBeTruthy());
+  expect(screen.getByText('Value: Desktop HTTP value\nNote: ')).toBeTruthy();
+  rendered.unmount();
+}, 60000);
 
 test(
   'hydrates and dismisses a real application notification in the desktop rail',
