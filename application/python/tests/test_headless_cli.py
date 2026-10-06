@@ -251,6 +251,103 @@ def test_agents_and_json_run_follow_up_and_history(tmp_path: Path) -> None:
     assert full_payload["message"]["content"] == "SYS= | USER=follow-up CLI task"
 
 
+def test_agent_details_and_ephemeral_run_with_request_settings(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+
+    agents = _run(
+        tmp_path,
+        config,
+        sessions,
+        "agents",
+        "--details",
+        "--format",
+        "json",
+    )
+    assert agents.returncode == 0, agents.stderr
+    descriptors = _json_stdout(agents)["agent_descriptors"]
+    assert [item["id"] for item in descriptors] == ["alpha", "beta"]
+    assert descriptors[0]["provider_route"] == "deterministic"
+    assert descriptors[0]["provider_plugin"] == "deterministic_stream"
+    assert descriptors[0]["effective_settings"]["model"] == "cli-test"
+
+    text_agents = _run(
+        tmp_path,
+        config,
+        sessions,
+        "agents",
+        "--details",
+    )
+    assert text_agents.returncode == 0, text_agents.stderr
+    assert text_agents.stdout.splitlines() == [
+        "alpha\tdeterministic\tcli-test\t",
+        "beta\tdeterministic\tcli-test\t",
+    ]
+
+    result = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--ephemeral",
+        "--set",
+        "model=temporary-model",
+        "--prompt",
+        "inspect safely",
+        "--format",
+        "json",
+    )
+    assert result.returncode == 0, result.stderr
+    payload = _json_stdout(result)
+    assert payload["status"] == "succeeded"
+    assert payload["persistence"] == "ephemeral"
+    assert isinstance(payload["session_id"], str)
+    assert payload["session_id"]
+    assert payload["output_text"] == "SYS= | USER=inspect safely"
+    assert "(ephemeral)" not in result.stdout
+    assert not list(sessions.glob("*.json"))
+
+
+def test_ephemeral_cli_rejects_follow_up_and_malformed_setting(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+
+    follow_up = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--session",
+        "session-id",
+        "--ephemeral",
+        "--prompt",
+        "follow up",
+    )
+    assert follow_up.returncode == 2
+    assert "--ephemeral cannot be combined with --session" in follow_up.stderr
+
+    malformed = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--set",
+        "model",
+        "--prompt",
+        "inspect",
+    )
+    assert malformed.returncode == 2
+    assert "--set must use KEY=VALUE" in malformed.stderr
+
+
 def test_sessions_and_messages_commands_chain_text_and_json(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "config.json")
     sessions = tmp_path / "sessions"

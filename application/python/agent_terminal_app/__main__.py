@@ -692,6 +692,8 @@ def _resolve_config_and_session_paths(
 _LOCAL_HEADLESS_COMMANDS = frozenset(
     {"agents", "run", "history", "sessions", "messages"}
 )
+_MAX_RUN_SETTING_ASSIGNMENTS = 64
+_MAX_RUN_SETTING_ASSIGNMENT_CHARS = 4096
 
 
 def _command_parser(name: str, description: str) -> argparse.ArgumentParser:
@@ -722,6 +724,11 @@ def _run_agents_command(
         choices=["text", "json"],
         default="text",
     )
+    command_parser.add_argument(
+        "--details",
+        action="store_true",
+        help="include safe effective defaults and configurable fields",
+    )
     parsed = command_parser.parse_args(command_args)
 
     from .local_runtime import open_runtime
@@ -735,12 +742,31 @@ def _run_agents_command(
                 env_overrides=env_overrides,
             ) as runtime:
                 agents = runtime.list_agents()
+                descriptors = runtime.list_agent_descriptors() if parsed.details else ()
     except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
 
     if parsed.format == "json":
-        print(json.dumps({"agents": list(agents)}, ensure_ascii=False))
+        payload: dict[str, Any] = {"agents": list(agents)}
+        if parsed.details:
+            payload["agent_descriptors"] = list(descriptors)
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+    if parsed.details:
+        for descriptor in descriptors:
+            settings = descriptor.get("effective_settings")
+            settings = settings if isinstance(settings, dict) else {}
+            print(
+                "\t".join(
+                    (
+                        str(descriptor.get("id") or ""),
+                        str(descriptor.get("provider_route") or ""),
+                        str(settings.get("model") or ""),
+                        str(settings.get("reasoning_effort") or ""),
+                    )
+                )
+            )
         return
     for agent_id in agents:
         print(agent_id)
@@ -765,6 +791,38 @@ def _read_run_prompt(
     if not isinstance(prompt, str) or not prompt.strip():
         command_parser.error("prompt must not be empty")
     return prompt
+
+
+def _parse_run_setting_assignments(
+    assignments: list[str],
+    command_parser: argparse.ArgumentParser,
+) -> dict[str, Any]:
+    if len(assignments) > _MAX_RUN_SETTING_ASSIGNMENTS:
+        command_parser.error(
+            f"--set may be repeated at most {_MAX_RUN_SETTING_ASSIGNMENTS} times"
+        )
+
+    overrides: dict[str, Any] = {}
+    for assignment in assignments:
+        if len(assignment) > _MAX_RUN_SETTING_ASSIGNMENT_CHARS:
+            command_parser.error(
+                "--set assignment exceeds "
+                f"{_MAX_RUN_SETTING_ASSIGNMENT_CHARS} characters"
+            )
+        if "=" not in assignment:
+            command_parser.error("--set must use KEY=VALUE")
+        key, raw_value = assignment.split("=", 1)
+        key = key.strip()
+        if not key:
+            command_parser.error("--set key must not be empty")
+        if any(character.isspace() for character in key):
+            command_parser.error("--set key must not contain whitespace")
+        try:
+            value = json.loads(raw_value)
+        except json.JSONDecodeError:
+            value = raw_value
+        overrides[key] = value
+    return overrides
 
 
 def _run_agent_command(
@@ -793,8 +851,26 @@ def _run_agent_command(
     )
     command_parser.add_argument("--timeout", type=float, default=None)
     command_parser.add_argument("--no-progress", action="store_true")
+    command_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "apply one request-scoped setting; JSON values are decoded and "
+            "other values remain strings"
+        ),
+    )
+    command_parser.add_argument(
+        "--ephemeral",
+        action="store_true",
+        help="run without retaining a session; follow-ups are unavailable",
+    )
     parsed = command_parser.parse_args(command_args)
+    if parsed.ephemeral and parsed.session is not None:
+        command_parser.error("--ephemeral cannot be combined with --session")
     prompt = _read_run_prompt(parsed, command_parser)
+    overrides = _parse_run_setting_assignments(parsed.set, command_parser)
 
     from .local_runtime import open_runtime
 
@@ -810,10 +886,12 @@ def _run_agent_command(
                     prompt,
                     agent_id=parsed.agent,
                     session_id=parsed.session,
+                    overrides=overrides,
                     timeout=parsed.timeout,
                     on_progress=(
                         None if parsed.no_progress else _render_progress_to_stderr
                     ),
+                    persistence=("ephemeral" if parsed.ephemeral else "persisted"),
                 )
     except KeyboardInterrupt as exc:
         print("Agent request interrupted", file=sys.stderr)
@@ -827,10 +905,16 @@ def _run_agent_command(
     else:
         if result.output_text:
             print(result.output_text)
-        print(
-            f"[session] {result.session_id} (request={result.request_id})",
-            file=sys.stderr,
-        )
+        if result.persistence == "persisted":
+            print(
+                f"[session] {result.session_id} (request={result.request_id})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"[request] {result.request_id} (ephemeral)",
+                file=sys.stderr,
+            )
 
     if result.status == "succeeded":
         return

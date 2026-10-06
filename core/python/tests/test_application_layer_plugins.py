@@ -329,6 +329,49 @@ def test_agent_profile_plugins_report_safe_effective_defaults(tmp_path: Path) ->
     assert "must-not-be-exposed" not in repr(plugins)
 
 
+def test_agent_run_descriptor_exposes_safe_defaults_and_schema(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "api_key": "must-not-be-exposed",
+            }
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "reasoning_effort": "high",
+                "display": {
+                    "title": "Default agent",
+                    "description": "Safe descriptor",
+                },
+            }
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+    descriptor = app.describe_agent_run("default")
+
+    assert descriptor["id"] == "default"
+    assert descriptor["title"] == "Default agent"
+    assert descriptor["provider_route"] == "primary"
+    assert descriptor["provider_plugin"] == "dummy_provider"
+    assert descriptor["effective_settings"] == {
+        "model": "test-model",
+        "reasoning_effort": "high",
+    }
+    schema_keys = {
+        entry.get("key")
+        for entry in descriptor["config_schema"]
+        if isinstance(entry, dict)
+    }
+    assert "model" in schema_keys
+    assert "api_key" not in schema_keys
+    assert "must-not-be-exposed" not in repr(descriptor)
+
+
 def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> None:
     config = {
         "providers": {
