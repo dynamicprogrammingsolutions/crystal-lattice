@@ -102,7 +102,7 @@ is explicitly decided.
 - [x] The old "Treat sessions as workspaces, not disposable chats" section
       is removed or merged into the workspace highlight; it does not repeat
       the same feature pitch as a separate section.
-- [ ] The message action currently labeled "Compact native history up to here"
+- [x] The message action currently labeled "Compact native history up to here"
       is renamed "OpenAI compaction up to here". Action popups and other
       popups sharing their menu design allow one line break (two lines) on
       both Desktop and mobile so complete action names remain visible.
@@ -134,28 +134,33 @@ is explicitly decided.
 
 ## Current approval boundary and questions
 
-The October 5, 2026 user review supersedes the October 4 in-page candidate.
-The user approved the plan, selected "OpenAI compaction up to here", and added
-two-line wrapping across Desktop/mobile action popups and other popups sharing
-that design. The prior turn completed only the initial layout restoration and
-stopped for review before product changes or new asset production.
-The frame/scroll/alignment pass is implemented. The user accepted its scrolling
-mechanics and requested the full reference frame treatment, chevrons, bottom
-dots, and removal of everything below the image. Work paused before those
-refinements were implemented.
+The reviewed Solution B website layout is committed on main as `82906d10`
+(`Refine homepage feature visuals`). Four compact features serve end users;
+two expanded features support deeper inspection. Order and width remain
+content-configurable. Frames belong to individual images, with optional
+image-specific headings above the screenshot, dots below the card, and
+chevrons over the screenshot sides.
 
-The user selected Solution B and authorized execution of the common
-refinements. The first four features serve end users; the two expanded
-features serve readers who want deeper inspection. Keep order and width
-content-configurable so A or another arrangement remains easy to try.
-The user reviewed the corrected layout, authorized its commit on main, and
-authorized the next product checkpoint on develop. Stop after demonstrating
-and verifying the popup/label changes, before new capture work or product merge.
+The user authorized the next product checkpoint on develop: two-line names
+in shared Desktop/mobile popups, measured Desktop action-popup sizing, and
+the message label/confirmation title **OpenAI compaction up to here**.
+Implementation and verification are complete for this checkpoint, including
+macOS and iOS native checks. On October 6 the user authorized its commit and
+requested a plan for the next step. The popup checkpoint is committed on
+develop as `9e053402` (`Improve action menu readability`). This request does
+not start capture/composition work.
 
-Latest clarification: the frame belongs to each image, not the entire feature
-section. Image-specific titles/descriptions may appear at the top of that
-card. Dots belong below the card; chevrons overlay the sides at the screenshot
-center. Apply this correction on main without changing B's order/width choices.
+The next-checkpoint plan below is **Draft**. It covers only the first Session
+actions relationship image in the existing homepage highlight, with another
+human review stop before the remaining images.
+
+**Decision for approval:** recommend integrating only `9e053402` into main at
+the start of this website-use checkpoint, so all new capture-only code,
+website work, documentation, and task tracking stay on main. Its patch passes
+`git apply --check` against main. This narrowly advances the popup commit's
+integration from the existing final-visual-review merge gate; the requirements
+checklist retains that gate until the user approves this exception. No
+wholesale develop merge or other product integration is proposed.
 
 Approved decisions:
 
@@ -234,10 +239,10 @@ within the approved design does not require repeated approval.
   session; `session-status-app` → Set status. Archive already declares
   `default_pinned: true`; status does too on current `develop`. Keep the
   existing saved-preference behavior.
-- `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx` opens
-  macOS action popovers at width 320. `ActionsMenuContent.tsx` uses one-line
-  ellipsis. The real popup must be sized for its content, including icon and
-  pin controls; a screenshot-only replacement cannot fix this product issue.
+- Main still has the previous fixed-width, one-line popup implementation.
+  Develop commit `9e053402` supplies the verified measured width, actual
+  content height, and two-line names. Its integration is a proposed
+  prerequisite for the next capture on main, not a screenshot-only substitute.
 - `openai_responses_native_compaction_app.py` owns the compaction row and
   confirmation label. The operation remains gated by the
   `ext:openai_responses_native_compaction` capability.
@@ -256,6 +261,17 @@ within the approved design does not require repeated approval.
 - The attached October 5 reference images establish readable popup rows,
   native popup context, and report composition. Do not reuse their private
   session text, paths, usage totals, or account details as website data.
+- October 6 inspection: the Desktop producer currently handles agent-picker
+  and continuity scenes, and exports only `window.contentView`; it does not
+  capture a separately owned native Session actions popover. Its shell helper
+  also clears the whole output directory and uses `pkill` before launching.
+  The new selected-scene producer must preserve other candidates and touch
+  only processes it starts. The successful October 5 XCUITest popup capture
+  provides a maintained native route to extend.
+- `ProofImage` already selects the approved frame ratios, but `ThemedImage`
+  currently selects only light/dark sources. Distinct wide/portrait
+  compositions need an optional responsive source binding; existing images
+  must continue working with their current fields.
 
 ## Prior approved decisions
 
@@ -446,14 +462,13 @@ the accepted classifications used by this website task.
 
 ## Execution plan
 
-Status: Approved
+Status: Draft
 
-The user selected B plus the card/navigation refinements and content-only
-layout flexibility. It preserves completed work and prior product approvals.
-Implement B on main, review it with current images/descriptive placeholders,
-then stop.
-Product popup changes, new capture generation, magnification, commits, and
-publication remain outside that layout checkpoint.
+This draft applies to checkpoint 3, **the first Session actions relationship
+image**, detailed below. Completed layout and popup checkpoints and their
+approved decisions remain completed; this does not reopen them. Later images,
+final source promotion, other product integrations, and publication retain
+their separate review gates.
 
 ### Design
 
@@ -688,6 +703,117 @@ requires another decision. Similarly, diagnose the stale visual fixture from
 its maintained generator before refreshing it; do not update hashes to hide
 an unexplained mismatch.
 
+### Next checkpoint: first Session actions relationship image
+
+**Outcome:** replace only the first placeholder under **Replace the parts you
+disagree with** with one reproducible relationship image, in light/dark and
+wide/portrait variants. Keep the other two plugin placeholders and every
+other feature as they are. The image-card label remains **Session actions**,
+with its existing description; alt text describes the three relationships.
+
+The image has one valid JSON configuration excerpt on the left and the real
+Desktop conversation window with its Session actions popup open on the right.
+ImageMagick draws the connections into the image pixels:
+
+| Visible plugin package | Real contributed action |
+| --- | --- |
+| `session-title-app` | Edit title |
+| `generate-title-app` | Generate title |
+| `summarize-range-app` | Summarize range |
+
+**Responsibilities and data flow.** A small maintained capture configuration
+loads these three actual plugins into an isolated local backend. Use the
+existing deterministic provider pattern from the SDK backend integration
+harness (`plugins.deterministic_stream_provider.DeterministicStreamProvider`)
+and seed a short, sanitized conversation through the public session/message
+API. No provider inference, account credentials, personal history, title
+generation, or summarization operation is needed.
+
+The native scene uses production `ChatPane` and the production
+`RestAgentBackend`/`FetchTransport` against that backend. Open the real Session
+actions trigger and locate rows by stable action identity. The same loaded
+config supplies the visible JSON excerpt and the package/action mapping;
+labels must not be invented or hand-maintained in a separate fake menu.
+This provides one decisive config → backend HTTP → production SDK → native
+menu check. Record the schemas and screenshot geometry from that run.
+
+The Desktop package owns its capture-only scene and native-window capture.
+The landing catalog owns optional Playwright rendering of the code block,
+ImageMagick composition, responsive derivatives, provenance, and page binding.
+All new checkpoint work belongs on main after the specifically approved
+popup integration. A further ordinary product fix belongs on develop; stop
+before broadening that scope or silently importing another product commit.
+
+**Implementation sequence after approval:**
+
+1. **AGENT:** integrate only the approved popup prerequisite after the
+   integration decision below is accepted. Verify the applicable main-side
+   checks before capturing. Preserve the older pending picker/continuity and
+   mobile capture edits on develop for their owning later checkpoints.
+2. **AGENT:** add the isolated three-plugin capture config and backend setup.
+   Verify exact package, plugin ID, action ID, order, and display-label
+   mappings through the public HTTP API and production SDK. Derive the
+   rendered JSON from the loaded configuration. The broader stale
+   `mobile-workbench` fixture is not an input to this focused scene; leave its
+   unrelated refresh to the later checkpoint and report its known stale state.
+3. **AGENT:** extend the proven XCUITest/native capture route with a selected
+   Session actions scene built from current source. Capture the owning
+   window and popup together in their actual positions, including window
+   chrome and conversation background. Retain the separate window/popover
+   bounds so the crop cannot cut off a popup extending past its owner.
+   Use the deterministic blue capture palette in both native roots and
+   isolated preferences. Any menu ordering/hiding is capture-only and
+   recorded. Open the menu without executing its actions.
+   The producer accepts one scene/theme/output, preserves other output files,
+   and cleans up only its own process. Native UI automation runs sequentially.
+   If the fresh build fails, stop with its actual diagnostic before choosing
+   a runtime upgrade, reused binary, or alternative product surface.
+4. **AGENT:** make one composition definition with a 16:9 wide derivative
+   and a 3:4 portrait derivative, each in both themes. Both retain code on
+   the left and real UI on the right; the portrait composition is separately
+   arranged from the same sources. Use visual soft-wrapping for long JSON
+   strings, with complete plugin names. A magnified crop of the actual menu
+   may emphasize its three rows while the surrounding window remains visible.
+   Lines end on the corresponding declarations and real rows, including
+   their magnified representation when used; they never connect numbered
+   labels or cover the names. Store crop/line geometry, source revision,
+   hashes, mappings, and output dimensions in the maintained asset recipe.
+5. **AGENT:** add optional responsive source selection to the existing image
+   renderer. The expanded desktop frame uses the wide derivative; phones and
+   compact feature placement use the portrait derivative. Existing theme
+   selection, lazy loading, alt text, and current image fields remain valid.
+   This keeps option A a content-only rearrangement. Preserve the accepted
+   frame/card, title/body order, chevrons, dots, and neighboring placeholders.
+6. **AGENT:** bind the candidates only in an explicit local preview of the
+   real homepage on main. Keep masters and intermediate files under ignored
+   `landing_page/artifacts/`; do not promote reviewed sources/public assets
+   to obtain a preview. Add the scoped producer/recipe checks, run the
+   affected content/build/browser checks, and verify active-theme/source
+   loading, actual dimensions, full labels, connector endpoints, and absence
+   of overflow. Take Playwright screenshots at 1440, 1024, 768, 390, and 320
+   CSS pixels in both themes, including a compact-placement smoke check.
+7. **HUMAN JUDGMENT — STOP:** review the actual page/LAN preview and its
+   desktop/phone screenshots before any other proof image, source promotion,
+   or next implementation commit. If labels or relationships remain
+   unreadable after bounded crop/zoom/spacing work, present that evidence and
+   ask before changing the established layout or code-left/UI-right concept.
+
+**Image-inspection tooling:** Playwright screenshots and geometry checks are
+agent work. The current `view_image` tool additionally requires full file
+paths supplied by the user. Use these stable review paths, request them at
+the review handoff if they have not been supplied, and do not call OCR or
+geometry checks a visual inspection:
+
+- `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/plugin-session-actions-review/desktop.png`
+- `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/plugin-session-actions-review/mobile.png`
+
+Other widths/themes remain alongside these two primary screenshots. No
+standalone review gallery/package is proposed. Human-only work is plan/
+integration approval, any OS permission that actually blocks native capture,
+providing the image paths needed by the tool, and final contextual visual
+judgment. No account login, hosted-provider spending, deployment, or new
+public API is part of this checkpoint.
+
 ### Ordered execution
 
 1. **HUMAN JUDGMENT — COMPLETE:** B and the shared refinements are approved.
@@ -737,6 +863,21 @@ an unexplained mismatch.
 
 ### Implementation decisions and open questions
 
+- **October 6 recommendation — approval pending:** integrate only reviewed
+  popup commit `9e053402` into main when this checkpoint starts using it for
+  the website. This is the sole proposed exception to the later product-merge
+  gate. It avoids splitting new capture/website work across worktrees while
+  excluding unrelated develop changes. The patch applies cleanly to main;
+  do not infer permission for any further product prerequisite.
+- **October 6 proposed design:** use four derivative files (wide/portrait ×
+  light/dark) for the same image, selected by the existing frame placement.
+  One reduced wide image would leave small text and unused space in the
+  phone's portrait frame. Add only optional image-source fields, with no
+  section-layout change or separate mobile interaction.
+- **October 6 proposed producer:** extend the successful XCUITest native
+  capture route, using a fresh source build and the real backend/SDK/native
+  controls. A content-view bitmap alone omits the native popover. Do not
+  resolve the earlier Release producer issue by silently reusing an old app.
 - Explicit user decisions: all six feature themes; title/description/images;
   horizontally accessible agent images; complete ImageMagick relationship images with
   readable names and three or more mapped controls; visitor-focused copy;
@@ -775,6 +916,13 @@ an unexplained mismatch.
 
 ### Documentation
 
+- For checkpoint 3, update the existing Desktop capture guide with its
+  selected-scene command, local backend lifetime, isolation, theme, window/
+  popup capture, and safe cleanup. Update the landing visual-processing and
+  content-system guides only for the new recipe and optional responsive
+  source fields. Preserve the current placeholder/copy and record candidate
+  geometry, readability tradeoffs, and the later human choice in the existing
+  durable visual-decision document; do not mark the image accepted early.
 - Keep the pre-revision candidate, copy variants, changed decisions, rationale,
   evidence gaps, and final selections in
   `landing_page/docs/development/homepage-positioning-and-visual-decisions.md`.
@@ -818,9 +966,15 @@ an unexplained mismatch.
       below-image content, and verify the actual page.
 - [x] **HUMAN JUDGMENT:** Review the layout checkpoint and authorize the next
       product step and any commit.
-- [ ] **AGENT:** Implement and verify popup sizing and the selected label.
+- [x] **AGENT:** Implement and verify popup sizing and the selected label.
+- [x] **HUMAN JUDGMENT:** Authorize the product popup checkpoint commit.
+- [x] **AGENT:** Commit the popup changes on develop and prepare the next plan.
+- [ ] **HUMAN JUDGMENT:** Approve the focused Session actions image plan,
+      including the explicit popup-integration timing and responsive sources.
 - [ ] **AGENT:** Resolve reproducible native capture and validate the primary
       three-plugin composition on the actual page.
+- [ ] **HUMAN JUDGMENT:** Review that first composition on desktop/mobile
+      before further images, promotion, or another implementation commit.
 - [ ] **AGENT:** Generate and compose remaining production visual sources.
 - [ ] **AGENT:** Bind local candidates, inspect responsive Playwright images
       with `view_image`, and complete focused verification.
@@ -830,6 +984,15 @@ an unexplained mismatch.
 
 ### Requirement verification
 
+- Checkpoint 3 ownership is this task. Its decisive source check starts the
+  isolated backend with the three real plugins, seeds a session through the
+  public API, connects production `RestAgentBackend` to production `ChatPane`,
+  opens the native Session actions menu, and verifies/captures the three
+  actual rows. The composition recipe then ties the recorded declarations
+  and row bounds to its baked endpoints. A mocked schema plus an unrelated
+  screenshot does not satisfy this check. Native geometry and both themed
+  composites feed actual homepage captures at the five review widths.
+  Human judgment of readability and source promotion remains unchecked.
 - Layout and audience: production-built local homepage proves the selected
   A/B arrangement, all six themes exactly once before Getting Started,
   title/description/images order, two accessible
@@ -1202,3 +1365,99 @@ Append new entries at the end of this section, keeping older entries first.
   final capture promotion or production publication. Next, implement
   Desktop/mobile two-line menu labels, Desktop popup sizing, and the selected
   OpenAI compaction message label on develop, then stop for review.
+- 2026-10-05 popup checkpoint in progress: committed the reviewed website
+  checkpoint on main as `82906d10` (`Refine homepage feature visuals`), excluding
+  unrelated parent/waitlist edits. Product changes are being implemented on
+  develop. The shared ordinary, application-action, rich-list, and config-option
+  rows now allow two-line names. Desktop native popup width uses measured
+  labels with space for icons/state/pins, and height follows rendered content
+  within the screen limit. Native menu ownership/anchoring stays intact.
+  The OpenAI message-action label and confirmation title are renamed while
+  preserving stable IDs and dispatch. Product/native verification is in
+  progress; no product commit, merge, new website capture, or publication.
+- 2026-10-05 popup checkpoint complete; stop for human review:
+  - Implemented the plugin-owned **OpenAI compaction up to here** message label
+    and confirmation title on develop. Stable action IDs, inclusive message
+    scope, eligibility, confirmations, and dispatch are preserved.
+  - Shared ordinary action rows, custom application-action rows, rich-list
+    options, and config dropdown options allow two-line names. Row height
+    grows with text while icon/pin targets retain their space. Compact
+    toolbar controls and neutral state-value labels keep their prior layout.
+    Mobile modal height is bounded so long menus scroll.
+  - Desktop uses system-font text measurement with padding/icon/state/pin
+    space, bounded to 480 points and the available host/screen width. React
+    reports actual header/content height; the native owner limits height to
+    80% of the visible screen. Menu IDs guard against late resize events
+    affecting a different menu. Native anchoring and dismissal remain.
+    Overflow triggers now expose their button accessibility role; production
+    message-menu triggers and text labels have stable test identifiers.
+  - Verification passed: 18 compaction plugin tests; a new real
+    FastAPI → `FetchTransport` → `RestAgentBackend` schema test; 76 shared
+    package unit tests; 27 mobile component tests; 4 Desktop consumer tests;
+    Desktop and mobile TypeScript checks; and `git diff --check`.
+  - Final native verification passed with successful command exits:
+    macOS `testMessageActionNamesWrapAndKeepPinsIndependent` and
+    `testRichSessionUiModelAndPlacedActions` in
+    `/tmp/clc-popup-labels-macos-sequential.xcresult`; the selected iOS
+    `richSessionUi.e2e.test.ts` case with `--testNamePattern
+    "wraps the compaction name"` on simulator
+    `BC14B6EF-D3A1-4E5A-A791-CDEEFF8394F1`, logged in
+    `/tmp/clc-popup-labels-ios-review.log`.
+    Both menu checks cover wrapping, independent pins, dismissal, bounded
+    height, and reaching/pinning the last item in an oversized list.
+    The two unselected iOS cases and Android native UI tests were not run.
+  - Shared test data lives in `test/fixture/action-menu-labels.json`. The
+    actual compaction label is checked through HTTP; a synthetic longer
+    action exercises wrapping. The final label fits completely in two lines
+    on both platforms. Native geometry and screenshot OCR verify this;
+    final visual acceptance belongs to the user. No `view_image` inspection
+    was performed because that tool requires a full image path supplied by
+    the user.
+  - Review screenshots in the develop worktree:
+    `desktop/crystal-lattice-control-desktop-rn/artifacts/action-popup-review/macos-message-actions.png`
+    and
+    `mobile/crystal-lattice-control-rn/artifacts/detox/action-popup-review/ios-message-actions.png`.
+    These are native test evidence, not website asset promotion. Desktop
+    uses the complete popover crop so a popup extending outside its host
+    window is not cut off.
+  - Test-harness fixes cover subpixel geometry tolerance, asynchronous pin
+    updates, and UIKit's brief dismissal hit-test interception. One parallel
+    native run lost a transient dropdown; final native runs were sequential.
+    Keep macOS UI automation and simulator UI automation sequential to avoid
+    focus interference. Debug warning banners are dismissed through their
+    normal close control before the menu screenshot.
+  - Updated maintained shared-menu, Desktop action/native-test, plugin-user,
+    and SDK integration documentation on develop. The plugin README also
+    has unrelated pending originator work; a later scoped commit must stage
+    only this checkpoint's wording change from that file.
+  - The existing website runtime UI fixture remains stale and still needs
+    its planned refresh before new asset capture. The new isolated schema
+    test does not claim that the older canonical website-fixture integration
+    test passes. Debug native verification does not by itself close the
+    separate reproducible release-capture producer work.
+  - **HUMAN JUDGMENT:** Review the menus and authorize the product commit and
+    next checkpoint. Trying the changes in the normal develop Desktop app
+    requires its native rebuild/relaunch; the backend needs to load the
+    updated plugin for the renamed action. Next, prepare the first composite
+    connecting three visible plugin entries to Edit title, Generate title,
+    and Summarize range, place it into the existing website highlight on main,
+    and review desktop/mobile page captures. No product commit/merge, new
+    website image work, push, or publication was performed in this checkpoint.
+- 2026-10-06: The user authorized committing the popup checkpoint and asked
+  for the next-step plan. Committed its 30 product/test/documentation files
+  on develop as `9e053402` (`Improve action menu readability`). Excluded the
+  three older pending picker/website-capture edits and unrelated task work.
+  Rechecked the current develop baseline after intervening commits: 18 plugin
+  tests, 1 real HTTP/SDK test, 27 mobile component tests, 4 Desktop consumer
+  tests, both app type checks, and the staged whitespace check passed. The
+  mobile suite emitted a non-failing React `act` warning. Prior successful
+  native evidence remains recorded above; native suites were not repeated
+  for this unchanged popup implementation.
+  Updated this task on main with the bounded **Draft** checkpoint-3 plan:
+  one real three-plugin Session actions composition, fresh native capture,
+  four theme/shape derivatives, and review inside the existing homepage.
+  Proposed only the explicit popup-commit integration timing exception;
+  left the requirement merge gate unchanged pending approval. The exact
+  popup patch passes a read-only apply check against main. No product merge,
+  capture implementation, source generation/promotion, push, or publication
+  was performed during this planning turn.
