@@ -1,7 +1,10 @@
 # 150 — Isolated runtime environment per evaluation run
 
 Status: Draft (requirement recorded by the user on October 6, 2026; must be
-done before the next evaluation run, including the approved b1v4 evaluation)
+done before the next evaluation run, including the approved b1v4 evaluation.
+Approach decided by the user on October 6, 2026: option (a) process
+isolation — one runtime process per run; no plugin changes, evaluation
+harness owns spawn/IPC/teardown)
 
 Parent Task: tasks/20260728-package-local-documentation-standard/000-main.md
 
@@ -35,7 +38,14 @@ current workaround is the runner's `--max-concurrent 1` cap.
 
 ## Open requirement questions
 
-- **Isolation approach (material design decision, user to approve):**
+- **Isolation approach — DECIDED October 6, 2026: option (a) process
+  isolation.** One runtime process per run/workspace; plugins keep
+  reading their process environment unchanged; the evaluation
+  (crystal-lattice) environment gains worker-process spawn, IPC for
+  value/snapshot/traceback transport, and teardown handling. Option
+  (b) context-passing remains a possible future product direction but
+  is out of scope for this task.
+- ~~Isolation approach (was open, now decided):~~
   (a) process isolation — one runtime process per run/workspace, the
   overlay stays as-is inside each process; (b) context-passing — pass
   per-run values explicitly (request context / plugin state) and stop

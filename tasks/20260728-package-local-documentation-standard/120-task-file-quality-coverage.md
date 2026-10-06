@@ -291,6 +291,18 @@ directories and connections; the matrix command set stays unchanged.
   direction; the from-plan cache instability and judge-JSON
   robustness items should be triaged alongside it.
 
+- October 6, 2026 (corrections executed): (1) judge-JSON retry
+  implemented (commit `65766248`): `_parse_judge_response` re-requests
+  file-fidelity/readability assessments up to 2 times on JSON parse
+  failure, fresh so the cache cannot re-serve the malformed response;
+  deterministic tests in `test_judge_json_retry.py`. (2) tg08/tg10
+  gpt-high producer variance re-run launched fresh (label
+  `b1v3-gpt6-tg08tg10-r2`, pid 34001, log
+  `/tmp/b1v3-gpt6-tg08tg10-r2.log`). (3) from-plan child cache
+  instability: still to diagnose (identity components vs publish
+  asymmetry) — next correction. Task 150 approach decided: option (a)
+  process isolation, recorded in the task file.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
