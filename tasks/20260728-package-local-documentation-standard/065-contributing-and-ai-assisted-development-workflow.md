@@ -19,12 +19,12 @@ prompts that rely on standing repository guidance.
 
 ## Requirements checklist
 
-- [ ] Root `CONTRIBUTING.md` is the concise contributor entry point for the
+- [x] Root `CONTRIBUTING.md` is the concise contributor entry point for the
   recommended development workflow.
 - [x] The guide is organized around what a human initiates, reviews, questions,
   decides, verifies, accepts, and authorizes when AI produces the detailed
   plans, code, tests, and documentation.
-- [ ] The guide begins with a short seven-step quick workflow that matches the
+- [x] The guide begins with a short seven-step quick workflow that matches the
   seven detailed workflow steps and is easy to scan and follow.
 - [x] Small, normal, and high-risk changes all follow planning,
   implementation, verification, and review, while the form and detail of the
@@ -946,7 +946,7 @@ After implementation and focused verification:
 - [x] Add compact research references.
 - [x] Link to maintained standards, task guidance, and package development
   entry points without duplicating broad command catalogs.
-- [ ] Review for human readability, navigation, consistency, and unnecessary
+- [x] Review for human readability, navigation, consistency, and unnecessary
   repetition.
 - [x] Update `DOCFLOW-001` and task evidence without claiming downstream
   `DOCFLOW-004` verification.
@@ -1711,7 +1711,7 @@ verified behavior already described there.
 - [x] Implement and verify proxy `--hide-headers`.
 - [x] Reconcile package and contract documentation.
 - [x] Update task and requirement evidence.
-- [ ] Complete applicable human dialog/readability verification.
+- [x] Complete applicable human dialog/readability verification.
 
 ### Requirement verification
 
@@ -1740,3 +1740,14 @@ verified behavior already described there.
 - Run documentation rendering/link checks and `git diff --check`.
 - Record unavailable native or environment-gated checks as not run, not
   passed.
+
+## Completion Notes
+
+### October 6, 2026: accepted merged baseline
+
+- The user confirmed that the merged contributor workflow, instruction
+  inspection action, frontend presentation, and proxy-safety behavior form a
+  sufficient reviewed working version.
+- The previously open readability and dialog review gates are accepted.
+- Later wording, task-guidance, and evaluation refinements remain non-blocking
+  follow-up and do not prevent dependent work from proceeding.

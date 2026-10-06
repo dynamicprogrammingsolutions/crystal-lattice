@@ -267,3 +267,14 @@ AWS lab stack descriptor update added during completion on 2026-06-19:
   ```
 
 - This keeps the normal long lab/install path under test while making the AWS test host satisfy the Windows system-level prerequisite for the packaged `longPathAware` Python runtime.
+
+## Post-completion follow-up
+
+### October 6, 2026: roadmap completion accepted
+
+The Google Sheet marks this task done, and that status is preserved. The
+installed-product behavior and Linux, macOS, and Windows smoke evidence are
+accepted as the completed outcome. The unchecked non-interactive Windows SSM
+wrapper cleanup/reporting requirement remains a known non-blocking follow-up;
+the wrapper may still fail to return `Success` after the underlying smoke
+prints `PASS`.

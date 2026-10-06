@@ -38,6 +38,26 @@ real-model scenarios on the migrated programmatic agent-evaluation framework.
 
 ## Requirements checklist
 
+The following accepted-baseline outcomes are complete:
+
+- [x] The merged guidance derives minimum traceable requirements, keeps
+  optional work non-blocking, defaults to one task, and permits subtasks only
+  for coherent independently reviewable outcomes.
+- [x] The requirement/testing candidate and corrected default-runner matrix
+  were evaluated, reviewed, and accepted as a sufficient working version.
+- [x] Canonical guidance synchronization and the integrated Core/root guidance
+  baseline are recorded with deterministic and real-model evidence.
+- [x] Broader decomposition, handoff, effort-matrix, and guidance-placement
+  refinements are transferred to
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+  and are non-blocking follow-up.
+
+### Non-blocking refinement inventory
+
+The detailed checklist below preserves the original refinement target.
+Unchecked items no longer block this task's accepted completion and continue
+under task 090 where applicable.
+
 - [ ] Task guidance requires the smallest set of independently verifiable
   outcomes and constraints that can deliver the user-approved scope.
 - [ ] Task guidance does not promote implementation phases, evidence types,
@@ -1242,3 +1262,14 @@ maintainer guidance and evaluation infrastructure.
   one missing Flask/Vue observable outcome, and one incomplete producer run.
   The corrected matrix must confirm whether these patterns remain before
   wording changes.
+
+## Completion Notes
+
+### October 6, 2026: accepted merged baseline
+
+- The user confirmed that the merged requirement-scope, verification, and
+  task-decomposition guidance is sufficient and reviewed.
+- The existing paired evaluations and corrected runner evidence support the
+  accepted working version.
+- Remaining expanded decomposition and placement evaluation is non-blocking
+  follow-up in task 090 and does not prevent dependent work from proceeding.

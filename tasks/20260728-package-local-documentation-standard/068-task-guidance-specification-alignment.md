@@ -32,6 +32,27 @@ human-facing guide.
 
 ## Requirements checklist
 
+The following accepted-baseline outcomes are complete:
+
+- [x] Canonical task guidance, its bundled runtime copy, and mechanical parity
+  enforcement are established and verified.
+- [x] The merged guidance provides a sufficient current contract for
+  specification/task relationships, requirement scope, material decisions,
+  planning cleanliness, and requirement verification.
+- [x] Maintainer-owned evaluation infrastructure and the completed
+  deterministic and real-model comparisons provide sufficient evidence for
+  the merged working version.
+- [x] Staged handoff, continuation, and broader placement refinements are
+  transferred to
+  `tasks/20260728-package-local-documentation-standard/090-task-guidance-handoff-baseline-and-placement.md`
+  and are non-blocking follow-up.
+
+### Non-blocking refinement inventory
+
+The original detailed outcomes below remain as historical refinement targets.
+Unchecked items do not block this task's accepted completion and continue
+under task 090 where applicable.
+
 - [ ] A canonical authored source for v7 task guidance is explicitly declared.
 - [ ] The bundled `application/python/agent_terminal_app/default_config/TASKS_v7.md`
   copy matches the canonical guidance used for evaluation and repository
@@ -567,3 +588,14 @@ Status: Approved
   byte-identical repository/runtime canonical `agents/TASKS-v7.md`; and the
   existing sync script continues copying that compiled file to the bundled
   default-config location.
+
+## Completion Notes
+
+### October 6, 2026: accepted merged baseline
+
+- The user confirmed that the merged canonical guidance, synchronization,
+  specification alignment, and evaluation-backed wording are a sufficient
+  working version.
+- The accepted baseline is complete and must not block dependent work.
+- The staged handoff, continuity, and placement refinements already split to
+  task 090 remain non-blocking follow-up.

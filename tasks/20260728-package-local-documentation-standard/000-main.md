@@ -780,10 +780,10 @@ It does not generally watch package-local README or `docs/` paths such as
 - [x] `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/050-cross-package-and-reference-documentation-triage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/060-navigation-compatibility-and-build-triggers.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
+- [x] `tasks/20260728-package-local-documentation-standard/065-contributing-and-ai-assisted-development-workflow.md`
 - [x] `tasks/20260728-package-local-documentation-standard/067-requirement-quality-model-effort-baseline.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
-- [ ] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
+- [x] `tasks/20260728-package-local-documentation-standard/068-task-guidance-specification-alignment.md`
+- [x] `tasks/20260728-package-local-documentation-standard/069-task-guidance-scope-and-decomposition.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/070-verification-and-deferred-migration-inventory.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/071-guidance-source-compilation-migration.md`
 - [x] `tasks/20260728-package-local-documentation-standard/080-maintainer-documentation-ownership-migration.md`
@@ -912,11 +912,11 @@ Required new or updated documentation includes:
 - [ ] 040: Migrate and lightly verify application and shared plugin documentation.
 - [x] 050: Triage cross-package architecture, protocol, parity-plan, and generated reference documentation.
 - [ ] 060: Update navigation, compatibility paths, repository links, and build triggers.
-- [ ] 065: Create the human-led AI-assisted contributor workflow, integrated
+- [x] 065: Create the human-led AI-assisted contributor workflow, integrated
   prompt examples, and instruction-inspection guidance.
 - [x] 067: Establish the human-approved requirement-quality model/effort baseline and semantic review.
-- [ ] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
-- [ ] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
+- [x] 068: Align specifications/tasks guidance and synchronize canonical/bundled `TASKS-v7`.
+- [x] 069: Verify and refine task-guidance scope discipline and subtask decomposition.
 - [ ] 070: Run final verification and record deferred migration inventory and evidence.
 - [ ] 071: Migrate agent-guidance sources, compilation, candidate selection,
   and corrected project-specific evaluation bases.
