@@ -21,6 +21,13 @@ configured maximum-inactivity interval. Desktop currently creates
 session-attributed spans only; session-list, connection-list, Home, and History
 interactions do not create session-less spans.
 
+On macOS, wheel and trackpad scrolling is detected from stable transcript
+movement because the native scroll view does not emit `onScrollBeginDrag`.
+Programmatic navigation, content growth, and layout changes are excluded.
+Continuous scrolling refreshes activity at a throttled cadence so it extends
+the normal inactivity deadline without producing a render for every native
+scroll event.
+
 ## Settings and persistence
 
 Global Settings contains:
@@ -63,8 +70,9 @@ the chat operation is never postponed for telemetry.
 
 If the server reports skipped span data, the uploader isolates the batch into
 single-span requests. Valid neighbors continue uploading and are removed by
-value; rejected spans remain pending. Data rejection does not produce the
-unavailable-plugin warning.
+value. A singleton span that the server confirms it cannot accept is removed
+from the active queue and reported as failed, so it cannot poison later
+uploads. Data rejection does not produce the unavailable-plugin warning.
 
 ## Diagnostics
 

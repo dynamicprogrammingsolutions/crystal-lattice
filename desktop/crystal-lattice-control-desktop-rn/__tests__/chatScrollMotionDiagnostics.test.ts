@@ -1,6 +1,7 @@
 import {
   classifyChatScrollAwayMotion,
   classifyChatScrollReturnToBottom,
+  isLikelyUserScrollActivity,
   refreshChatScrollMotionGeometry,
   shouldDetachForChatScrollAwayMotion,
   shouldReattachForChatScrollReturnToBottom,
@@ -17,6 +18,72 @@ describe('refreshChatScrollMotionGeometry', () => {
         geometryRevision: 2,
       }),
     ).toEqual(sample(1100, 600, 1100, 320, 2));
+  });
+});
+
+describe('isLikelyUserScrollActivity', () => {
+  function classifyActivity(
+    previous: ChatScrollMotionSample,
+    current: ChatScrollMotionSample,
+    overrides: Partial<Parameters<typeof isLikelyUserScrollActivity>[0]> = {},
+  ) {
+    return isLikelyUserScrollActivity({
+      previous,
+      current,
+      minMovementPx: 0.5,
+      geometryEpsilonPx: 0.5,
+      lastGeometryChangeAtMs: 0,
+      geometrySettleMs: 100,
+      lastSemanticContentChangeAtMs: 0,
+      semanticContentSettleMs: 250,
+      recentProgrammaticWrite: null,
+      programmaticWriteWindowMs: 500,
+      activeOperation: false,
+      ...overrides,
+    });
+  }
+
+  it('accepts stable unexplained wheel or trackpad movement', () => {
+    expect(classifyActivity(sample(1000, 500), sample(1020, 480))).toBe(true);
+  });
+
+  it('ignores movement caused by content, layout, or active navigation', () => {
+    expect(
+      classifyActivity(
+        sample(1000, 500, 1000, 300, 1),
+        sample(1020, 480, 1020, 300, 2),
+      ),
+    ).toBe(false);
+    expect(
+      classifyActivity(sample(1000, 500), sample(1020, 480), {
+        lastSemanticContentChangeAtMs: 950,
+      }),
+    ).toBe(false);
+    expect(
+      classifyActivity(sample(1000, 500), sample(1020, 480), {
+        activeOperation: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('ignores compatible programmatic movement but accepts movement opposing it', () => {
+    const recentBottomWrite = {
+      atMs: 990,
+      operationId: 4,
+      purpose: 'navigation' as const,
+      edge: 'bottom' as const,
+      targetOffsetY: 700,
+    };
+    expect(
+      classifyActivity(sample(1000, 650), sample(1020, 680), {
+        recentProgrammaticWrite: recentBottomWrite,
+      }),
+    ).toBe(false);
+    expect(
+      classifyActivity(sample(1000, 680), sample(1020, 650), {
+        recentProgrammaticWrite: recentBottomWrite,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -39,9 +106,7 @@ function sample(
 function classify(
   previous: ChatScrollMotionSample,
   current: ChatScrollMotionSample,
-  overrides: Partial<
-    Parameters<typeof classifyChatScrollAwayMotion>[0]
-  > = {},
+  overrides: Partial<Parameters<typeof classifyChatScrollAwayMotion>[0]> = {},
 ) {
   return classifyChatScrollAwayMotion({
     previous,
@@ -163,7 +228,9 @@ describe('classifyChatScrollAwayMotion', () => {
       },
     });
     expect(compatibleTopWrite).not.toBeNull();
-    expect(shouldDetachForChatScrollAwayMotion(compatibleTopWrite!)).toBe(false);
+    expect(shouldDetachForChatScrollAwayMotion(compatibleTopWrite!)).toBe(
+      false,
+    );
   });
 });
 
@@ -241,19 +308,12 @@ describe('classifyChatScrollReturnToBottom', () => {
   });
 
   it('requires reaching the bottom threshold while moving toward it', () => {
-    expect(
-      classifyReturn(sample(1000, 600), sample(1020, 650)),
-    ).toBeNull();
-    expect(
-      classifyReturn(sample(1000, 700), sample(1020, 700)),
-    ).toBeNull();
+    expect(classifyReturn(sample(1000, 600), sample(1020, 650))).toBeNull();
+    expect(classifyReturn(sample(1000, 700), sample(1020, 700))).toBeNull();
   });
 
   it('accepts a final sub-two-pixel movement from inside the bottom threshold', () => {
-    const result = classifyReturn(
-      sample(1000, 697.5),
-      sample(1020, 699),
-    );
+    const result = classifyReturn(sample(1000, 697.5), sample(1020, 699));
 
     expect(result).toMatchObject({
       kind: 'candidate',

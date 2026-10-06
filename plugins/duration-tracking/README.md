@@ -26,9 +26,10 @@ project's latest reset, and reset-independent seven-day views: a daily
 LLM/tool/human breakdown, the top 10 sessions across projects, and the top 3
 projects. Rankings are based on human time while also showing LLM and tool
 time; the current-project LLM-ranked session table is retained. Project
-tables include session-less human time separately. Session-less
-collection defaults to the runtime `WORKING_DIR`, so it uses the same default
-database without additional configuration. The mobile app collects the spans
+tables include session-less human time separately. All frontend spans use the
+application plugin's server-level working directory, defaulted from runtime
+`WORKING_DIR`, and its shared database; ingestion stores session ids without
+loading sessions or resolving their agents. The mobile app collects the spans
 behind an opt-in `Time tracking` toggle with a frontend-owned telemetry
 plugin id (default `duration_tracking_app`). See
 `docs/development/overview.md` for the store schema, recording seams,

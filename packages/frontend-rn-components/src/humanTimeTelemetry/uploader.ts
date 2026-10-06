@@ -374,9 +374,7 @@ export class HumanTimeSpanUploader {
           if (rejected.size === 0) {
             return flushedAny ? "flushed" : "empty";
           }
-          const rejectedSpans = pending.filter((span) =>
-            rejected.has(spanIdentity(span)),
-          );
+          const rejectedSpans = [...rejected.values()];
           const rejectedCount = rejectedSpans.length;
           this.reportUploadEvent({
             outcome: "partial-failure",
@@ -394,10 +392,10 @@ export class HumanTimeSpanUploader {
             error: flushedAny
               ? `${rejectedCount} span${
                   rejectedCount === 1 ? "" : "s"
-                } could not be accepted; other spans were uploaded.`
+                } could not be accepted and were discarded; other spans were uploaded.`
               : `${rejectedCount} span${
                   rejectedCount === 1 ? "" : "s"
-                } could not be accepted and remain pending.`,
+                } could not be accepted and were discarded.`,
           });
           return "partial-failure";
         }
@@ -416,6 +414,7 @@ export class HumanTimeSpanUploader {
         }
 
         if (batch.length === 1) {
+          await removeSpans(connectionId, batch, this.options.store);
           rejected.set(spanIdentity(batch[0]), batch[0]);
           continue;
         }
@@ -429,6 +428,7 @@ export class HumanTimeSpanUploader {
             continue;
           }
           if (isolated.outcome === "skipped") {
+            await removeSpans(connectionId, [span], this.options.store);
             rejected.set(spanIdentity(span), span);
             continue;
           }

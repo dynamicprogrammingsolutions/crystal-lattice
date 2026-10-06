@@ -1,17 +1,17 @@
-import React from 'react';
-import { AppState, Pressable, Text } from 'react-native';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
-import { subscribeDisplayPresentation } from '@crystal-lattice/frontend-sdk';
+import React from "react";
+import { AppState, Pressable, Text } from "react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import type { AgentBackend } from "@crystal-lattice/frontend-sdk";
+import { subscribeDisplayPresentation } from "@crystal-lattice/frontend-sdk";
 
 import {
   HumanTimeTelemetryProvider,
   useHumanTimeTelemetry,
-} from '../src/humanTimeTelemetry/HumanTimeTelemetryProvider';
-import { appendSpan, loadSpans } from '../src/humanTimeTelemetry/spanCache';
-import { HomeWorkspaceProvider } from '../src/HomeWorkspaceContext';
-import { MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY } from '../src/homeWorkspaceState';
-import GlobalSettingsModal from '../src/components/GlobalSettingsModal';
+} from "../src/humanTimeTelemetry/HumanTimeTelemetryProvider";
+import { appendSpan, loadSpans } from "../src/humanTimeTelemetry/spanCache";
+import { HomeWorkspaceProvider } from "../src/HomeWorkspaceContext";
+import { MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY } from "../src/homeWorkspaceState";
+import GlobalSettingsModal from "../src/components/GlobalSettingsModal";
 
 const originalAppState = AppState.currentState;
 
@@ -20,7 +20,7 @@ function createMemoryStore(seed?: Record<string, unknown>) {
     Object.entries(seed ?? {}).map(([key, value]) => [
       key,
       JSON.stringify(value),
-    ]),
+    ])
   );
   return {
     get: async (key: string) => data.get(key) ?? null,
@@ -92,7 +92,7 @@ async function settleAfterRender() {
   });
 }
 
-function enabledStore(pluginId = 'duration_tracking_app') {
+function enabledStore(pluginId = "duration_tracking_app") {
   return createMemoryStore({
     [MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY]: {
       timeTrackingEnabled: true,
@@ -103,9 +103,9 @@ function enabledStore(pluginId = 'duration_tracking_app') {
 
 function successfulActionResult(recorded = 1) {
   return {
-    status: 'ok',
-    plugin: 'duration_tracking_app',
-    action_id: 'record_human_time_spans',
+    status: "ok",
+    plugin: "duration_tracking_app",
+    action_id: "record_human_time_spans",
     result: {
       recorded,
       merged: 0,
@@ -116,11 +116,11 @@ function successfulActionResult(recorded = 1) {
   };
 }
 
-describe('HumanTimeTelemetryProvider', () => {
+describe("HumanTimeTelemetryProvider", () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-09-25T10:00:00.000Z'));
-    (AppState as any).currentState = 'active';
+    jest.setSystemTime(new Date("2026-09-25T10:00:00.000Z"));
+    (AppState as any).currentState = "active";
   });
 
   afterEach(() => {
@@ -129,7 +129,7 @@ describe('HumanTimeTelemetryProvider', () => {
     (AppState as any).currentState = originalAppState;
   });
 
-  it('collects nothing while the opt-in toggle is off', async () => {
+  it("collects nothing while the opt-in toggle is off", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const store = createMemoryStore();
     const backend = createBackend(executeAction);
@@ -139,7 +139,7 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId="session-1"
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(10_000);
@@ -149,15 +149,15 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId={null}
         store={store}
-      />,
+      />
     );
     await drainMicrotasks();
 
-    expect(await loadSpans('connection-a')).toEqual([]);
+    expect(await loadSpans("connection-a")).toEqual([]);
     expect(executeAction).not.toHaveBeenCalled();
   });
 
-  it('tracks the complete foreground period while a session is open', async () => {
+  it("tracks the complete foreground period while a session is open", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const backend = createBackend(executeAction);
     const store = enabledStore();
@@ -167,7 +167,7 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId="session-1"
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
 
@@ -178,7 +178,7 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId={null}
         store={store}
-      />,
+      />
     );
     await act(async () => {
       await drainMicrotasks();
@@ -187,18 +187,18 @@ describe('HumanTimeTelemetryProvider', () => {
 
     expect(executeAction).toHaveBeenCalledTimes(1);
     const span = executeAction.mock.calls[0][0].inputs.spans[0];
-    expect(span.session_id).toBe('session-1');
+    expect(span.session_id).toBe("session-1");
     expect(Date.parse(span.to) - Date.parse(span.from)).toBe(15_000);
-    await expect(loadSpans('connection-a')).resolves.toEqual([]);
+    await expect(loadSpans("connection-a")).resolves.toEqual([]);
   });
 
-  it('closes on background, restarts on foreground, and flushes the prior span', async () => {
+  it("closes on background, restarts on foreground, and flushes the prior span", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const backend = createBackend(executeAction);
     const store = enabledStore();
     let appStateListener: ((state: string) => void) | null = null;
     jest
-      .spyOn(AppState, 'addEventListener')
+      .spyOn(AppState, "addEventListener")
       .mockImplementation((_event, listener) => {
         appStateListener = listener as (state: string) => void;
         return { remove: jest.fn() };
@@ -210,19 +210,19 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId="session-1"
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(10_000);
 
     await act(async () => {
-      appStateListener?.('background');
+      appStateListener?.("background");
       await drainMicrotasks();
     });
-    await expect(loadSpans('connection-a')).resolves.toHaveLength(1);
+    await expect(loadSpans("connection-a")).resolves.toHaveLength(1);
 
     await act(async () => {
-      appStateListener?.('active');
+      appStateListener?.("active");
       await drainMicrotasks();
     });
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
@@ -231,7 +231,7 @@ describe('HumanTimeTelemetryProvider', () => {
 
     await jest.advanceTimersByTimeAsync(5_000);
     await act(async () => {
-      appStateListener?.('background');
+      appStateListener?.("background");
       await drainMicrotasks();
       await jest.advanceTimersByTimeAsync(2_000);
     });
@@ -240,7 +240,7 @@ describe('HumanTimeTelemetryProvider', () => {
     expect(Date.parse(secondSpan.to) - Date.parse(secondSpan.from)).toBe(5_000);
   });
 
-  it('closes and immediately starts a new span when the session changes', async () => {
+  it("closes and immediately starts a new span when the session changes", async () => {
     const executeAction = jest
       .fn()
       .mockResolvedValue(successfulActionResult(2));
@@ -253,7 +253,7 @@ describe('HumanTimeTelemetryProvider', () => {
         activeSessionId="session-1"
         store={store}
         showSettings
-      />,
+      />
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(4_000);
@@ -265,25 +265,25 @@ describe('HumanTimeTelemetryProvider', () => {
         activeSessionId="session-2"
         store={store}
         showSettings
-      />,
+      />
     );
     await jest.advanceTimersByTimeAsync(1_000);
     fireEvent.press(
-      screen.getByTestId('global-settings-time-tracking-diagnostics'),
+      screen.getByTestId("global-settings-time-tracking-diagnostics")
     );
-    fireEvent.press(screen.getByTestId('time-tracking-upload-now'));
+    fireEvent.press(screen.getByTestId("time-tracking-upload-now"));
 
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
     const spans = executeAction.mock.calls[0][0].inputs.spans;
     expect(spans.map((span: any) => span.session_id)).toEqual([
-      'session-1',
-      'session-2',
+      "session-1",
+      "session-2",
     ]);
     expect(Date.parse(spans[0].to) - Date.parse(spans[0].from)).toBe(4_000);
     expect(Date.parse(spans[1].to) - Date.parse(spans[1].from)).toBe(1_000);
   });
 
-  it('splits at composed-message submission and continues foreground tracking', async () => {
+  it("splits at composed-message submission and continues foreground tracking", async () => {
     const store = enabledStore();
     const screen = render(
       <Host
@@ -293,20 +293,20 @@ describe('HumanTimeTelemetryProvider', () => {
         store={store}
       >
         <BoundaryProbe sessionId="session-1" />
-      </Host>,
+      </Host>
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(10_000);
 
-    fireEvent.press(screen.getByTestId('split-composed-message'));
+    fireEvent.press(screen.getByTestId("split-composed-message"));
     await act(async () => {
       await drainMicrotasks();
     });
 
-    const firstPending = await loadSpans('connection-split');
+    const firstPending = await loadSpans("connection-split");
     expect(firstPending).toHaveLength(1);
     expect(
-      Date.parse(firstPending[0].to) - Date.parse(firstPending[0].from),
+      Date.parse(firstPending[0].to) - Date.parse(firstPending[0].from)
     ).toBe(10_000);
 
     await jest.advanceTimersByTimeAsync(5_000);
@@ -318,20 +318,20 @@ describe('HumanTimeTelemetryProvider', () => {
         store={store}
       >
         <BoundaryProbe sessionId="session-1" />
-      </Host>,
+      </Host>
     );
     await act(async () => {
       await drainMicrotasks();
     });
 
-    const allPending = await loadSpans('connection-split');
+    const allPending = await loadSpans("connection-split");
     expect(allPending).toHaveLength(2);
-    expect(
-      Date.parse(allPending[1].to) - Date.parse(allPending[1].from),
-    ).toBe(5_000);
+    expect(Date.parse(allPending[1].to) - Date.parse(allPending[1].from)).toBe(
+      5_000
+    );
   });
 
-  it('persists the open span when tracking is disabled', async () => {
+  it("persists the open span when tracking is disabled", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const store = enabledStore();
     const screen = render(
@@ -341,34 +341,34 @@ describe('HumanTimeTelemetryProvider', () => {
         activeSessionId="session-1"
         store={store}
         showSettings
-      />,
+      />
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(8_000);
 
     fireEvent(
-      screen.getByTestId('global-settings-time-tracking-toggle'),
-      'valueChange',
-      false,
+      screen.getByTestId("global-settings-time-tracking-toggle"),
+      "valueChange",
+      false
     );
     await act(async () => {
       await drainMicrotasks();
     });
 
-    const pending = await loadSpans('connection-a');
+    const pending = await loadSpans("connection-a");
     expect(pending).toHaveLength(1);
     expect(Date.parse(pending[0].to) - Date.parse(pending[0].from)).toBe(8_000);
     expect(executeAction).not.toHaveBeenCalled();
   });
 
-  it('flushes durable pending spans as soon as a connection is usable', async () => {
+  it("flushes durable pending spans as soon as a connection is usable", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const backend = createBackend(executeAction);
     const store = enabledStore();
-    await appendSpan('connection-a', {
-      sessionId: 'session-1',
-      from: '2026-09-25T09:58:00.000Z',
-      to: '2026-09-25T09:59:00.000Z',
+    await appendSpan("connection-a", {
+      sessionId: "session-1",
+      from: "2026-09-25T09:58:00.000Z",
+      to: "2026-09-25T09:59:00.000Z",
     });
 
     render(
@@ -377,15 +377,15 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId={null}
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
 
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
-    await expect(loadSpans('connection-a')).resolves.toEqual([]);
+    await expect(loadSpans("connection-a")).resolves.toEqual([]);
   });
 
-  it('shows diagnostics and upload now restarts the foreground session span', async () => {
+  it("shows diagnostics and upload now restarts the foreground session span", async () => {
     const executeAction = jest.fn().mockResolvedValue(successfulActionResult());
     const backend = createBackend(executeAction);
     const store = enabledStore();
@@ -396,51 +396,51 @@ describe('HumanTimeTelemetryProvider', () => {
         activeSessionId="session-1"
         store={store}
         showSettings
-      />,
+      />
     );
     await settleAfterRender();
     await jest.advanceTimersByTimeAsync(5_000);
 
     fireEvent.press(
-      screen.getByTestId('global-settings-time-tracking-diagnostics'),
+      screen.getByTestId("global-settings-time-tracking-diagnostics")
     );
-    expect(screen.getByText('Open span: Session session-')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('time-tracking-upload-now'));
+    expect(screen.getByText("Open span: Session session-")).toBeTruthy();
+    fireEvent.press(screen.getByTestId("time-tracking-upload-now"));
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('time-tracking-pending-count').props.children,
-      ).toEqual(['Pending uploads: ', 0]);
+        screen.getByTestId("time-tracking-pending-count").props.children
+      ).toEqual(["Pending uploads: ", 0]);
       expect(
-        screen.getByTestId('time-tracking-last-upload').props.children,
-      ).toEqual(['Last upload: ', 'Successful']);
+        screen.getByTestId("time-tracking-last-upload").props.children
+      ).toEqual(["Last upload: ", "Successful"]);
     });
     expect(executeAction).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('time-tracking-entry-0')).toBeTruthy();
-    expect(screen.getByText('Uploaded')).toBeTruthy();
-    expect(screen.getByText('session-1')).toBeTruthy();
-    expect(screen.getByText('5s')).toBeTruthy();
-    expect(screen.getByText('Open span: Session session-')).toBeTruthy();
+    expect(screen.getByTestId("time-tracking-entry-0")).toBeTruthy();
+    expect(screen.getByText("Uploaded")).toBeTruthy();
+    expect(screen.getByText("session-1")).toBeTruthy();
+    expect(screen.getByText("5s")).toBeTruthy();
+    expect(screen.getByText("Open span: Session session-")).toBeTruthy();
   });
 
-  it('emits the one-time warning banner on a definitive plugin failure', async () => {
-    const store = enabledStore('missing_plugin');
+  it("emits the one-time warning banner on a definitive plugin failure", async () => {
+    const store = enabledStore("missing_plugin");
     const executeAction = jest
       .fn()
       .mockRejectedValue(
         new Error(
-          "HTTP 404 POST /actions: Unknown application plugin 'missing_plugin'",
-        ),
+          "HTTP 404 POST /actions: Unknown application plugin 'missing_plugin'"
+        )
       );
     const backend = createBackend(executeAction);
     const received: unknown[] = [];
-    const unsubscribe = subscribeDisplayPresentation(backend, envelope => {
+    const unsubscribe = subscribeDisplayPresentation(backend, (envelope) => {
       received.push(envelope);
     });
-    await appendSpan('connection-a', {
-      sessionId: 'session-1',
-      from: '2026-09-25T09:58:00.000Z',
-      to: '2026-09-25T09:59:00.000Z',
+    await appendSpan("connection-a", {
+      sessionId: "session-1",
+      from: "2026-09-25T09:58:00.000Z",
+      to: "2026-09-25T09:59:00.000Z",
     });
 
     render(
@@ -449,19 +449,19 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-a"
         activeSessionId={null}
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
 
     await waitFor(() => expect(received).toHaveLength(1));
     const envelope = received[0] as any;
-    expect(envelope.display.variant).toBe('warning');
-    expect(envelope.display.presentation).toBe('banner');
-    await expect(loadSpans('connection-a')).resolves.toHaveLength(1);
+    expect(envelope.display.variant).toBe("warning");
+    expect(envelope.display.presentation).toBe("banner");
+    await expect(loadSpans("connection-a")).resolves.toHaveLength(1);
     unsubscribe();
   });
 
-  it('does not show the unavailable-plugin banner for a rejected span', async () => {
+  it("does not show the unavailable-plugin banner for a rejected span", async () => {
     const store = enabledStore();
     const executeAction = jest.fn().mockResolvedValue({
       ...successfulActionResult(),
@@ -475,13 +475,13 @@ describe('HumanTimeTelemetryProvider', () => {
     });
     const backend = createBackend(executeAction);
     const received: unknown[] = [];
-    const unsubscribe = subscribeDisplayPresentation(backend, envelope => {
+    const unsubscribe = subscribeDisplayPresentation(backend, (envelope) => {
       received.push(envelope);
     });
-    await appendSpan('connection-rejected-span', {
-      sessionId: 'missing-session',
-      from: '2026-09-25T09:58:00.000Z',
-      to: '2026-09-25T09:59:00.000Z',
+    await appendSpan("connection-rejected-span", {
+      sessionId: "missing-session",
+      from: "2026-09-25T09:58:00.000Z",
+      to: "2026-09-25T09:59:00.000Z",
     });
 
     render(
@@ -490,15 +490,15 @@ describe('HumanTimeTelemetryProvider', () => {
         connectionId="connection-rejected-span"
         activeSessionId={null}
         store={store}
-      />,
+      />
     );
     await settleAfterRender();
     await waitFor(() => expect(executeAction).toHaveBeenCalledTimes(1));
 
     expect(received).toEqual([]);
-    await expect(
-      loadSpans('connection-rejected-span'),
-    ).resolves.toHaveLength(1);
+    await expect(loadSpans("connection-rejected-span")).resolves.toHaveLength(
+      0
+    );
     unsubscribe();
   });
 });

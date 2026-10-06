@@ -3,27 +3,27 @@ import {
   RestAgentBackend,
   type AgentBackend,
   type IndexedMessage,
-} from '@crystal-lattice/frontend-sdk';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+} from "@crystal-lattice/frontend-sdk";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 import {
   startBackendServer,
   type StartedServer,
-} from '../../../packages/frontend-sdk/src/integration/harness';
+} from "../../../packages/frontend-sdk/src/integration/harness";
 import {
   appendSpan,
   loadSpans,
   type SpanCacheStore,
-} from '../src/humanTimeTelemetry/spanCache';
-import { HumanTimeSpanUploader } from '../src/humanTimeTelemetry/uploader';
+} from "../src/humanTimeTelemetry/spanCache";
+import { HumanTimeSpanUploader } from "../src/humanTimeTelemetry/uploader";
 
 // Deterministic pre-generated spans: this tier proves the transport →
 // server → plugin → store → surfacing chain from stored entries. The
 // actual collection of user actions is proven by the focused Detox test,
 // which asserts that real UI activity lands in this same store.
-const CONNECTION_ID = 'integration-connection';
+const CONNECTION_ID = "integration-connection";
 
 function createMemoryStore(): SpanCacheStore {
   const data = new Map<string, string>();
@@ -41,7 +41,7 @@ function createMemoryStore(): SpanCacheStore {
 function makeUploader(
   backend: AgentBackend,
   store: SpanCacheStore,
-  pluginId: string,
+  pluginId: string
 ): HumanTimeSpanUploader {
   return new HumanTimeSpanUploader({
     getBackend: () => backend,
@@ -54,7 +54,7 @@ function makeUploader(
 
 async function seedSpans(
   store: SpanCacheStore,
-  spans: Array<{ sessionId: string | null; fromMs: number; toMs: number }>,
+  spans: Array<{ sessionId: string | null; fromMs: number; toMs: number }>
 ): Promise<void> {
   for (const span of spans) {
     const appended = await appendSpan(
@@ -64,39 +64,39 @@ async function seedSpans(
         from: new Date(span.fromMs).toISOString(),
         to: new Date(span.toMs).toISOString(),
       },
-      store,
+      store
     );
     if (!appended) {
-      throw new Error('Test setup failed: span was not appended');
+      throw new Error("Test setup failed: span was not appended");
     }
   }
 }
 
 async function waitForAssistantMessage(
   backend: RestAgentBackend,
-  sessionId: string,
+  sessionId: string
 ): Promise<IndexedMessage> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const result = await backend.listMessages(sessionId, {});
     const assistant = result.messages.find(
-      (message) => message.message.role === 'assistant',
+      (message) => message.message.role === "assistant"
     );
     if (assistant) {
       return assistant;
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error('Assistant message did not arrive within 30s');
+  throw new Error("Assistant message did not arrive within 30s");
 }
 
 async function runChatRequest(
   backend: RestAgentBackend,
   sessionId: string,
-  text: string,
+  text: string
 ): Promise<IndexedMessage> {
   await backend.appendMessage(sessionId, {
-    role: 'user',
+    role: "user",
     content: text,
     metadata: {},
   });
@@ -104,7 +104,7 @@ async function runChatRequest(
   return await waitForAssistantMessage(backend, sessionId);
 }
 
-describe('human time span upload with a real backend (transport → server → plugin)', () => {
+describe("human time span upload with a real backend (transport → server → plugin)", () => {
   let started: StartedServer | null = null;
   let workspace: string | null = null;
 
@@ -118,38 +118,38 @@ describe('human time span upload with a real backend (transport → server → p
 
   async function startServer(): Promise<StartedServer> {
     workspace = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'clc-human-time-integration-'),
+      path.join(os.tmpdir(), "clc-human-time-integration-")
     );
     started = await startBackendServer({
       config: {
         providers: {
           stream: {
-            provider: 'deterministic_stream',
-            model: 'test-model',
+            provider: "deterministic_stream",
+            model: "test-model",
             timeout: 60,
             stream_chunk_count: 3,
             stream_chunk_delay_ms: 0,
-            working_directory: '${env:TEST_WORKSPACE}',
+            working_directory: "${env:TEST_WORKSPACE}",
             duration_tracking_db_path:
-              '${env:TEST_WORKSPACE}/human_time.sqlite',
+              "${env:TEST_WORKSPACE}/human_time.sqlite",
           },
         },
         agents: {
           default: {
-            provider: 'stream',
-            working_directory: '${env:TEST_WORKSPACE}',
-            allowed_paths: ['${env:TEST_WORKSPACE}'],
+            provider: "stream",
+            working_directory: "${env:TEST_WORKSPACE}",
+            allowed_paths: ["${env:TEST_WORKSPACE}"],
           },
         },
         plugins: [
-          'plugins.deterministic_stream_provider.DeterministicStreamProvider',
-          'path:${env:REPO_ROOT}/plugins/timestamp-extension',
-          'path:${env:REPO_ROOT}/plugins/duration-tracking',
+          "plugins.deterministic_stream_provider.DeterministicStreamProvider",
+          "path:${env:REPO_ROOT}/plugins/timestamp-extension",
+          "path:${env:REPO_ROOT}/plugins/duration-tracking",
         ],
         application: {
           duration_tracking: {
-            working_directory: '${env:TEST_WORKSPACE}',
-            db_path: '${env:TEST_WORKSPACE}/human_time.sqlite',
+            working_directory: "${env:TEST_WORKSPACE}",
+            db_path: "${env:TEST_WORKSPACE}/human_time.sqlite",
           },
         },
       },
@@ -161,12 +161,12 @@ describe('human time span upload with a real backend (transport → server → p
     return started;
   }
 
-  it('uploads stored spans through the real action path and surfaces the session total at the next request finalize', async () => {
+  it("uploads stored spans through the real action path and surfaces the session total at the next request finalize", async () => {
     const server = await startServer();
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: server.baseUrl }),
     });
-    const created = await backend.createSession({ agentId: 'default' });
+    const created = await backend.createSession({ agentId: "default" });
     const sessionId = created.session.session_id;
     const store = createMemoryStore();
 
@@ -177,30 +177,30 @@ describe('human time span upload with a real backend (transport → server → p
       { sessionId: null, fromMs: now - 120_000, toMs: now - 90_000 },
     ]);
 
-    const uploader = makeUploader(backend, store, 'duration_tracking_app');
-    await expect(uploader.flush()).resolves.toBe('flushed');
+    const uploader = makeUploader(backend, store, "duration_tracking_app");
+    await expect(uploader.flush()).resolves.toBe("flushed");
     // The confirmed batch is drained from the frontend cache.
     await expect(loadSpans(CONNECTION_ID, store)).resolves.toEqual([]);
 
     // The stored entries surface through the production request path: the
     // next request finalize stamps the session's human time total onto the
     // assistant message metadata (the chat status bar renders this).
-    const assistant = await runChatRequest(backend, sessionId, 'hello spans');
+    const assistant = await runChatRequest(backend, sessionId, "hello spans");
     const metadata = (assistant.message.metadata ?? {}) as Record<
       string,
       unknown
     >;
     expect(metadata.human_time_session_total).toBe(60_000);
-    expect(typeof metadata.human_time_session_total_formatted).toBe('string');
-    expect(metadata.human_time_session_total_formatted).not.toBe('');
+    expect(typeof metadata.human_time_session_total_formatted).toBe("string");
+    expect(metadata.human_time_session_total_formatted).not.toBe("");
   });
 
-  it('dedups a retried batch by request id so re-uploads never double-count', async () => {
+  it("dedups a retried batch by request id so re-uploads never double-count", async () => {
     const server = await startServer();
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: server.baseUrl }),
     });
-    const created = await backend.createSession({ agentId: 'default' });
+    const created = await backend.createSession({ agentId: "default" });
     const sessionId = created.session.session_id;
     const store = createMemoryStore();
 
@@ -208,17 +208,17 @@ describe('human time span upload with a real backend (transport → server → p
     const spans = [{ sessionId, fromMs: now - 240_000, toMs: now - 180_000 }];
     await seedSpans(store, spans);
 
-    const uploader = makeUploader(backend, store, 'duration_tracking_app');
-    await expect(uploader.flush()).resolves.toBe('flushed');
+    const uploader = makeUploader(backend, store, "duration_tracking_app");
+    await expect(uploader.flush()).resolves.toBe("flushed");
 
     // A retry of the same batch (e.g. a removal that never confirmed)
     // re-seeds the same span content, so the content-derived request id is
     // identical and the server must skip it as a duplicate.
     await seedSpans(store, spans);
-    await expect(uploader.flush()).resolves.toBe('flushed');
+    await expect(uploader.flush()).resolves.toBe("flushed");
     await expect(loadSpans(CONNECTION_ID, store)).resolves.toEqual([]);
 
-    const assistant = await runChatRequest(backend, sessionId, 'hello retry');
+    const assistant = await runChatRequest(backend, sessionId, "hello retry");
     const metadata = (assistant.message.metadata ?? {}) as Record<
       string,
       unknown
@@ -226,7 +226,7 @@ describe('human time span upload with a real backend (transport → server → p
     expect(metadata.human_time_session_total).toBe(60_000);
   });
 
-  it('classifies an unknown telemetry plugin as a definitive failure and retains the spans', async () => {
+  it("classifies an unknown telemetry plugin as a definitive failure and retains the spans", async () => {
     const server = await startServer();
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: server.baseUrl }),
@@ -238,8 +238,8 @@ describe('human time span upload with a real backend (transport → server → p
       { sessionId: null, fromMs: now - 60_000, toMs: now - 30_000 },
     ]);
 
-    const uploader = makeUploader(backend, store, 'no_such_telemetry_plugin');
-    await expect(uploader.flush()).resolves.toBe('definitive-failure');
+    const uploader = makeUploader(backend, store, "no_such_telemetry_plugin");
+    await expect(uploader.flush()).resolves.toBe("definitive-failure");
     // Definitive failures retain the spans; only a setting change re-arms
     // the one-time warning (covered by the unit tier).
     const retained = await loadSpans(CONNECTION_ID, store);
@@ -247,19 +247,19 @@ describe('human time span upload with a real backend (transport → server → p
     expect(retained[0].sessionId).toBeNull();
   });
 
-  it('isolates a rejected span so valid spans upload and only the rejected entry remains pending', async () => {
+  it("stores opaque session ids without loading their sessions", async () => {
     const server = await startServer();
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: server.baseUrl }),
     });
-    const created = await backend.createSession({ agentId: 'default' });
+    const created = await backend.createSession({ agentId: "default" });
     const sessionId = created.session.session_id;
     const store = createMemoryStore();
 
     const now = Date.now();
     await seedSpans(store, [
       {
-        sessionId: 'missing-session',
+        sessionId: "missing-session",
         fromMs: now - 360_000,
         toMs: now - 330_000,
       },
@@ -271,22 +271,21 @@ describe('human time span upload with a real backend (transport → server → p
     const uploader = new HumanTimeSpanUploader({
       getBackend: () => backend,
       getConnectionId: () => CONNECTION_ID,
-      getPluginId: () => 'duration_tracking_app',
+      getPluginId: () => "duration_tracking_app",
       isEnabled: () => true,
       onDefinitiveFailure: unavailableWarning,
       store,
     });
-    await expect(uploader.flush()).resolves.toBe('partial-failure');
+    await expect(uploader.flush()).resolves.toBe("flushed");
 
     const retained = await loadSpans(CONNECTION_ID, store);
-    expect(retained).toHaveLength(1);
-    expect(retained[0].sessionId).toBe('missing-session');
+    expect(retained).toHaveLength(0);
     expect(unavailableWarning).not.toHaveBeenCalled();
 
     const assistant = await runChatRequest(
       backend,
       sessionId,
-      'hello partial upload',
+      "hello partial upload"
     );
     const metadata = (assistant.message.metadata ?? {}) as Record<
       string,
@@ -295,15 +294,15 @@ describe('human time span upload with a real backend (transport → server → p
     expect(metadata.human_time_session_total).toBe(60_000);
 
     const report = await backend.executeAction({
-      pluginId: 'duration_tracking_app',
-      actionId: 'show_duration_report',
-      actionOwner: 'application',
+      pluginId: "duration_tracking_app",
+      actionId: "show_duration_report",
+      actionOwner: "application",
       inputs: { session_id: sessionId },
     });
-    expect(report.status).toBe('ok');
+    expect(report.status).toBe("ok");
     expect(
       (report.result as { human_time_summary?: { total_ms?: number } })
-        .human_time_summary?.total_ms,
-    ).toBe(90_000);
+        .human_time_summary?.total_ms
+    ).toBe(120_000);
   });
 });
