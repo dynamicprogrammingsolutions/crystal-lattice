@@ -21,11 +21,10 @@ export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 python docs_site/scripts/build_mkdocs_site.py
 ```
 
-The convenience build script runs the three docs-site stages in order:
+The convenience build script runs the two docs-site stages in order:
 
 1. `python docs_site/scripts/prepare_mkdocs_site.py`
 2. `cd docs_site && mkdocs build`
-3. `python docs_site/scripts/refresh_reference_snapshots.py`
 
 ## Dev Command
 
@@ -57,8 +56,10 @@ At the moment, strict mode may still fail on pre-existing documentation warnings
 - `docs_site/mkdocs.yml` configures the MkDocs site, Material theme, navigation, plugins, and docs-specific theme overrides.
 - `docs_site/packages.toml` registers package documentation sources and public
   destinations.
-- `docs/` contains repository-wide authored Markdown plus generated reference Markdown snapshots for inspection.
-- `docs_site/source/` contains MkDocs-only source overlays such as static assets and mkdocstrings directive reference pages.
+- `docs/` contains repository-wide authored Markdown, including maintained
+  cross-package reference contracts.
+- `docs_site/source/` contains MkDocs-only source overlays such as static
+  assets and client-side enhancements.
 - `docs_site/prepared/` is the generated MkDocs `docs_dir` assembled before builds.
 - `docs_site/dist/` is the final static documentation site.
 - `docs_site/tests/` contains focused preparation tests and the local
@@ -66,8 +67,8 @@ At the moment, strict mode may still fail on pre-existing documentation warnings
 - `docs_site/source/assets/styles/crystal-lattice.css` contains the Crystal Lattice Material theme polish.
 - `docs_site/source/assets/brand/` contains docs-site logo/favicon assets copied from the landing page.
 - `docs_site/scripts/prepare_mkdocs_site.py` assembles `docs_site/prepared/` from repo-local sources before MkDocs builds.
-- `docs_site/scripts/refresh_reference_snapshots.py` copies generated reference Markdown from an existing `docs_site/dist/` build into `docs/reference/`.
-- `docs_site/scripts/build_mkdocs_site.py` is an umbrella convenience script that prepares, builds, and refreshes reference snapshots in order.
+- `docs_site/scripts/build_mkdocs_site.py` is an umbrella convenience script
+  that prepares and builds the site in order.
 - `docs_site/overrides/` is used by Material for MkDocs through `theme.custom_dir`.
 - `docs_site/overrides/.icons/crystal-lattice/` contains custom SVG icons that Material inlines into the generated docs site.
 
@@ -91,6 +92,18 @@ The script generates:
 
 These prepared paths are ignored by git. Keep source-of-truth plugin docs and
 package README/docs content in their original repository locations.
+
+Python API directives are also maintained with their owning package:
+
+- Core directives live under `core/python/docs/reference/`;
+- the reference OpenAI-compatible provider directive lives under
+  `plugins/reference-openai-compatible-provider/docs/reference/`;
+- the language-neutral tool-host contract remains at
+  `docs/reference/tool-host-protocol.md`.
+
+Mkdocstrings expands those directives during the MkDocs build. Generated
+reference Markdown and HTML remain under ignored `docs_site/dist/`; they are
+not copied back into tracked source.
 
 Each built-in plugin keeps its README landing page at
 `built-in-plugins/<plugin-id>/`. When the plugin has a `docs/` tree, preparation
@@ -147,18 +160,7 @@ Build MkDocs after preparation:
 (cd docs_site && mkdocs build)
 ```
 
-Refresh generated reference Markdown snapshots after a successful MkDocs build:
-
-```bash
-python docs_site/scripts/refresh_reference_snapshots.py
-```
-
-`refresh_reference_snapshots.py` depends on `docs_site/dist/reference/**/index.md`
-from a prior MkDocs build. It does not generate reference Markdown by itself; it
-only copies and reshapes the built Markdown into `docs/reference/` for human
-inspection. Those files should not be used as MkDocs source input.
-
-For convenience, run all three stages with:
+For convenience, run both stages with:
 
 ```bash
 python docs_site/scripts/build_mkdocs_site.py

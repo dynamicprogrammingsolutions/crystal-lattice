@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the full MkDocs site build pipeline."""
+"""Prepare and build the MkDocs site."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import prepare_mkdocs_site
-import refresh_reference_snapshots
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +22,6 @@ def main() -> int:
     )
     if result.returncode != 0:
         return result.returncode
-    refresh_reference_snapshots.refresh_reference_snapshots()
     return 0
 
 

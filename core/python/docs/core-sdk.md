@@ -8,7 +8,7 @@ extensible plugin system.
 
 This hand-written guide covers selected workflows and public methods. It is not
 an exhaustive member listing. Use the
-[generated AgentCore reference](/reference/agent_core/core/) for
+[generated AgentCore reference](reference/core.md) for
 complete signatures and the
 [types and protocols overview](types-and-protocols.md) for the data and plugin
 model.

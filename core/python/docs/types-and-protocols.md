@@ -3,7 +3,7 @@
 This page is a compact map of the values and plugin relationships that make up
 the Core Python SDK. Use it to understand the model without reading source
 code. For complete Python signatures, use the
-[generated types and protocols reference](/reference/agent_core/types/);
+[generated types and protocols reference](reference/types.md);
 for implementation recipes, use the
 [shared plugin development documentation](../../../plugins/docs/index.md).
 
@@ -263,7 +263,7 @@ feature, tool, streaming, and application flows.
 |---|---|
 | Mental model and relationships | This page |
 | Selected `AgentCore` workflows | [Core SDK guide](core-sdk.md) |
-| Exact Python signatures and member semantics | [Generated reference](/reference/agent_core/types/) |
+| Exact Python signatures and member semantics | [Generated reference](reference/types.md) |
 | Plugin implementation recipes and compatibility | [Plugin development docs](../../../plugins/docs/index.md) |
 | Request and lifecycle events | [Application events](events.md) |
 | Executable end-to-end examples | [Tested examples](examples.md) |

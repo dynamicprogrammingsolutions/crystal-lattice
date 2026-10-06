@@ -44,6 +44,10 @@ def package_toml(
 def create_repository(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     write(root / "docs/index.md", "# Root Docs\n")
+    write(
+        root / "docs/reference/tool-host-protocol.md",
+        "# Tool Host Protocol\n",
+    )
     write(root / "docs/overlay.txt", "root\n")
     write(root / "docs_site/source/overlay.txt", "site overlay\n")
     write(root / "docs_site/source/assets/icon.svg", "<svg />\n")
@@ -74,6 +78,10 @@ def create_repository(tmp_path: Path) -> Path:
         "# Example Plugin Guide\n\n[Plugin README](../README.md)\n",
     )
     write(
+        root / "plugins/example-plugin/docs/reference/api.md",
+        "# Example Plugin API\n",
+    )
+    write(
         root / "plugins/example-plugin/docs/development/AGENTS.md",
         "# Private plugin guidance\n",
     )
@@ -99,6 +107,7 @@ def create_repository(tmp_path: Path) -> Path:
     )
     write(root / "packages/alpha/src/code.py", "VALUE = 1\n")
     write(root / "packages/alpha/docs/guide.md", "# Guide\n\n## Part\n")
+    write(root / "packages/alpha/docs/reference/api.md", "# Alpha API\n")
     write(root / "packages/alpha/docs/image.png", "not-a-real-png")
     write(
         root / "packages/alpha/docs/development/index.md",
@@ -157,6 +166,40 @@ def test_production_registry_contains_approved_package_metadata() -> None:
     )
 
 
+def test_production_reference_sources_are_owned_by_documented_scopes() -> None:
+    """DOCMIG-003: maintained directives and contracts have one source owner."""
+    root = prepare.REPO_ROOT
+    plan = prepare.create_preparation_plan(prepare.SitePaths.from_repo_root(root))
+    expected = {
+        root / "docs/reference/tool-host-protocol.md": (
+            "reference/tool-host-protocol.md"
+        ),
+        root / "core/python/docs/reference/core.md": (
+            "packages/core-python/reference/core.md"
+        ),
+        root / "core/python/docs/reference/types.md": (
+            "packages/core-python/reference/types.md"
+        ),
+        root / "core/python/docs/reference/plugin/provider.md": (
+            "packages/core-python/reference/plugin/provider.md"
+        ),
+        root
+        / "plugins/reference-openai-compatible-provider/docs/reference/provider.md": (
+            "built-in-plugins/reference-openai-compatible-provider/"
+            "docs/reference/provider.md"
+        ),
+    }
+
+    for source, output in expected.items():
+        assert source.is_file()
+        assert plan.source_outputs[source.resolve()] == PurePosixPath(output)
+
+    assert not list((root / "docs_site/source/reference").rglob("*.md"))
+    assert not list((root / "docs/reference/agent_core").rglob("*.md"))
+    assert not list((root / "docs/reference/providers").rglob("*.md"))
+    assert not (root / "docs/reference/default-config.md").exists()
+
+
 def test_package_assembly_and_existing_generators(tmp_path: Path) -> None:
     """DOCPUB-002/003 and DOCVAL-001: assemble canonical public package docs."""
     root = create_repository(tmp_path)
@@ -176,6 +219,7 @@ def test_package_assembly_and_existing_generators(tmp_path: Path) -> None:
     assert "![Diagram](image.png)" in alpha_index
     assert (prepared / "packages/alpha/image.png").read_text() == "not-a-real-png"
     assert (prepared / "packages/alpha/development/index.md").is_file()
+    assert (prepared / "packages/alpha/reference/api.md").is_file()
     assert not (prepared / "packages/alpha/nested/AGENTS.md").exists()
 
     beta_index = (prepared / "packages/beta/index.md").read_text(encoding="utf-8")
@@ -217,6 +261,11 @@ def test_package_assembly_and_existing_generators(tmp_path: Path) -> None:
         / "built-in-plugins/example-plugin/docs/development/AGENTS.md"
     ).exists()
     assert (prepared / "reference/default-config.md").is_file()
+    assert (prepared / "reference/tool-host-protocol.md").is_file()
+    assert (
+        prepared
+        / "built-in-plugins/example-plugin/docs/reference/api.md"
+    ).is_file()
 
 
 def test_plugin_authored_docs_index_takes_precedence(tmp_path: Path) -> None:
@@ -419,6 +468,22 @@ def test_fixed_output_collision_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(
         prepare.PreparationError,
         match="collides with an existing prepared path",
+    ):
+        prepare.create_preparation_plan(prepare.SitePaths.from_repo_root(root))
+
+
+def test_authored_reference_cannot_replace_generated_default_config(
+    tmp_path: Path,
+) -> None:
+    root = create_repository(tmp_path)
+    write(
+        root / "docs/reference/default-config.md",
+        "# Competing default config\n",
+    )
+
+    with pytest.raises(
+        prepare.PreparationError,
+        match="generated default configuration output collides",
     ):
         prepare.create_preparation_plan(prepare.SitePaths.from_repo_root(root))
 

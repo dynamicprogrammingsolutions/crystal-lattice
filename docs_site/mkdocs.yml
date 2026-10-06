@@ -55,10 +55,11 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          # Add the core package path so imports resolve during builds
+          # Add package source roots used by package-local directives.
           paths:
             - ..
             - ../core/python
+            - ../plugins/reference-openai-compatible-provider/src
           options:
             docstring_style: google
             show_source: true
@@ -126,10 +127,10 @@ plugins:
           - packages/*/*.md
           - packages/*/development/*.md
         Reference:
-          - reference/agent_core/core.md: AgentCore API reference.
-          - reference/agent_core/types.md: Core types and protocols reference.
-          - reference/agent_core/plugin/provider.md: Provider wrapper API reference.
-          - reference/providers/openai_provider.md: OpenAI-compatible provider reference.
+          - packages/core-python/reference/core.md: AgentCore API reference.
+          - packages/core-python/reference/types.md: Core types and protocols reference.
+          - packages/core-python/reference/plugin/provider.md: Provider wrapper API reference.
+          - built-in-plugins/reference-openai-compatible-provider/docs/reference/provider.md: OpenAI-compatible provider reference.
           - reference/tool-host-protocol.md: Tool host protocol reference.
           - reference/default-config.md: Generated default application configuration reference.
 
@@ -200,10 +201,10 @@ nav:
     - Built-In Plugins: built-in-plugins/index.md
   - Reference:
     - Default Configuration: reference/default-config.md
-    - AgentCore: reference/agent_core/core.md
-    - Types & Protocols: reference/agent_core/types.md
-    - Provider Wrapper: reference/agent_core/plugin/provider.md
-    - OpenAI-Compatible Provider: reference/providers/openai_provider.md
+    - AgentCore: packages/core-python/reference/core.md
+    - Types & Protocols: packages/core-python/reference/types.md
+    - Provider Wrapper: packages/core-python/reference/plugin/provider.md
+    - OpenAI-Compatible Provider: built-in-plugins/reference-openai-compatible-provider/docs/reference/provider.md
     - Tool Host Protocol: reference/tool-host-protocol.md
   - Development:
     - Start Here: development/index.md

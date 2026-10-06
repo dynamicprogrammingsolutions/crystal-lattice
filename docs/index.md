@@ -19,7 +19,7 @@ harnesses.
   application, and tool plugins using the current plugin documentation set.
 - [Built-in plugins](built-in-plugins/index.md): browse generated reference
   pages for bundled plugin packages.
-- [Default configuration](reference/default-config.md): inspect the generated
+- [Default configuration](/reference/default-config/): inspect the generated
   default application configuration.
 - [Event stream types](packages/core-python/events.md): understand application
   events exposed by HTTP polling and bridge streaming.
@@ -33,18 +33,18 @@ harnesses.
   structure, file roles, writing, requirements, testing, and verification.
 - [Crystal Lattice documentation conventions](development/crystal-lattice-documentation.md):
   package paths, plugin guidance, tasks, publication, and migration.
-- [AgentCore API](reference/agent_core/core.md): core session, message, request,
+- [AgentCore API](packages/core-python/reference/core.md): core session, message, request,
   streaming, and tool orchestration APIs.
 - [Core SDK guide](packages/core-python/core-sdk.md): hand-written guide to
   selected SDK surface.
 - [Core types and plugin protocols](packages/core-python/types-and-protocols.md):
   conceptual map of important values, plugin responsibilities, state, and
   request flow.
-- [Types and protocols](reference/agent_core/types.md): immutable core types and
+- [Types and protocols](packages/core-python/reference/types.md): immutable core types and
   exact Python plugin protocol reference generated from docstrings.
-- [Provider wrapper](reference/agent_core/plugin/provider.md): provider adapter
+- [Provider wrapper](packages/core-python/reference/plugin/provider.md): provider adapter
   API reference.
-- [OpenAI-compatible provider](reference/providers/openai_provider.md): reference
+- [OpenAI-compatible provider](built-in-plugins/reference-openai-compatible-provider/docs/reference/provider.md): reference
   provider implementation details.
 - [Tool host protocol](reference/tool-host-protocol.md): protocol reference for
   external tool hosts.

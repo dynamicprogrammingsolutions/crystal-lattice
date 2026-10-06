@@ -33,7 +33,6 @@ The key distinction is:
 Related documentation:
 
 - [Runtime owner integration](runtime-owner-integration.md)
-- [HTTP endpoint parity](../../agent_terminal_app/server_endpoints_parity.md)
 - [Application README](../../README.md)
 - [Event API](../../../../core/python/docs/events.md)
 - [Runtime reload specification](../../../../docs/development/specifications/application-runtime-reload/index.md)

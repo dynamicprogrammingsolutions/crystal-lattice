@@ -397,7 +397,6 @@ The convenience build script runs:
 ```bash
 python docs_site/scripts/prepare_mkdocs_site.py
 (cd docs_site && mkdocs build)
-python docs_site/scripts/refresh_reference_snapshots.py
 ```
 
 For strict validation after docs warnings are cleaned up:
