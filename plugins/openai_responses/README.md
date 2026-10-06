@@ -441,6 +441,7 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_base_url`: optional, defaults to `https://chatgpt.com/backend-api/codex`
 - `chatgpt_credentials_path`: optional path to saved ChatGPT credentials
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
+- `chatgpt_originator`: optional `Originator` header value for ChatGPT-authenticated requests; missing or blank values omit the header
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
 - `enable_openai_automatic_compaction`: optional, defaults to `false`; enables request-time context compaction

@@ -452,6 +452,7 @@ def test_default_config_openai_context_maintenance_variants_and_ui(
     auto_core, auto_base, auto_session = app.create_session("codex-openai")
     auto_config = app.resolve_effective_config(auto_base, auto_session)
     assert auto_config["auth_mode"] == "auto"
+    assert auto_config["chatgpt_originator"] == "crystal_lattice_control"
     assert auto_config["enable_openai_automatic_compaction"] is False
     assert auto_config["openai_compaction_trigger_tokens"] == 200000
     assert "reasoning_context" not in auto_config

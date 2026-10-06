@@ -41,6 +41,10 @@ class OpenAIResponsesChatGPTAuthFeature:
                 "type": "string",
                 "description": "Optional ChatGPT account id override for ChatGPT-backed requests.",
             },
+            "chatgpt_originator": {
+                "type": "string",
+                "description": "Optional Originator header value for ChatGPT-backed requests.",
+            },
             "chatgpt_credentials_path": {
                 "type": "string",
                 "description": "Path to the saved ChatGPT credential file.",
@@ -114,10 +118,12 @@ class OpenAIResponsesChatGPTAuthFeature:
 
         if effective_mode == "chatgpt" and has_saved_chatgpt:
             runtime_config["chatgpt_access_token"] = credentials.get("access_token")
-            runtime_config["chatgpt_token_type"] = credentials.get("token_type") or "Bearer"
-            runtime_config["chatgpt_account_id"] = credentials.get("account_id") or config.get(
-                "chatgpt_account_id"
+            runtime_config["chatgpt_token_type"] = (
+                credentials.get("token_type") or "Bearer"
             )
+            runtime_config["chatgpt_account_id"] = credentials.get(
+                "account_id"
+            ) or config.get("chatgpt_account_id")
             runtime_config["chatgpt_plan_type"] = credentials.get("plan_type")
             runtime_config["base_url"] = chatgpt_base_url
         else:
@@ -133,8 +139,14 @@ class OpenAIResponsesChatGPTAuthFeature:
             "credentials_path": str(credentials_path),
             "logged_in": has_saved_chatgpt,
             "credentials_valid": has_valid_chatgpt,
-            "account_email": credentials.get("account_email") if isinstance(credentials, dict) else None,
-            "plan_type": credentials.get("plan_type") if isinstance(credentials, dict) else None,
+            "account_email": (
+                credentials.get("account_email")
+                if isinstance(credentials, dict)
+                else None
+            ),
+            "plan_type": (
+                credentials.get("plan_type") if isinstance(credentials, dict) else None
+            ),
         }
         return {
             **state,
@@ -154,7 +166,11 @@ class OpenAIResponsesChatGPTAuthFeature:
         return "api"
 
     def _api_base_url(self, config: Dict[str, Any]) -> str:
-        raw = config.get("api_base_url") or config.get("base_url") or "https://api.openai.com/v1"
+        raw = (
+            config.get("api_base_url")
+            or config.get("base_url")
+            or "https://api.openai.com/v1"
+        )
         if not isinstance(raw, str) or not raw.strip():
             return "https://api.openai.com/v1"
         return raw.rstrip("/")

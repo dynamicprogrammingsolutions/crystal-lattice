@@ -6,6 +6,9 @@ import subprocess
 import sys
 from typing import Any
 
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)
 from openai_responses_plugins.requests_transport import RequestsOpenAIClient
 
 
@@ -118,6 +121,48 @@ def test_requests_transport_stream_parses_sse_events() -> None:
         {"type": "response.output_text.delta", "delta": "hello"},
         {"type": "response.completed", "response": {"output": []}},
     ]
+
+
+def test_chatgpt_provider_requests_transport_sends_configured_originator() -> None:
+    response = _Response(
+        {},
+        lines=[
+            "event: response.completed",
+            'data: {"response":{"id":"resp_1","output":[]}}',
+            "",
+        ],
+    )
+    session = _Session([response])
+    provider = OpenAIResponsesProvider()
+    state = provider.init(
+        {
+            "provider_transport": "requests",
+            "model": "gpt-test",
+            "auth_mode": "chatgpt",
+            "chatgpt_access_token": "chatgpt-access-token",
+            "chatgpt_account_id": "acct-123",
+            "chatgpt_originator": "crystal_lattice_control",
+            "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+        }
+    )
+    state["client"]._session = session
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "hello"}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(native_messages, state)
+
+    assert list(provider.stream_api(native_messages, state)) == [
+        {
+            "type": "response.completed",
+            "response": {"id": "resp_1", "output": []},
+        }
+    ]
+    assert session.requests[0]["url"] == (
+        "https://chatgpt.example.test/backend-api/codex/responses"
+    )
+    assert session.requests[0]["headers"]["ChatGPT-Account-Id"] == "acct-123"
+    assert session.requests[0]["headers"]["Originator"] == "crystal_lattice_control"
 
 
 def test_provider_requests_transport_imports_without_openai_sdk() -> None:
