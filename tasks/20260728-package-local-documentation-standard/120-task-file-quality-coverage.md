@@ -266,6 +266,28 @@ directories and connections; the matrix command set stays unchanged.
   non-zero only on case failures. After completion: b1v4 evaluation
   (approved, evaluation only) under the same invocation pattern.
 
+- October 6, 2026 (baseline retest result + gating): `b1v3-gpt6-r1`
+  finished after ~9 h: 225 ok, 8 failed, 9 skipped (skips are
+  dependents of failed producers). Three failure classes:
+  (1) two gpt task-creation producers (tg08/tg10, high effort)
+  produced no task files — a genuine gpt-6-luna behavioral finding on
+  2/6 gpt producer cells, all gpt identities re-executed fresh under
+  the new model; (2) all three tg01 omit-plan from-plan cases failed
+  the instructed-omission check although the same cells passed in
+  `d-trial-tg01-r4` hours earlier — the children ran with
+  `cache_hit: false`, so from-plan child results are NOT stable in the
+  cross-process cache (candidates: child identity embedding an
+  execution-specific parent artifact path, or publish/lookup
+  asymmetry); needs a dedicated fix before from-plan cells are
+  comparable across runs; (3) three assessment runs failed with
+  `JSONDecodeError` on the judge's raw output (tg02 fidelity glm-max,
+  tg04 fidelity + readability gpt-xhigh) — judge responses with
+  malformed JSON currently fail the case instead of being repaired or
+  retried. No further evaluation run (including approved b1v4) until
+  task 150 (runtime env isolation) lands per the user's October 6
+  direction; the from-plan cache instability and judge-JSON
+  robustness items should be triaged alongside it.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the

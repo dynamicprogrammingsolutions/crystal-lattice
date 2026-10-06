@@ -797,6 +797,7 @@ It does not generally watch package-local README or `docs/` paths such as
 - [ ] `tasks/20260728-package-local-documentation-standard/120-task-file-quality-coverage.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/130-terminology-guidance-test-migration.md`
 - [ ] `tasks/20260728-package-local-documentation-standard/140-isolated-synthetic-evaluation-repositories.md`
+- [ ] `tasks/20260728-package-local-documentation-standard/150-runtime-env-isolation.md` (user-recorded requirement, October 6, 2026: must land before the next evaluation run, including the approved b1v4 evaluation)
 
 ## Execution plan
 
