@@ -32,6 +32,7 @@ const mockLightTheme = {
   danger: '#FF3B30',
   success: '#34C759',
   bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
+  bubbleUserText: '#000000',
   bubbleSystemBorder: '#E5E5EA',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
   modalBackdrop: 'rgba(0, 0, 0, 0.3)',

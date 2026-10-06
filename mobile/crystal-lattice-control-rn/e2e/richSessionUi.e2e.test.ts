@@ -1,6 +1,9 @@
 /// <reference types="detox" />
 
 import * as detox from "detox";
+import { expect as jestExpect } from "@jest/globals";
+import fs from "node:fs";
+import path from "node:path";
 
 const detoxExpect = detox.expect;
 
@@ -80,7 +83,67 @@ async function collapseExpandedComposer(): Promise<void> {
     .withTimeout(10000);
 }
 
+async function tapAfterModalDismissal(testID: string): Promise<void> {
+  // With synchronization disabled, React content disappears before UIKit's
+  // fading transition view stops intercepting taps. Retry the real tap only
+  // for that temporary hit-test failure.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await element(by.id(testID)).tap();
+      return;
+    } catch (error) {
+      if (attempt === 4 || !String(error).includes("View is not hittable")) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+}
+
 describe("portable rich session UI", () => {
+  it("wraps the compaction name and keeps its pin independent", async () => {
+    await launchHarness();
+    await element(by.id("message-actions-menu")).tap();
+    const action = element(by.id("actions-menu-action-compact_native_history_through_message"));
+    await waitFor(action).toBeVisible().withTimeout(10000);
+    await detoxExpect(action).toHaveLabel("OpenAI compaction up to here");
+    const compactionAttributes: any = await action.getAttributes();
+    const copyAttributes: any = await element(by.id("actions-menu-action-copy")).getAttributes();
+    const compactionFrame = compactionAttributes.frame ?? compactionAttributes.elementBounds;
+    const copyFrame = copyAttributes.frame ?? copyAttributes.elementBounds;
+    jestExpect(compactionFrame.height).toBeGreaterThanOrEqual(copyFrame.height - 0.5);
+    const longAttributes: any = await element(by.id("actions-menu-action-long_plugin_action")).getAttributes();
+    const longFrame = longAttributes.frame ?? longAttributes.elementBounds;
+    jestExpect(longFrame.height).toBeGreaterThan(copyFrame.height + 5);
+    await element(by.id("actions-menu-pin-compact_native_history_through_message")).tap();
+    await waitFor(element(by.id("actions-menu-pin-compact_native_history_through_message")))
+      .toHaveLabel("Unpin OpenAI compaction up to here").withTimeout(10000);
+    await detoxExpect(element(by.id("rich-session-ui-last-action"))).toHaveText("none");
+    const screenshot = await device.takeScreenshot("message-action-two-line-labels");
+    const reviewDirectory = path.join(process.cwd(), "artifacts", "detox", "action-popup-review");
+    fs.mkdirSync(reviewDirectory, { recursive: true });
+    fs.copyFileSync(screenshot, path.join(reviewDirectory, "ios-message-actions.png"));
+    await element(by.id("actions-menu-close")).tap();
+    await detoxExpect(action).not.toExist();
+
+    await tapAfterModalDismissal("message-menu-long-list");
+    await element(by.id("message-actions-menu")).tap();
+    await waitFor(action).toBeVisible().withTimeout(10000);
+    const panelAttributes: any = await element(by.id("actions-menu-panel")).getAttributes();
+    const rootAttributes: any = await element(by.id("rich-session-ui-harness-ready")).getAttributes();
+    const panelFrame = panelAttributes.frame ?? panelAttributes.elementBounds;
+    const rootFrame = rootAttributes.frame ?? rootAttributes.elementBounds;
+    jestExpect(panelFrame.height).toBeLessThan(rootFrame.height);
+    const lastPin = element(by.id("actions-menu-pin-long-17"));
+    await waitFor(lastPin).toBeVisible()
+      .whileElement(by.id("actions-menu-scroll")).scroll(350, "down");
+    await lastPin.tap();
+    await waitFor(lastPin).toHaveLabel(
+      "Unpin Summarize this conversation and preserve every decision"
+    ).withTimeout(10000);
+    await element(by.id("actions-menu-close")).tap();
+  });
+
   it("places Resend, hard cancel, and soft cancel in Session actions", async () => {
     await launchHarness();
 

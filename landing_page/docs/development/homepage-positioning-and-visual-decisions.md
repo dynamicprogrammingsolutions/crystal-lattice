@@ -816,6 +816,106 @@ New captions remain reviewable copy, and screenshot sources/magnification
 remain for the later asset work. Browser verification passes; final human
 visual acceptance is still required.
 
+### First configuration-to-action image — contextual candidate
+
+The reviewed layout remains the baseline in commit `82906d10`; its plugin
+highlight starts with a described Session actions placeholder. Preserve that
+authored placeholder and the image title/description while reviewing this
+candidate through the explicit local preview.
+
+The selected concept connects three actual declarations to three actual rows:
+`session-title-app` → Edit title, `generate-title-app` → Generate title,
+and `summarize-range-app` → Summarize range. The screenshot uses the production
+Desktop conversation and native popup, with data from the real local
+backend/SDK path. The JSON comes from that same configuration.
+
+Use a wide desktop image and a portrait image for phones or compact feature
+placement, each in light/dark. Desktop keeps configuration left/UI right,
+with the owning window visible and a larger real-menu crop. The user accepted
+that Desktop composition on October 6, 2026.
+
+The initial phone version also kept code left/UI right. Preserve its source
+definition and candidate as an alternative for a wider compact frame;
+it is superseded for phones by the review below. Desktop connections are
+baked into image pixels; browser markup does not draw the diagram.
+
+Retained alternatives and rationale:
+
+- A single wide image is simpler to maintain, but shrinking it into the
+  portrait phone frame leaves small text and unused space.
+- A portrait image also suits option A's compact desktop feature. The shared
+  renderer selects that source when the content changes the feature layout.
+- Tight row crops alone lose application context. Retain them as magnified
+  details within the complete relationship image.
+- A stacked configuration/UI arrangement gives names more width on a phone.
+  It was initially unselected while code left/UI right applied to both
+  shapes. The October 6 review selected stacking for the phone image.
+
+The first automated page pass found the capture harness name in the native
+window title, mid-word wrapping of plugin identifiers, and a phone carousel
+arrow intruding on configuration text. The candidate producer uses the
+product title, keeps plugin names together, and positions the compact code
+block clear of the side-control band. Connector starts use declaration-row
+edges and terminate within the corresponding real controls.
+
+Those candidate refinements led to the accepted first visual. On October 6,
+2026, the user accepted Desktop and then approved the revised stacked phone
+version described below. Automated geometry/schema/text evidence remains
+separate from that human judgment. Further images receive their own review.
+
+### Phone review — stacked declarations and marked popup rows
+
+The user accepted Desktop and requested full-width configuration above an
+enlarged popup on phones. Matching colored marker bands replace the phone
+connections, which were too constrained by the narrow columns.
+
+The selected phone treatment keeps one valid JSON block at the top, with
+translucent, slightly uneven bands behind the declarations. Below it, the
+same blue, teal, and purple bands mark their actual native action rows.
+The light popup uses multiply blending and the dark popup uses screen
+blending so its original text remains legible.
+
+The excerpt retains the real popup header, close button, side edges, and
+bottom corners. A visible crop break indicates the unrelated intervening
+entries omitted from the magnified view. It uses original screenshot pixels;
+no replacement menu or invented action text is drawn. Source segments,
+omission bounds, and highlight geometry remain in the asset manifest.
+
+The prior side-by-side phone files and page captures are retained under
+`artifacts/plugin-session-actions-review/before-mobile-stacking/`.
+That approach keeps spatial connectors and the surrounding conversation
+visible, but gives each column less reading space. The selected stack favors
+readable declarations and recognizable popup controls. The user approved this
+revised phone version on October 6, 2026. It is the selected baseline for
+subsequent relationship visuals; final source promotion/publication follows
+its separate boundary.
+
+Retain the previous portrait recipe here as a reproducible alternative
+independent of disposable capture files. It uses the same source contract and
+native images:
+
+```json
+{
+  "width": 1200,
+  "height": 1600,
+  "code": {
+    "x": 24, "y": 24, "width": 600, "height": 1280,
+    "fontSize": 47, "lineHeight": 66, "entryGap": 20,
+    "paddingHorizontal": 12, "suffixScale": 0.6
+  },
+  "context": { "x": 560, "y": 36, "width": 612 },
+  "focus": {
+    "x": 658, "y": 620, "width": 510,
+    "labelOnly": true, "labelInset": 28, "labelWidth": 144
+  }
+}
+```
+
+Desktop's two reviewed derivatives are unchanged and checked against their
+stored hashes. The website still uses the same frame, shared renderer, and
+content-only layout controls. This revision changes only the portrait
+composition and its annotation method.
+
 ## Revision Procedure
 
 When a section does not work in context:

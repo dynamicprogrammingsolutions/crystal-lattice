@@ -36,6 +36,7 @@ export interface SelectableMarkdownMessageContentProps {
 
 const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageContentProps> = ({
   text,
+  variant = 'assistant',
   codeBlockRenderer = 'selectable-native',
 }) => {
   const theme = useTheme();
@@ -48,7 +49,8 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
   );
 
   const markdownStyle = useMemo<MarkdownStyle>(() => {
-    const baseTextColor = theme.text;
+    const baseTextColor =
+      variant === 'user' ? theme.bubbleUserText : theme.text;
     const typography = deriveMarkdownTypography(preferences);
     const messageFontSize = typography.body;
 
@@ -161,7 +163,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         underline: true,
       },
     };
-  }, [preferences, theme]);
+  }, [preferences, theme, variant]);
 
   const openLink = useCallback(async ({ url }: { url: string }) => {
     try {

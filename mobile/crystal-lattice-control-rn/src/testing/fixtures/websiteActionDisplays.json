@@ -1,0 +1,153 @@
+{
+  "compiled_system_message": {
+    "response": {
+      "action_id": "show_compiled_system_message",
+      "action_owner": "feature",
+      "plugin": "system_message",
+      "result": {
+        "display": {
+          "body": "# Research and operations agent\n\nUse the configured source-reading, web-research, and structured-output tools.\n\nBefore recommending a launch approach:\n\n1. inspect the supplied files and notes;\n2. verify time-sensitive facts against cited external sources;\n3. separate evidence, assumptions, risks, and open questions;\n4. compare viable alternatives using explicit criteria;\n5. produce a concise recommendation and a two-week validation plan.\n\nPreserve citations and identify any conclusion that depends on incomplete\nevidence.",
+          "dismissible": true,
+          "display_id": "compiled-system-message",
+          "format": "text",
+          "presentation": "modal",
+          "title": "Compiled system message",
+          "variant": "info"
+        },
+        "mutations": {
+          "created_session_ids": [],
+          "deleted_session_ids": [],
+          "updated_session_ids": []
+        },
+        "status": "ok",
+        "ui_effects": {}
+      },
+      "status": "ok"
+    },
+    "ui_element": {
+      "action_id": "show_compiled_system_message",
+      "action_owner": "feature",
+      "description": "Compile and display the effective developer/system message without sending a model request.",
+      "icon": "file-text",
+      "id": "show_compiled_system_message",
+      "label": "Show compiled system message",
+      "order": 95,
+      "plugin": "system_message",
+      "ui_type": "session_action"
+    }
+  },
+  "cost_report": {
+    "action_definition": {
+      "description": "Return cost totals per provider-defined bucket and overall, counted since each bucket's last reset.",
+      "id": "show_cost_report",
+      "inputs": {
+        "session_id": {
+          "required": true,
+          "type": "string"
+        }
+      },
+      "label": "Show cost report",
+      "plugin": "cost_tracking_app"
+    },
+    "response": {
+      "action_id": "show_cost_report",
+      "action_owner": "application",
+      "plugin": "cost_tracking_app",
+      "result": {
+        "daily_buckets": {
+          "2026-10-02": {
+            "openai-responses-chatgpt": 0.018577
+          },
+          "2026-10-03": {
+            "openai-responses-chatgpt": 0.024316
+          },
+          "2026-10-04": {
+            "openrouter-api": 0.011204
+          }
+        },
+        "daily_projects": {
+          "2026-10-02": {
+            "Research brief": 0.018577
+          },
+          "2026-10-03": {
+            "Research brief": 0.024316
+          },
+          "2026-10-04": {
+            "Operations plan": 0.011204
+          }
+        },
+        "display": {
+          "body": "## Cost report\n\n- Total: `$0.054097`\n- Requests: `3`\n\n| Bucket | Total | Requests | Last reset |\n| --- | --- | --- | --- |\n| `openai-responses-chatgpt` | `$0.042893` | `2` | never |\n| `openrouter-api` | `$0.011204` | `1` | never |\n\n### Last 7 days by project\n\n| Day | Total | Research brief | Operations plan |\n| --- | --- | --- | --- |\n| 2026-09-28 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-09-29 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-09-30 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-10-01 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-10-02 | `$0.018577` | `$0.018577` | `$0.000000` |\n| 2026-10-03 | `$0.024316` | `$0.024316` | `$0.000000` |\n| 2026-10-04 | `$0.011204` | `$0.000000` | `$0.011204` |\n\n### Last 7 days by bucket\n\n| Day | Total | openai-responses-chatgpt | openrouter-api |\n| --- | --- | --- | --- |\n| 2026-09-28 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-09-29 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-09-30 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-10-01 | `$0.000000` | `$0.000000` | `$0.000000` |\n| 2026-10-02 | `$0.018577` | `$0.018577` | `$0.000000` |\n| 2026-10-03 | `$0.024316` | `$0.024316` | `$0.000000` |\n| 2026-10-04 | `$0.011204` | `$0.000000` | `$0.011204` |\n\n### Top sessions\n\n| Project | Session | Total | Requests |\n| --- | --- | --- | --- |\n| Research brief | `launch-research` | `$0.042893` | `2` |\n| Operations plan | `source-review` | `$0.011204` | `1` |\n\n### Top projects\n\n| Project | Total | Requests |\n| --- | --- | --- |\n| Research brief | `$0.042893` | `2` |\n| Operations plan | `$0.011204` | `1` |\n\nTotals cover the requests recorded after each bucket's last reset; recorded history is preserved.",
+          "dismissible": true,
+          "display_id": "cost-tracking-report",
+          "format": "markdown",
+          "presentation": "modal",
+          "title": "Cost report",
+          "variant": "info"
+        },
+        "report": {
+          "buckets": [
+            {
+              "bucket": "openai-responses-chatgpt",
+              "last_reset_at": null,
+              "request_count": 2,
+              "total_cost": 0.042893
+            },
+            {
+              "bucket": "openrouter-api",
+              "last_reset_at": null,
+              "request_count": 1,
+              "total_cost": 0.011204
+            }
+          ],
+          "request_count": 3,
+          "total_cost": 0.054097
+        },
+        "top_projects": [
+          {
+            "request_count": 2,
+            "total_cost": 0.042893,
+            "working_directory": "Research brief"
+          },
+          {
+            "request_count": 1,
+            "total_cost": 0.011204,
+            "working_directory": "Operations plan"
+          }
+        ],
+        "top_sessions": [
+          {
+            "request_count": 2,
+            "session_id": "launch-research",
+            "total_cost": 0.042893,
+            "working_directory": "Research brief"
+          },
+          {
+            "request_count": 1,
+            "session_id": "source-review",
+            "total_cost": 0.011204,
+            "working_directory": "Operations plan"
+          }
+        ]
+      },
+      "status": "ok"
+    },
+    "ui_element": {
+      "action_id": "show_cost_report",
+      "dialog": {
+        "kind": "none"
+      },
+      "icon": "bar-chart",
+      "id": "cost_tracking_show_report",
+      "label": "Show cost report",
+      "order": 12,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "cost_tracking_app",
+      "ui_type": "session_action"
+    }
+  },
+  "schema_version": 1,
+  "synthetic_cost_notice": "Illustrative values generated from deterministic generic records; not company spending or provider invoices."
+}

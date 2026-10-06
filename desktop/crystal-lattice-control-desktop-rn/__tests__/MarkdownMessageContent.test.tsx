@@ -6,6 +6,7 @@ import {
   DISPLAY_TYPOGRAPHY_PRESETS,
   MARKDOWN_BASE_FONT_SIZES,
   MarkdownDisplayPreferencesProvider,
+  ThemeProvider,
   deriveMarkdownTypography,
 } from '@crystal-lattice/frontend-rn-components';
 
@@ -13,6 +14,7 @@ import MarkdownMessageContent, {
   createDesktopMarkdownTypographyStyles,
 } from '../src/chat/MarkdownMessageContent';
 import SyntaxHighlighter from '../src/chat/NativeSyntaxHighlighter';
+import { buildDesktopTheme } from '../src/theme/buildDesktopTheme';
 
 describe('desktop markdown typography adapter', () => {
   it('uses the shared mobile-equivalent default', () => {
@@ -139,6 +141,45 @@ describe('desktop markdown typography adapter', () => {
           height: defaultPreset.lineHeight.code,
         }),
       ]),
+    );
+  });
+
+  it('uses bubbleUserText for user markdown and inline code', () => {
+    const theme = {
+      ...buildDesktopTheme(null),
+      text: '#111111',
+      bubbleUserText: '#234567',
+    };
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <ThemeProvider theme={theme}>
+          <MarkdownDisplayPreferencesProvider
+            value={DEFAULT_MARKDOWN_DISPLAY_PREFERENCES}
+          >
+            <MarkdownMessageContent
+              text={'User **message** with `inline code`.'}
+              variant="user"
+            />
+          </MarkdownDisplayPreferencesProvider>
+        </ThemeProvider>,
+      );
+    });
+
+    const messageText = renderer!.root
+      .findAllByType(Text)
+      .find(node => node.props.children === 'User ');
+    expect(messageText).toBeDefined();
+    expect(StyleSheet.flatten(messageText!.props.style).color).toBe(
+      theme.bubbleUserText,
+    );
+
+    const inlineCode = renderer!.root
+      .findAllByType(Text)
+      .find(node => node.props.children === 'inline code');
+    expect(inlineCode).toBeDefined();
+    expect(StyleSheet.flatten(inlineCode!.props.style).color).toBe(
+      theme.bubbleUserText,
     );
   });
 });

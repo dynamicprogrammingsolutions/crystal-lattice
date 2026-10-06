@@ -18,6 +18,7 @@ import {
 } from "../scripts/visual-assets/lifecycle/image.mjs";
 import { detoxCapture } from "../scripts/visual-assets/producers/detox.mjs";
 import { commandCapture } from "../scripts/visual-assets/producers/command.mjs";
+import { sessionActionsComposition } from "../scripts/visual-assets/session-actions-composition.mjs";
 import {
   runSessionFixtureCatalogCommand,
   sessionFixtureAssetCommands,
@@ -248,9 +249,11 @@ async function listCommand(context) {
 
 async function inspectCommand(context) {
   const results = await context.forEachSelected(
-    async (assetContext) => {
+    async (assetContext, selection) => {
       if (assetContext.hasCommand("inspect")) {
-        return assetContext.runCommand("inspect");
+        return assetContext.runCommand("inspect", {
+          explicitAsset: selection.assetIds.includes(assetContext.asset.id),
+        });
       }
 
       assetContext.requireLifecycles([
@@ -286,9 +289,11 @@ async function inspectCommand(context) {
 
 async function checkCommand(context) {
   const results = await context.forEachSelected(
-    async (assetContext) => {
+    async (assetContext, selection) => {
       if (assetContext.hasCommand("check")) {
-        return assetContext.runCommand("check");
+        return assetContext.runCommand("check", {
+          explicitAsset: selection.assetIds.includes(assetContext.asset.id),
+        });
       }
 
       assetContext.requireLifecycles([
@@ -468,6 +473,7 @@ export default defineVisualAssets({
   },
 
   assets: [
+    sessionActionsComposition,
     defineAsset({
       id: "mobile-workbench",
       metadata: {

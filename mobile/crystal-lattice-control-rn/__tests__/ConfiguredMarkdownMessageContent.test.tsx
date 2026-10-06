@@ -1,14 +1,16 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import { StyleSheet } from 'react-native';
 import {
   DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
   MarkdownDisplayPreferencesProvider,
   type CodeBlockRendererId,
   type MarkdownRendererId,
+  type Theme,
 } from '@crystal-lattice/frontend-rn-components';
 
 import ConfiguredMarkdownMessageContent from '../src/components/ConfiguredMarkdownMessageContent';
-import { ThemeProvider, lightTheme } from '../src/theme';
+import { darkTheme, ThemeProvider, lightTheme } from '../src/theme';
 
 const MARKDOWN_WITH_CODE = [
   'Intro paragraph.',
@@ -21,11 +23,17 @@ const MARKDOWN_WITH_CODE = [
 function renderConfiguredMarkdown(
   markdownRenderer: MarkdownRendererId,
   codeBlockRenderer: CodeBlockRendererId,
+  options: {
+    theme?: Theme;
+    variant?: 'assistant' | 'user';
+    text?: string;
+  } = {},
 ) {
+  const theme = options.theme ?? lightTheme;
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MarkdownDisplayPreferencesProvider
           value={{
             ...DEFAULT_MARKDOWN_DISPLAY_PREFERENCES,
@@ -34,7 +42,8 @@ function renderConfiguredMarkdown(
           }}
         >
           <ConfiguredMarkdownMessageContent
-            text={MARKDOWN_WITH_CODE}
+            text={options.text ?? MARKDOWN_WITH_CODE}
+            variant={options.variant}
             testID="configured-markdown"
           />
         </MarkdownDisplayPreferencesProvider>
@@ -96,5 +105,56 @@ test.each([
         codeBlockRenderer === 'syntax-highlighter',
       );
     }
+  },
+);
+
+test.each([
+  ['light', lightTheme],
+  ['dark', darkTheme],
+] as const)(
+  'uses bubbleUserText for both user markdown renderers in %s theme',
+  (_name, theme) => {
+    const text = 'User **text** with `inline code` and [link](https://example.com).';
+    const classic = renderConfiguredMarkdown(
+      'react-native-markdown-display',
+      'syntax-highlighter',
+      { theme, variant: 'user', text },
+    );
+    const classicMarkdown = classic.root.find(
+      node => typeof node.props.rules?.code_inline === 'function',
+    );
+    expect(classicMarkdown.props.style.body.color).toBe(theme.bubbleUserText);
+    expect(classicMarkdown.props.style.text.color).toBe(theme.bubbleUserText);
+    const inlineCode = classicMarkdown.props.rules.code_inline(
+      { key: 'inline', content: 'inline code' },
+      [],
+    );
+    expect(StyleSheet.flatten(inlineCode.props.style).color).toBe(
+      theme.bubbleUserText,
+    );
+
+    const selectable = renderConfiguredMarkdown(
+      'react-native-enriched-markdown',
+      'selectable-native',
+      { theme, variant: 'user', text },
+    );
+    const enrichedMarkdown = selectable.root.find(
+      node => String(node.type) === 'EnrichedMarkdownText',
+    );
+    expect(enrichedMarkdown.props.markdownStyle.paragraph.color).toBe(
+      theme.bubbleUserText,
+    );
+    expect(enrichedMarkdown.props.markdownStyle.list.bulletColor).toBe(
+      theme.bubbleUserText,
+    );
+    expect(enrichedMarkdown.props.markdownStyle.list.markerColor).toBe(
+      theme.bubbleUserText,
+    );
+    expect(enrichedMarkdown.props.markdownStyle.code.color).toBe(
+      theme.bubbleUserText,
+    );
+    expect(enrichedMarkdown.props.markdownStyle.link.color).toBe(
+      theme.bubbleUserText,
+    );
   },
 );

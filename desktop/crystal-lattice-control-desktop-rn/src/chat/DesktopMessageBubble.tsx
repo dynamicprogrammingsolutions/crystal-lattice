@@ -147,7 +147,9 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={styles.headerText}>{`[${index}] User`}</Text>
+          <Text style={[styles.headerText, styles.userHeaderText]}>
+            {`[${index}] User`}
+          </Text>
           <MacTextView
             style={[styles.editInput, styles.editInputOnBlue]}
             initialText={editingInitialText ?? editingText ?? ''}
@@ -181,7 +183,9 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerText}>{`[${index}] User`}</Text>
+          <Text style={[styles.headerText, styles.userHeaderText]}>
+            {`[${index}] User`}
+          </Text>
 	          {onAction ? (
 	            <PinnedMessageActionsBar
 	              role={role}
@@ -202,7 +206,9 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={[styles.footerText, styles.userFooterText]}>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -856,6 +862,9 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
+    userHeaderText: {
+      color: theme.bubbleUserText,
+    },
     systemText: {
       fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
@@ -899,7 +908,7 @@ const createStyles = (theme: Theme) =>
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
     },
     userContentText: {
-      color: theme.text,
+      color: theme.bubbleUserText,
     },
     collapseIconButton: {
       paddingHorizontal: 4,
@@ -953,6 +962,9 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
+    },
+    userFooterText: {
+      color: theme.bubbleUserText,
     },
     editInput: {
       marginTop: 4,

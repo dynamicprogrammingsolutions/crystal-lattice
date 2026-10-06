@@ -1,5 +1,7 @@
 import type { AgentBackend } from '../backend/backend';
 import type { AgentDescriptor } from '../types/agents';
+import type { AgentPluginEntry } from '../types/agentPlugins';
+import { normalizeAgentPluginEntries } from '../types/agentPlugins';
 import { SimpleSubscribable } from '../util/subscribable';
 
 export interface AgentsControllerState {
@@ -22,9 +24,17 @@ type AgentsCacheEntry = {
 };
 
 const CACHE: Map<string, AgentsCacheEntry | null | undefined> = new Map();
+const PLUGINS_CACHE: Map<string, Map<string, AgentPluginEntry[]>> = new Map();
+const PLUGINS_IN_FLIGHT: Map<string, Promise<AgentPluginEntry[]>> = new Map();
 
 export function invalidateAgentsCache(cacheKey: string): void {
   CACHE.delete(cacheKey);
+  PLUGINS_CACHE.delete(cacheKey);
+  for (const key of PLUGINS_IN_FLIGHT.keys()) {
+    if (key.startsWith(`${cacheKey}\u0000`)) {
+      PLUGINS_IN_FLIGHT.delete(key);
+    }
+  }
 }
 
 export class AgentsController extends SimpleSubscribable<AgentsControllerState> {
@@ -136,6 +146,51 @@ export class AgentsController extends SimpleSubscribable<AgentsControllerState> 
     }
     await this.load();
     return this.getSnapshot().descriptors;
+  }
+
+  async ensurePluginsLoaded(agentId: string): Promise<AgentPluginEntry[]> {
+    const normalizedAgentId =
+      typeof agentId === 'string' ? agentId.trim() : '';
+    if (!normalizedAgentId) {
+      throw new Error('Agent id is required');
+    }
+    if (!this.backend) {
+      throw new Error('No active connection');
+    }
+    if (!this.backend.listAgentPlugins) {
+      throw new Error(
+        'Agent plugin preview is not supported by this connection',
+      );
+    }
+
+    const cached = PLUGINS_CACHE.get(this.cacheKey)?.get(normalizedAgentId);
+    if (cached) {
+      return cached;
+    }
+
+    const requestKey = `${this.cacheKey}\u0000${normalizedAgentId}`;
+    const inFlight = PLUGINS_IN_FLIGHT.get(requestKey);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = this.backend
+      .listAgentPlugins(normalizedAgentId)
+      .then(raw => {
+        const plugins = normalizeAgentPluginEntries(raw);
+        let byAgent = PLUGINS_CACHE.get(this.cacheKey);
+        if (!byAgent) {
+          byAgent = new Map();
+          PLUGINS_CACHE.set(this.cacheKey, byAgent);
+        }
+        byAgent.set(normalizedAgentId, plugins);
+        return plugins;
+      })
+      .finally(() => {
+        PLUGINS_IN_FLIGHT.delete(requestKey);
+      });
+    PLUGINS_IN_FLIGHT.set(requestKey, request);
+    return request;
   }
 }
 

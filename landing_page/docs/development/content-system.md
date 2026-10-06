@@ -122,6 +122,34 @@ The former extra transparency and plugin-action galleries were folded into
 their owning highlights. The `session-workbench` fragment identifies its
 workspace highlight rather than a second lower-page pitch.
 
+### Responsive proof sources and local candidates
+
+An image asset can additionally define `srcCompact`, `srcCompactDark`,
+`widthCompact`, and `heightCompact`. `ProofImage` uses that source in compact
+feature placement at every viewport size. In expanded placement, `ThemedImage`
+uses a `<picture>` source below the existing 760px breakpoint and the wide
+image above it. Theme changes update both the image and source URLs. Existing
+assets retain their original fields and behavior; the section layout is
+independent of the source variants.
+
+The Session actions candidate is available through an explicit local build:
+
+```bash
+CRYSTAL_SESSION_ACTIONS_PREVIEW=1 yarn build
+CRYSTAL_SESSION_ACTIONS_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4182
+```
+
+This applies the candidate to the first plugin-highlight image while retaining
+its existing title/description and neighboring placeholders. It builds the
+actual site under `artifacts/plugin-session-actions-site/` and copies only the
+four generated candidate derivatives into that output. It does not change
+authored homepage YAML, reviewed source masters, or `public/`. A normal build
+continues to show the maintained placeholder.
+
+Generate the required candidates through the catalog workflow documented in
+[Visual Asset Processing Pipelines](../visual-assets.md). The preview is for
+contextual review and is not final asset acceptance.
+
 ## Current Section Types
 
 The current registry includes general product sections, richer proof and

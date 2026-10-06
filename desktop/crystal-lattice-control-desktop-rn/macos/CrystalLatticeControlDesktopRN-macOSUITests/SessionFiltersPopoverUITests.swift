@@ -1,6 +1,154 @@
 import XCTest
+import AppKit
 
 final class SessionFiltersPopoverUITests: XCTestCase {
+  func testWebsiteSessionActionsLight() throws {
+    try captureWebsiteSessionActions(appearance: "light")
+  }
+
+  func testWebsiteSessionActionsDark() throws {
+    try captureWebsiteSessionActions(appearance: "dark")
+  }
+
+  private func captureWebsiteSessionActions(appearance: String) throws {
+    let project = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let input = project.appendingPathComponent("artifacts/website-session-actions/active-run.json")
+    let run = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: input)) as? [String: Any])
+    let bundleId = try XCTUnwrap(run["captureBundleId"] as? String)
+    XCTAssertEqual(bundleId, "com.dynamicprogrammingsolutions.crystallatticecontrol.website-capture")
+    XCTAssertTrue(NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty,
+                  "An existing capture app is running; leave it untouched and stop.")
+    let app = XCUIApplication(bundleIdentifier: bundleId)
+    app.launchEnvironment["CLC_ENABLE_WEBSITE_VISUAL_HARNESS"] = "1"
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_KIND"] = "session-actions"
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_THEME"] = appearance
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_BACKEND_URL"] = run["baseUrl"] as? String
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_SESSION_ID"] = run["sessionId"] as? String
+    app.launchArguments = ["-clcWebsiteVisualTheme", appearance, "-AppleInterfaceStyle", appearance == "dark" ? "Dark" : "Light"]
+    app.launch()
+    addTeardownBlock { app.terminate() } // Only the isolated capture instance started above.
+    let window = app.windows["DesktopWebsiteVisualHarnessWindow"]
+    XCTAssertTrue(window.waitForExistence(timeout: 30), app.debugDescription)
+    let menu = element(app, "session-actions-menu")
+    XCTAssertTrue(menu.waitForExistence(timeout: 30), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: window)
+    let response = element(app, "transcript-message-1")
+    XCTAssertTrue(response.waitForExistence(timeout: 30), app.debugDescription)
+    let request = app.textViews.matching(
+      NSPredicate(format: "value CONTAINS %@", "Help me plan a welcoming, hands-on workshop")
+    ).firstMatch
+    XCTAssertTrue(request.waitForExistence(timeout: 10), app.debugDescription)
+    menu.click()
+    let popover = window.popovers.firstMatch
+    XCTAssertTrue(popover.waitForExistence(timeout: 15), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: popover)
+    let mappings = try XCTUnwrap(run["mappings"] as? [[String: Any]])
+    var rows: [[String: Any]] = []
+    for mapping in mappings {
+      let id = try XCTUnwrap(mapping["id"] as? String)
+      let label = try XCTUnwrap(mapping["label"] as? String)
+      let action = element(popover, "actions-menu-action-\(id)")
+      XCTAssertTrue(action.waitForExistence(timeout: 15), app.debugDescription)
+      waitForLabel(action, label)
+      XCTAssertGreaterThanOrEqual(action.frame.minY, popover.frame.minY)
+      XCTAssertLessThanOrEqual(action.frame.maxY, popover.frame.maxY)
+      rows.append(["id": id, "label": label, "frame": websiteFrame(action.frame)])
+    }
+    let windowAttachment = XCTAttachment(screenshot: window.screenshot())
+    windowAttachment.name = "\(appearance)-window"
+    windowAttachment.lifetime = .keepAlways
+    add(windowAttachment)
+    let popoverAttachment = XCTAttachment(screenshot: popover.screenshot())
+    popoverAttachment.name = "\(appearance)-popover"
+    popoverAttachment.lifetime = .keepAlways
+    add(popoverAttachment)
+    let geometry: [String: Any] = [
+      "appearance": appearance,
+      "window": websiteFrame(window.frame),
+      "popover": websiteFrame(popover.frame),
+      "rows": rows,
+    ]
+    let geometryAttachment = XCTAttachment(
+      data: try JSONSerialization.data(withJSONObject: geometry, options: [.prettyPrinted, .sortedKeys]),
+      uniformTypeIdentifier: "public.json")
+    geometryAttachment.name = "\(appearance)-geometry"
+    geometryAttachment.lifetime = .keepAlways
+    add(geometryAttachment)
+    element(popover, "actions-popover-close").click()
+    waitForDisappearance(popover)
+  }
+
+  private func websiteFrame(_ frame: CGRect) -> [String: Double] {
+    return ["x": Double(frame.minX), "y": Double(frame.minY),
+            "width": Double(frame.width), "height": Double(frame.height)]
+  }
+
+  func testMessageActionNamesWrapAndKeepPinsIndependent() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"
+    app.launch()
+    let harness = app.windows["DesktopRichSessionUiHarnessWindow"]
+    XCTAssertTrue(harness.waitForExistence(timeout: 15))
+    dismissDevelopmentWarningBanner(in: harness)
+    let openMenu = element(app, "message-actions-menu")
+    XCTAssertTrue(openMenu.waitForExistence(timeout: 10), app.debugDescription)
+    openMenu.click()
+    let popover = harness.popovers.firstMatch
+    XCTAssertTrue(popover.waitForExistence(timeout: 10), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: popover)
+    let compaction = element(popover, "actions-menu-action-compact_native_history_through_message")
+    let longAction = element(popover, "actions-menu-action-long_plugin_action")
+    let copy = element(popover, "actions-menu-action-copy")
+    XCTAssertTrue(longAction.waitForExistence(timeout: 10), app.debugDescription)
+    waitForLabel(compaction, "OpenAI compaction up to here")
+    XCTAssertGreaterThan(popover.frame.width, 320)
+    XCTAssertLessThan(popover.frame.width, harness.frame.width)
+    XCTAssertGreaterThan(longAction.frame.height, copy.frame.height + 5)
+    XCTAssertLessThanOrEqual(longAction.frame.maxY, popover.frame.maxY)
+    let pin = element(popover, "actions-menu-pin-compact_native_history_through_message")
+    pin.click()
+    waitForLabel(pin, "Unpin OpenAI compaction up to here")
+    XCTAssertTrue(popover.exists)
+    waitForLabel(element(app, "desktop-rich-session-ui-action-marker"), "Desktop rich action none")
+    let attachment = XCTAttachment(screenshot: popover.screenshot())
+    attachment.name = "Two-line message actions"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+    element(popover, "actions-popover-close").click()
+    waitForDisappearance(popover)
+
+    element(app, "message-menu-long-list").click()
+    openMenu.click()
+    XCTAssertTrue(popover.waitForExistence(timeout: 10))
+    dismissDevelopmentWarningBanner(in: popover)
+    XCTAssertLessThan(popover.frame.height, harness.frame.height)
+    let lastPin = element(popover, "actions-menu-pin-long-17")
+    let scroll = popover.scrollViews.firstMatch
+    for _ in 0..<6 {
+      if lastPin.frame.maxY <= popover.frame.maxY && lastPin.isHittable { break }
+      scroll.scroll(byDeltaX: 0, deltaY: -400)
+    }
+    XCTAssertTrue(lastPin.isHittable)
+    XCTAssertLessThanOrEqual(lastPin.frame.maxY, popover.frame.maxY)
+    lastPin.click()
+    waitForLabel(lastPin, "Unpin Summarize this conversation and preserve every decision")
+    element(popover, "actions-popover-close").click()
+    waitForDisappearance(popover)
+  }
+
+  private func dismissDevelopmentWarningBanner(in root: XCUIElement) {
+    // Dismiss the Debug-only LogBox overlay through its normal close control,
+    // keeping the rendered menu unobscured in the review screenshot.
+    let banner = root.descendants(matching: .other).matching(
+      NSPredicate(format: "label CONTAINS %@", "Open debugger to view warnings.")
+    ).firstMatch
+    if banner.exists {
+      let close = banner.children(matching: .other).firstMatch
+      if close.exists { close.click() }
+    }
+  }
+
   func testRichSessionUiModelAndPlacedActions() throws {
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_RICH_SESSION_UI_HARNESS"] = "1"

@@ -55,6 +55,11 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
   export DETOX_IOS_DEVICE="iPhone 16 Pro"
   export DETOX_ANDROID_AVD="Pixel_8_API_35"
   ```
+- To target one existing iOS simulator exactly, set its UDID:
+  ```bash
+  export DETOX_IOS_DEVICE_ID="00000000-0000-0000-0000-000000000000"
+  ```
+  The explicit UDID takes precedence over `DETOX_IOS_DEVICE`.
 
 ## Installation
 

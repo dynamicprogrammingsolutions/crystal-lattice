@@ -311,7 +311,7 @@ function createHarnessBackend(onSubmit: (value: string) => void): AgentBackend {
           value_path: "metadata.pinned",
           missing_value: false,
           active_value: true,
-          default_pinned: true,
+          default_pinned: false,
           placements: ["header_trailing", "actions_bar"],
           appearance: {
             active: { tone: "highlight" },
@@ -380,7 +380,7 @@ function createHarnessBackend(onSubmit: (value: string) => void): AgentBackend {
           value_path: "metadata.status",
           missing_value: "todo",
           input_name: "status",
-          default_pinned: false,
+          default_pinned: true,
           options: [
             { value: "todo", label: "To do", tone: "muted" },
             {

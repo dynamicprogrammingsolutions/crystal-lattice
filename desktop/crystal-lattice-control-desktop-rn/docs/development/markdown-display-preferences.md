@@ -19,6 +19,12 @@ on `text` makes every heading body-sized. Desktop-specific colors, spacing,
 error fallback, inline code, and syntax-highlighted fenced code remain owned
 by the desktop renderer.
 
+User-message prose and inline code use `bubbleUserText`, not
+`textOnPrimary`. The macOS theme builder derives the token from the accent
+composited over the effective window background, preserving dark-on-light and
+light-on-dark contrast even when the operator uses a custom accent. Plain user
+text plus bubble-owned header/footer copy use the same token.
+
 Message, chat, composer, attachment, and metadata styles use responsive theme
 tokens. Icons, spacing, and hit targets remain fixed. Desktop panel headers,
 connection/session rows, session tabs, and the chat header also consume

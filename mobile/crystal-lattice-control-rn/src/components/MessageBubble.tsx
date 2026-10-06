@@ -142,7 +142,13 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
+          <Text
+            style={[
+              styles.headerText,
+              styles.userHeaderText,
+              styles.standaloneHeaderText,
+            ]}
+          >{`[${index}] User`}</Text>
           <TextInput
             style={[styles.editInput, styles.editInputOnBlue]}
             value={editingText ?? ''}
@@ -175,7 +181,13 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
       style={styles.row}
     >
       <View style={[styles.bubble, styles.userBubble]}>
-        <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
+        <Text
+          style={[
+            styles.headerText,
+            styles.userHeaderText,
+            styles.standaloneHeaderText,
+          ]}
+        >{`[${index}] User`}</Text>
         <MessageAttachmentsPreview
           message={message}
           messageIndex={index}
@@ -199,7 +211,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
           <View testID={`message-footer-${index}`} style={styles.footerRow}>
             <SelectablePlainText
               text={footerParts.join('   ')}
-              style={styles.footerText}
+              style={[styles.footerText, styles.userFooterText]}
               testID={`message-footer-${index}`}
             />
           </View>
@@ -631,6 +643,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
                 style={styles.collapseIconButton}
                 hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setReasoningExpanded((prev) => !prev)}
+                testID={`assistant-reasoning-disclosure-${index}`}
               >
                 <Icon
                   name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
@@ -666,10 +679,12 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             <ScrollView
               style={styles.collapsibleScroll}
               nestedScrollEnabled
+              testID={`assistant-reasoning-scroll-${index}`}
             >
               <SelectablePlainText
                 text={reasoning}
                 style={styles.reasoningText}
+                testID={`assistant-reasoning-content-${index}`}
               />
             </ScrollView>
           </View>
@@ -1035,6 +1050,9 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.small,
       color: theme.textSecondary,
     },
+    userHeaderText: {
+      color: theme.bubbleUserText,
+    },
     standaloneHeaderText: {
       marginBottom: 4,
     },
@@ -1076,10 +1094,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
       fontFamily: 'Courier',
     },
-    // User messages share the same foreground color as other
-    // messages; only the background changes per theme.
     userContentText: {
-      color: theme.text,
+      color: theme.bubbleUserText,
     },
     collapseIconButton: {
       paddingHorizontal: 6,
@@ -1118,6 +1134,9 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
+    },
+    userFooterText: {
+      color: theme.bubbleUserText,
     },
     linkSection: {
       marginTop: 8,
@@ -1235,7 +1254,6 @@ const createStyles = (theme: Theme) =>
     rawReadonlyInput: {
       marginTop: 2,
       padding: 0,
-      color: theme.text,
     },
   });
 

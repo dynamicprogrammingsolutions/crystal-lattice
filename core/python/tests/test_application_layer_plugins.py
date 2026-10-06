@@ -280,6 +280,55 @@ def test_disabled_plugins_shape_default_enabled_set_and_session_override_can_ree
     )
 
 
+def test_agent_profile_plugins_report_safe_effective_defaults(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+                "api_key": "must-not-be-exposed",
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_feature.DummyFeature",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_calculator"],
+                "private_setting": "also-must-not-be-exposed",
+            }
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+    plugins = app.list_agent_profile_plugins("default")
+    by_id = {entry["id"]: entry for entry in plugins}
+
+    assert by_id["dummy_provider"]["enabled"] is True
+    assert by_id["dummy_provider"]["active"] is True
+    assert by_id["dummy_provider"]["source"] == "agent"
+    assert by_id["dummy_feature"]["enabled"] is True
+    assert by_id["dummy_calculator"]["enabled"] is False
+    assert by_id["dummy_calculator"]["active"] is False
+    assert by_id["dummy_calculator"]["source"] == "agent"
+
+    allowed_keys = {
+        "id",
+        "kind",
+        "name",
+        "class_path",
+        "class_name",
+        "enabled",
+        "active",
+        "source",
+    }
+    assert all(set(entry).issubset(allowed_keys) for entry in plugins)
+    assert "must-not-be-exposed" not in repr(plugins)
+
+
 def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> None:
     config = {
         "providers": {

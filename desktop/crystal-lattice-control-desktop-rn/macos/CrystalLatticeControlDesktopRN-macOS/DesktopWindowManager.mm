@@ -17,6 +17,8 @@
 @property(nonatomic, strong) NSPopover *applicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *closingApplicationActionDialogPopover;
 @property(nonatomic, strong) NSPopover *actionsPopover;
+@property(nonatomic, copy) NSString *actionsPopoverMenuId;
+@property(nonatomic, assign) CGFloat actionsPopoverMaxHeight;
 @property(nonatomic, strong) NSPopover *messageLimitPopover;
 
 @property(nonatomic, assign) BOOL suppressApplicationActionDialogPopoverCancel;
@@ -704,7 +706,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
           [[RCTRootView alloc] initWithBridge:self.bridge moduleName:@"AgentPickerWindow" initialProperties:initialProps];
     }
 
-    NSRect frame = NSMakeRect(0, 0, 520, 500);
+    NSRect frame = NSMakeRect(0, 0, 900, 620);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                      backing:NSBackingStoreBuffered
@@ -714,6 +716,7 @@ RCT_EXPORT_METHOD(openAgentPicker : (NSDictionary *)params)
       title = params[@"title"];
     }
     window.title = title ?: @"New Session";
+    window.minSize = NSMakeSize(720, 480);
     rootView.frame = frame;
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     window.contentView = rootView;
@@ -1129,7 +1132,39 @@ RCT_EXPORT_METHOD(toggleActionsPopover : (NSDictionary *)params)
       height = (CGFloat)[params[@"height"] doubleValue];
     }
 
+    // Measure with the system font used by the React action rows. Leave room
+    // for their padding, optional icon, state value, and independent pin target.
+    NSArray *rows = params[@"rows"];
+    if ([rows isKindOfClass:[NSArray class]]) {
+      CGFloat fontSize = [params[@"fontSize"] doubleValue];
+      CGFloat stateFontSize = [params[@"stateFontSize"] doubleValue];
+      NSFont *font = [NSFont systemFontOfSize:fontSize > 0 ? fontSize : 15];
+      NSFont *stateFont = [NSFont systemFontOfSize:stateFontSize > 0 ? stateFontSize : 13];
+      for (NSDictionary *row in rows) {
+        NSString *label = row[@"label"];
+        NSString *stateLabel = row[@"stateLabel"];
+        CGFloat rowWidth = 24 + 44 + ([row[@"hasIcon"] boolValue] ? 42 : 0);
+        rowWidth += [label sizeWithAttributes:@{NSFontAttributeName: font}].width;
+        if ([stateLabel isKindOfClass:[NSString class]] && stateLabel.length > 0) {
+          rowWidth += 12 + [stateLabel sizeWithAttributes:@{NSFontAttributeName: stateFont}].width;
+        }
+        width = MAX(width, ceil(rowWidth) + 2);
+      }
+    }
+    NSRect visibleFrame = (sourceView.window.screen ?: NSScreen.mainScreen).visibleFrame;
+    CGFloat availableWidth = MIN(visibleFrame.size.width, sourceView.window.contentView.bounds.size.width);
+    width = MIN(width, MIN(480, MAX(1, availableWidth - 32)));
+    self.actionsPopoverMaxHeight = floor(visibleFrame.size.height * 0.8);
+    height = MIN(height, self.actionsPopoverMaxHeight);
+    self.actionsPopoverMenuId = params[@"menuId"];
+
     NSDictionary *initialProps = @{};
+    NSDictionary *environment = [NSProcessInfo processInfo].environment;
+    NSString *captureAppearance = environment[@"CLC_WEBSITE_VISUAL_THEME"];
+    if ([environment[@"CLC_ENABLE_WEBSITE_VISUAL_HARNESS"] isEqualToString:@"1"] &&
+        ([captureAppearance isEqualToString:@"light"] || [captureAppearance isEqualToString:@"dark"])) {
+      initialProps = @{@"captureAppearance": captureAppearance};
+    }
     NSView *rootView = nil;
     id appDelegate = NSApp.delegate;
     id rootViewFactory = nil;
@@ -1167,6 +1202,9 @@ RCT_EXPORT_METHOD(toggleActionsPopover : (NSDictionary *)params)
 
     self.actionsPopover = popover;
 
+    if (initialProps[@"captureAppearance"] != nil) {
+      popover.appearance = sourceView.window.effectiveAppearance;
+    }
     [popover showRelativeToRect:sourceView.bounds ofView:sourceView preferredEdge:NSRectEdgeMaxY];
   });
 }
@@ -1179,6 +1217,24 @@ RCT_EXPORT_METHOD(closeActionsPopover)
     }
     [self.actionsPopover performClose:nil];
     self.actionsPopover = nil;
+  });
+}
+
+RCT_EXPORT_METHOD(resizeActionsPopover : (NSDictionary *)params)
+{
+  dispatch_async(dispatch_get_main_queue(), ^{
+    // A layout event from a dismissed menu must not resize its successor.
+    if (!self.actionsPopover.isShown ||
+        ![self.actionsPopoverMenuId isEqualToString:params[@"menuId"]]) {
+      return;
+    }
+    CGFloat height = [params[@"height"] doubleValue];
+    if (!isfinite(height) || height <= 0) {
+      return;
+    }
+    NSSize size = self.actionsPopover.contentSize;
+    size.height = MIN(ceil(height), self.actionsPopoverMaxHeight);
+    self.actionsPopover.contentSize = size;
   });
 }
 

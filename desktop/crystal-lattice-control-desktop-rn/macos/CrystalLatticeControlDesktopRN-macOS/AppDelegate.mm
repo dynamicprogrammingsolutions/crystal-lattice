@@ -179,6 +179,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"progressiveScrollBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"initialRestoreReady" : @(!EnvironmentFlagEnabled(@"CLC_TRANSCRIPT_SCROLL_RESTORE_READY_FALSE")),
     @"websiteVisualKind" : [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_KIND"] ?: @"agent-codex",
+    @"websiteVisualBackendUrl" : enableWebsiteVisualHarness
+        ? ([NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_BACKEND_URL"] ?: @"") : @"",
+    @"websiteVisualSessionId" : enableWebsiteVisualHarness
+        ? ([NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_SESSION_ID"] ?: @"") : @"",
     @"transcriptTextSurfaceScenario" :
         [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_TEXT_SURFACE_SCENARIO"] ?: @"none",
   } mutableCopy];
@@ -212,10 +216,16 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   if (enableAnyTestHarness) {
     NSWindow *window = (NSWindow *)self.window;
     if (enableWebsiteVisualHarness) {
-      [window setContentSize:NSMakeSize(1280, 720)];
+      BOOL sessionActions = [initialProps[@"websiteVisualKind"] isEqualToString:@"session-actions"];
+      [window setContentSize:sessionActions ? NSMakeSize(1120, 760) : NSMakeSize(1280, 720)];
+      NSString *captureTheme = [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_THEME"];
+      if ([captureTheme isEqualToString:@"light"] || [captureTheme isEqualToString:@"dark"]) {
+        window.appearance = [NSAppearance appearanceNamed:[captureTheme isEqualToString:@"dark"]
+            ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+      }
       [window center];
     }
-    window.title = self.moduleName;
+    window.title = enableWebsiteVisualHarness ? @"Crystal Lattice Desktop" : self.moduleName;
     window.accessibilityLabel = self.moduleName;
     window.accessibilityIdentifier = [NSString stringWithFormat:@"%@Window", self.moduleName];
     [(NSWindow *)self.window makeKeyAndOrderFront:nil];
@@ -474,6 +484,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_ACTION_DISPLAY_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_DESKTOP_WORKSPACE_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_RICH_SESSION_UI_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_WEBSITE_VISUAL_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
       LaunchArgumentPresent(@"--transcript-range-navigation-harness") ||
@@ -483,7 +494,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       LaunchArgumentPresent(@"--connections-panel-harness") ||
       LaunchArgumentPresent(@"--action-display-harness") ||
       LaunchArgumentPresent(@"--desktop-workspace-harness") ||
-      LaunchArgumentPresent(@"--rich-session-ui-harness")) {
+      LaunchArgumentPresent(@"--rich-session-ui-harness") ||
+      LaunchArgumentPresent(@"--website-visual-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

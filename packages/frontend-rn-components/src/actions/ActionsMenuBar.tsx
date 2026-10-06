@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   Platform,
   Text,
   StyleSheet,
@@ -104,6 +103,10 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     | {
         toggleActionsPopover?: (params: {
           anchorTag: number;
+          menuId: string;
+          rows: Array<{ label: string; stateLabel?: string; hasIcon: boolean }>;
+          fontSize: number;
+          stateFontSize: number;
           width?: number;
           height?: number;
         }) => void;
@@ -312,6 +315,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
             accessibilityLabel={`Open ${props.title}`}
+            accessibilityRole="button"
             testID={props.menuButtonTestID}
             onPress={() => {
               if (isMacOSPopoverMenu) {
@@ -366,29 +370,17 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                   },
                 });
 
-                const rowHeight = 42;
-                const headerHeight = 44;
-                const paddingHeight = 12;
-                const bottomBuffer = 10;
-                const estimatedContentHeight =
-                  headerHeight +
-                  paddingHeight +
-                  actions.length * rowHeight +
-                  bottomBuffer;
-                const windowHeight = Dimensions.get("window").height;
-                const maxPopoverHeight = Math.max(
-                  220,
-                  Math.floor(windowHeight * 0.8),
-                );
-                const height = Math.max(
-                  140,
-                  Math.min(maxPopoverHeight, estimatedContentHeight),
-                );
-
                 desktopWindowManager?.toggleActionsPopover?.({
                   anchorTag,
-                  width: 320,
-                  height,
+                  menuId,
+                  rows: actions.map((action) => ({
+                    label: action.label,
+                    stateLabel: action.menuStateLabel,
+                    hasIcon: Boolean(action.iconName),
+                  })),
+                  fontSize: theme.typography.fontSize.message,
+                  stateFontSize: theme.typography.fontSize.secondary,
+                  height: 44 + 12 + actions.length * 44,
                 });
                 return;
               }

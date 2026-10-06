@@ -31,10 +31,22 @@ Long titles wrap to at most two lines and truncate at the tail, while the close
 control remains inside the panel.
 
 Complete action-menu rows keep their icon and pin controls at fixed widths.
-The ordinary title and neutral state value share the remaining width and
-truncate independently at the tail. Sizing is adaptive rather than a fixed
-percentage: a short title leaves the remaining width to a long value. The
-action accessibility label retains both complete strings.
+Action names can wrap once to two lines on mobile and Desktop, with row height
+growing to fit. The ordinary title and neutral state value share the remaining
+width; the state value remains a single line. A short title leaves the remaining
+width to a long value. The action accessibility label retains both complete
+strings, and the pin target remains independent of a disabled action.
+Application-action custom rows, rich-list options, and rich-config dropdown
+options use the same two-line naming rule. Compact pinned controls retain their
+existing single-line presentation. Mobile modal surfaces cap their height at
+90% of the viewport so the panel's body can scroll when wrapped rows fill it.
+
+Desktop's native action popover measures system-font label widths, including
+icon, state, and pin space. Its width is bounded by the host window/screen and
+480 points. The React root reports the actual header and scroll-content height;
+the native owner caps the resulting height at 80% of the visible screen and
+keeps taller menus scrollable. Resize messages include the owning menu ID so
+late layout events cannot resize another menu.
 
 Maintainer entry point:
 

@@ -81,6 +81,7 @@ import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import { setActiveAgentPickerWindow } from '../windows/agentPickerCoordinator';
 import {
   closeDesktopPopover,
   openDesktopPopover,
@@ -772,6 +773,11 @@ function SessionsPanelInner({
       const agentDescriptors =
         await agentsController.ensureDescriptorsLoaded();
       const agents = agentDescriptors.map(descriptor => descriptor.id);
+      setActiveAgentPickerWindow({
+        id: `new-session:${connectionId}`,
+        connectionId,
+        backend,
+      });
       DesktopWindowManager?.openAgentPicker({
         connectionId,
         connectionName: focusedConnectionName ?? connectionId,

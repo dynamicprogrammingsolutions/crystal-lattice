@@ -258,7 +258,7 @@ export function RichConfigDropdownPanel(
     >
       <View style={[styles.panelHeader, { borderBottomColor: colors.border }]}>
         <View style={styles.panelTitleColumn}>
-          <Text style={[styles.panelTitle, { color: colors.text }]}>
+          <Text numberOfLines={2} style={[styles.panelTitle, { color: colors.text }]}>
             {props.richUi.label}
           </Text>
           {props.richUi.description ? (
@@ -332,7 +332,7 @@ export function RichConfigDropdownPanel(
                     color,
                   })
                 : null}
-              <Text style={[styles.optionText, { color }]}>{option.label}</Text>
+              <Text numberOfLines={2} style={[styles.optionText, { color }]}>{option.label}</Text>
               {selected ? (
                 <Text style={[styles.selectedMark, { color: colors.primary }]}>
                   ✓
@@ -400,6 +400,7 @@ const styles = StyleSheet.create({
   panelHeader: {
     minHeight: 48,
     paddingHorizontal: 14,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -407,6 +408,7 @@ const styles = StyleSheet.create({
   },
   panelTitleColumn: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   panelTitle: {
@@ -437,6 +439,7 @@ const styles = StyleSheet.create({
   option: {
     minHeight: 44,
     paddingHorizontal: 14,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,

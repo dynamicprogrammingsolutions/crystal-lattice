@@ -647,7 +647,7 @@ completes, and rebuilds the visible transcript from the compacted native
 output.
 
 Users can compact the complete visible history, provide an explicit exclusive
-end index, or invoke `Compact native history up to here` from an individual
+end index, or invoke `OpenAI compaction up to here` from an individual
 message. The message-level action includes the selected message in the
 compacted prefix and uses the same background operation.
 

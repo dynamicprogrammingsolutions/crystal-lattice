@@ -46,7 +46,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   const { preferences } = useMarkdownDisplayPreferences();
 
   const markdownStyle = useMemo(() => {
-    const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
+    const baseTextColor = variant === 'user' ? theme.bubbleUserText : theme.text;
     const typography = deriveMarkdownTypography(preferences);
     const messageFontSize = typography.body;
     const headingStyle = (fontSize: number, lineHeight: number) => ({
@@ -141,7 +141,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
                 fontSize: theme.typography.fontSize.code,
                 lineHeight: theme.typography.lineHeight.code,
                 backgroundColor: theme.inlineCodeBg,
-                color: variant === 'user' ? theme.textOnPrimary : theme.text,
+                color: variant === 'user' ? theme.bubbleUserText : theme.text,
               },
             ]}
             selectable
@@ -155,7 +155,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       codeBlockRenderer,
       theme.inlineCodeBg,
       theme.text,
-      theme.textOnPrimary,
+      theme.bubbleUserText,
       theme.typography.fontSize.code,
       theme.typography.lineHeight.code,
       preferences,

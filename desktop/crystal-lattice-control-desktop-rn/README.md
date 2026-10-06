@@ -18,10 +18,12 @@ Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-d
 ## User documentation
 
 - [Home, Watchlist, History, status, and session tabs](docs/home-and-session-navigation.md)
+- [Agent selection and default plugin preview](docs/agent-selection.md)
 
 ## Development documentation
 
 - [Desktop development](docs/development/index.md)
+- [Agent selection window](docs/development/agent-selection-window.md)
 - [Human-time telemetry](docs/development/human-time-telemetry.md)
 - [macOS release maintenance](docs/development/macos-release.md)
 

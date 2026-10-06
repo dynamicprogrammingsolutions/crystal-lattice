@@ -9,6 +9,7 @@ interface Props {
 }
 
 const { asset, alt = asset.alt ?? asset.label ?? "", wide = false } = Astro.props;
+const useCompact = !wide && Boolean(asset.srcCompact);
 ---
 
 <div
@@ -19,11 +20,15 @@ const { asset, alt = asset.alt ?? asset.label ?? "", wide = false } = Astro.prop
 >
   {asset.src ? (
     <ThemedImage
-      src={asset.src}
-      srcDark={asset.srcDark}
+      src={useCompact ? asset.srcCompact! : asset.src}
+      srcDark={useCompact ? asset.srcCompactDark : asset.srcDark}
+      srcCompact={wide ? asset.srcCompact : undefined}
+      srcCompactDark={wide ? asset.srcCompactDark : undefined}
+      widthCompact={asset.widthCompact}
+      heightCompact={asset.heightCompact}
       alt={alt}
-      width={asset.width}
-      height={asset.height}
+      width={useCompact ? asset.widthCompact : asset.width}
+      height={useCompact ? asset.heightCompact : asset.height}
     />
   ) : (
     <div class="proof-placeholder">

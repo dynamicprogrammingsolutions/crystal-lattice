@@ -51,6 +51,7 @@ export interface Theme {
   notificationMuted: string;
   message: string;
   bubbleUserBg: string;
+  bubbleUserText: string;
   bubbleSystemBorder: string;
   bubbleToolBg: string;
   modalBackdrop: string;
@@ -112,6 +113,7 @@ const defaultLightTheme: Theme = {
   notificationMuted: 'rgba(0, 122, 255, 0.12)',
   message: '#0A84FF',
   bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
+  bubbleUserText: '#000000',
   bubbleSystemBorder: '#E5E5EA',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
   modalBackdrop: 'rgba(0, 0, 0, 0.3)',

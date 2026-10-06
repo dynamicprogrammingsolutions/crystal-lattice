@@ -3,6 +3,7 @@
 - [Notification components](notification-components.md)
 - [Actions menu components](actions-menu-components.md)
 - [Markdown display preferences](markdown-display-preferences.md)
+- [Shared theme contract](theme-contract.md)
 - [Portable Home, status, and reorder contracts](home-workspace-and-status.md)
 - [Shared human-time telemetry](human-time-telemetry.md)
 

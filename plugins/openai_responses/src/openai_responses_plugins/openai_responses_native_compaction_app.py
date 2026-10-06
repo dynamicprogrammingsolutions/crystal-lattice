@@ -103,7 +103,7 @@ class OpenAIResponsesNativeCompactionAppPlugin:
             {
                 "ui_type": "message_action",
                 "id": "compact_native_history_through_message",
-                "label": "Compact native history up to here",
+                "label": "OpenAI compaction up to here",
                 "icon": "archive",
                 "order": 25,
                 "action_id": "compact_native_history",
@@ -115,7 +115,7 @@ class OpenAIResponsesNativeCompactionAppPlugin:
                 },
                 "dialog": {
                     "kind": "confirm",
-                    "title": "Compact native history up to here",
+                    "title": "OpenAI compaction up to here",
                     "message": (
                         "Compact provider-native history through this message "
                         "in the background?"

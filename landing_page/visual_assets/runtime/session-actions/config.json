@@ -1,0 +1,29 @@
+{
+  "plugin_policy": {
+    "base_dir": "${env:REPO_ROOT}"
+  },
+  "providers": {
+    "local-example": {
+      "provider": "deterministic_stream",
+      "model": "local-example",
+      "plugins": [
+        "plugins.deterministic_stream_provider.DeterministicStreamProvider"
+      ]
+    }
+  },
+  "plugins": [
+    "path:plugins/session-title-app",
+    "path:plugins/generate-title-app",
+    "path:plugins/summarize-range-app"
+  ],
+  "agents": {
+    "workshop-planner": {
+      "provider": "local-example",
+      "display": {
+        "title": "Workshop planner",
+        "description": "Plan a practical community workshop.",
+        "order": 10
+      }
+    }
+  }
+}

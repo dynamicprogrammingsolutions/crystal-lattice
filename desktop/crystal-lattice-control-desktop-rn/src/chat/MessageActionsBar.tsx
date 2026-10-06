@@ -31,6 +31,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   return (
     <ActionsMenuBar<MessageActionDefinition>
       title="Message actions"
+      menuButtonTestID="message-actions-menu"
       variant="dropdown"
       renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
       renderPinIcon={({ pinned: isPinned, size, color }) => (

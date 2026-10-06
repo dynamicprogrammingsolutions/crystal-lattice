@@ -19,12 +19,23 @@ type VisualKind =
   | "snapshots"
   | "settings"
   | "usage"
+  | "cost"
   | "hero"
   | "provider-settings"
   | "plugins"
   | "compiled"
   | "vibe"
   | "workspaces";
+
+async function persistWebsiteScreenshot(
+  screenshotName: string,
+  filename: string,
+): Promise<void> {
+  const source = await device.takeScreenshot(screenshotName);
+  const directory = path.resolve(process.cwd(), "artifacts", "website-visual");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.copyFileSync(source, path.join(directory, filename));
+}
 
 async function captureTheme(
   kind: VisualKind,
@@ -78,19 +89,43 @@ async function captureTheme(
       .toExist()
       .withTimeout(30000);
   } else if (kind === "compiled") {
-    await waitFor(element(by.id("system-compiled-toggle")))
+    await waitFor(element(by.id("website-compiled-action-display")))
       .toBeVisible()
       .withTimeout(30000);
-    await element(by.id("system-compiled-toggle")).tap();
-    await waitFor(element(by.id("system-compiled-content")))
+  } else if (kind === "cost") {
+    await waitFor(element(by.id("website-cost-action-display")))
       .toBeVisible()
       .withTimeout(30000);
   } else if (kind === "vibe") {
     await waitFor(element(by.id("message-bubble-2")))
       .toBeVisible()
       .withTimeout(30000);
+    await waitFor(element(by.id("assistant-reasoning-disclosure-2")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("assistant-reasoning-disclosure-2")).tap();
+    await waitFor(element(by.id("assistant-reasoning-content-2")))
+      .toExist()
+      .withTimeout(30000);
   } else if (kind === "workspaces") {
     await waitFor(element(by.text("Launch strategy research")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await persistWebsiteScreenshot(
+      `website-workspaces-list-${theme}`,
+      `workspaces-list-${theme}.png`,
+    );
+    await waitFor(
+      element(by.id("session-rich-action-launch-research-set_session_status"))
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(
+      by.id("session-rich-action-launch-research-set_session_status")
+    ).tap();
+    await waitFor(
+      element(by.id("session-rich-list-launch-research-set_session_status"))
+    )
       .toBeVisible()
       .withTimeout(30000);
   } else {
@@ -103,14 +138,9 @@ async function captureTheme(
   }
   await new Promise((resolve) => setTimeout(resolve, 600));
 
-  const source = await device.takeScreenshot(
-    `website-${kind}-${theme}`
-  );
-  const directory = path.resolve(process.cwd(), "artifacts", "website-visual");
-  fs.mkdirSync(directory, { recursive: true });
-  fs.copyFileSync(
-    source,
-    path.join(directory, `${kind}-${theme}.png`)
+  await persistWebsiteScreenshot(
+    `website-${kind}-${theme}`,
+    `${kind}-${theme}.png`,
   );
 }
 
@@ -121,6 +151,7 @@ describe("website visual source capture", () => {
       "snapshots",
       "settings",
       "usage",
+      "cost",
       "hero",
       "provider-settings",
       "plugins",

@@ -56,7 +56,7 @@ async function capturePipelineArguments(pipeline) {
 }
 
 test("the current catalog defines commands and source-local lifecycle assets", () => {
-  assert.equal(catalog.assets.length, 8);
+  assert.equal(catalog.assets.length, 9);
   assert.deepEqual(catalog.commandNames, [
     "list",
     "inspect",
@@ -80,8 +80,15 @@ test("the current catalog defines commands and source-local lifecycle assets", (
   assert.equal(runtimeUiAsset.hasCommand("promote-runtime-ui"), true);
   assert.equal(runtimeUiAsset.hasCommand("check"), true);
 
+  const candidate = catalog.assetMap.get("homepage-session-actions");
+  assert.equal(candidate.hasCommand("capture"), true);
+  assert.equal(candidate.hasCommand("inspect"), true);
+  assert.equal(candidate.hasCommand("check"), true);
+  assert.equal(candidate.metadata.reviewState, "candidate");
+  assert.equal(candidate.hasLifecycle("prepareSourcePromotion"), false);
+
   for (const asset of catalog.assets.filter(
-    (item) => !["coding-plan", "mobile-workbench"].includes(item.id),
+    (item) => !["coding-plan", "mobile-workbench", "homepage-session-actions"].includes(item.id),
   )) {
     assert.equal(asset.hasCommand("check"), false);
     assert.equal(asset.hasLifecycle("buildCandidate"), true);
@@ -157,7 +164,7 @@ test("check-style default selection includes the complete catalog", () => {
     defaultAll: true,
   });
 
-  assert.equal(selected.assets.length, 8);
+  assert.equal(selected.assets.length, 9);
 });
 
 test("mutating commands require an explicit selection or --all", () => {

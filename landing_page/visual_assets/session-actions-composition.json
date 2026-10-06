@@ -1,0 +1,27 @@
+{
+  "id": "homepage-session-actions",
+  "captureDirectory": "desktop/crystal-lattice-control-desktop-rn/artifacts/website-session-actions",
+  "candidateDirectory": "artifacts/visual-assets/homepage-session-actions",
+  "previewPrefix": "/__preview/session-actions",
+  "maxBytes": 240000,
+  "preserveWideHashes": {
+    "light": "0f085822fbc235080c31cf1f5f7fac74eab76c72c376c0a15a533d66328e0c35",
+    "dark": "f8baab402c0cb95b04431da4ddcbbec3fc17a9e815c4059e9a5aa6f1206c2167"
+  },
+  "layouts": {
+    "wide": {
+      "width": 2400,
+      "height": 1350,
+      "code": { "x": 50, "y": 390, "width": 830, "height": 700, "fontSize": 32, "lineHeight": 56, "entryGap": 38 },
+      "context": { "x": 960, "y": 65, "width": 1360 },
+      "focus": { "x": 1350, "y": 610, "width": 880, "labelOnly": false }
+    },
+    "compact": {
+      "presentation": "stacked-highlights",
+      "width": 1200,
+      "height": 1600,
+      "code": { "x": 72, "y": 40, "width": 1056, "height": 610, "fontSize": 46, "lineHeight": 62, "entryGap": 14, "paddingHorizontal": 24, "suffixScale": 0.6, "highlightRows": true },
+      "focus": { "x": 96, "y": 880, "width": 1008, "headerHeight": 64, "cropBreakHeight": 14, "outlineInset": 12, "outlineTop": 13, "cornerRadius": 9 }
+    }
+  }
+}

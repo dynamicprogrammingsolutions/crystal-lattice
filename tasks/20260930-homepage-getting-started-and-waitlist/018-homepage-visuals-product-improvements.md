@@ -59,10 +59,13 @@ is explicitly decided.
       the broader model-family list visible; irrelevant plugin categories
       may be hidden for capture.
 - [ ] Highlight 2 uses ImageMagick-composed relationship images, not live
-      HTML/SVG connections on the website. Each has one readable multi-plugin
-      JSON block on the left and a real application screenshot with visible
-      background on the right. Lines connect actual config declarations to
-      their contributed controls. The primary Session actions image shows
+      HTML/SVG connections on the website. Desktop has one readable
+      multi-plugin JSON block on the left and real application UI with visible
+      background on the right; lines connect declarations to their controls.
+      Mobile stacks the full-width JSON block above a magnified, recognizable
+      native popup excerpt and pairs declarations/actions with matching
+      translucent row highlights, without connector lines.
+      The primary Session actions image shows
       at least three plugins and three actions; additional requested examples
       include Fork/share message actions and pin/archive/status list controls.
       Plugin names and action labels must remain visible at page size.
@@ -129,8 +132,11 @@ is explicitly decided.
       bindings, and freshness triggers are maintained through the visual asset
       framework.
 - [ ] Final proof assets, claims, and layout receive human approval on the
-      actual responsive website before final source promotion, product merge
-      to main, publication, or the waitlist work advances.
+      actual responsive website before final source promotion or publication.
+      Previously implemented product prerequisites may be reconciled onto main
+      for website use at the explicitly approved checkpoint. Other product
+      integrations retain their review gate; waitlist work follows its
+      separately approved scope.
 
 ## Current approval boundary and questions
 
@@ -147,20 +153,49 @@ the message label/confirmation title **OpenAI compaction up to here**.
 Implementation and verification are complete for this checkpoint, including
 macOS and iOS native checks. On October 6 the user authorized its commit and
 requested a plan for the next step. The popup checkpoint is committed on
-develop as `9e053402` (`Improve action menu readability`). This request does
-not start capture/composition work.
+develop as `9e053402` (`Improve action menu readability`).
 
-The next-checkpoint plan below is **Draft**. It covers only the first Session
-actions relationship image in the existing homepage highlight, with another
-human review stop before the remaining images.
+The user subsequently approved correcting the next plan to reconcile the
+three pending capture files and their required earlier changes onto main
+first, then proceed with the Session actions image. Checkpoint 3 is
+**Approved**, with another human review stop before the remaining images.
+Reconciliation is authorized; a new implementation commit or publication is
+not part of this instruction.
 
-**Decision for approval:** recommend integrating only `9e053402` into main at
-the start of this website-use checkpoint, so all new capture-only code,
-website work, documentation, and task tracking stay on main. Its patch passes
-`git apply --check` against main. This narrowly advances the popup commit's
-integration from the existing final-visual-review merge gate; the requirements
-checklist retains that gate until the user approves this exception. No
-wholesale develop merge or other product integration is proposed.
+Checkpoint 3 is implemented, verified, and accepted by the user on Desktop
+and phone. The first Session actions image is the approved baseline on the
+actual local homepage; remaining image slots retain their previous state.
+Review at `http://192.168.8.227:4182/#feature-plugins`.
+No new commit, push, source promotion, or publication has occurred.
+The three migrated capture edits are cleared from develop; unrelated work
+there and the unrelated parent/waitlist edits on main remain separate.
+
+Latest review: the user accepts the Desktop composition and requests the
+mobile revision described above. This revision is authorized on main.
+Retain the accepted Desktop image bytes. Keep real popup chrome in the phone
+excerpt, use matching physical-marker-style colors on its real rows and the
+code declarations, and stop for review after updating the actual page.
+No new commit or publication is authorized.
+
+The user approved the stacked phone revision and asked for a next-step
+proposal. The current Desktop images remain byte-identical to their accepted
+versions. Record that human acceptance without claiming a `view_image`
+inspection, which was not performed. Checkpoint 4 below is **Draft**;
+new-image execution awaits approval of the next plan. The user subsequently
+authorized a scoped commit of the accepted checkpoint; the requested broader
+image batch and invalid-icon correction will be planned after that commit.
+
+The bounded reconciliation includes the agent-default preview (`ebb053ac`),
+pin/status defaults (`2bfaf03c`), user-message contrast (`4fab5568`), capture
+theme (`7d46556b`), the Desktop/mobile portions of visual candidates
+(`29604c23`), and the popup checkpoint (`9e053402`). The defaults/contrast
+changes are prerequisites of the maintained capture fixtures and theme.
+Exclude the obsolete standalone review-package changes in `29604c23`.
+Then transfer the pending Desktop harness, compact agent-picker spacing,
+and mobile capture-save edits, verify their contents and behavior, and remove
+only those transferred pending edits from develop. Preserve unrelated changes
+and commits. The reconciliation is left reviewable on main without creating
+a new commit; preserve patch backups and a source-commit manifest.
 
 Approved decisions:
 
@@ -464,11 +499,11 @@ the accepted classifications used by this website task.
 
 Status: Draft
 
-This draft applies to checkpoint 3, **the first Session actions relationship
-image**, detailed below. Completed layout and popup checkpoints and their
-approved decisions remain completed; this does not reopen them. Later images,
-final source promotion, other product integrations, and publication retain
-their separate review gates.
+This draft applies only to checkpoint 4, **the Message actions relationship
+image**, below. Prerequisite reconciliation, layout, popup, and the first
+Session actions visual are already accepted; this does not reopen them.
+Final source promotion, other product integrations, and publication retain
+their separate gates.
 
 ### Design
 
@@ -711,9 +746,13 @@ wide/portrait variants. Keep the other two plugin placeholders and every
 other feature as they are. The image-card label remains **Session actions**,
 with its existing description; alt text describes the three relationships.
 
-The image has one valid JSON configuration excerpt on the left and the real
-Desktop conversation window with its Session actions popup open on the right.
-ImageMagick draws the connections into the image pixels:
+The accepted Desktop image has one valid JSON excerpt on the left and the
+real conversation/popup on the right, with baked connections. The revised
+mobile image has full-width code above a magnified native popup excerpt:
+matching translucent marker bands identify the three corresponding rows,
+without lines. Preserve the real header, close control, and edges. If an
+enlarged excerpt omits unrelated menu rows, mark the crop break visibly and
+record its source segments; do not redraw a fabricated menu.
 
 | Visible plugin package | Real contributed action |
 | --- | --- |
@@ -740,16 +779,24 @@ menu check. Record the schemas and screenshot geometry from that run.
 The Desktop package owns its capture-only scene and native-window capture.
 The landing catalog owns optional Playwright rendering of the code block,
 ImageMagick composition, responsive derivatives, provenance, and page binding.
-All new checkpoint work belongs on main after the specifically approved
-popup integration. A further ordinary product fix belongs on develop; stop
+All new checkpoint work belongs on main after the approved reconciliation.
+A further ordinary product fix belongs on develop; stop
 before broadening that scope or silently importing another product commit.
 
 **Implementation sequence after approval:**
 
-1. **AGENT:** integrate only the approved popup prerequisite after the
-   integration decision below is accepted. Verify the applicable main-side
-   checks before capturing. Preserve the older pending picker/continuity and
-   mobile capture edits on develop for their owning later checkpoints.
+1. **AGENT:** preserve the three pending capture-file diffs and their hashes
+   before changing either worktree. Reconcile the six named source changes
+   above into main without the superseded review package or unrelated
+   develop changes. Transfer the pending Desktop harness and compact-picker
+   edits together, plus the mobile screenshot-saving edit. Verify that all
+   three main files match the preserved develop versions, then run focused
+   agent-preview, theme, plugin-default, popup, capture-consumer, HTTP/SDK,
+   and type checks. Only after that evidence, remove the exact transferred
+   pending hunks from develop. Record provenance and leave the reconciled
+   main changes uncommitted for the next review. Extend the reconciled
+   Desktop harness for the new scene instead of creating another divergent
+   copy of it.
 2. **AGENT:** add the isolated three-plugin capture config and backend setup.
    Verify exact package, plugin ID, action ID, order, and display-label
    mappings through the public HTTP API and production SDK. Derive the
@@ -764,19 +811,22 @@ before broadening that scope or silently importing another product commit.
    Use the deterministic blue capture palette in both native roots and
    isolated preferences. Any menu ordering/hiding is capture-only and
    recorded. Open the menu without executing its actions.
-   The producer accepts one scene/theme/output, preserves other output files,
-   and cleans up only its own process. Native UI automation runs sequentially.
+   The focused producer captures this one scene in both required themes into
+   its own artifact directory, preserves other output files, and cleans up
+   only its own process. Native UI automation runs sequentially.
    If the fresh build fails, stop with its actual diagnostic before choosing
    a runtime upgrade, reused binary, or alternative product surface.
 4. **AGENT:** make one composition definition with a 16:9 wide derivative
-   and a 3:4 portrait derivative, each in both themes. Both retain code on
-   the left and real UI on the right; the portrait composition is separately
-   arranged from the same sources. Use visual soft-wrapping for long JSON
+   and a 3:4 portrait derivative, each in both themes. Desktop retains code
+   left/UI right. The user-reviewed mobile revision stacks full-width code
+   above a recognizable popup excerpt and pairs rows by matching translucent
+   marker colors. Use visual soft-wrapping for long JSON
    strings, with complete plugin names. A magnified crop of the actual menu
    may emphasize its three rows while the surrounding window remains visible.
-   Lines end on the corresponding declarations and real rows, including
-   their magnified representation when used; they never connect numbered
-   labels or cover the names. Store crop/line geometry, source revision,
+   Desktop lines end on corresponding declarations and real rows; mobile
+   draws no lines. Marker bands preserve readable text and cover only the
+   mapped rows. Store crops, popup-source segments, correspondence/annotation
+   geometry, source revision,
    hashes, mappings, and output dimensions in the maintained asset recipe.
 5. **AGENT:** add optional responsive source selection to the existing image
    renderer. The expanded desktop frame uses the wide derivative; phones and
@@ -796,7 +846,8 @@ before broadening that scope or silently importing another product commit.
    desktop/phone screenshots before any other proof image, source promotion,
    or next implementation commit. If labels or relationships remain
    unreadable after bounded crop/zoom/spacing work, present that evidence and
-   ask before changing the established layout or code-left/UI-right concept.
+   ask before changing the established frame or the newly selected mobile
+   stack/highlight concept.
 
 **Image-inspection tooling:** Playwright screenshots and geometry checks are
 agent work. The current `view_image` tool additionally requires full file
@@ -813,6 +864,77 @@ integration approval, any OS permission that actually blocks native capture,
 providing the image paths needed by the tool, and final contextual visual
 judgment. No account login, hosted-provider spending, deployment, or new
 public API is part of this checkpoint.
+
+### Next checkpoint: Message actions relationship image
+
+**Outcome:** replace only **Actions for each message**, the second image slot
+under **Replace the parts you disagree with**. Keep the approved Session
+actions image, its image-card copy, the overall layout, and all other slots
+unchanged. Use the existing caption:
+**Fork, summarize, or share a message using the plugins you choose.**
+
+Three actual package declarations contribute four highlighted controls:
+
+| Package declaration | Native Message actions row | Stable element ID |
+| --- | --- | --- |
+| `session-actions-app` | Fork here | `fork_session_at_message` |
+| `summarize-range-app` | Summarize messages up to here | `summarize_before_message` |
+| `message-export-actions` | Share as PDF | `message_share_as_pdf` |
+| `message-export-actions` | Share as Markdown | `message_share_as_markdown` |
+
+**Design:** reuse the accepted wide Desktop configuration-left/UI-right
+composition, with one export declaration branching to both export rows.
+Reuse the accepted portrait code-above-popup treatment. Both export rows
+share the declaration's marker color; the other two packages have their own
+colors. Retain genuine popup chrome and visibly mark any cropped-out entries.
+Keep full action names, including the longer summarization label.
+
+**Capture boundary:** load the actual packages in an isolated local backend,
+seed the existing short workshop conversation through the public API, and
+connect the production SDK and unchanged production chat/capture host.
+Open the real Message actions trigger inside the specific assistant
+transcript row, not the first identically named trigger in the window.
+Verify the public schema's plugin IDs, action IDs, message-index parameter
+bindings, and the four real native rows. Open the menu only; do not fork,
+summarize, delete, export files, or deliver messages.
+
+The export package descriptor also registers Send to Kindle. Loading it is
+not permission to invoke it. Unrelated rows can remain in the actual source
+capture or be omitted through the same visibly marked excerpt treatment.
+Do not replace the package with a lookalike plugin for convenience.
+
+**Steps after approval:**
+
+1. **AGENT:** preserve the approved four Session actions derivatives and their
+   hashes. Keep its existing capture inputs intact. Add a focused Message
+   actions config and capture test, reusing the existing production chat host.
+   No product change is planned; capture-test selection and isolated data
+   belong on main.
+2. **AGENT:** verify the three-package/four-row contract through public HTTP
+   and the production SDK, then capture the selected assistant message's
+   native popup with its owning conversation in light/dark. Record the
+   exact target message index and native geometry.
+3. **AGENT:** extend only the necessary recipe/helper support for one
+   declaration mapping to multiple rows. Produce separate wide/portrait
+   derivatives from those real sources. On Desktop, two same-color branches
+   reach PDF/Markdown; on phones, two same-color marker bands identify those
+   rows. Keep the approved first image unchanged.
+4. **AGENT:** put the candidate into the second slot of the actual main
+   homepage preview. Verify both themes at 1440, 1024, 768, 390, and 320px,
+   the longer action name, popup identity, correspondence, carousel clearance,
+   stable framing, and the first approved image's unchanged bytes. Use the
+   least expensive scoped native, HTTP/SDK, asset, and browser evidence.
+5. **HUMAN JUDGMENT — STOP:** review this second composition in context before
+   further image production, another implementation commit, or promotion.
+   If four readable rows do not fit the approved phone frame after bounded
+   crop/spacing tuning, show the real page evidence and ask before changing
+   the frame or truncating names.
+
+Main owns capture/composition, website, task, and decision-record changes.
+A discovered ordinary product fix belongs on develop and follows its review
+boundary. Keep existing first-image production source files unchanged where
+possible so adding capture-test coverage does not invalidate its provenance.
+Do not change schema IDs, popup behavior, or saved preferences for this image.
 
 ### Ordered execution
 
@@ -863,18 +985,27 @@ public API is part of this checkpoint.
 
 ### Implementation decisions and open questions
 
-- **October 6 recommendation — approval pending:** integrate only reviewed
-  popup commit `9e053402` into main when this checkpoint starts using it for
-  the website. This is the sole proposed exception to the later product-merge
-  gate. It avoids splitting new capture/website work across worktrees while
-  excluding unrelated develop changes. The patch applies cleanly to main;
-  do not infer permission for any further product prerequisite.
-- **October 6 proposed design:** use four derivative files (wide/portrait ×
+- **Checkpoint 4 recommendation — Draft:** Message actions is the next focused
+  image, using the now accepted Desktop and phone treatments. The export
+  package's two actual classes prove one package can contribute multiple
+  controls. No new material product decision is presently required.
+- **Checkpoint recommendation:** save the accepted work in a scoped commit
+  before extending the pipeline, if the user authorizes that commit.
+  Visual approval alone is not a commit instruction; no commit or source
+  promotion was performed when recording this next-step plan.
+- **October 6 approved correction:** reconcile the three pending capture
+  files together with the six named, already implemented source changes
+  before extending the main harness. The previous popup-only integration
+  proposal left related capture work split across branches and is superseded.
+  Preserve the pending diffs, verify their main copies and focused consumers,
+  and only then clear those exact pending develop edits. Do not bring the
+  rejected standalone review package or unrelated develop work into main.
+- **October 6 approved design:** use four derivative files (wide/portrait ×
   light/dark) for the same image, selected by the existing frame placement.
   One reduced wide image would leave small text and unused space in the
   phone's portrait frame. Add only optional image-source fields, with no
   section-layout change or separate mobile interaction.
-- **October 6 proposed producer:** extend the successful XCUITest native
+- **October 6 approved producer:** extend the successful XCUITest native
   capture route, using a fresh source build and the real backend/SDK/native
   controls. A content-view bitmap alone omits the native popover. Do not
   resolve the earlier Release producer issue by silently reusing an old app.
@@ -916,6 +1047,11 @@ public API is part of this checkpoint.
 
 ### Documentation
 
+- For checkpoint 4, add its real package/action/message-index mappings,
+  source geometry, one-to-many correspondence support, and verified command
+  to the existing capture/processing guides. Append the new candidate and
+  later human decision to the existing durable design record; preserve the
+  first accepted visual and its alternatives.
 - For checkpoint 3, update the existing Desktop capture guide with its
   selected-scene command, local backend lifetime, isolation, theme, window/
   popup capture, and safe cleanup. Update the landing visual-processing and
@@ -969,12 +1105,22 @@ public API is part of this checkpoint.
 - [x] **AGENT:** Implement and verify popup sizing and the selected label.
 - [x] **HUMAN JUDGMENT:** Authorize the product popup checkpoint commit.
 - [x] **AGENT:** Commit the popup changes on develop and prepare the next plan.
-- [ ] **HUMAN JUDGMENT:** Approve the focused Session actions image plan,
-      including the explicit popup-integration timing and responsive sources.
-- [ ] **AGENT:** Resolve reproducible native capture and validate the primary
+- [x] **HUMAN JUDGMENT:** Approve the focused Session actions image plan,
+      including prior capture reconciliation, product prerequisites,
+      integration timing, and responsive sources.
+- [x] **AGENT:** Back up and reconcile the prior capture work and required
+      source changes onto main, verify it, and clear only migrated develop
+      edits before starting new capture implementation.
+- [x] **AGENT:** Resolve reproducible native capture and validate the primary
       three-plugin composition on the actual page.
-- [ ] **HUMAN JUDGMENT:** Review that first composition on desktop/mobile
+- [x] **HUMAN JUDGMENT:** Review that first composition on desktop/mobile
       before further images, promotion, or another implementation commit.
+- [x] **HUMAN JUDGMENT:** Accept the current Desktop composition.
+- [x] **HUMAN JUDGMENT:** Review the revised stacked phone composition.
+- [ ] **HUMAN JUDGMENT:** Approve the focused Message actions image plan.
+- [ ] **AGENT:** Capture, compose, bind, and verify the Message actions image
+      while preserving the approved first image.
+- [ ] **HUMAN JUDGMENT:** Accept the Message actions candidate in context.
 - [ ] **AGENT:** Generate and compose remaining production visual sources.
 - [ ] **AGENT:** Bind local candidates, inspect responsive Playwright images
       with `view_image`, and complete focused verification.
@@ -984,6 +1130,15 @@ public API is part of this checkpoint.
 
 ### Requirement verification
 
+- Checkpoint 4 ownership is this task. The decisive check loads the three
+  actual packages in the backend, seeds the conversation through public
+  endpoints, opens the chosen assistant message's production menu through
+  `RestAgentBackend`, and checks/captures all four real rows and their public
+  message-index bindings. The composition's recorded geometry connects one
+  export declaration to both export controls. Page checks verify current
+  source selection, popup identity, complete names, marked crop omissions,
+  same-color phone correspondence, and unchanged approved first-image bytes.
+  A mocked schema or replacement frontend menu is insufficient.
 - Checkpoint 3 ownership is this task. Its decisive source check starts the
   isolated backend with the three real plugins, seeds a session through the
   public API, connects production `RestAgentBackend` to production `ChatPane`,
@@ -1461,3 +1616,173 @@ Append new entries at the end of this section, keeping older entries first.
   popup patch passes a read-only apply check against main. No product merge,
   capture implementation, source generation/promotion, push, or publication
   was performed during this planning turn.
+- 2026-10-06 reconciliation and checkpoint 3 started: the user approved
+  correcting the plan and proceeding. Updated the plan to reconcile the
+  existing three capture edits and their product/capture prerequisites onto
+  main first. The scoped source list is `ebb053ac`, `2bfaf03c`, `4fab5568`,
+  `7d46556b`, Desktop/mobile changes from `29604c23`, and `9e053402`.
+  The old standalone review-package changes and unrelated develop commits
+  are excluded. Changes remain uncommitted for the next human checkpoint.
+  Execution will preserve pending patches, verify the reconciled copies and
+  consumers, then remove only the migrated pending edits from develop.
+- 2026-10-06 reconciliation verified: applied the scoped six-commit source
+  changes to main without creating commits, excluding all four obsolete
+  landing-review-package changes from `29604c23`. Saved the three pending
+  files, their patch, hashes, and source commits under
+  `landing_page/artifacts/plugin-session-actions-reconciliation/`. All three
+  transferred files matched byte-for-byte. Main checks passed: 8 Desktop
+  picker/theme/menu-consumer tests, 19 mobile menu/capture-consumer tests,
+  1 action-fixture test, 28 plugin tests, 2 agent-profile core/HTTP tests,
+  2 selected SDK HTTP integration tests, both app type checks, and whitespace.
+  The SDK harness first selected main's incomplete `.venv`; rerunning with
+  `/Users/ferenci84/.pyenv/versions/3.11.12/bin/python` passed. The 22 other SDK
+  cases were deliberately not selected. There was no existing dedicated
+  Desktop website-harness component suite; native capture remains the next
+  decisive check. After rechecking both worktree hashes, reversed only the
+  preserved pending patch on develop. Its remaining dirty files are unrelated
+  task work. All reconciled changes remain reviewable and uncommitted on main.
+- 2026-10-06 checkpoint 3 implemented; stop for review:
+  - Added a focused real-backend/native capture using the three actual plugin
+    packages, the public session/message/action APIs, production
+    `RestAgentBackend`/`FetchTransport`, `ChatPane`, and its native menu.
+    The sample uses the existing deterministic provider and makes no hosted
+    inference request. Native checks verify actual IDs, labels, and row
+    positions in both themes.
+  - The capture builds current main source with the dedicated
+    `.website-capture` bundle identity. Ordinary builds retain their release
+    identity. Debug website capture uses its bundled JavaScript, its visible
+    title is **Crystal Lattice Desktop**, and the owning window and popover
+    share the fixed blue capture theme. The existing user Release instance
+    remained running.
+  - Window/popover pixels and geometry are exported as named XCTest
+    attachments, retaining their actual relative positions without including
+    unrelated desktop windows. Direct writes from the sandboxed runner were
+    denied during the first attempt; attachment export resolved that without
+    requesting system permission. A text-label selector was also corrected
+    to production transcript IDs/native user-message values. Teardown runs
+    after failures and closes only the capture instance started by the test.
+  - Final native evidence: `npm run capture:session-actions:macos` with
+    `PYTHON=/Users/ferenci84/.pyenv/versions/3.11.12/bin/python` passed its
+    backend/SDK/native integration check and both selected XCTest cases.
+    The final command exit is `0` in
+    `desktop/crystal-lattice-control-desktop-rn/artifacts/website-session-actions/capture.exit`.
+    `contract.json`, both source PNG pairs, geometry, and `.xcresult` bundles
+    are in that directory. This verifies the source checkout, not a rebuilt
+    public release artifact.
+  - Added the `homepage-session-actions` catalog candidate and maintained
+    composition recipe. ImageMagick combines real native pixels and bakes
+    three links from the loaded config's declarations to their actual rows.
+    Its four derivatives are 2400 × 1350 wide and 1200 × 1600 compact, in
+    light/dark. Current sizes are approximately 93/94 KB wide and 59/58 KB
+    compact; all meet the 240 KB per-derivative budget. The manifest records
+    source/config/recipe hashes, crops, row/name bounds, and endpoints.
+  - Phone refinements preserve whole plugin names, keep the configuration
+    clear of carousel arrows, and tighten the real menu crop without
+    clipping its names. Connector curves stay between their endpoint columns
+    and avoid the source text. OCR recognizes all three action names in
+    desktop, 390px, and 320px page captures; it is supporting text evidence,
+    not a substitute for visual review.
+  - Optional compact image fields use the existing shared renderer: compact
+    features choose portrait sources at every size, while expanded features
+    switch below 760px. Both picture-source and image URLs follow the active
+    theme. Alt text explicitly names each package/action relationship.
+  - The explicit `CRYSTAL_SESSION_ACTIONS_PREVIEW=1` build overlays only this
+    candidate onto the existing first plugin-image slot and copies derivatives
+    into `artifacts/plugin-session-actions-site/`. Authored homepage YAML,
+    reviewed source masters, and `public/` remain unchanged. Aggregate catalog
+    inspection/checking records this unreviewed candidate as not run unless
+    explicitly selected; its selected inspect/check commands passed.
+  - Website evidence: 8 content tests, 21 visual-pipeline tests, 11 focused
+    preview Playwright checks, 9 existing feature/theme Playwright checks
+    against the preview, and 8 normal-site visual scenarios passed.
+    The focused checks cover all five planned widths in both themes, source
+    switching on resize, full plugin-name bounds outside carousel controls,
+    active theme, navigation, neighboring placeholders, ratios, and overflow.
+    Desktop and native-harness TypeScript checks and whitespace checks passed.
+  - An isolated actual-site option-A build verified portrait sources and 3:4
+    frames at 1440 and 390 pixels. Production component code was unchanged;
+    content reordered the six items and removed their full-width flags.
+    The temporary build enabled Vite symlink preservation to resolve the
+    shared dependency directory; its first attempt exposed that temporary
+    build-path issue. The temporary source/build and server were removed.
+    The live main preview remains option B.
+  - Updated the Desktop capture guide, landing processing/content-system
+    guides, and durable visual-decision record, retaining the prior placeholder
+    baseline and the unselected single-wide/stacked alternatives.
+    The focused producer always captures both required themes of this one
+    scene in one backend lifetime; it does not add an arbitrary scene/output
+    selector. This is a bounded implementation choice, not a new requirement.
+  - Review page: `http://192.168.8.227:4182/#feature-plugins`, verified HTTP 200
+    locally and through the LAN address. The preview PID/log are under
+    `landing_page/artifacts/plugin-session-actions-review/`. Primary browser
+    screenshots are `desktop.png` and `mobile.png` there; all five widths,
+    both themes, OCR output, and option-A checks are also retained.
+  - **HUMAN JUDGMENT — STOP:** review the first composition, especially narrow
+    phone readability, and authorize any next commit/work. The `view_image`
+    tool still requires the user to supply full screenshot paths; no
+    `view_image` inspection or final visual acceptance is claimed.
+    Remaining images, canonical mobile-workbench fixture refresh, source
+    promotion, release/publication work, and further product integration
+    remain outside this completed implementation checkpoint.
+- 2026-10-06 mobile composition revision approved: the user accepts Desktop
+  and selects full-width code above an enlarged, identifiable popup for
+  mobile. Matching physical-marker-style highlights replace mobile connector
+  lines; code background highlighting is included as the suggested aid.
+  Preserve the previous side-by-side candidate and rationale, retain accepted
+  Desktop bytes, use actual captured popup chrome/rows, and mark any omitted
+  middle region as a crop. This changes the image composition only, on main;
+  no product changes, native recapture, commit, or publication are needed.
+- 2026-10-06 stacked phone revision implemented; stop for review:
+  - The 1200 × 1600 portrait now has full-width code above a magnified native
+    popup excerpt. The same blue/teal/purple translucent, uneven marker bands
+    pair each declaration with its actual action row; no mobile connections
+    are drawn. The code remains valid JSON derived from the loaded config.
+  - Preserved the real captured popup header, close control, and rounded
+    edges. A visible crop interruption marks the unrelated middle entries
+    omitted from the enlargement. Native row coordinates drive the crops and
+    highlights; their source segments and omission bounds are recorded.
+    Masked the outside shadow area after OCR exposed background conversation
+    fragments, without replacing popup text or controls.
+  - Both reviewed Desktop derivatives remain byte-identical. The recipe
+    guards their SHA-256 values against accidental regeneration changes.
+    Saved the prior side-by-side definition, candidates, manifest, and page
+    captures under
+    `landing_page/artifacts/plugin-session-actions-review/before-mobile-stacking/`.
+    The durable decision record preserves that alternative and explains the
+    selected stack/highlight treatment.
+  - Verification passed: selected candidate inspect/check, 22 visual-pipeline
+    tests, and 11 responsive Playwright checks at the five widths in both
+    themes. New checks prove portrait stacking, absence of connectors,
+    retained popup chrome/crop provenance, and declaration/action bounds clear
+    of carousel controls. All derivatives stay within the existing budget.
+    The normal source captures and product code were reused unchanged.
+  - The existing LAN preview serves the update at
+    `http://192.168.8.227:4182/#feature-plugins` (HTTP 200).
+    Refreshed phone screenshots are `mobile.png`, `390-light.png`,
+    `320-light.png`, and their dark counterparts under
+    `landing_page/artifacts/plugin-session-actions-review/`.
+    OCR output there is supporting text evidence only. `view_image` was not
+    used because its full-path input requirement remains unmet.
+  - **HUMAN JUDGMENT — STOP:** review the revised phone image. No new commit,
+    source promotion, other image production, or publication was performed.
+- 2026-10-06 first visual accepted; next checkpoint planned: the user approves
+  the revised version and requests a proposal. Marked the combined Desktop/
+  phone review complete and recorded the selected treatment in the durable
+  decision document. Proposed only the second plugin-highlight image,
+  **Actions for each message**, as a Draft next checkpoint: three actual
+  package declarations → Fork here, Summarize messages up to here, Share as
+  PDF, and Share as Markdown. The export declaration maps to both exports.
+  Native source inspection confirms the real schema IDs and package
+  descriptor entries. Keep the accepted first image frozen and reuse its
+  Desktop/phone design. A scoped checkpoint commit is recommended separately.
+  No new source capture, code implementation, test run, commit, promotion,
+  push, or publication occurred during this planning turn.
+- 2026-10-06 accepted checkpoint commit authorized: the user explicitly
+  authorizes committing the accepted state before expanding the next plan.
+  The commit includes the previously reconciled product/capture prerequisites,
+  first Session actions producer/composition/responsive preview, and its
+  approval/decision records. The unrelated parent and waitlist task edits
+  remain outside this commit. Rechecked all 22 visual-asset tests and the four
+  current candidate derivatives successfully. No push or publication is
+  authorized. The requested icon correction and larger image batch are
+  subsequent work, not part of this accepted implementation snapshot.

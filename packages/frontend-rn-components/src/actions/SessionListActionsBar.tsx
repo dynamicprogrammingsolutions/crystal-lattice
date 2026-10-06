@@ -356,7 +356,7 @@ export function SessionListRichActionList(
       <View style={[styles.listHeader, { borderBottomColor: theme.border }]}>
         <Text
           style={[styles.listTitle, { color: theme.text }]}
-          numberOfLines={1}
+          numberOfLines={2}
         >
           {props.element.label}
         </Text>
@@ -403,7 +403,7 @@ export function SessionListRichActionList(
               {option.icon && props.renderIcon
                 ? props.renderIcon({ name: option.icon, size: 16, color })
                 : null}
-              <Text style={[styles.listOptionText, { color }]}>
+              <Text numberOfLines={2} style={[styles.listOptionText, { color }]}>
                 {option.label}
               </Text>
               {selected ? (
@@ -458,6 +458,7 @@ const styles = StyleSheet.create({
   listHeader: {
     minHeight: 44,
     paddingHorizontal: 14,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -465,6 +466,7 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     flex: 1,
+    minWidth: 0,
     fontWeight: "800",
     fontSize: 15,
   },
@@ -476,12 +478,14 @@ const styles = StyleSheet.create({
   listOption: {
     minHeight: 46,
     paddingHorizontal: 14,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   listOptionText: {
     flex: 1,
+    minWidth: 0,
     fontSize: 15,
     fontWeight: "600",
   },

@@ -2,6 +2,10 @@
 interface Props {
   src: string;
   srcDark?: string;
+  srcCompact?: string;
+  srcCompactDark?: string;
+  widthCompact?: number;
+  heightCompact?: number;
   alt: string;
   width?: number;
   height?: number;
@@ -15,6 +19,10 @@ interface Props {
 const {
   src,
   srcDark,
+  srcCompact,
+  srcCompactDark,
+  widthCompact,
+  heightCompact,
   alt,
   width,
   height,
@@ -27,6 +35,17 @@ const {
 const isThemed = Boolean(srcDark);
 ---
 
+<picture>
+{srcCompact && (
+  <source
+    media="(max-width: 760px)"
+    srcset={srcCompactDark ? undefined : srcCompact}
+    data-theme-light-srcset={srcCompactDark ? srcCompact : undefined}
+    data-theme-dark-srcset={srcCompactDark}
+    width={widthCompact}
+    height={heightCompact}
+  />
+)}
 <img
   src={isThemed ? undefined : src}
   data-theme-light-src={isThemed ? src : undefined}
@@ -40,8 +59,13 @@ const isThemed = Boolean(srcDark);
   class={className}
   data-kind={dataKind}
 />
+</picture>
 {isThemed && (
   <noscript>
+    <picture>
+    {srcCompact && (
+      <source media="(max-width: 760px)" srcset={srcCompact} width={widthCompact} height={heightCompact} />
+    )}
     <img
       src={src}
       alt={alt}
@@ -52,5 +76,6 @@ const isThemed = Boolean(srcDark);
       class={className}
       data-kind={dataKind}
     />
+    </picture>
   </noscript>
 )}

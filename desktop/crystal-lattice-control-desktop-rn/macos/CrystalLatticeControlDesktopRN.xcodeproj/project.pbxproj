@@ -546,7 +546,8 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				CLC_APP_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CLC_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Crystal Lattice Desktop";
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -576,7 +577,8 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				CLC_APP_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrol.macos;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CLC_APP_BUNDLE_IDENTIFIER)";
 				PRODUCT_NAME = "Crystal Lattice Desktop";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;

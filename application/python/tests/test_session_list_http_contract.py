@@ -142,8 +142,36 @@ def test_session_list_http_contract_serializes_shared_summaries(
         for element in schema_response.json()["elements"]
         if element.get("ui_type") == "session_list_filter"
     }
+    list_actions = {
+        (element["plugin"], element["id"]): element
+        for element in schema_response.json()["elements"]
+        if element.get("ui_type") == "session_list_action"
+    }
+    session_actions = {
+        (element["plugin"], element["id"]): element
+        for element in schema_response.json()["elements"]
+        if element.get("ui_type") == "session_action"
+    }
     assert filters["pinned_state"]["plugin"] == "session_pinned"
     assert filters["session_status"]["plugin"] == "session_status"
+    assert (
+        list_actions[("session_pinned", "toggle_session_pinned")]["rich_ui"][
+            "default_pinned"
+        ]
+        is False
+    )
+    assert (
+        list_actions[("session_status", "set_session_status")]["rich_ui"][
+            "default_pinned"
+        ]
+        is True
+    )
+    assert (
+        session_actions[("session_status", "set_session_status")]["rich_ui"][
+            "default_pinned"
+        ]
+        is True
+    )
 
     limited = client.get("/sessions", params={"limit": 1})
     assert limited.status_code == 200
@@ -244,6 +272,7 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
             "header_trailing",
             "actions_bar",
         ]
+        assert pin_action["rich_ui"]["default_pinned"] is False
         assert pin_action["rich_ui"]["appearance"]["active"]["tone"] == "highlight"
     finally:
         server_mod.app.dependency_overrides.clear()

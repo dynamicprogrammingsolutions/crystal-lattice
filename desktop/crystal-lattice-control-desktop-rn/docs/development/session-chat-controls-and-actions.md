@@ -1,5 +1,11 @@
 # Session Chat controls and actions
 
+Action names in native action popovers may wrap to two lines. Popup width
+accounts for label text, icons, state values, and pin controls; rendered row
+height drives popup height, with scrolling for long menus. The OpenAI
+message-compaction action is displayed as **OpenAI compaction up to here**;
+its plugin/action IDs and inclusive message boundary remain unchanged.
+
 This page describes desktop-specific placement and native presentation of rich
 session controls and actions in `ChatPane`, including request-action
 eligibility. Shared normalized control and action-menu behavior remains owned

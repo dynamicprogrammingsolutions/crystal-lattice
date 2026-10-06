@@ -8,6 +8,10 @@ import type {
 import type { IndexedMessage } from '../types/messages';
 import type { SessionSummary } from '../types/sessions';
 import type { AgentDescriptor } from '../types/agents';
+import {
+  normalizeAgentPluginEntries,
+  type AgentPluginEntry,
+} from '../types/agentPlugins';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
 import type { SessionPluginEntry } from '../types/sessionPlugins';
 import type { ApplicationNotification } from '../types/applicationNotifications';
@@ -200,6 +204,19 @@ export class RestAgentBackend implements AgentBackend {
           : 0;
       return [{ id, title, description, order }];
     });
+  }
+
+  async listAgentPlugins(agentId: string): Promise<AgentPluginEntry[]> {
+    const path = `/agents/${encodeURIComponent(agentId)}/plugins`;
+    const resp = await this.transport.request<{
+      plugins?: unknown;
+    }>({
+      method: 'GET',
+      path,
+    });
+    return normalizeAgentPluginEntries(
+      Array.isArray(resp.data?.plugins) ? resp.data.plugins : [],
+    );
   }
 
   async createSession(params: {

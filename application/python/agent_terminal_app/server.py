@@ -2531,6 +2531,23 @@ def list_agents(
     }
 
 
+@app.get("/agents/{agent_id}/plugins")
+def get_agent_profile_plugins(
+    agent_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return safe effective-default plugin metadata for an agent profile."""
+
+    try:
+        plugins = app_instance.list_agent_profile_plugins(agent_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"plugins": plugins}
+
+
 @app.get("/sessions/{session_id}/agent")
 def get_session_agent(
     session_id: str,

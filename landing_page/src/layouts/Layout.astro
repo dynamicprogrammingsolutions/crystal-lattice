@@ -30,13 +30,14 @@ const {
         ? 'light'
         : 'dark';
       root
-        .querySelectorAll('img[data-theme-light-src][data-theme-dark-src]')
+        .querySelectorAll('img[data-theme-light-src][data-theme-dark-src], source[data-theme-light-srcset][data-theme-dark-srcset]')
         .forEach((image) => {
+          const attribute = image.tagName === 'SOURCE' ? 'srcset' : 'src';
           const nextSource = theme === 'dark'
-            ? image.getAttribute('data-theme-dark-src')
-            : image.getAttribute('data-theme-light-src');
-          if (nextSource && image.getAttribute('src') !== nextSource) {
-            image.setAttribute('src', nextSource);
+            ? image.getAttribute(`data-theme-dark-${attribute}`)
+            : image.getAttribute(`data-theme-light-${attribute}`);
+          if (nextSource && image.getAttribute(attribute) !== nextSource) {
+            image.setAttribute(attribute, nextSource);
           }
         });
     }

@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Settings, StyleSheet, Text, useColorScheme, View } from 'react-native';
+
+import { FetchTransport, RestAgentBackend } from '@crystal-lattice/frontend-sdk';
 
 import type {
   AgentBackend,
@@ -9,16 +11,14 @@ import type {
   SessionPluginEntry,
 } from '@crystal-lattice/frontend-sdk';
 import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
-import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
+import {
+  ThemeProvider,
+  type Theme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ChatPane } from '../chat/ChatPane';
-import { useDesktopTheme } from '../theme/useDesktopTheme';
+import { buildDesktopCaptureTheme } from '../theme/buildDesktopTheme';
 import { AgentPickerWindow } from '../windows/AgentPickerWindow';
-import { SessionPluginsWindow } from '../windows/SessionPluginsWindow';
-import {
-  clearActiveSessionPluginsWindow,
-  setActiveSessionPluginsWindow,
-} from '../windows/sessionPluginsCoordinator';
 
 const SESSION_ID = 'website-visual-session';
 const CONNECTION_ID = 'website-visual';
@@ -147,6 +147,7 @@ function createBackend(plugins: SessionPluginEntry[]): AgentBackend {
     }),
     listAgents: async () => AGENT_DESCRIPTORS.map(agent => agent.id),
     listAgentDescriptors: async () => AGENT_DESCRIPTORS,
+    listAgentPlugins: async () => plugins,
     getSessionAgent: async () => AGENT_DESCRIPTORS[0].id,
     switchSessionAgent: async () => {},
     createSession: async () => ({ session: { session_id: SESSION_ID } }),
@@ -207,8 +208,11 @@ function createContinuityBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
-function DesktopContinuityVisual(): React.JSX.Element {
-  const theme = useDesktopTheme();
+function DesktopContinuityVisual({
+  theme,
+}: {
+  theme: Theme;
+}): React.JSX.Element {
   const backend = useMemo(() => createContinuityBackend(), []);
   return (
     <ThemeProvider theme={theme}>
@@ -248,34 +252,92 @@ function DesktopContinuityVisual(): React.JSX.Element {
 
 export interface DesktopWebsiteVisualHarnessProps {
   websiteVisualKind?: 'agent-codex' | 'agent-claude' | string;
+  websiteVisualBackendUrl?: string;
+  websiteVisualSessionId?: string;
+}
+
+function DesktopSessionActionsVisual({
+  theme,
+  backendUrl,
+  sessionId,
+}: {
+  theme: Theme;
+  backendUrl: string;
+  sessionId: string;
+}): React.JSX.Element {
+  const backend = useMemo(
+    () => new RestAgentBackend({ transport: new FetchTransport({ baseUrl: backendUrl }) }),
+    [backendUrl],
+  );
+  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    backend.getSessionSummary(sessionId).then(
+      value => { if (active) setSummary(value); },
+      reason => { if (active) setError(String(reason)); },
+    );
+    return () => { active = false; };
+  }, [backend, sessionId]);
+  return (
+    <ThemeProvider theme={theme}>
+      <ApplicationPluginsProvider backend={backend} connectionId="website-session-actions">
+        <View style={[styles.continuityRoot, { backgroundColor: theme.background }]}>
+          {summary ? (
+            <ChatPane
+              isVisible
+              isActive
+              connectionId="website-session-actions"
+              connectionName="Local workspace"
+              sessionId={sessionId}
+              sessionSummary={summary}
+              title="Plan a community workshop"
+              backend={backend}
+              cachedEntry={null}
+              onUpdateCache={() => {}}
+            />
+          ) : (
+            <Text testID="website-session-actions-loading">{error || 'Loading session…'}</Text>
+          )}
+        </View>
+      </ApplicationPluginsProvider>
+    </ThemeProvider>
+  );
 }
 
 export function DesktopWebsiteVisualHarness({
   websiteVisualKind = 'agent-codex',
+  websiteVisualBackendUrl = '',
+  websiteVisualSessionId = '',
 }: DesktopWebsiteVisualHarnessProps): React.JSX.Element {
-  if (websiteVisualKind === 'cross-device') {
-    return <DesktopContinuityVisual />;
-  }
+  const systemAppearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const configuredAppearance = Settings.get('clcWebsiteVisualTheme');
+  const appearance =
+    configuredAppearance === 'dark' || configuredAppearance === 'light'
+      ? configuredAppearance
+      : systemAppearance;
+  const theme = useMemo(
+    () => buildDesktopCaptureTheme(appearance),
+    [appearance],
+  );
   const claude = websiteVisualKind === 'agent-claude';
   const backend = useMemo(
     () => createBackend(claude ? CLAUDE_TOOLS : CODEX_TOOLS),
     [claude],
   );
+  if (websiteVisualKind === 'session-actions') {
+    return (
+      <DesktopSessionActionsVisual
+        theme={theme}
+        backendUrl={websiteVisualBackendUrl}
+        sessionId={websiteVisualSessionId}
+      />
+    );
+  }
+  if (websiteVisualKind === 'cross-device') {
+    return <DesktopContinuityVisual theme={theme} />;
+  }
   const selectedAgentId = claude ? 'claude-anthropic' : 'codex-openai';
-
-  useEffect(() => {
-    const id = `website-visual-plugins:${websiteVisualKind}`;
-    setActiveSessionPluginsWindow({
-      state: {
-        id,
-        connectionId: CONNECTION_ID,
-        connectionName: 'Local workspace',
-        sessionId: SESSION_ID,
-        backend,
-      },
-    });
-    return () => clearActiveSessionPluginsWindow(id);
-  }, [backend, websiteVisualKind]);
 
   return (
     <View
@@ -283,19 +345,19 @@ export function DesktopWebsiteVisualHarness({
       testID="desktop-website-visual-harness-ready"
       accessibilityLabel={`Desktop website visual ${websiteVisualKind}`}
     >
-      <View style={styles.picker}>
+      <View style={styles.agentPickerCaptureFrame}>
         <AgentPickerWindow
           connectionId={CONNECTION_ID}
           connectionName="Local workspace"
           agents={AGENT_DESCRIPTORS.map(agent => agent.id)}
           agentDescriptors={AGENT_DESCRIPTORS}
+          backend={backend}
+          themeOverride={theme}
           initialAgentId={selectedAgentId}
           title="Choose an agent"
           primaryButtonLabel="Use agent"
+          compactPluginPreview
         />
-      </View>
-      <View style={styles.plugins}>
-        <SessionPluginsWindow />
       </View>
     </View>
   );
@@ -304,16 +366,14 @@ export function DesktopWebsiteVisualHarness({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'transparent',
+    justifyContent: 'center',
   },
-  picker: {
-    flex: 0.95,
-    minWidth: 0,
-  },
-  plugins: {
-    flex: 1.05,
-    minWidth: 0,
+  agentPickerCaptureFrame: {
+    height: 700,
+    overflow: 'hidden',
+    width: 1000,
   },
   continuityRoot: {
     flex: 1,

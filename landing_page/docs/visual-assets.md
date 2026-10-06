@@ -66,6 +66,56 @@ The maintained boundaries are:
 
 ## Reviewed Image Lifecycle
 
+### Session actions relationship candidate
+
+The `homepage-session-actions` catalog asset owns the first plugin
+configuration-to-menu composition. Its configuration is maintained in
+`visual_assets/session-actions-composition.json`; its native source config is
+`visual_assets/runtime/session-actions/config.json`.
+
+From `landing_page/`:
+
+```bash
+PYTHON=/path/to/configured/python yarn visual-assets capture homepage-session-actions
+yarn visual-assets inspect homepage-session-actions
+yarn visual-assets check homepage-session-actions
+```
+
+Capture runs the Desktop package's real-backend/native producer. Inspect
+renders the loaded JSON excerpt with Playwright, combines the native owner and
+popover screenshots at their measured positions, magnifies the relevant menu
+region, and uses ImageMagick to bake Desktop connections or portrait marker
+annotations for the three real action rows.
+The resulting light/dark wide (2400 × 1350) and compact (1200 × 1600)
+derivatives stay under `artifacts/visual-assets/homepage-session-actions/`.
+
+Desktop keeps code left/UI right with connectors. The portrait derivative
+stacks full-width code above a magnified native popup excerpt. Its three code
+declarations and actual action rows use matching translucent marker bands;
+the popup's real header, close control, and edges identify its origin.
+A crop break marks omitted unrelated menu entries. Desktop bytes are
+preserved against the reviewed hashes in the recipe.
+
+The manifest records source hashes, actual package/action mappings,
+configuration row/name bounds, native crop geometry, desktop connector
+endpoints, portrait highlight correspondence, popup source segments and
+omission bounds,
+dimensions, and derivative hashes. Each derivative has a 240,000-byte limit.
+Check requires those sources and the recipe to remain current. Re-capture
+after changes to the plugin schema or the captured UI; rerun inspect after a
+composition change. Code soft-wrapping preserves valid JSON and whole plugin
+names. Captures use a fixed blue palette and contain only the seeded session.
+
+This asset is still a candidate. Aggregate inspect/check commands report it as
+not run unless its ID is selected explicitly. It has no source-promotion or
+publication callback yet; candidate checks are not visual approval. The
+existing reviewed image lifecycle remains in force for approved assets.
+Use the explicit homepage preview described in the
+[content-system guide](development/content-system.md#responsive-proof-sources-and-local-candidates)
+to review it in context; there is no separate review-gallery page.
+
+### Reviewed image processing
+
 The image lifecycle under `scripts/visual-assets/lifecycle/image.mjs` processes
 light and dark reviewed image variants.
 

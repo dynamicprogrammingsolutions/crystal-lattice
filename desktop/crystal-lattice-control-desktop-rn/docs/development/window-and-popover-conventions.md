@@ -5,6 +5,7 @@ Current macOS conventions:
 | Interaction | Convention |
 |---|---|
 | Anchored transient menu | Native `NSPopover` |
+| New-session or switch-agent selection | Separate two-pane React window |
 | Server or session settings | Separate React window |
 | Direct action modal response | Separate React action-display window |
 | Notification modal request | Inline fallback in message/detail rail |

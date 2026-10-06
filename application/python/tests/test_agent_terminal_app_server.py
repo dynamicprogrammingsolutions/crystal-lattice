@@ -3951,6 +3951,56 @@ def test_agent_endpoint_adds_ordered_display_descriptors(tmp_path: Path) -> None
     ]
 
 
+def test_agent_profile_plugins_are_available_through_real_http(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    config = {
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "dummy-model",
+                "api_key": "must-not-be-exposed",
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_calculator"],
+            }
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    app_instance = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+
+    server_mod.app.dependency_overrides[server_mod.get_agent_app] = lambda: app_instance
+    try:
+        client = TestClient(server_mod.app)
+        response = client.get("/agents/default/plugins")
+        assert response.status_code == 200
+        body = response.json()
+        plugins = body["plugins"]
+        by_id = {entry["id"]: entry for entry in plugins}
+        assert by_id["dummy_provider"]["enabled"] is True
+        assert by_id["dummy_provider"]["active"] is True
+        assert by_id["dummy_calculator"]["enabled"] is False
+        assert by_id["dummy_calculator"]["active"] is False
+        assert "must-not-be-exposed" not in response.text
+
+        missing = client.get("/agents/missing/plugins")
+        assert missing.status_code == 404
+    finally:
+        server_mod.app.dependency_overrides.pop(server_mod.get_agent_app, None)
+
+
 def test_get_session_agent_returns_value_even_if_agent_is_unknown(
     tmp_path: Path,
 ) -> None:

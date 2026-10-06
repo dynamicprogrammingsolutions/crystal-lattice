@@ -1,5 +1,7 @@
 export type { MessageRole, ApiMessage, IndexedMessage } from "./types/messages";
 export type { AgentDescriptor } from "./types/agents";
+export type { AgentPluginEntry } from "./types/agentPlugins";
+export { normalizeAgentPluginEntries } from "./types/agentPlugins";
 
 export type {
   SessionSummary,

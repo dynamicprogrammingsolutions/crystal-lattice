@@ -55,6 +55,7 @@ const FALLBACK_LIGHT: Theme = {
   notificationMuted: 'rgba(0, 122, 255, 0.12)',
   message: '#0A84FF',
   bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
+  bubbleUserText: '#000000',
   bubbleSystemBorder: '#D1D1D6',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
   modalBackdrop: 'rgba(0, 0, 0, 0.25)',
@@ -91,6 +92,7 @@ const FALLBACK_DARK: Theme = {
   notificationMuted: 'rgba(10, 132, 255, 0.22)',
   message: '#0A84FF',
   bubbleUserBg: '#0040A5',
+  bubbleUserText: '#FFFFFF',
   bubbleSystemBorder: '#5A5A5E',
   bubbleToolBg: 'rgba(142, 142, 147, 0.25)',
   modalBackdrop: 'rgba(0, 0, 0, 0.45)',
@@ -127,6 +129,14 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
   const successMuted = withAlpha(success, isDark ? 0.22 : 0.12);
   const highlight = isDark ? '#FFD60A' : '#FFCC00';
   const message = notification;
+  const bubbleUserAlpha = isDark ? 0.22 : 0.12;
+  const bubbleUserBg = withAlpha(primary, bubbleUserAlpha);
+  const bubbleUserComposite = mixColors(
+    primary,
+    background,
+    1 - bubbleUserAlpha,
+  );
+  const bubbleUserText = pickTextOnColor(bubbleUserComposite);
 
   const border = scaleAlpha(payload.separator, isDark ? 1.55 : 1.85);
   const divider = scaleAlpha(payload.separator, isDark ? 1.85 : 2.25);
@@ -158,7 +168,8 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
     notification,
     notificationMuted,
     message,
-    bubbleUserBg: withAlpha(primary, isDark ? 0.22 : 0.12),
+    bubbleUserBg,
+    bubbleUserText,
     bubbleSystemBorder: border,
     bubbleToolBg: withAlpha(payload.textSecondary, isDark ? 0.18 : 0.08),
     modalBackdrop: isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.25)',
@@ -179,4 +190,10 @@ export function buildDesktopThemeWithFallback(
     return buildDesktopTheme(payload);
   }
   return fallbackAppearance === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
+}
+
+export function buildDesktopCaptureTheme(
+  appearance: 'light' | 'dark',
+): Theme {
+  return appearance === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
 }

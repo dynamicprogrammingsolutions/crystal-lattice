@@ -68,6 +68,10 @@ export type FeatureMediaAsset = {
   width?: number;
   height?: number;
   placeholder?: string;
+  srcCompact?: string;
+  srcCompactDark?: string;
+  widthCompact?: number;
+  heightCompact?: number;
 };
 
 export type MediaPlaceholder = {

@@ -9,6 +9,8 @@
   rich controls, composer actions, native presentation, and eligibility.
 - [Notification and action-display presentation](notification-presentation.md)
   — display rails, modal fallback, and action-display windows.
+- [Agent selection window](agent-selection-window.md) — ordered descriptors,
+  effective default-plugin preview, backend coordination, and compatibility.
 - [Markdown display preferences](markdown-display-preferences.md)
 - [Window and popover conventions](window-and-popover-conventions.md)
 

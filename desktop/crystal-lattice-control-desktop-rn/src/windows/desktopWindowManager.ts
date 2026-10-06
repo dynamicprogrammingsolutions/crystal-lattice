@@ -26,6 +26,10 @@ export interface OpenAgentPickerParams {
 
 export interface ToggleActionsPopoverParams {
   anchorTag: number;
+  menuId?: string;
+  rows?: Array<{ label: string; stateLabel?: string; hasIcon: boolean }>;
+  fontSize?: number;
+  stateFontSize?: number;
   width?: number;
   height?: number;
 }
@@ -93,6 +97,7 @@ export interface DesktopWindowManagerModule {
   cancelAgentPicker(): void;
 
   toggleActionsPopover(params: ToggleActionsPopoverParams): void;
+  resizeActionsPopover(params: { menuId: string; height: number }): void;
   closeActionsPopover(): void;
 
   openMessageLimitPopover(params?: OpenMessageLimitPopoverParams): void;

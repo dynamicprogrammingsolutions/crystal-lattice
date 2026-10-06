@@ -5,6 +5,7 @@ import Icon from "react-native-vector-icons/Feather";
 
 import {
   RichConfigDropdownControl,
+  RichConfigDropdownPanel,
   RichConfigToggleControl,
   truncatePinnedValue,
 } from "@crystal-lattice/frontend-rn-components";
@@ -20,6 +21,31 @@ const renderIcon = ({
   size: number;
   color: string;
 }) => <Icon name={name} size={size} color={color} />;
+
+test("dropdown options allow two lines without changing the selected value", () => {
+  const onSelect = jest.fn();
+  const label = "A provider model with a descriptive and longer display name";
+  render(
+    <ThemeProvider theme={lightTheme}>
+      <RichConfigDropdownPanel
+        richUi={{
+          kind: "dropdown",
+          label: "Model",
+          placements: ["composer"],
+          options: [{ value: "model-id", label, icon: "cpu" }],
+        }}
+        selectedValue="model-id"
+        hasOverride={false}
+        onSelect={onSelect}
+        onRequestClose={() => {}}
+        renderIcon={renderIcon}
+      />
+    </ThemeProvider>
+  );
+  expect(screen.getByText(label).props.numberOfLines).toBe(2);
+  fireEvent.press(screen.getByLabelText(`${label} selected`));
+  expect(onSelect).toHaveBeenCalledWith("model-id");
+});
 
 test("compact dropdown hides its visual label and truncates only display text", () => {
   const iconRenderer = jest.fn(

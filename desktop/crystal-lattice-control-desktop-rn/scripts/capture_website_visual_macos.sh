@@ -31,6 +31,7 @@ capture_one() {
     CLC_WEBSITE_VISUAL_KIND="${kind}" \
     CLC_WEBSITE_VISUAL_OUTPUT_PATH="${output}" \
     "${executable}" \
+    -clcWebsiteVisualTheme "${appearance}" \
     -AppleInterfaceStyle "$([ "${appearance}" = dark ] && echo Dark || echo Light)" \
     >"/tmp/crystal-lattice-${kind}-${appearance}.log" 2>&1 &
   local app_pid=$!
