@@ -282,8 +282,11 @@ directories and connections; the matrix command set stays unchanged.
   comparable across runs; (3) three assessment runs failed with
   `JSONDecodeError` on the judge's raw output (tg02 fidelity glm-max,
   tg04 fidelity + readability gpt-xhigh) — judge responses with
-  malformed JSON currently fail the case instead of being repaired or
-  retried. No further evaluation run (including approved b1v4) until
+  malformed JSON currently fail the case (the parse path has only a
+  brace-extraction fallback, `file_quality.py:_parse_json_object`, no
+  retry). USER DECISION (October 6, 2026): malformed judge JSON must
+  retry up to 2 times (re-request within the same logical run) before
+  the case is allowed to fail. No further evaluation run (including approved b1v4) until
   task 150 (runtime env isolation) lands per the user's October 6
   direction; the from-plan cache instability and judge-JSON
   robustness items should be triaged alongside it.
