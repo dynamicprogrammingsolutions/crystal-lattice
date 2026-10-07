@@ -3,15 +3,17 @@
 Plan the second round of mobile usability improvements: move connections onto
 Home, introduce reusable contextual content, and use it for actionable empty
 states, persistent help access, and plugin-driven workspace guidance.
-The user reviewed and accepted this overall shape; the execution plans remain
-Draft for the next review and updates.
+The user reviewed and accepted this overall shape. Execution of `010` was
+approved on 2026-10-07; `020`, `030`, and this overall plan remain Draft.
 
 ## Requirements checklist
 
 - [ ] M1 — Connection management appears at the top of Home and the separate
   Connections bottom tab is removed. Existing connection creation, saved
   connection management, switching, disconnect, settings, and session
-  navigation remain accessible.
+  navigation remain accessible. Preserve the cards and behavior, initially
+  show up to three with a footer expand/collapse button, and present setup in
+  a modal while retaining the current connection until replacement succeeds.
 - [ ] M2 — Home, Sessions, and chat can use a shared contextual-content
   presentation with explanatory text and action/link buttons. The generic
   plugin/frontend contract supports empty/no-session and always-visible
@@ -76,9 +78,6 @@ Physical-device testing is not an acceptance gate.
   contracts. Opening a frontend view or a particular setting needs a small
   explicit contract; its supported targets and ownership remain open in
   `020`.
-- **Home UX:** confirm the connection section's initial density and whether
-  opening a connection stays on Home or navigates to Sessions. The first
-  navigation task records the recommendation.
 - **Guidance producer/configuration:** confirm the recommended small generic
   application plugin for configurable Sessions/chat guidance, with
   working-directory content owned by the existing embedded workspace plugin.
@@ -172,11 +171,15 @@ requiring a paid model request.
 - **Accepted boundary:** application-owned pre-connection guidance;
   plugin-owned domain content/eligibility; frontend-owned layout and simple
   view-state decisions.
+- **Approved for `010`:** existing cards and ordering, three-card collapse
+  with footer toggle, preserved card/Open behavior, modal setup, and keeping
+  the active connection until a replacement succeeds. Focused connection UI
+  extraction is included.
 - **Open:** exact visibility, dismissal/help identity, navigation-action
-  metadata, Home interaction, producer configuration, and final copy, as
+  metadata, producer configuration, and final copy, as
   recorded near the top and in the owning children.
 - Review schema and product choices before implementation. Execution approval
-  of this directory has not been requested or given.
+  of `010` is approved; the other children still require plan approval.
 - Preserve existing test frameworks. Use the iOS simulator for native
   acceptance and the Android emulator for shared mobile scenarios where
   supported; do not add a physical-device gate.

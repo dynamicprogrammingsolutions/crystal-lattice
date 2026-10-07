@@ -8,14 +8,21 @@ is adopted.
 ## Requirements checklist
 
 - [ ] H1 — The first Home section provides connection management and state;
-  the bottom navigation no longer contains Connections.
+  the bottom navigation no longer contains Connections. Preserve the existing
+  card presentation and most-recently-used ordering. Initially show up to
+  three cards; a button below the cards expands all connections and collapses
+  back to three. Show no toggle when there are three or fewer connections.
 - [ ] H2 — Users can create, open/switch, reconnect, disconnect, and remove
   saved connections, and reach connection/server/global settings through
   Home. The existing iOS Local agent entry and available connection methods
-  remain accessible.
+  remain accessible. Connection setup and bridge repair appear in a modal.
+  Card taps retain Sessions navigation; explicit Open stays on Home.
 - [ ] H3 — Existing connection records, transport behavior, cached sessions,
   Watchlist/Recent navigation, selected sessions, and relaunch persistence
   remain compatible with the navigation change.
+- [ ] H4 — Starting new connection setup keeps the current connection open.
+  Cancellation or failed setup leaves it available; successful setup replaces
+  it with the new connection.
 
 Parent Task: tasks/20261006-mobile-home-and-contextual-content/000-main.md
 
@@ -26,21 +33,35 @@ This dependency preserves the user's first-round priority and supplies the
 approved Local agent/settings names. There is no dependency on `020`;
 contextual-content adoption belongs to `030`.
 
-## Open questions
+## Approved UX direction
 
-- Should tapping a closed connection open it and navigate to Sessions, as
-  connection-card navigation currently does, or open it while remaining on
-  Home? Recommendation: retain explicit Open as an action that stays on Home,
-  and card navigation as the path to Sessions; confirm the interaction before
-  implementing it.
-- Should the top section initially show all saved connection cards, or the
-  active connection plus a compact list/expand affordance? Recommendation:
-  a compact presentation that keeps the active connection and setup actions
-  visible without pushing Watchlist/Recent far down. The exact initial
-  presentation is not settled.
-- Recommendation: host the existing connection wizard in an app-owned
-  modal/sheet opened from Home. Confirm this presentation; the request
-  settles location but not modal versus in-place wizard behavior.
+The user approved execution on 2026-10-07:
+
+- Keep the existing cards, details, status, actions, pinning, ordering, and
+  tap/Open behavior. Move Connections above Watchlist and Recent Sessions.
+- Default to three visible connections. Put `Show all N connections` with a
+  down chevron below the cards, changing to `Show fewer` with an up chevron
+  when expanded. Keep one Home scroll area and sensible scroll positioning
+  after collapse.
+- Open the existing setup flow in a modal. Keep the current connection until
+  the replacement succeeds; closing, cancelling, or failed setup retains it.
+- Extract focused connection cards, list/collapse composition, command state,
+  and wizard presentation/step components during this restructuring.
+
+There are no remaining product questions for this delivery. Local reversible
+implementation choices may be resolved during execution.
+
+## Approved wizard presentation and follow-up
+
+The existing connection wizard will appear in an app-owned modal opened from
+Home. Preserve its existing connection methods and bridge-repair entry points.
+
+`tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
+will implement its HTTP product-mode, saved-bridge-URL, and Development
+Settings follow-up after this task is complete and verified. This task owns
+wizard placement/navigation and preserves current transport behavior; the
+later follow-up changes bridge content and transport selection within the
+delivered modal.
 
 ## Supporting facts
 
@@ -59,27 +80,36 @@ contextual-content adoption belongs to `030`.
 - Existing `home.e2e.test.ts` and `connectionsSettings.e2e.test.ts` render
   production screens with deterministic native harness state. They cover UI
   interaction and geometry, not a real connection to a backend.
+- `App.tsx` currently disconnects the active connection immediately when New
+  connection is requested. H4 explicitly changes that setup behavior.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 ### Component and lifecycle responsibilities
 
-Extract the reusable connection card/list content from the current screen
-into a Home section. Keep one Home scroll owner and preserve connection
-actions, pinning, and production entity IDs. Select the section density only
-after the recorded UX decision.
+Extract `ConnectionCard` presentation, a `HomeConnectionsSection` that orders
+and limits the list, and a focused helper/hook for connection commands and
+health-check state. Preserve connection actions, pinning, and production
+entity IDs. Home receives the section as composition rather than absorbing
+its command state. Keep one Home scroll owner.
 
 Keep `App.tsx` as the connection/wizard authority. `ConnectedRoot.tsx` owns
 navigation and modal coordination, passing existing lifecycle callbacks into
-Home. Move wizard presentation to the agreed Home-owned surface and replace
-references to the removed tab in placeholders, tests, and navigation.
+Home. Extract the wizard modal and focused step views from the large render
+blocks in App. Move wizard presentation to the app-owned modal opened from Home
+and replace references to the removed tab in placeholders, tests, and
+navigation. Keep the extraction within connection behavior.
 
 Opening/switching continues through the existing transport construction and
 saved-record code. Preserve pending-navigation intent handling and cached
 connection/session identities. Do not add automatic connection selection or
-change reconnect/failure policies as part of moving the controls.
+change reconnect/failure policies as part of moving the controls. For new
+setup, retain the active transport while validating a candidate, then replace
+it and disconnect the prior transport only on success. Cancellation invalidates
+pending setup so a late result cannot replace the retained connection; clean
+up provisional bridge connections without closing the active transport.
 
 Provide an independently testable Home navigation slice with the existing
 empty labels/actions where necessary. `030` replaces them with the shared
@@ -92,20 +122,21 @@ component here.
    new Home entry points.
 2. Extract and integrate connection content, keeping lifecycle ownership and
    safe scrolling/drag behavior.
-3. Move the wizard host and update navigation references/affected native
-   harnesses.
-4. Prove a real server connection and session journey from Home, then update
-   current mobile navigation documentation.
+3. Extract wizard presentation, move its host, and implement candidate
+   validation/handoff while retaining the active connection.
+4. Update navigation references/affected native harnesses. Prove a real server
+   connection and session journey, including cancellation and failed setup,
+   then update current mobile navigation documentation.
 
 ### Implementation decisions and open questions
 
-- Open decisions are card/Open interaction, section density, and wizard
-  presentation as listed above. Resolve them before execution.
+- The card presentation, three-card collapse, footer toggle, modal wizard,
+  retained active connection, and focused extraction are approved above.
 - Preserve saved IDs, existing transport semantics, pinning preferences, and
   connection deletion behavior. Native folders and provider settings are not
   part of this delivery.
-- Shared mobile changes retain Android support. Native testing uses the iOS
-  simulator and supported Android emulator path.
+- Shared mobile changes retain Android support. Native acceptance uses the
+  iOS simulator; a physical device is not required.
 
 ### Documentation
 
@@ -116,9 +147,11 @@ first-round authentication/reviewer wording owned by subtask `027`.
 
 ### Task checklist
 
-- [ ] Confirm the Home interaction/density/wizard choices and execution plan.
+- [x] Confirm the Home interaction/density/wizard choices and execution plan.
 - [ ] Extract production connection controls into the top Home section.
 - [ ] Move wizard presentation and remove Connections-tab navigation.
+- [ ] Retain the current connection through pending, cancelled, or failed
+  setup and clean up candidates on successful replacement or cancellation.
 - [ ] Preserve saved connection/session state and Home drag behavior.
 - [ ] Update affected component/native tests and pass the real connection
   journey.
@@ -127,16 +160,20 @@ first-round authentication/reviewer wording owned by subtask `027`.
 
 ### Requirement verification
 
-- **H1/H2:** component and native UI checks prove section ordering, removed
-  tab, action availability, wizard presentation/cancellation, and settings.
+- **H1/H2:** component and native UI checks prove section ordering, unchanged
+  card presentation/actions, the three-card boundary and expansion/collapse,
+  removed tab, wizard presentation/cancellation, and settings.
   Retain the existing Home and connection-action consumers as regressions.
-- **H2/H3 — decisive `Home connection public flow`:** add a Detox scenario
+- **H2/H3/H4 — decisive `Home connection public flow`:** add a Detox scenario
   starting a local real HTTP server with the existing
   `startBackendServer` harness. Launch the production app without substituting
   connection callbacks, use Home's manual connection wizard with that
   server's address, open the connection, create a session through the normal
   agent picker, and confirm it through `RestAgentBackend`. Relaunch and
-  reopen the same saved connection/session. This crosses App transport
+  reopen the same saved connection/session. While connected, cancel a new
+  setup and fail a request to an unavailable address, then prove the current
+  connection still serves normal session operations. Successfully create a
+  replacement and verify it becomes active. This crosses App transport
   creation, public backend routes, and production navigation together.
   No hosted model or production server is necessary.
 - Planned decisive invocation, from the mobile package:
