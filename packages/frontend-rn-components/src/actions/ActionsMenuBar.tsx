@@ -38,7 +38,7 @@ const ICON_BUTTON_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 export const ACTIONS_MENU_BAR_ITEM_WIDTH = 44;
 
 export interface ActionsMenuBarProps<
-  TDef extends ActionDefinition = ActionDefinition,
+  TDef extends ActionDefinition = ActionDefinition
 > {
   title: string;
   baseActions: readonly TDef[];
@@ -57,6 +57,7 @@ export interface ActionsMenuBarProps<
   onAction: (key: ActionKey) => void;
   onOpenMenu?: () => void;
   menuButtonTestID?: string;
+  showMenuButton?: boolean;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
 
@@ -81,13 +82,13 @@ export interface ActionsMenuBarProps<
 
   getIconName?: (action: TDef) => string | null;
   renderPinnedAction?: (
-    params: ActionsMenuPinnedRenderParams<TDef>,
+    params: ActionsMenuPinnedRenderParams<TDef>
   ) => React.ReactNode | undefined;
   renderItem?: ActionsMenuPanelProps<TDef>["renderItem"];
 }
 
 export function ActionsMenuBar<TDef extends ActionDefinition>(
-  props: ActionsMenuBarProps<TDef>,
+  props: ActionsMenuBarProps<TDef>
 ): React.JSX.Element {
   const theme = useTheme();
   const variant = props.variant ?? "modal";
@@ -96,7 +97,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnchorRef = useRef<any>(null);
   const menuIdRef = useRef<string>(
-    `actions-menu-${Math.random().toString(36).slice(2)}`,
+    `actions-menu-${Math.random().toString(36).slice(2)}`
   );
 
   const desktopWindowManager = (NativeModules as any)?.DesktopWindowManager as
@@ -145,7 +146,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     const barPinned =
       props.pinnedKeysForBar != null
         ? model.visiblePinned.filter((action) =>
-            props.pinnedKeysForBar!.includes(action.key),
+            props.pinnedKeysForBar!.includes(action.key)
           )
         : model.visiblePinned;
     return limitPinnedActionsForBar(barPinned, props.maxPinnedActionsForBar)
@@ -161,7 +162,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             try {
               const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
               setLastActionsPopoverAnchorTag(
-                typeof anchorTag === "number" ? anchorTag : null,
+                typeof anchorTag === "number" ? anchorTag : null
               );
             } catch {
               setLastActionsPopoverAnchorTag(null);
@@ -249,7 +250,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       pinnedKeys: props.pinned,
       disabledKeys: model.orderedActions
         .filter((action) =>
-          props.isActionDisabled ? props.isActionDisabled(action.key) : false,
+          props.isActionDisabled ? props.isActionDisabled(action.key) : false
         )
         .map((action) => action.key),
       renderItem: props.renderItem as any,
@@ -299,120 +300,123 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         >
           {pinnedButtons}
         </View>
-        <View
-          ref={menuAnchorRef}
-          collapsable={false}
-          style={[
-            styles.menuButtonSlot,
-            pinnedRows === 2 &&
-              (secondPinnedRowPlacement === "above"
-                ? styles.menuButtonSlotBottom
-                : styles.menuButtonSlotTop),
-          ]}
-          testID="actions-menu-overflow-slot"
-        >
-          <TouchableOpacity
-            style={styles.iconButton}
-            hitSlop={ICON_BUTTON_HIT_SLOP}
-            accessibilityLabel={`Open ${props.title}`}
-            accessibilityRole="button"
-            testID={props.menuButtonTestID}
-            onPress={() => {
-              if (isMacOSPopoverMenu) {
-                const anchorTag = menuAnchorRef.current
-                  ? (findNodeHandle(menuAnchorRef.current) as any)
-                  : null;
-                if (typeof anchorTag !== "number") {
+        {props.showMenuButton !== false ? (
+          <View
+            ref={menuAnchorRef}
+            collapsable={false}
+            style={[
+              styles.menuButtonSlot,
+              pinnedRows === 2 &&
+                (secondPinnedRowPlacement === "above"
+                  ? styles.menuButtonSlotBottom
+                  : styles.menuButtonSlotTop),
+            ]}
+            testID="actions-menu-overflow-slot"
+          >
+            <TouchableOpacity
+              style={styles.iconButton}
+              hitSlop={ICON_BUTTON_HIT_SLOP}
+              accessibilityLabel={`Open ${props.title}`}
+              accessibilityRole="button"
+              testID={props.menuButtonTestID}
+              onPress={() => {
+                if (isMacOSPopoverMenu) {
+                  const anchorTag = menuAnchorRef.current
+                    ? (findNodeHandle(menuAnchorRef.current) as any)
+                    : null;
+                  if (typeof anchorTag !== "number") {
+                    return;
+                  }
+
+                  setLastActionsPopoverAnchorTag(anchorTag);
+
+                  const menuId = menuIdRef.current;
+                  const actions = model.orderedActions.map((action) => ({
+                    ...action,
+                    iconName: getIconName(action),
+                  }));
+                  const disabledKeys = model.orderedActions
+                    .filter((action) =>
+                      props.isActionDisabled
+                        ? props.isActionDisabled(action.key)
+                        : false
+                    )
+                    .map((action) => action.key);
+
+                  const close = () => {
+                    desktopWindowManager?.closeActionsPopover?.();
+                    clearActiveActionsPopoverMenu(menuId);
+                  };
+
+                  props.onOpenMenu?.();
+                  setActiveActionsPopoverMenu({
+                    data: {
+                      id: menuId,
+                      title: props.title,
+                      actions,
+                      pinnedKeys: props.pinned,
+                      disabledKeys,
+                      renderItem: props.renderItem as any,
+                    },
+                    handlers: {
+                      onAction: (key) => {
+                        close();
+                        props.onAction(key);
+                      },
+                      onTogglePinned: (key) => {
+                        togglePinned(key);
+                      },
+                      onRequestClose: () => {
+                        close();
+                      },
+                    },
+                  });
+
+                  desktopWindowManager?.toggleActionsPopover?.({
+                    anchorTag,
+                    menuId,
+                    rows: actions.map((action) => ({
+                      label: action.label,
+                      stateLabel: action.menuStateLabel,
+                      hasIcon: Boolean(action.iconName),
+                    })),
+                    fontSize: theme.typography.fontSize.message,
+                    stateFontSize: theme.typography.fontSize.secondary,
+                    height: 44 + 12 + actions.length * 44,
+                  });
                   return;
                 }
 
-                setLastActionsPopoverAnchorTag(anchorTag);
-
-                const menuId = menuIdRef.current;
-                const actions = model.orderedActions.map((action) => ({
-                  ...action,
-                  iconName: getIconName(action),
-                }));
-                const disabledKeys = model.orderedActions
-                  .filter((action) =>
-                    props.isActionDisabled
-                      ? props.isActionDisabled(action.key)
-                      : false,
-                  )
-                  .map((action) => action.key);
-
-                const close = () => {
-                  desktopWindowManager?.closeActionsPopover?.();
-                  clearActiveActionsPopoverMenu(menuId);
-                };
-
                 props.onOpenMenu?.();
-                setActiveActionsPopoverMenu({
-                  data: {
-                    id: menuId,
-                    title: props.title,
-                    actions,
-                    pinnedKeys: props.pinned,
-                    disabledKeys,
-                    renderItem: props.renderItem as any,
-                  },
-                  handlers: {
-                    onAction: (key) => {
-                      close();
-                      props.onAction(key);
+                setMenuVisible(true);
+              }}
+            >
+              {props.renderIcon ? (
+                props.renderIcon({
+                  name: "more-horizontal",
+                  size: 18,
+                  color: theme.primary,
+                })
+              ) : (
+                <Text
+                  style={[
+                    styles.moreText,
+                    {
+                      color: theme.primary,
+                      fontSize: theme.typography.fontSize.title,
                     },
-                    onTogglePinned: (key) => {
-                      togglePinned(key);
-                    },
-                    onRequestClose: () => {
-                      close();
-                    },
-                  },
-                });
-
-                desktopWindowManager?.toggleActionsPopover?.({
-                  anchorTag,
-                  menuId,
-                  rows: actions.map((action) => ({
-                    label: action.label,
-                    stateLabel: action.menuStateLabel,
-                    hasIcon: Boolean(action.iconName),
-                  })),
-                  fontSize: theme.typography.fontSize.message,
-                  stateFontSize: theme.typography.fontSize.secondary,
-                  height: 44 + 12 + actions.length * 44,
-                });
-                return;
-              }
-
-              props.onOpenMenu?.();
-              setMenuVisible(true);
-            }}
-          >
-            {props.renderIcon ? (
-              props.renderIcon({
-                name: "more-horizontal",
-                size: 18,
-                color: theme.primary,
-              })
-            ) : (
-              <Text
-                style={[
-                  styles.moreText,
-                  {
-                    color: theme.primary,
-                    fontSize: theme.typography.fontSize.title,
-                  },
-                ]}
-              >
-                ⋯
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+                  ]}
+                >
+                  ⋯
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
-      {isMacOSPopoverMenu ? null : variant === "modal" ? (
+      {props.showMenuButton === false || isMacOSPopoverMenu ? null : variant ===
+        "modal" ? (
         <ModalMenuSurface
           visible={menuVisible}
           onRequestClose={() => setMenuVisible(false)}

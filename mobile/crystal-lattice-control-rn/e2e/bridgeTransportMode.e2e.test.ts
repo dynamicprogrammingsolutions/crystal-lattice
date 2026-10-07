@@ -10,7 +10,7 @@ describe("bridge transport mode selection", () => {
   });
 
   it("defaults to WebSocket and allows explicit HTTP, hybrid, and rollback selection", async () => {
-    await element(by.id("connections-tab")).tap();
+    await waitFor(element(by.id("connections-new-connection"))).toBeVisible().withTimeout(30000);
     await element(by.id("connections-new-connection")).tap();
     await element(by.id("connection-method-bridge")).tap();
 

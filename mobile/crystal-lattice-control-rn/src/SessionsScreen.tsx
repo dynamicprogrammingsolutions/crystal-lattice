@@ -101,6 +101,7 @@ interface SessionsScreenProps {
   onSelectSession: (sessionId: string) => void;
   requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
   newSessionRequestToken?: number;
+  onNewSessionRequestHandled?: (token: number) => void;
 }
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = "clc_pinned_session_list_actions_v1";
@@ -173,6 +174,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   onSelectSession,
   requestStatuses = {},
   newSessionRequestToken = 0,
+  onNewSessionRequestHandled,
 }) => {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -688,16 +690,18 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
-  const handledNewSessionRequestToken = useRef(newSessionRequestToken);
+  const handledNewSessionRequestToken = useRef(0);
   useEffect(() => {
     if (
       !isActive ||
+      newSessionRequestToken === 0 ||
       newSessionRequestToken === handledNewSessionRequestToken.current
     ) {
       return;
     }
     handledNewSessionRequestToken.current = newSessionRequestToken;
     void handleNewSession();
+    onNewSessionRequestHandled?.(newSessionRequestToken);
   }, [isActive, newSessionRequestToken]);
 
   const handleBuiltinSessionAction = useCallback(

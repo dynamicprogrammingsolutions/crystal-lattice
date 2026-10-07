@@ -26,10 +26,6 @@ import type {
   ConnectionRecord,
   SessionRequestStatus,
 } from "@crystal-lattice/frontend-sdk";
-import {
-  ActionsMenuBar,
-  type ActionDefinition,
-} from "@crystal-lattice/frontend-rn-components";
 
 import type { SessionsCache } from "../App";
 import { useHomeWorkspace } from "./HomeWorkspaceContext";
@@ -37,7 +33,6 @@ import {
   deriveHomeSessionCollections,
   type HomeSessionItem,
 } from "./homeWorkspaceState";
-import { usePersistentPinnedActions } from "./usePersistentPinnedActions";
 import { useTheme, type Theme } from "./theme";
 import SessionNoteModal from "./components/SessionNoteModal";
 import SessionRequestStatusBadge from "./components/SessionRequestStatusBadge";
@@ -51,34 +46,16 @@ import {
 } from "./watchlistDrag";
 import { resolveMobileHomeSessionPresentation } from "./homeSessionPresentation";
 
-interface HomeActionDefinition extends ActionDefinition {
-  iconName: string;
-}
-
-const HOME_ACTIONS: HomeActionDefinition[] = [
-  { key: "settings", label: "Global settings", iconName: "settings" },
-  {
-    key: "embeddedSettings",
-    label: "Local providers",
-    iconName: "cpu",
-    testID: "home-embedded-settings",
-  },
-  { key: "newConnection", label: "New connection", iconName: "wifi" },
-  { key: "newSession", label: "New session", iconName: "plus" },
-];
-
 interface HomeScreenProps {
+  renderConnectionSection?: (onCollapse: () => void) => React.ReactNode;
   connections: readonly ConnectionRecord[];
   sessionsCache: SessionsCache;
   statusesByConnection: Readonly<
     Record<string, Readonly<Record<string, SessionRequestStatus>>>
   >;
-  hasActiveBackend: boolean;
-  isActive: boolean;
   onOpenGlobalSettings: () => void;
   onOpenEmbeddedSettings?: () => void;
   onNewConnection: () => void;
-  onNewSession: () => void;
   onSelectSession: (connectionId: string, sessionId: string) => void;
 }
 
@@ -322,15 +299,13 @@ function sameKeyOrder(
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({
+  renderConnectionSection,
   connections,
   sessionsCache,
   statusesByConnection,
-  hasActiveBackend,
-  isActive,
   onOpenGlobalSettings,
   onOpenEmbeddedSettings,
   onNewConnection,
-  onNewSession,
   onSelectSession,
 }) => {
   const theme = useTheme();
@@ -347,10 +322,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
     setSessionNote,
     removeSessionNote,
   } = useHomeWorkspace();
-  const { pinned, setPinned } = usePersistentPinnedActions<string>(
-    "clc_pinned_home_actions_v1",
-    ["settings", "embeddedSettings", "newConnection"]
-  );
   const derivedCollections = useMemo(
     () =>
       deriveHomeSessionCollections({
@@ -603,6 +574,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const openGlobalSettingsFromMenu = useCallback(() => {
     openSettingsFromMenu(onOpenGlobalSettings);
   }, [onOpenGlobalSettings, openSettingsFromMenu]);
+  const openNewConnectionFromMenu = useCallback(() => {
+    openSettingsFromMenu(onNewConnection);
+  }, [onNewConnection, openSettingsFromMenu]);
 
   const watchlistRenderSlots = useMemo(
     () =>
@@ -638,6 +612,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       <View style={styles.header} testID="home-screen-header">
         <TouchableOpacity
           testID="home-menu"
+          accessibilityRole="button"
           accessibilityLabel="Open Home menu"
           style={styles.headerIcon}
           onPress={() => setMenuVisible(true)}
@@ -645,41 +620,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           <Icon name="menu" size={21} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.screenTitle}>Home</Text>
-        <View style={styles.homeActions}>
-          <ActionsMenuBar<HomeActionDefinition>
-            title="Home actions"
-            baseActions={HOME_ACTIONS}
-            availableActions={
-              onOpenEmbeddedSettings
-                ? [
-                    "settings",
-                    "embeddedSettings",
-                    "newConnection",
-                    "newSession",
-                  ]
-                : ["settings", "newConnection", "newSession"]
-            }
-            pinned={pinned}
-            onChangePinned={setPinned}
-            isActive={isActive}
-            renderIcon={({ name, size, color }) => (
-              <Icon name={name} size={size} color={color} />
-            )}
-            renderPinIcon={({ size, color }) => (
-              <Icon name="star" size={size} color={color} />
-            )}
-            menuButtonTestID="home-actions-menu"
-            isActionDisabled={(key) =>
-              key === "newSession" && !hasActiveBackend
-            }
-            onAction={(key) => {
-              if (key === "settings") onOpenGlobalSettings();
-              if (key === "embeddedSettings") onOpenEmbeddedSettings?.();
-              if (key === "newConnection") onNewConnection();
-              if (key === "newSession") onNewSession();
-            }}
-          />
-        </View>
+        <View style={styles.headerIcon} testID="home-account-slot" />
       </View>
 
       <ScrollView
@@ -695,6 +636,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           scrollContentHeightRef.current = height;
         }}
       >
+        {renderConnectionSection?.(() => {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+        })}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Watchlist</Text>
           <Text style={styles.sectionHint}>Stored on this device</Text>
@@ -952,6 +896,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={styles.menuPanel}>
             <Text style={styles.menuTitle}>Home menu</Text>
             <TouchableOpacity
+              testID="home-menu-new-connection"
+              style={styles.menuItem}
+              accessibilityRole="button"
+              accessibilityLabel="New connection"
+              accessibilityActions={[{ name: "activate", label: "New connection" }]}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === "activate") openNewConnectionFromMenu();
+              }}
+              onPress={openNewConnectionFromMenu}
+            >
+              <Icon name="plus" size={18} color={theme.text} />
+              <Text style={styles.menuItemText} onPress={openNewConnectionFromMenu}>
+                New connection
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               testID="home-menu-global-settings"
               style={styles.menuItem}
               accessibilityRole="button"
@@ -973,6 +933,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 testID="home-menu-embedded-settings"
                 style={styles.menuItem}
                 accessibilityRole="button"
+                accessibilityLabel="Local provider settings"
+                accessibilityActions={[{ name: "activate", label: "Open Local provider settings" }]}
+                onAccessibilityAction={(event) => {
+                  if (event.nativeEvent.actionName === "activate") openEmbeddedSettingsFromMenu();
+                }}
                 onPress={openEmbeddedSettingsFromMenu}
               >
                 <Icon name="cpu" size={18} color={theme.text} />
@@ -1042,9 +1007,6 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.title,
       fontWeight: "700",
       marginLeft: 4,
-    },
-    homeActions: {
-      flexShrink: 1,
     },
     scroll: {
       flex: 1,

@@ -242,3 +242,41 @@ Completed on 2026-10-07.
   configuration; no unrelated lint configuration was added.
 - `020` and `030` remain Draft and unimplemented. The approved bridge follow-up
   retains ownership of later transport/product changes within this modal.
+
+## Post-completion follow-up
+
+The user approved these focused Home action adjustments on 2026-10-07:
+
+- The Connections heading contains only New connection, without an ellipsis.
+  The shared pinnable bar gains a reusable option for hiding its menu trigger.
+- Every connection card has a New session plus button that opens its
+  connection when needed and then shows the existing agent picker.
+- The global Home pinnable bar is removed. The Home menu stays on the left,
+  with New connection and the existing settings entries. The entire right-hand
+  header area remains empty until login is implemented, as clarified by the
+  user.
+
+Execution is authorized by the user's request; the original completion notes
+remain historical evidence.
+
+- [x] Implement the bar option, Home menu/header, and connection New session
+  dispatch without changing connection-card navigation.
+- [x] Verify the full mobile component suite (59 suites, 317 tests), shared
+  package checks (76 tests), and TypeScript.
+- [x] Verify the updated real HTTP simulator journey and settings/menu entry
+  paths, then update follow-up evidence.
+
+Follow-up verification completed on 2026-10-07: the final Release simulator
+build and all four Detox scenarios pass in one successful command:
+`homeConnections`, `connectionsSettings`, `localProviderSettings`, and `home`.
+The HTTP journey uses New session on open and closed connection cards and
+opens New connection from the Home menu. The Home native geometry check
+confirms the menu is on the left; settings remain accessible after the global
+bar removal. Local provider settings exposes the same standard accessibility
+activation handler as the other Home menu actions.
+
+Sessions now acknowledges programmatic New session requests so the agent
+picker opens on its first mount and does not repeat a consumed request.
+The shared bar's menu option defaults to the existing behavior. Documentation
+preparation and diff checks pass. The follow-up is included in the Home
+connection implementation commit.

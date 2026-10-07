@@ -4,7 +4,9 @@ import * as detox from "detox";
 const detoxExpect = detox.expect;
 
 async function openProviders() {
-  await element(by.id("home-embedded-settings")).tap();
+  await element(by.id("home-menu")).tap();
+  await waitFor(element(by.id("home-menu-embedded-settings"))).toBeVisible().withTimeout(30000);
+  await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
   await waitFor(element(by.id("embedded-runtime-settings"))).toBeVisible().withTimeout(30000);
   await new Promise<void>((resolve) => setTimeout(resolve, 600));
 }

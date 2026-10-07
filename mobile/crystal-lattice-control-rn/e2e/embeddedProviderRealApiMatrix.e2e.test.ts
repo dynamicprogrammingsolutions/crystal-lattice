@@ -144,7 +144,7 @@ async function waitForMatrixReady(timeoutMs: number): Promise<void> {
 }
 
 async function openEmbeddedConnection(): Promise<void> {
-  await tapById("connections-tab");
+  await tapById("home-tab");
   await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
     .toBeVisible()
     .withTimeout(30000);
@@ -222,10 +222,11 @@ async function configureProfile(options: {
     await tapById("global-settings-modal-close");
     await settleAfterModalTransition();
   }
-  await waitFor(element(by.id("home-embedded-settings")))
+  await tapById("home-menu");
+  await waitFor(element(by.id("home-menu-embedded-settings")))
     .toBeVisible()
     .withTimeout(30000);
-  await tapById("home-embedded-settings");
+  await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
   await waitFor(element(by.id("embedded-runtime-settings")))
     .toBeVisible()
     .withTimeout(30000);

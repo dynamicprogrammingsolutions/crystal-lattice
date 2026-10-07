@@ -40,6 +40,7 @@
     "test:ios:embedded-providers:detox:api": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_provider_detox_matrix.py",
     "test:ios:embedded-providers:detox:chatgpt": "python scripts/repo_run.py python mobile/crystal-lattice-control-rn/scripts/run_embedded_chatgpt_detox.py",
     "test:ios:local-provider-settings": "npm --prefix mobile/crystal-lattice-control-rn run detox:test:local-provider-settings:ios",
+    "test:ios:home-connections": "npm --prefix mobile/crystal-lattice-control-rn run detox:test:home-connections:ios",
     "test:reviewer-proxy": "npm --prefix tools/openai-proxy test",
     "lint": "python scripts/repo_run.py ruff check core/python/agent_core core/python/tests core/python/examples core/python/plugins",
     "lint:fix": "python scripts/repo_run.py ruff check --fix core/python/agent_core core/python/tests core/python/examples core/python/plugins",

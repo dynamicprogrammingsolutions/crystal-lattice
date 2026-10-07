@@ -39,6 +39,7 @@ function renderScreen(overrides: Record<string, unknown> = {}) {
     onConnectionCardPress: jest.fn(),
     onOpenConnection: jest.fn(),
     onNewConnection: jest.fn(),
+    onNewSession: jest.fn(),
     onOpenGlobalSettings: jest.fn(),
     onOpenServerSettings: jest.fn(),
     onDisconnect: jest.fn(),
@@ -83,20 +84,29 @@ test('routes header and state-dependent card actions', async () => {
   const { screen, props } = renderScreen();
   await waitFor(() => expect(screen.getByLabelText('New connection')).toBeTruthy());
   fireEvent.press(screen.getByLabelText('New connection'));
-  const settings = screen.getAllByLabelText('Settings');
-  fireEvent.press(settings[0]);
-  fireEvent.press(settings[1]);
+  fireEvent.press(screen.getByLabelText('Settings'));
   fireEvent.press(screen.getByLabelText('Open'));
   fireEvent.press(screen.getByLabelText('Disconnect'));
   fireEvent.press(screen.getByLabelText('Health check'));
 
   expect(props.onNewConnection).toHaveBeenCalled();
-  expect(props.onOpenGlobalSettings).toHaveBeenCalled();
+  expect(screen.queryByTestId('connections-global-settings')).toBeNull();
+  expect(screen.queryByTestId('connections-actions-menu')).toBeNull();
   expect(props.onOpenServerSettings).toHaveBeenCalled();
   expect(props.onOpenConnection).toHaveBeenCalledWith(records[0]);
   expect(props.onConnectionCardPress).not.toHaveBeenCalled();
   expect(props.onDisconnect).toHaveBeenCalled();
   await waitFor(() => expect(screen.getByText(/OK:.*healthy/s)).toBeTruthy());
+});
+
+test('offers New session on both open and closed connection cards', async () => {
+  const { screen, props } = renderScreen();
+  await screen.findByLabelText('New connection');
+  fireEvent.press(screen.getByTestId('connection-new-session-active'));
+  fireEvent.press(screen.getByTestId('connection-new-session-closed'));
+  expect(props.onNewSession).toHaveBeenNthCalledWith(1, records[1]);
+  expect(props.onNewSession).toHaveBeenNthCalledWith(2, records[0]);
+  expect(props.onConnectionCardPress).not.toHaveBeenCalled();
 });
 
 test('uses a constrained two-line menu title with a compact close icon', async () => {
@@ -128,4 +138,32 @@ test('routes both open and closed card presses independently from action icons',
   expect(props.onConnectionCardPress).toHaveBeenNthCalledWith(1, records[1]);
   expect(props.onConnectionCardPress).toHaveBeenNthCalledWith(2, records[0]);
   expect(props.onOpenConnection).not.toHaveBeenCalled();
+});
+
+test.each([0, 1, 3])('shows all %i cards without a collapse control', async (count) => {
+  const connections = Array.from({ length: count }, (_, index) => ({
+    ...records[0], id: `server-${index}`, lastUsedAt: index,
+  }));
+  const { screen } = renderScreen({ connections });
+  await waitFor(() => expect(screen.getByLabelText('New connection')).toBeTruthy());
+  expect(screen.queryByTestId('home-connections-toggle')).toBeNull();
+  for (const record of connections) expect(screen.getByTestId(`connection-card-${record.id}`)).toBeTruthy();
+});
+
+test('defaults to three recent cards and expands/collapses through the footer', async () => {
+  const connections = Array.from({ length: 5 }, (_, index) => ({
+    ...records[0], id: `server-${index}`, lastUsedAt: index,
+  }));
+  const onCollapse = jest.fn();
+  const { screen } = renderScreen({ connections, onCollapse });
+  await waitFor(() => expect(screen.getByLabelText('New connection')).toBeTruthy());
+  for (const index of [4, 3, 2]) expect(screen.getByTestId(`connection-card-server-${index}`)).toBeTruthy();
+  expect(screen.queryByTestId('connection-card-server-1')).toBeNull();
+  expect(screen.getByLabelText('Show all 5 connections').props.accessibilityState.expanded).toBe(false);
+  fireEvent.press(screen.getByTestId('home-connections-toggle'));
+  expect(screen.getByTestId('connection-card-server-0')).toBeTruthy();
+  expect(screen.getByLabelText('Show fewer').props.accessibilityState.expanded).toBe(true);
+  fireEvent.press(screen.getByTestId('home-connections-toggle'));
+  expect(screen.queryByTestId('connection-card-server-0')).toBeNull();
+  expect(onCollapse).toHaveBeenCalledTimes(1);
 });

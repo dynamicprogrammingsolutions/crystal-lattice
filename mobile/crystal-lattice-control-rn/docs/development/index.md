@@ -4,7 +4,7 @@
 
 - [Bridge connection integration](bridge-connection-integration.md) — pairing,
   saved-record reconstruction, transport modes, and foreground recovery.
-- [Connections screen](connections-screen.md) — cards, actions, navigation,
+- [Connections on Home](connections-screen.md) — cards, actions, navigation,
   responsive headers, and settings presentation.
 - [Connection lifecycle specification](specifications/connection-lifecycle/index.md)
 

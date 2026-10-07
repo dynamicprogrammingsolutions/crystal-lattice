@@ -12,7 +12,8 @@ import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice
 import type { SessionsCache } from '../App';
 import type { DebugTimelineEntry } from './debugTimeline';
 import type { MessagesCache } from './cache/types';
-import ConnectionsScreen from './ConnectionsScreen';
+import HomeConnectionsSection from './connections/HomeConnectionsSection';
+import ConnectionWizardModal from './connections/ConnectionWizardModal';
 import SessionsScreen from './SessionsScreen';
 import type { SessionSummary, IndexedMessage } from './api';
 import SessionChatScreen from './SessionChatScreen';
@@ -43,6 +44,7 @@ interface ConnectedRootProps {
   ) => void | boolean | Promise<void | boolean>;
   onNewConnectionRequested: () => void;
   renderConnectionWizard: () => React.ReactNode;
+  onCloseConnectionWizard: () => void;
   onDeleteConnectionRecord: (record: ConnectionRecord) => void;
   activeConnectionId: string | null;
   sessionsCache: SessionsCache;
@@ -92,6 +94,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onSelectConnectionRecord,
   onNewConnectionRequested,
   renderConnectionWizard,
+  onCloseConnectionWizard,
   onDeleteConnectionRecord,
   activeConnectionId,
   sessionsCache,
@@ -108,7 +111,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
-  const [tab, setTab] = useState<'home' | 'connection' | 'sessions' | 'messages'>('home');
+  const [tab, setTab] = useState<'home' | 'sessions' | 'messages'>('home');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
@@ -116,6 +119,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
   const [embeddedSettingsVisible, setEmbeddedSettingsVisible] = useState(false);
   const [newSessionRequestToken, setNewSessionRequestToken] = useState(0);
+  const newSessionRequestSequenceRef = useRef(0);
   const navigationIntentRef = useRef(0);
   const {
     hydrated: homeWorkspaceHydrated,
@@ -253,6 +257,21 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
     setTab('messages');
   };
 
+  const handleNewConnectionSession = async (record: ConnectionRecord) => {
+    const intent = navigationIntentRef.current + 1;
+    navigationIntentRef.current = intent;
+    const isOpen =
+      record.id === activeConnectionId && backend !== null && transport !== null;
+    if (!isOpen) {
+      const opened = await onSelectConnectionRecord(record);
+      if (opened === false || navigationIntentRef.current !== intent) return;
+    }
+    if (navigationIntentRef.current !== intent) return;
+    newSessionRequestSequenceRef.current += 1;
+    setNewSessionRequestToken(newSessionRequestSequenceRef.current);
+    setTab('sessions');
+  };
+
   // Stable cache-update callbacks: SessionChatScreen derives reload
   // callbacks from these props, so inline arrows here would change the
   // identity of its session-refresh subscriptions on every render.
@@ -305,11 +324,31 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           ]}
         >
           <HomeScreen
+            renderConnectionSection={(onCollapse) => (
+              <HomeConnectionsSection
+                connections={connections}
+                loading={connectionsLoading}
+                activeConnectionId={activeConnectionId}
+                transport={transport}
+                onConnectionCardPress={(record) => {
+                  navigationIntentRef.current += 1;
+                  setTab('sessions');
+                  if (record.id !== activeConnectionId || transport === null) {
+                    void onSelectConnectionRecord(record);
+                  }
+                }}
+                onOpenConnection={(record) => { void onSelectConnectionRecord(record); }}
+                onNewSession={(record) => { void handleNewConnectionSession(record); }}
+                onNewConnection={onNewConnectionRequested}
+                onOpenServerSettings={() => setServerSettingsVisible(true)}
+                onDisconnect={onDisconnect}
+                onDeleteConnection={onDeleteConnectionRecord}
+                onCollapse={onCollapse}
+              />
+            )}
             connections={connections}
             sessionsCache={sessionsCache}
             statusesByConnection={statusesByConnection}
-            hasActiveBackend={backend !== null}
-            isActive={tab === 'home'}
             onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
             onOpenEmbeddedSettings={
               Platform.OS === 'ios'
@@ -318,62 +357,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             }
             onNewConnection={() => {
               navigationIntentRef.current += 1;
-              setTab('connection');
               onNewConnectionRequested();
-            }}
-            onNewSession={() => {
-              navigationIntentRef.current += 1;
-              setNewSessionRequestToken((current) => current + 1);
-              setTab('sessions');
             }}
             onSelectSession={(connectionId, sessionId) => {
               void handleSelectHomeSession(connectionId, sessionId);
             }}
           />
-        </View>
-
-        {/* Connection tab content (kept mounted, visibility toggled) */}
-        <View
-          testID="connections-tab-content"
-          style={[
-            styles.connectionsTabContainer,
-            tab !== 'connection' && { display: 'none' },
-          ]}
-        >
-          {(() => {
-            const wizard = renderConnectionWizard();
-            if (wizard) {
-              return <View style={styles.wizardContainer}>{wizard}</View>;
-            }
-
-            return (
-                <View style={styles.connectionsListSection}>
-                  <ConnectionsScreen
-                    connections={connections}
-                    loading={connectionsLoading}
-                    activeConnectionId={activeConnectionId}
-                    transport={transport}
-                    onConnectionCardPress={(record) => {
-                      navigationIntentRef.current += 1;
-                      setTab('sessions');
-                      const isOpen =
-                        record.id === activeConnectionId && transport !== null;
-                      if (!isOpen) {
-                        void onSelectConnectionRecord(record);
-                      }
-                    }}
-                    onOpenConnection={(record) => {
-                      void onSelectConnectionRecord(record);
-                    }}
-                    onNewConnection={onNewConnectionRequested}
-                    onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
-                    onOpenServerSettings={() => setServerSettingsVisible(true)}
-                    onDisconnect={onDisconnect}
-                    onDeleteConnection={onDeleteConnectionRecord}
-                  />
-                </View>
-            );
-          })()}
         </View>
 
         {/* Sessions tab content (kept mounted, visibility toggled) */}
@@ -394,7 +383,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
               return (
                 <View style={styles.placeholderContainer}>
                   <Text style={styles.placeholderText}>
-                    No sessions loaded yet. Open the Connections tab to connect to a server.
+                    No sessions loaded yet. Open a connection from Home to connect to a server.
                   </Text>
                 </View>
               );
@@ -416,6 +405,9 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                     : {}
                 }
                 newSessionRequestToken={newSessionRequestToken}
+                onNewSessionRequestHandled={(token) => {
+                  setNewSessionRequestToken((current) => current === token ? 0 : current);
+                }}
               />
             );
           })()}
@@ -553,6 +545,10 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         onRequestClose={() => setEmbeddedSettingsVisible(false)}
         onSaved={onEmbeddedSettingsChanged}
       />
+      <ConnectionWizardModal
+        content={renderConnectionWizard()}
+        onCancel={onCloseConnectionWizard}
+      />
 
       <View style={styles.navBar}>
         <TouchableOpacity
@@ -571,21 +567,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           <Text style={tab === 'home' ? styles.navTextActive : styles.navText}>
             Home
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          testID="connections-tab"
-          style={[styles.navItem, tab === 'connection' && styles.navItemActive]}
-          onPress={() => {
-            navigationIntentRef.current += 1;
-            setTab('connection');
-          }}
-        >
-          <Icon
-            name="wifi"
-            size={20}
-            color={tab === 'connection' ? theme.navIconActive : theme.navIconInactive}
-          />
-          <Text style={tab === 'connection' ? styles.navTextActive : styles.navText}>Connections</Text>
         </TouchableOpacity>
         <TouchableOpacity
           testID="sessions-tab"
@@ -634,13 +615,6 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number; left:
       paddingBottom: 4,
     },
     connectionsTabContainer: {
-      flex: 1,
-    },
-    wizardContainer: {
-      flex: 1,
-      paddingHorizontal: 0,
-    },
-    connectionsListSection: {
       flex: 1,
     },
     button: {

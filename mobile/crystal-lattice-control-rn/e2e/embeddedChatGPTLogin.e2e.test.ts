@@ -110,7 +110,9 @@ async function openChatGPTSettings(deleteData: boolean): Promise<void> {
     .toBeVisible()
     .withTimeout(30000);
   await tapById("home-tab");
-  await tapById("home-embedded-settings");
+  await tapById("home-menu");
+  await waitFor(element(by.id("home-menu-embedded-settings"))).toBeVisible().withTimeout(30000);
+  await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
   await waitFor(element(by.id("embedded-runtime-settings")))
     .toBeVisible()
     .withTimeout(30000);

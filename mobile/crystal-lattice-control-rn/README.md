@@ -9,9 +9,11 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
   - Manual address entry (IP + port)
   - Automatic Bonjour/mDNS discovery
   - Bridge service connection for cross-network access
-- 📂 **Connections Screen:**
+- 📂 **Connections on Home:**
   - Saves successful connections (manual, discovery, bridge)
   - Lets you reconnect with a single tap instead of re-entering details or pairing codes (when the bridge still knows about the pairing)
+  - Shows up to three existing cards, with a button to expand the list
+  - Opens setup in a modal and keeps the current connection until new setup succeeds
 - 📡 Connect to discovered services
 - ✅ Execute GET and PUT requests
 - 🔐 Secure pairing with bridge servers

@@ -1,8 +1,29 @@
 # Home, Watchlist, and recent sessions
 
-Home is the initial mobile workspace. It sits alongside Connections, Sessions,
-and Messages and provides shortcuts to sessions cached from all saved
-connections.
+Home is the initial mobile workspace, alongside Sessions and Messages.
+Connections appears first, followed by Watchlist and Recent Sessions.
+
+## Connections
+
+Saved connection cards keep their details, Open/Closed status, and pinnable
+actions. The list uses most-recently-used ordering and initially shows up to
+three cards. When there are more, **Show all N connections** below the cards
+reveals the whole list; **Show fewer** returns to three. Expanding does not
+leave Home.
+
+Tap a card to enter Sessions and open its connection when necessary. The
+card's **Open** action connects while staying on Home. The active connection
+offers Disconnect, Health Check, and server settings. Each card's **+** opens
+the connection when needed, then shows the agent picker for a new session.
+The Connections heading has just **New connection**, without an ellipsis.
+The Home menu on the left provides New connection, Global Settings, and
+Local provider settings on iOS. The right-hand header area remains empty until
+login is implemented.
+
+New connection opens setup in a modal. The current connection stays open
+while you configure and validate another. Closing, cancelling, or failed
+setup retains it; successful setup switches to the new connection. Bridge
+re-pairing also uses the setup modal.
 
 ## Watchlist
 
@@ -52,7 +73,7 @@ or not they are also on the Watchlist:
 - Last week
 
 Change the window in Global Settings. Global Settings is available from
-Connections, the Home menu, and Home actions.
+the Home menu.
 
 Timeline rows use the same information order as Watchlist tiles and add a
 neutral gray activity rail. Connection name and relative time are separate, so

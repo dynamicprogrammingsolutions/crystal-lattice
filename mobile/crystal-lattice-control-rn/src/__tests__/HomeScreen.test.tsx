@@ -47,6 +47,7 @@ function renderHome() {
   const now = Date.now() / 1000;
   const onOpenGlobalSettings = jest.fn();
   const onOpenEmbeddedSettings = jest.fn();
+  const onNewConnection = jest.fn();
   const onSelectSession = jest.fn();
   const screen = render(
     <ThemeProvider theme={lightTheme}>
@@ -116,12 +117,9 @@ function renderHome() {
                 },
               },
             }}
-            hasActiveBackend
-            isActive
             onOpenGlobalSettings={onOpenGlobalSettings}
             onOpenEmbeddedSettings={onOpenEmbeddedSettings}
-            onNewConnection={() => {}}
-            onNewSession={() => {}}
+            onNewConnection={onNewConnection}
             onSelectSession={onSelectSession}
           />
         </HomeWorkspaceProvider>
@@ -132,6 +130,7 @@ function renderHome() {
     ...screen,
     onOpenEmbeddedSettings,
     onOpenGlobalSettings,
+    onNewConnection,
     onSelectSession,
   };
 }
@@ -187,7 +186,7 @@ function directWatchlistChildIDs(
 }
 
 describe("HomeScreen", () => {
-  it("renders a distinct Recent Sessions timeline and Settings-only Home menu", async () => {
+  it("keeps settings and New connection in the Home menu with an empty account slot", async () => {
     const screen = renderHome();
     await waitFor(() =>
       expect(screen.getByTestId("home-recent-timeline")).toBeTruthy()
@@ -206,6 +205,16 @@ describe("HomeScreen", () => {
     await waitFor(() =>
       expect(screen.onOpenEmbeddedSettings).toHaveBeenCalledTimes(1)
     );
+    expect(screen.queryByTestId("home-actions-menu")).toBeNull();
+    expect(screen.getByTestId("home-account-slot")).toBeTruthy();
+    expect(screen.getByTestId("home-screen-header").children.map((child) =>
+      typeof child === "string" ? child : child.props.testID
+    )).toEqual(["home-menu", undefined, "home-account-slot"]);
+    fireEvent.press(screen.getByTestId("home-menu"));
+    fireEvent.press(screen.getByTestId("home-menu-new-connection"));
+    expect(screen.onNewConnection).not.toHaveBeenCalled();
+    fireEvent(menu, "dismiss");
+    await waitFor(() => expect(screen.onNewConnection).toHaveBeenCalledTimes(1));
     expect(screen.getByText("Recent Sessions")).toBeTruthy();
     expect(screen.getByText("Last 3 days")).toBeTruthy();
   });

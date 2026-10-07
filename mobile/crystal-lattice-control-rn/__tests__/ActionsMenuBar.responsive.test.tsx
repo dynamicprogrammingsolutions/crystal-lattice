@@ -17,6 +17,27 @@ const actions: ActionDefinition[] = Array.from({ length: 8 }, (_, index) => ({
   testID: `pinned-action-${index}`,
 }));
 
+test("can show a single pinned action without the ellipsis slot", () => {
+  const onAction = jest.fn();
+  const rendered = render(
+    <ThemeProvider theme={lightTheme}>
+      <ActionsMenuBar
+        title="Connection actions"
+        baseActions={[actions[0]]}
+        pinned={[actions[0].key]}
+        showMenuButton={false}
+        onChangePinned={() => {}}
+        onAction={onAction}
+        menuButtonTestID="single-action-menu"
+      />
+    </ThemeProvider>
+  );
+  expect(rendered.queryByTestId("actions-menu-overflow-slot")).toBeNull();
+  expect(rendered.queryByTestId("single-action-menu")).toBeNull();
+  fireEvent.press(rendered.getByTestId("pinned-action-0"));
+  expect(onAction).toHaveBeenCalledWith(actions[0].key);
+});
+
 test("limits compact pins while keeping the overflow menu complete", () => {
   const visibleLimit = actions.length - 3;
   const rendered = render(

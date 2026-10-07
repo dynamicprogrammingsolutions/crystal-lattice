@@ -58,6 +58,7 @@ function renderRoot(
             onSelectConnectionRecord={onSelectConnectionRecord}
             onNewConnectionRequested={() => {}}
             renderConnectionWizard={() => null}
+            onCloseConnectionWizard={() => {}}
             onDeleteConnectionRecord={() => {}}
             activeConnectionId="active"
             sessionsCache={sessionsCache}
@@ -86,10 +87,11 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 });
 
-test('an open card navigates to Sessions without reconnecting', () => {
+test('an open card navigates to Sessions without reconnecting', async () => {
   const { screen, onSelectConnectionRecord } = renderRoot();
 
-  fireEvent.press(screen.getByTestId('connections-tab'));
+  expect(screen.queryByTestId('connections-tab')).toBeNull();
+  await screen.findByTestId('connection-card-active');
   fireEvent.press(screen.getByTestId('connection-card-active'));
 
   expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
@@ -99,27 +101,26 @@ test('an open card navigates to Sessions without reconnecting', () => {
   expect(onSelectConnectionRecord).not.toHaveBeenCalled();
 });
 
-test('a closed card navigates before its connection attempt resolves', () => {
+test('a closed card navigates before its connection attempt resolves', async () => {
   const neverResolves = jest.fn(() => new Promise<void>(() => {}));
   const { screen } = renderRoot(neverResolves);
+  await screen.findByTestId('connection-card-closed');
 
-  fireEvent.press(screen.getByTestId('connections-tab'));
   fireEvent.press(screen.getByTestId('connection-card-closed'));
 
   expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
   expect(neverResolves).toHaveBeenCalledWith(records[1]);
 });
 
-test('the Open action starts the connection and remains on Connections', async () => {
+test('the Open action starts the connection and remains on Home', async () => {
   const openConnection = jest.fn();
   const { screen } = renderRoot(openConnection);
-  fireEvent.press(screen.getByTestId('connections-tab'));
   await waitFor(() => expect(screen.getByLabelText('Open')).toBeTruthy());
 
   fireEvent.press(screen.getByLabelText('Open'));
 
   expect(openConnection).toHaveBeenCalledWith(records[1]);
-  expect(isHidden(screen.getByTestId('connections-tab-content').props.style)).toBe(false);
+  expect(isHidden(screen.getByTestId('home-tab-content').props.style)).toBe(false);
 });
 
 test('a Home session waits for its closed connection before navigating to Messages', async () => {
@@ -154,4 +155,29 @@ test('a Home session waits for its closed connection before navigating to Messag
   await waitFor(() =>
     expect(isHidden(screen.getByTestId('messages-tab-content').props.style)).toBe(false),
   );
+});
+
+test('a card plus waits for connection opening before showing the agent picker', async () => {
+  let resolveOpen!: (value: boolean) => void;
+  const openConnection = jest.fn(() => new Promise<boolean>((resolve) => {
+    resolveOpen = resolve;
+  }));
+  const { screen } = renderRoot(openConnection);
+  await screen.findByTestId('connection-new-session-closed');
+  fireEvent.press(screen.getByTestId('connection-new-session-closed'));
+  expect(openConnection).toHaveBeenCalledWith(records[1]);
+  expect(isHidden(screen.getByTestId('home-tab-content').props.style)).toBe(false);
+  resolveOpen(true);
+  await screen.findByText('No agents are available from the server.');
+  expect(isHidden(screen.getByTestId('sessions-tab-content').props.style)).toBe(false);
+});
+
+test('a failed connection does not show the New session picker', async () => {
+  const openConnection = jest.fn(async () => false);
+  const { screen } = renderRoot(openConnection);
+  await screen.findByTestId('connection-new-session-closed');
+  fireEvent.press(screen.getByTestId('connection-new-session-closed'));
+  await waitFor(() => expect(openConnection).toHaveBeenCalledWith(records[1]));
+  expect(isHidden(screen.getByTestId('home-tab-content').props.style)).toBe(false);
+  expect(screen.queryByText('Choose an agent to start a new session.')).toBeNull();
 });
