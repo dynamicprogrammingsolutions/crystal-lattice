@@ -438,6 +438,7 @@ final class CrystalLatticePythonRuntime: NSObject {
       "version": 3,
       "defaultAgent": configuredDefaultAgent,
       "reviewerVisible": false,
+      "reviewerActivationConfigured": false,
       "providers": providers,
     ]
   }
@@ -489,9 +490,7 @@ final class CrystalLatticePythonRuntime: NSObject {
         (rawProfile["tlsCaBundle"] as? String)?
           .trimmingCharacters(in: .whitespacesAndNewlines)
       var profile: [String: Any] = [
-        "enabled": profileId == "reviewer"
-          ? true
-          : rawProfile["enabled"] as? Bool
+        "enabled": rawProfile["enabled"] as? Bool
             ?? defaultProfile["enabled"] as? Bool
             ?? false,
         "baseUrl": profileId == "reviewer"
@@ -529,6 +528,8 @@ final class CrystalLatticePythonRuntime: NSObject {
         ? requestedDefault
         : configuredDefaultAgent,
       "reviewerVisible": reviewerVisible,
+      "reviewerActivationConfigured":
+        rawSettings["reviewerActivationConfigured"] as? Bool ?? reviewerVisible,
       "profileOrder": providerOrder,
       "providers": providers,
     ]
@@ -654,6 +655,14 @@ final class CrystalLatticePythonRuntime: NSObject {
     var providers = settings["providers"] as? [String: Any] ?? [:]
     if let reviewerVisible = configuration["reviewerVisible"] as? Bool {
       settings["reviewerVisible"] = reviewerVisible
+      if reviewerVisible,
+        settings["reviewerActivationConfigured"] as? Bool != true
+      {
+        var reviewer = providers["reviewer"] as? [String: Any] ?? [:]
+        reviewer["enabled"] = true
+        providers["reviewer"] = reviewer
+        settings["reviewerActivationConfigured"] = true
+      }
     }
     if let rawProviders = configuration["providers"] as? NSDictionary {
       for profileId in providerOrder {
@@ -663,9 +672,13 @@ final class CrystalLatticePythonRuntime: NSObject {
           continue
         }
         var profile = providers[profileId] as? [String: Any] ?? [:]
-        if profileId != "reviewer",
-          let enabled = rawProfile["enabled"] as? Bool
+        if let enabled = rawProfile["enabled"] as? Bool
         {
+          if profileId == "reviewer",
+            profile["enabled"] as? Bool != enabled
+          {
+            settings["reviewerActivationConfigured"] = true
+          }
           profile["enabled"] = enabled
         }
         if profileId != "reviewer",

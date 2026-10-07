@@ -145,6 +145,10 @@ function requireNativeRuntime(): EmbeddedPythonRuntimeModule {
   return nativeRuntime;
 }
 
+export function isEmbeddedPythonRuntimeAvailable(): boolean {
+  return nativeRuntime !== undefined;
+}
+
 export async function startEmbeddedPythonRuntime(): Promise<EmbeddedPythonRuntimeInfo> {
   return requireNativeRuntime().start();
 }

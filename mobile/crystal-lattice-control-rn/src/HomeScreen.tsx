@@ -13,6 +13,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   PanResponder,
+  Platform,
   type PanResponderGestureState,
   ScrollView,
   StyleSheet,
@@ -58,7 +59,7 @@ const HOME_ACTIONS: HomeActionDefinition[] = [
   { key: "settings", label: "Global settings", iconName: "settings" },
   {
     key: "embeddedSettings",
-    label: "On-device providers",
+    label: "Local providers",
     iconName: "cpu",
     testID: "home-embedded-settings",
   },
@@ -398,7 +399,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const tileFramesRef = useRef<Record<string, WatchlistTileFrame>>({});
   const dragTranslation = useRef(new Animated.ValueXY()).current;
   const scrollViewRef = useRef<ScrollView | null>(null);
-  const embeddedSettingsOpeningRef = useRef(false);
+  const settingsOpeningRef = useRef(false);
+  const pendingSettingsOpenRef = useRef<(() => void) | null>(null);
   const scrollOffsetRef = useRef(0);
   const scrollViewportRef = useRef<ScrollViewport | null>(null);
   const scrollContentHeightRef = useRef(0);
@@ -578,17 +580,29 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
       });
   }, []);
 
-  const openEmbeddedSettingsFromMenu = useCallback(() => {
-    if (!onOpenEmbeddedSettings || embeddedSettingsOpeningRef.current) {
+  const finishSettingsHandoff = useCallback(() => {
+    const open = pendingSettingsOpenRef.current;
+    pendingSettingsOpenRef.current = null;
+    settingsOpeningRef.current = false;
+    open?.();
+  }, []);
+  const openSettingsFromMenu = useCallback((open: () => void) => {
+    if (settingsOpeningRef.current) {
       return;
     }
-    embeddedSettingsOpeningRef.current = true;
+    settingsOpeningRef.current = true;
+    pendingSettingsOpenRef.current = open;
     setMenuVisible(false);
-    setTimeout(() => {
-      onOpenEmbeddedSettings();
-      embeddedSettingsOpeningRef.current = false;
-    }, 300);
-  }, [onOpenEmbeddedSettings]);
+    if (Platform.OS !== "ios") {
+      setTimeout(finishSettingsHandoff, 300);
+    }
+  }, [finishSettingsHandoff]);
+  const openEmbeddedSettingsFromMenu = useCallback(() => {
+    if (onOpenEmbeddedSettings) openSettingsFromMenu(onOpenEmbeddedSettings);
+  }, [onOpenEmbeddedSettings, openSettingsFromMenu]);
+  const openGlobalSettingsFromMenu = useCallback(() => {
+    openSettingsFromMenu(onOpenGlobalSettings);
+  }, [onOpenGlobalSettings, openSettingsFromMenu]);
 
   const watchlistRenderSlots = useMemo(
     () =>
@@ -930,6 +944,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
         visible={menuVisible}
         transparent
         animationType="fade"
+        onDismiss={finishSettingsHandoff}
+        testID="home-menu-modal"
         onRequestClose={() => setMenuVisible(false)}
       >
         <View style={styles.menuOverlay}>
@@ -938,13 +954,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
             <TouchableOpacity
               testID="home-menu-global-settings"
               style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                onOpenGlobalSettings();
+              accessibilityRole="button"
+              accessibilityLabel="Global Settings"
+              accessibilityActions={[{ name: "activate", label: "Open Global Settings" }]}
+              onAccessibilityAction={(event) => {
+                if (event.nativeEvent.actionName === "activate") openGlobalSettingsFromMenu();
               }}
+              onPress={openGlobalSettingsFromMenu}
             >
               <Icon name="settings" size={18} color={theme.text} />
-              <Text style={styles.menuItemText}>Global Settings</Text>
+              <Text
+                style={styles.menuItemText}
+                onPress={openGlobalSettingsFromMenu}
+              >Global Settings</Text>
             </TouchableOpacity>
             {onOpenEmbeddedSettings ? (
               <TouchableOpacity
@@ -959,7 +981,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                   style={styles.menuItemText}
                   onPress={openEmbeddedSettingsFromMenu}
                 >
-                  On-device Provider Settings
+                  Local provider settings
                 </Text>
               </TouchableOpacity>
             ) : null}

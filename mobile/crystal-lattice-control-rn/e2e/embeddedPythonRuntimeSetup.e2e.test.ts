@@ -52,7 +52,7 @@ describe("embedded Python runtime setup", () => {
       .withTimeout(30000);
     await detoxExpect(
       element(by.id("connection-title-embedded-ios-runtime"))
-    ).toHaveText("On-device Python agents");
+    ).toHaveText("Local agent");
 
     await element(by.id("home-tab")).tap();
     await waitFor(element(by.id("home-menu")))
@@ -101,8 +101,6 @@ describe("embedded Python runtime setup", () => {
       .withTimeout(30000);
     await scrollUntilVisible("embedded-provider-compatible-enabled");
     await element(by.id("embedded-provider-compatible-enabled")).tap();
-    await scrollUntilVisible("embedded-provider-compatible-default");
-    await element(by.id("embedded-provider-compatible-default")).tap();
     await new Promise<void>((resolve) => setTimeout(resolve, 900));
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
@@ -117,12 +115,9 @@ describe("embedded Python runtime setup", () => {
     await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
       .toBeVisible()
       .withTimeout(30000);
-    await waitFor(element(by.id("connection-info-embedded-ios-runtime")))
-      .toHaveText(`${model} via ${proxyUrl}`)
-      .withTimeout(30000);
     await element(by.id("connection-card-embedded-ios-runtime")).tap();
     await waitFor(element(by.id("sessions-screen-title")))
-      .toHaveText("On-device Python agents")
+      .toHaveText("Local agent")
       .withTimeout(120000);
 
     await launchApp(false);

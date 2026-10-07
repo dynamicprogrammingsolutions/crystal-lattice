@@ -99,9 +99,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       moduleName = "CrystalLatticeControlRN"
     }
 
+    var initialProperties: [String: Any] = [:]
+    for key in ["clcEmbeddedMatrixAgent", "clcEmbeddedMatrixAuthMode"] {
+      if let index = arguments.firstIndex(where: {
+        $0 == "-\(key)" || $0 == key
+      }), arguments.indices.contains(index + 1) {
+        initialProperties[key] = arguments[index + 1]
+      }
+    }
     factory.startReactNative(
       withModuleName: moduleName,
       in: window,
+      initialProperties: initialProperties,
       launchOptions: launchOptions
     )
 

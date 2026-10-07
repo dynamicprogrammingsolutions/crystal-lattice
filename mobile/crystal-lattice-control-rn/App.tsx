@@ -100,7 +100,7 @@ function embeddedConnectionRecord(
   return {
     id: EMBEDDED_CONNECTION_ID,
     kind: 'embedded',
-    name: 'On-device Python agents',
+    name: 'Local agent',
     proxyUrl: selectedProfile?.baseUrl ?? configuration.proxyUrl,
     model: selectedProfile?.model ?? configuration.model,
     lastUsedAt,
@@ -954,7 +954,7 @@ function App(): React.JSX.Element {
       const record: EmbeddedConnectionRecord = {
         id: EMBEDDED_CONNECTION_ID,
         kind: 'embedded',
-        name: 'On-device Python agent',
+        name: 'Local agent',
         proxyUrl: configuration.proxyUrl,
         model: configuration.model,
         lastUsedAt: Date.now(),
@@ -1301,7 +1301,7 @@ function App(): React.JSX.Element {
     <ScrollView
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>On-device Python Agent</Text>
+      <Text style={styles.title}>Local agent</Text>
       <Text style={styles.infoText}>
         Proof of concept: connect the embedded agent to an
         API-key-protected OpenAI-compatible proxy.
@@ -1348,7 +1348,7 @@ function App(): React.JSX.Element {
         onPress={connectEmbedded}
         disabled={isLoading}>
         <Text style={styles.buttonText}>
-          {isLoading ? 'Starting...' : 'Start On-device Agent'}
+          {isLoading ? 'Starting...' : 'Start Local agent'}
         </Text>
       </TouchableOpacity>
 

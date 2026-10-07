@@ -173,8 +173,8 @@ the embedded implementation and its staged tool/provider enhancements.
 - Subtask `027` records the requested local-agent naming, OpenAI credential
   layout/defaults, restored session authentication overrides, separate Global
   Settings Reviewer exposure, and removal of Make-default controls. Its
-  execution plan remains Draft pending the recorded product decisions and
-  approval.
+  approved implementation is complete. Reviewer starts hidden/disabled
+  and is configured with global opt-in followed by caller-key entry.
 - Subtasks `020` and `030` record later increments but have no approved
   execution plan.
 - ChatGPT authorization settings and the corrected production reviewer
@@ -192,5 +192,5 @@ the embedded implementation and its staged tool/provider enhancements.
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/020-tavily-web-search.md`
 - [x] `tasks/20260910-ios-embedded-runtime-poc/022-plugin-driven-session-settings-actions.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/025-user-selectable-ios-workspaces.md`
-- [ ] `tasks/20260910-ios-embedded-runtime-poc/027-local-agent-provider-settings-usability.md`
+- [x] `tasks/20260910-ios-embedded-runtime-poc/027-local-agent-provider-settings-usability.md`
 - [ ] `tasks/20260910-ios-embedded-runtime-poc/030-restricted-python-executor.md`

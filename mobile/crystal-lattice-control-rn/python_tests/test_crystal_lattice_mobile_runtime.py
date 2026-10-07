@@ -531,7 +531,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
     assert runtime_config["providers"]["reviewer"]["auth_mode_options"] == []
     assert runtime_config["providers"]["openai"]["provider"] == "openai_responses"
     assert runtime_config["providers"]["openai"]["provider_transport"] == "requests"
-    assert runtime_config["providers"]["openai"]["auth_mode_options"] == []
+    assert runtime_config["providers"]["openai"]["auth_mode_options"] == ["api", "chatgpt"]
     assert runtime_config["providers"]["openrouter"]["provider"] == "openrouter"
     assert runtime_config["providers"]["anthropic"]["provider"] == "anthropic"
     assert runtime_config["providers"]["anthropic"]["provider_transport"] == (
@@ -593,7 +593,7 @@ def test_fixed_runtime_config_loads_separate_tool_families(
         assert loaded is not None
         core, base_config, _session = loaded
         ui_elements = core.get_ui_schema(base_config)
-        assert not any(
+        assert any(
             element.get("key") == "auth_mode" for element in ui_elements
         )
         ui_keys = {

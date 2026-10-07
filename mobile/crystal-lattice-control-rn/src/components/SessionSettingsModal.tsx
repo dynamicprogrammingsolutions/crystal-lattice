@@ -651,6 +651,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               </View>
               {item.hasOverride && (
                 <TouchableOpacity
+                  testID={`session-setting-reset-${item.key}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reset ${item.label} to default`}
                   style={styles.trashRightOfLabel}
                   onPress={() => ctx.actions.revertToDefault(item.key)}
                   disabled={item.disabled}
@@ -758,6 +761,9 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               </View>
               {item.hasOverride && (
                 <TouchableOpacity
+                  testID={`session-setting-reset-${item.key}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reset ${item.label} to default`}
                   style={styles.trashRightOfLabel}
                   onPress={() => ctx.actions.revertToDefault(item.key)}
                   disabled={item.disabled}
@@ -777,6 +783,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
               </Text>
             ) : null}
             <TouchableOpacity
+              testID={`session-setting-dropdown-${item.key}`}
               style={[
                 styles.dropdownButton,
                 item.disabled && styles.dropdownButtonDisabled,

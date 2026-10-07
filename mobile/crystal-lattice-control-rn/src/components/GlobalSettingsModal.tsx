@@ -21,6 +21,11 @@ import {
 
 import OptionsPickerModal, { type OptionItem } from './OptionsPickerModal';
 import PanelModalFrame from './PanelModalFrame';
+import EmbeddedReviewerSettings from '../embeddedRuntime/EmbeddedReviewerSettings';
+import {
+  isEmbeddedPythonRuntimeAvailable,
+  type EmbeddedRuntimePublicConfiguration,
+} from '../embeddedRuntime/embeddedPythonRuntime';
 import { useTheme, type Theme } from '../theme';
 import { useHomeWorkspace } from '../HomeWorkspaceContext';
 import {
@@ -36,6 +41,7 @@ import {
 interface GlobalSettingsModalProps {
   visible: boolean;
   onRequestClose: () => void;
+  onEmbeddedSettingsChanged?: (configuration: EmbeddedRuntimePublicConfiguration) => void;
 }
 
 type SettingsPicker =
@@ -141,6 +147,7 @@ function entryDurationLabel(from: string, to: string): string {
 const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
   visible,
   onRequestClose,
+  onEmbeddedSettingsChanged,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -239,6 +246,12 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({
         />
       }
     >
+      {isEmbeddedPythonRuntimeAvailable() ? (
+        <EmbeddedReviewerSettings
+          visible={visible}
+          onSaved={onEmbeddedSettingsChanged}
+        />
+      ) : null}
       <View style={styles.settingRow}>
         <Text style={styles.label}>Base font size</Text>
         <TouchableOpacity

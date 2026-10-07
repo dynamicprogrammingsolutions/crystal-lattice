@@ -536,6 +536,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         <GlobalSettingsModal
           visible={globalSettingsVisible}
           onRequestClose={() => setGlobalSettingsVisible(false)}
+          onEmbeddedSettingsChanged={onEmbeddedSettingsChanged}
         />
         </HumanTimeTelemetryProvider>
         </GlobalDisplayLayer>

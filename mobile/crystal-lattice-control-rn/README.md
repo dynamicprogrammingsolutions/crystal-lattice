@@ -100,12 +100,16 @@ open ios/CrystalLatticeControlRN.xcworkspace
 ```
 Then click the Run button in Xcode.
 
-### On-device Python agent
+### Local agent
 
-The iOS app includes a proof-of-concept embedded Python agent. Start an
-API-key-protected OpenAI-compatible proxy backed by Ollama, then choose
-**Connections → New connection → On-device Python Agent** and enter its URL,
-model, and API key.
+The iOS app includes a preconfigured **Local agent** connection. Open
+**Home → Local provider settings** to configure OpenAI, OpenAI-compatible,
+OpenRouter, or Anthropic, then enable the provider and select its agent when
+creating a session. OpenAI supports an API-key or ChatGPT default; both
+credentials can be managed at any time, and sessions can override the method.
+
+Reviewer access is initially hidden. Enable **Show reviewer sample provider**
+in Global Settings, then enter the supplied key in Local provider settings.
 
 Simulator URLs can use `127.0.0.1`. A physical iPhone must use the Mac's LAN
 address. See

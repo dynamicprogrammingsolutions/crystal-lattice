@@ -20,7 +20,7 @@ import { useDisplayFollowupDialog } from "@crystal-lattice/frontend-sdk-react";
 import { ApplicationActionDialog } from "@crystal-lattice/frontend-rn-components";
 import { useMobileApplicationActionDialogFieldRenderers } from "../components/applicationActionDialogRenderers";
 
-import ActionDisplayCard from "../components/ActionDisplayCard";
+import OpenAIAuthenticationSettings from "./OpenAIAuthenticationSettings";
 import PanelModalFrame from "../components/PanelModalFrame";
 import { useTheme, type Theme } from "../theme";
 import {
@@ -76,10 +76,9 @@ function updatesFromDrafts(
       return [
         profileId,
         {
+          enabled: profileId === forceEnabledProfile ? true : draft.enabled,
           ...(profileId !== "reviewer"
             ? {
-                enabled:
-                  profileId === forceEnabledProfile ? true : draft.enabled,
                 baseUrl: draft.baseUrl.trim(),
                 model: draft.model.trim(),
               }
@@ -96,14 +95,10 @@ function updatesFromDrafts(
 }
 
 function configurationFromDrafts(
-  drafts: Record<EmbeddedProviderProfileId, ProfileDraft>,
-  defaultAgent: string,
-  reviewerVisible: boolean
+  drafts: Record<EmbeddedProviderProfileId, ProfileDraft>
 ) {
   return {
     version: 3 as const,
-    defaultAgent,
-    reviewerVisible,
     providers: updatesFromDrafts(drafts),
   };
 }
@@ -119,8 +114,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     EmbeddedProviderProfileId,
     ProfileDraft
   > | null>(null);
-  const [defaultAgent, setDefaultAgent] = useState("reviewer-codex");
-  const [reviewerVisible, setReviewerVisible] = useState(false);
   const [status, setStatus] = useState<ValidationState>({
     tone: "idle",
     message: "",
@@ -141,10 +134,8 @@ const EmbeddedRuntimeSettingsModal: React.FC<
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autosaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const lastAutosavePayloadRef = useRef("");
-  const latestDefaultAgentRef = useRef(defaultAgent);
-  const latestReviewerVisibleRef = useRef(reviewerVisible);
-  latestDefaultAgentRef.current = defaultAgent;
-  latestReviewerVisibleRef.current = reviewerVisible;
+  const latestDraftsRef = useRef(drafts);
+  latestDraftsRef.current = drafts;
 
   useEffect(() => {
     if (!visible) {
@@ -157,16 +148,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
         if (!active) return;
         const loadedDrafts = draftsFromConfiguration(loaded);
         lastAutosavePayloadRef.current = JSON.stringify(
-          configurationFromDrafts(
-            loadedDrafts,
-            loaded.defaultAgent,
-            loaded.reviewerVisible
-          )
+          configurationFromDrafts(loadedDrafts)
         );
         setConfiguration(loaded);
         setDrafts(loadedDrafts);
-        setDefaultAgent(loaded.defaultAgent);
-        setReviewerVisible(loaded.reviewerVisible);
         setValidation({});
         setChatGPTDisplay(null);
         setChatGPTActionId(null);
@@ -197,11 +182,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     if (!visible || !drafts || !configuration) {
       return;
     }
-    const payload = configurationFromDrafts(
-      drafts,
-      defaultAgent,
-      reviewerVisible
-    );
+    const payload = configurationFromDrafts(drafts);
     const serialized = JSON.stringify(payload);
     if (serialized === lastAutosavePayloadRef.current) {
       return;
@@ -219,15 +200,10 @@ const EmbeddedRuntimeSettingsModal: React.FC<
             const saved = await configureEmbeddedPythonRuntime(payload);
             lastAutosavePayloadRef.current = serialized;
             setConfiguration(saved);
-            setReviewerVisible(saved.reviewerVisible);
             setDrafts((current) => {
               if (!current) return current;
               const currentSerialized = JSON.stringify(
-                configurationFromDrafts(
-                  current,
-                  latestDefaultAgentRef.current,
-                  latestReviewerVisibleRef.current
-                )
+                configurationFromDrafts(current)
               );
               const saveWasLatest = currentSerialized === serialized;
               const next = Object.fromEntries(
@@ -238,7 +214,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   profileId,
                   {
                     ...current[profileId],
-                    enabled: saved.providers[profileId].enabled,
+                    enabled: saveWasLatest ? saved.providers[profileId].enabled : current[profileId].enabled,
                     hasApiKey: saved.providers[profileId].hasApiKey,
                     apiKey:
                       saveWasLatest &&
@@ -246,23 +222,18 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                         current[profileId].apiKey
                         ? ""
                         : current[profileId].apiKey,
-                    clearApiKey: false,
+                    clearApiKey: saveWasLatest ? false : current[profileId].clearApiKey,
                   },
                   ];
                 })
               ) as Record<EmbeddedProviderProfileId, ProfileDraft>;
               if (saveWasLatest) {
                 lastAutosavePayloadRef.current = JSON.stringify(
-                  configurationFromDrafts(
-                    next,
-                    saved.defaultAgent,
-                    saved.reviewerVisible
-                  )
+                  configurationFromDrafts(next)
                 );
               }
               return next;
             });
-            setDefaultAgent(saved.defaultAgent);
             setStatus({
               tone: "success",
               message: "Provider settings saved.",
@@ -287,10 +258,8 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     };
   }, [
     configuration,
-    defaultAgent,
     drafts,
     onSaved,
-    reviewerVisible,
     visible,
   ]);
 
@@ -319,8 +288,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     try {
       const result = await validateEmbeddedPythonRuntimeConfiguration({
         version: 3,
-        defaultAgent,
-        reviewerVisible,
         profileId,
         providers: updatesFromDrafts(drafts, profileId),
       });
@@ -449,14 +416,77 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     }
   };
 
+  const renderApiKeyField = (profileId: EmbeddedProviderProfileId) => {
+    const draft = drafts![profileId];
+    return (
+      <View testID={`embedded-provider-${profileId}-api-key-field`}>
+        <Text style={styles.label}>API key</Text>
+        <TextInput
+          testID={`embedded-provider-${profileId}-api-key`}
+          style={styles.input}
+          value={draft.apiKey}
+          onChangeText={(apiKey) =>
+            updateDraft(profileId, {
+              apiKey,
+              clearApiKey: apiKey ? false : draft.clearApiKey,
+            })
+          }
+          placeholder={draft.hasApiKey && !draft.clearApiKey
+            ? "Saved in Keychain — leave blank to keep" : "Enter API key"}
+          placeholderTextColor={theme.textSecondary}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {draft.hasApiKey || draft.apiKey ? (
+          <TouchableOpacity
+            testID={`embedded-provider-${profileId}-clear-key`}
+            style={styles.clearButton}
+            onPress={() => updateDraft(profileId, { apiKey: "", clearApiKey: true })}
+          >
+            <Text style={styles.clearButtonText}>
+              {draft.clearApiKey ? "Key will be removed" : "Remove key"}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
+
+  const closeSettings = async () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    await autosaveQueueRef.current;
+    const current = latestDraftsRef.current;
+    if (current) {
+      const payload = configurationFromDrafts(current);
+      if (JSON.stringify(payload) !== lastAutosavePayloadRef.current) {
+        try {
+          setStatus({ tone: "busy", message: "Saving provider settings…" });
+          const saved = await configureEmbeddedPythonRuntime(payload);
+          onSaved?.(saved);
+        } catch (error) {
+          setStatus({
+            tone: "error",
+            message: error instanceof Error ? error.message : "Could not save settings.",
+          });
+          return;
+        }
+      }
+    }
+    onRequestClose();
+  };
+
   return (
     <PanelModalFrame
       visible={visible}
       testID="embedded-runtime-settings"
-      title="On-device Provider Settings"
+      title="Local provider settings"
       subtitle="Changes save automatically. Keys stay in iOS Keychain. Test validates without saving."
       onRequestClose={displayFollowupDialog.activeElement
-        ? displayFollowupDialog.handleCancel : onRequestClose}
+        ? displayFollowupDialog.handleCancel : () => void closeSettings()}
       statusText={status.message}
       statusTone={status.tone === "busy" ? "busy" : status.tone}
       showSpinner={status.tone === "busy"}
@@ -477,147 +507,12 @@ const EmbeddedRuntimeSettingsModal: React.FC<
     >
       {drafts && configuration ? (
         <>
-          <View style={styles.profile} testID="embedded-reviewer-visibility-settings">
-            <View style={styles.profileHeader}>
-              <View style={styles.profileTitleGroup}>
-                <Text style={styles.profileTitle}>Reviewer access</Text>
-                <Text style={styles.profileMeta}>
-                  Show the preconfigured App Review provider.
-                </Text>
-              </View>
-              <Switch
-                testID="embedded-reviewer-visible"
-                value={reviewerVisible}
-                onValueChange={setReviewerVisible}
-              />
-            </View>
-          </View>
-          <View style={styles.profile} testID="embedded-openai-auth-settings">
-            <Text style={styles.profileTitle}>OpenAI authentication</Text>
-            <Text style={styles.profileMeta}>
-              Choose the authentication used by on-device OpenAI Responses
-              sessions.
-            </Text>
-            <View style={styles.choiceRow}>
-              {(["api", "chatgpt"] as const).map((authMode) => {
-                const selected =
-                  (drafts.openai.authMode ?? "api") === authMode;
-                return (
-                  <TouchableOpacity
-                    key={authMode}
-                    testID={`embedded-provider-openai-auth-${authMode}`}
-                    style={[
-                      styles.choiceButton,
-                      selected && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() =>
-                      updateDraft("openai", { authMode })
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.choiceButtonText,
-                        selected && styles.choiceButtonTextSelected,
-                      ]}
-                    >
-                      {authMode === "api" ? "API key" : "ChatGPT"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text
-              testID="embedded-provider-openai-auth-selected"
-              style={styles.profileMeta}
-            >
-              Selected authentication: {drafts.openai.authMode ?? "api"}
-            </Text>
-            <Text
-              testID="embedded-provider-openai-chatgpt-auth-state"
-              style={styles.profileMeta}
-            >
-              ChatGPT status: {chatGPTAuthState ?? "not checked"}
-            </Text>
-            <View style={styles.chatGPTPanel}>
-              <Text style={styles.label}>ChatGPT account</Text>
-              {(drafts.openai.authMode ?? "api") !== "chatgpt" ? (
-                <Text style={styles.profileMeta}>
-                  Choose ChatGPT above to manage account login.
-                </Text>
-              ) : null}
-              <View style={styles.actions}>
-                {[
-                  ["login_start", "Sign in with ChatGPT"],
-                  ["check_status", "Check status"],
-                  ["cancel_login", "Cancel"],
-                  ["logout", "Log out"],
-                ].map(([actionId, label]) => {
-                  const disabled =
-                    (drafts.openai.authMode ?? "api") !== "chatgpt" ||
-                    chatGPTActionId !== null;
-                  return (
-                    <TouchableOpacity
-                      key={actionId}
-                      testID={`embedded-provider-openai-chatgpt-${actionId}`}
-                      style={[
-                        styles.secondaryButton,
-                        disabled && styles.buttonDisabled,
-                      ]}
-                      disabled={disabled}
-                      onPress={() => void runChatGPTAction(actionId)}
-                    >
-                      <Text style={styles.secondaryButtonText}>
-                        {chatGPTActionId === actionId ? "Working…" : label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {chatGPTDisplay ? (
-                <ActionDisplayCard
-                  display={chatGPTDisplay}
-                  activeActionId={chatGPTActionId}
-                  bodyTestID="embedded-provider-openai-chatgpt-display"
-                  onDismiss={() => setChatGPTDisplay(null)}
-                  onFollowupAction={(action, formValues) =>
-                    void followChatGPTDisplayAction(action, formValues)
-                  }
-                  fieldRenderers={actionFieldRenderers}
-                  compact
-                  bounded
-                />
-              ) : null}
-            </View>
-            {(drafts.openai.authMode ?? "api") === "chatgpt" &&
-            chatGPTLoginDetails ? (
-              <View style={styles.chatGPTPanel}>
-                <Text style={styles.profileMeta}>
-                  Complete login in another browser:
-                </Text>
-                <Text
-                  testID="embedded-provider-openai-chatgpt-login-url"
-                  style={styles.profileMeta}
-                  selectable
-                >
-                  {chatGPTLoginDetails.url}
-                </Text>
-                <Text
-                  testID="embedded-provider-openai-chatgpt-login-code"
-                  style={styles.profileMeta}
-                  selectable
-                >
-                  {chatGPTLoginDetails.code}
-                </Text>
-              </View>
-            ) : null}
-          </View>
           <View testID="embedded-provider-list">
             {configuration.profileOrder.filter(
-              (profileId) => profileId !== "reviewer" || reviewerVisible
+              (profileId) => profileId !== "reviewer" || configuration.reviewerVisible
             ).map((profileId) => {
               const draft = drafts[profileId];
               const validationState = validation[profileId];
-              const isDefault = defaultAgent === draft.agentId;
               return (
                 <View
                   key={profileId}
@@ -631,7 +526,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                       {draft.agentId} · {draft.toolFamily}
                     </Text>
                   </View>
-                  {profileId !== "reviewer" ? (
                     <View
                       testID={`embedded-provider-${profileId}-enabled`}
                       accessible
@@ -661,40 +555,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                         accessible={false}
                       />
                     </View>
-                  ) : null}
                 </View>
-
-                <TouchableOpacity
-                  testID={`embedded-provider-${profileId}-default`}
-                  style={[
-                    styles.defaultButton,
-                    isDefault && styles.defaultButtonSelected,
-                  ]}
-                  onPress={() => setDefaultAgent(draft.agentId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    isDefault
-                      ? `${draft.label} is the default agent`
-                      : `Make ${draft.label} the default agent`
-                  }
-                  accessibilityActions={[
-                    { name: "activate", label: "Make default" },
-                  ]}
-                  onAccessibilityAction={(event) => {
-                    if (event.nativeEvent.actionName === "activate") {
-                      setDefaultAgent(draft.agentId);
-                    }
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.defaultButtonText,
-                      isDefault && styles.defaultButtonTextSelected,
-                    ]}
-                  >
-                    {isDefault ? "Default agent" : "Make default"}
-                  </Text>
-                </TouchableOpacity>
 
                 {profileId !== "reviewer" ? (
                   <>
@@ -710,7 +571,7 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                       autoCorrect={false}
                     />
 
-                    <Text style={styles.label}>Model</Text>
+                    <Text style={styles.label}>Default model</Text>
                     <TextInput
                       testID={`embedded-provider-${profileId}-model`}
                       style={styles.input}
@@ -724,32 +585,22 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   </>
                 ) : null}
 
-                {profileId !== "openai" ||
-                (draft.authMode ?? "api") === "api" ? (
-                  <>
-                    <Text style={styles.label}>API key</Text>
-                    <TextInput
-                      testID={`embedded-provider-${profileId}-api-key`}
-                      style={styles.input}
-                      value={draft.apiKey}
-                      onChangeText={(apiKey) =>
-                        updateDraft(profileId, {
-                          apiKey,
-                          clearApiKey: apiKey ? false : draft.clearApiKey,
-                        })
-                      }
-                      placeholder={
-                        draft.hasApiKey && !draft.clearApiKey
-                          ? "Saved in Keychain — leave blank to keep"
-                          : "Enter API key"
-                      }
-                      placeholderTextColor={theme.textSecondary}
-                      secureTextEntry
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </>
-                ) : null}
+                {profileId === "openai" ? (
+                  <OpenAIAuthenticationSettings
+                    authMode={draft.authMode ?? "api"}
+                    onAuthModeChanged={(authMode) => updateDraft("openai", { authMode })}
+                    apiKeyField={renderApiKeyField(profileId)}
+                    authState={chatGPTAuthState}
+                    activeActionId={chatGPTActionId}
+                    display={chatGPTDisplay}
+                    loginDetails={chatGPTLoginDetails}
+                    onRunAction={(actionId) => void runChatGPTAction(actionId)}
+                    onDismissDisplay={() => setChatGPTDisplay(null)}
+                    onFollowupAction={(action, formValues) =>
+                      void followChatGPTDisplayAction(action, formValues)}
+                    fieldRenderers={actionFieldRenderers}
+                  />
+                ) : renderApiKeyField(profileId)}
 
                 <View style={styles.actions}>
                   <TouchableOpacity
@@ -769,22 +620,6 @@ const EmbeddedRuntimeSettingsModal: React.FC<
                   >
                     <Text style={styles.secondaryButtonText}>Test</Text>
                   </TouchableOpacity>
-                  {draft.hasApiKey || draft.apiKey ? (
-                    <TouchableOpacity
-                      testID={`embedded-provider-${profileId}-clear-key`}
-                      style={styles.clearButton}
-                      onPress={() =>
-                        updateDraft(profileId, {
-                          apiKey: "",
-                          clearApiKey: true,
-                        })
-                      }
-                    >
-                      <Text style={styles.clearButtonText}>
-                        {draft.clearApiKey ? "Key will be removed" : "Remove key"}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
                 </View>
                 {validationState ? (
                   <Text
@@ -844,27 +679,6 @@ const createStyles = (theme: Theme) =>
       fontSize: theme.typography.fontSize.small,
       marginTop: 2,
     },
-    defaultButton: {
-      alignSelf: "flex-start",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      borderRadius: 999,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      marginTop: 10,
-    },
-    defaultButtonSelected: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    defaultButtonText: {
-      color: theme.text,
-      fontSize: theme.typography.fontSize.small,
-      fontWeight: "600",
-    },
-    defaultButtonTextSelected: {
-      color: theme.textOnPrimary,
-    },
     label: {
       color: theme.textSecondary,
       fontSize: theme.typography.fontSize.small,
@@ -887,36 +701,6 @@ const createStyles = (theme: Theme) =>
       alignItems: "center",
       gap: 10,
       marginTop: 10,
-    },
-    chatGPTPanel: {
-      gap: 10,
-    },
-    choiceRow: {
-      flexDirection: "row",
-      gap: 8,
-      marginTop: 10,
-    },
-    choiceButton: {
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-    },
-    choiceButtonSelected: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    choiceButtonText: {
-      color: theme.text,
-      fontWeight: "600",
-    },
-    choiceButtonTextSelected: {
-      color: theme.textOnPrimary,
-    },
-    buttonDisabled: {
-      opacity: 0.45,
     },
     secondaryButton: {
       borderRadius: 8,

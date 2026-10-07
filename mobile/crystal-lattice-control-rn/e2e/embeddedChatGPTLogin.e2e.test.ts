@@ -115,12 +115,12 @@ async function openChatGPTSettings(deleteData: boolean): Promise<void> {
     .toBeVisible()
     .withTimeout(30000);
   await settleAfterModalTransition();
-  await waitFor(element(by.id("embedded-provider-openai-auth-chatgpt")))
+  await waitFor(element(by.id("embedded-provider-openai-chatgpt-login_start")))
     .toBeVisible()
-    .withTimeout(30000);
-  await tapById("embedded-provider-openai-auth-chatgpt");
+    .whileElement(by.id("embedded-runtime-settings-scroll"))
+    .scroll(150, "down");
   await waitFor(element(by.id("embedded-provider-openai-auth-selected")))
-    .toHaveText("Selected authentication: chatgpt")
+    .toHaveText("Default authentication: API key")
     .withTimeout(30000);
   await waitFor(
     element(by.id("embedded-provider-openai-chatgpt-login_start"))
@@ -136,17 +136,25 @@ loginStartDescribe("embedded OpenAI Responses ChatGPT login start", () => {
     await waitFor(
       element(by.id("action-display-action-open-chatgpt-login-link"))
     )
-      .toBeVisible()
+      .toExist()
       .withTimeout(30000);
+    await waitFor(element(by.id("action-display-action-open-chatgpt-login-link")))
+      .toBeVisible()
+      .whileElement(by.id("embedded-runtime-settings-scroll"))
+      .scroll(140, "down");
     await waitFor(
       element(by.id("action-display-action-copy-chatgpt-login-code"))
     )
       .toBeVisible()
       .withTimeout(30000);
     await waitFor(element(by.text("ChatGPT Login")))
-      .toBeVisible()
+      .toExist()
       .withTimeout(30000);
     await readChatGPTLoginDetails();
+    await waitFor(element(by.id("embedded-provider-openai-chatgpt-cancel_login")))
+      .toBeVisible()
+      .whileElement(by.id("embedded-runtime-settings-scroll"))
+      .scroll(140, "up");
     await tapById("embedded-provider-openai-chatgpt-cancel_login");
     await waitFor(element(by.text("The background ChatGPT login attempt was canceled.")))
       .toBeVisible()
@@ -156,6 +164,8 @@ loginStartDescribe("embedded OpenAI Responses ChatGPT login start", () => {
 
 gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
   it("logs in from settings and completes a real tool request", async () => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is required to verify an API default with a ChatGPT session override.");
     await openChatGPTSettings(true);
     const scroll = by.id("embedded-runtime-settings-scroll");
     await waitFor(
@@ -167,8 +177,12 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
     await waitFor(
       element(by.id("action-display-action-open-chatgpt-login-link"))
     )
-      .toBeVisible()
+      .toExist()
       .withTimeout(30000);
+    await waitFor(element(by.id("action-display-action-open-chatgpt-login-link")))
+      .toBeVisible()
+      .whileElement(scroll)
+      .scroll(140, "down");
     await waitFor(
       element(by.id("action-display-action-copy-chatgpt-login-code"))
     )
@@ -182,16 +196,17 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
       "Open that URL in a browser, enter the code, approve login, and return to the simulator."
     );
     await waitForChatGPTLogin(900000);
+    await waitFor(element(by.id("embedded-provider-openai-api-key")))
+      .toBeVisible()
+      .whileElement(scroll)
+      .scroll(150, "up");
+    await element(by.id("embedded-provider-openai-api-key")).replaceText(apiKey);
+    await element(by.id("embedded-provider-openai-api-key")).tapReturnKey();
     await waitFor(element(by.id("embedded-provider-openai-enabled")))
       .toBeVisible()
       .whileElement(scroll)
-      .scroll(150, "down");
+      .scroll(150, "up");
     await tapById("embedded-provider-openai-enabled");
-    await waitFor(element(by.id("embedded-provider-openai-default")))
-      .toBeVisible()
-      .whileElement(scroll)
-      .scroll(100, "down");
-    await tapById("embedded-provider-openai-default");
     await new Promise<void>((resolve) => setTimeout(resolve, 900));
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
@@ -207,6 +222,8 @@ gatedDescribe("embedded OpenAI Responses ChatGPT login", () => {
       delete: false,
       launchArgs: {
         clcEmbeddedProviderMatrixHarness: "1",
+        clcEmbeddedMatrixAgent: "openai-codex",
+        clcEmbeddedMatrixAuthMode: "chatgpt",
         detoxEnableSynchronization: "0",
       },
     });

@@ -40,8 +40,8 @@ these categories:
 - cost-tracking storage.
 
 The Reviewer URL, model, provider, protocol, and tool family are literals in
-the maintained JSON. The app exposes only a global Reviewer visibility toggle
-and its caller API key.
+the maintained JSON. Global Settings exposes **Show reviewer sample provider**;
+Local provider settings exposes its independent enable switch and caller key.
 
 The maintained and app-support JSON remain secret-free. API keys are resolved
 from the config-only placeholder map in memory. ChatGPT credentials remain in
@@ -56,7 +56,10 @@ does not forward the control key into provider configuration.
 
 This keeps topology reviewable while allowing native settings to make
 incomplete profiles unavailable. Reviewer availability additionally requires
-the global Reviewer toggle.
+the global Reviewer toggle. Fresh settings hide and disable the profile.
+First global opt-in activates it, so entering the caller key completes the
+two-step setup. A native preference records that activation; later hide/show
+operations preserve an explicitly disabled provider.
 
 ## Default-plugin parity
 
@@ -86,10 +89,16 @@ The embedded runtime includes these ordinary default-config capabilities:
 | Cloud agent | Excluded from the on-device runtime |
 | Application-config dotenv editing | Excluded; native settings and Keychain own embedded credentials |
 
-The OpenAI Responses provider receives an explicit empty
-`auth_mode_options` list. That hides the ordinary session API/ChatGPT selector
-for embedded agents, leaving the global on-device settings as the sole auth
-control. Other OpenAI Responses consumers retain the ordinary selector.
+Direct OpenAI receives `auth_mode_options: ["api", "chatgpt"]`; Reviewer
+receives an empty list and remains API-only. Local provider settings chooses
+the direct OpenAI default. Session Settings can override it independently,
+and resetting the override restores the current provider default.
+
+The OpenAI card always exposes its API-key field and plugin-driven ChatGPT
+account actions independently of the default. Account actions do not change
+that default. Global Settings writes only Reviewer exposure, while the
+provider form writes provider values; neither rewrites the legacy
+default-agent preference.
 
 Flex and Fast service-tier controls are hidden when the embedded OpenAI
 profile uses ChatGPT authentication. They are also hidden for Reviewer so its

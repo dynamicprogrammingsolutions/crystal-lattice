@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet } from "react-native";
+import { Modal, StyleSheet } from "react-native";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import type { KeyValueStore } from "@crystal-lattice/frontend-sdk";
 
@@ -194,11 +194,15 @@ describe("HomeScreen", () => {
     );
 
     fireEvent.press(screen.getByTestId("home-menu"));
+    const menu = screen.UNSAFE_getAllByType(Modal)
+      .find((element) => element.props.testID === "home-menu-modal")!;
     fireEvent.press(screen.getByTestId("home-menu-global-settings"));
-
-    expect(screen.onOpenGlobalSettings).toHaveBeenCalledTimes(1);
+    expect(screen.onOpenGlobalSettings).not.toHaveBeenCalled();
+    fireEvent(menu, "dismiss");
+    await waitFor(() => expect(screen.onOpenGlobalSettings).toHaveBeenCalledTimes(1));
     fireEvent.press(screen.getByTestId("home-menu"));
     fireEvent.press(screen.getByTestId("home-menu-embedded-settings-label"));
+    fireEvent(menu, "dismiss");
     await waitFor(() =>
       expect(screen.onOpenEmbeddedSettings).toHaveBeenCalledTimes(1)
     );

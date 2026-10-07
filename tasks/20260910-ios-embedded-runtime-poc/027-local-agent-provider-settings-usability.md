@@ -3,34 +3,37 @@
 Deliver the requested first round of local-agent settings improvements:
 clearer names, ordered OpenAI authentication controls, independent session
 authentication overrides, and separate Reviewer exposure and enablement.
-This file records the proposed implementation plan; execution is not approved.
+The user approved execution on 2026-10-06, with Reviewer initially hidden and
+disabled and a two-step setup through Global and Local provider settings.
 
 ## Requirements checklist
 
-- [ ] R1 — The built-in connection is labelled **Local agent**, the ordinary
+- [x] R1 — The built-in connection is labelled **Local agent**, the ordinary
   OpenAI profile is labelled **OpenAI**, and provider model defaults are
   labelled **Default model**. Stable connection, provider, and agent IDs
   remain compatible with saved sessions and credentials.
-- [ ] R2 — OpenAI settings show **Default authentication**, **API key**, and
+- [x] R2 — OpenAI settings show **Default authentication**, **API key**, and
   **ChatGPT account** in that order. API-key editing and plugin-driven
   ChatGPT login/status/cancel/logout remain available regardless of the
   selected default. Only API key and ChatGPT are offered; no Auto choice is
   introduced.
-- [ ] R3 — The authentication selection is explicitly described as a
+- [x] R3 — The authentication selection is explicitly described as a
   default. OpenAI sessions can override it through Session Settings without
   changing the saved default, and resetting the override restores the
   provider default. Requests use the effective authentication method.
-- [ ] R4 — Reviewer exposure is controlled from the separate Global Settings
-  window. When exposed, Reviewer appears last in provider settings with its
+- [x] R4 — Reviewer is initially hidden and disabled. Reviewers enable it in
+  Global Settings, then enter the supplied caller API key in Local provider
+  settings; no third activation step is needed. When exposed, Reviewer
+  appears last in provider settings with its
   own ordinary enable switch and an editable caller API key. Deployment URL,
   model, certificate, provider protocol, and tools remain hidden and fixed by
   maintained configuration. A hidden or disabled Reviewer is unavailable for
   new agent selection.
-- [ ] R5 — Provider settings no longer offer **Make default** or **Default
+- [x] R5 — Provider settings no longer offer **Make default** or **Default
   agent** controls. Removing them preserves stored configuration and
   explicit agent selection for new sessions without choosing a new implicit
   default.
-- [ ] R6 — Existing autosave, non-persisting provider Test, Keychain-backed
+- [x] R6 — Existing autosave, non-persisting provider Test, Keychain-backed
   keys, plugin-owned ChatGPT credentials/actions, session overrides, and
   persisted sessions remain compatible across settings reload and app
   relaunch. Editing one settings surface does not overwrite independent
@@ -47,22 +50,17 @@ configuration capabilities are prerequisites. The remaining broad
 compatibility acceptance in `018` does not require unrelated work before this
 subtask can start.
 
-## Open questions and material decisions
+## Approved decisions
 
-- **Layout decision:** the required field order and simultaneous availability
-  are settled. The user has not chosen whether authentication stays in a
-  separate card containing both credentials or becomes a subsection of the
-  OpenAI provider card. The recommendation and tradeoffs are recorded in the
-  execution plan.
-- **Reviewer initial state:** recommend preserving the maintained
-  `enabledByDefault: true` value so first-time exposure followed by entering
-  the key is sufficient. Thereafter, honor an explicitly saved enable value;
-  showing the profile must not silently re-enable it. Confirm this initial
-  state when approving the plan.
-- **Settings labels:** **Local agent**, **OpenAI**, and **Default model** are
-  requested names. **Local provider settings**, **Local providers**, and
-  **Show reviewer sample provider** are proposed companion labels, pending
-  confirmation. Other agent/profile names remain provisional.
+- **Layout:** one OpenAI card with an Authentication subsection, ordered
+  Default authentication, API key, ChatGPT account after URL/Default model.
+  Both credential paths are always available.
+- **Reviewer:** fresh settings hide and disable the profile. First global
+  opt-in activates it so entering its key is the final setup step; later
+  hide/show preserves explicit provider enable/disable preferences.
+- **Labels:** Local agent, OpenAI, Default model, Local provider settings,
+  Local providers, and Show reviewer sample provider are approved.
+  Other profile/agent names remain provisional.
 
 ## Scope and policy correction
 
@@ -120,7 +118,7 @@ subtask does not create their task files or finalize their designs.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 ### Settings ownership and behavior
 
@@ -133,12 +131,16 @@ fields it owns. Preserve serialized autosave and refresh loaded values when
 reopening a surface so an older form cannot overwrite a newer global choice.
 
 Honor Reviewer `enabled` in native normalization and updates while retaining
-fixed deployment fields. Python availability remains the combination of
+fixed deployment fields. Initially hide and disable Reviewer. First global
+opt-in activates the profile for the two-step setup; remember that initial
+activation or explicit enablement has occurred so later exposure changes do
+not overwrite the user's provider preference.
+Python availability remains the combination of
 exposure, enablement, and existing readiness checks. Preserve the credential
 and enable preference when temporarily hiding the profile. Provider Test
 validates its candidate without changing either exposure or enablement.
 
-After the layout decision, group OpenAI's default selector, API key, and
+Within the OpenAI provider card, group its default selector, API key, and
 ChatGPT account controls together in the required order. Manage both
 credentials independently of the default selector. Signing in, checking
 status, cancelling, or signing out does not rewrite the saved default.
@@ -175,22 +177,17 @@ rather than depend on the removed UI control.
 
 ### Implementation decisions and open questions
 
-- **Recommended layout:** one OpenAI provider card with an inset
+- **Approved layout:** one OpenAI provider card with an inset
   Authentication section. Base URL and Default model precede that section;
   within it the order is Default authentication, API key, ChatGPT account.
   This keeps endpoint/model/credential ownership together and gives future
   provider authentication methods a reusable grouping.
-- **Alternative layout:** retain a separate OpenAI authentication card and
-  move the API key into it, ahead of ChatGPT account. This gives the login
-  result more space but separates credentials from the corresponding
-  provider enablement, endpoint, and model.
-- Both layouts meet R2. Neither is approved yet. Do not duplicate the API
-  key field across cards.
-- **Recommended wording:** “Sessions use this authentication method unless
+- Do not duplicate the API key field across cards.
+- **Approved wording:** “Sessions use this authentication method unless
   overridden in Session Settings.” This describes provider inheritance,
   rather than implying a change affects only newly created sessions.
-- Reviewer initial enablement and the companion labels remain the decisions
-  stated near the top. Do not introduce a new default provider, rename
+- Reviewer first-use activation and companion labels are approved above.
+  Do not introduce a new default provider, rename
   internal IDs, or settle other provisional names.
 - Reuse config-driven `auth_mode_options` and ordinary action execution
   before adding an embedded plugin variant. A new generic settings/schema
@@ -203,8 +200,8 @@ rather than depend on the removed UI control.
 Update the mobile runtime guide and application-owned embedded-configuration
 guide after implementation. Describe defaults versus session overrides,
 always-available credential controls, approved names, and the reviewer route:
-Global Settings → expose Reviewer → provider settings → enter caller key and
-enable the provider as needed.
+Global Settings → enable Show reviewer sample provider → Local provider
+settings → enter caller key.
 
 Update affected current review instructions and remove Make-default steps.
 Preserve historical task evidence and identify the superseded global-only
@@ -213,19 +210,19 @@ broader onboarding documentation is planned.
 
 ### Task checklist
 
-- [ ] Confirm the OpenAI layout, Reviewer initial enablement, and companion
+- [x] Confirm the OpenAI layout, Reviewer initial enablement, and companion
   labels; obtain execution approval.
-- [ ] Add focused correction tests and update the settled names.
-- [ ] Remove Make-default controls and dependencies in affected test flows.
-- [ ] Move Reviewer exposure to Global Settings and persist independent
+- [x] Add focused correction tests and update the settled names.
+- [x] Remove Make-default controls and dependencies in affected test flows.
+- [x] Move Reviewer exposure to Global Settings and persist independent
   provider enablement without cross-window overwrites.
-- [ ] Implement the approved OpenAI grouping and always-available credential
+- [x] Implement the approved OpenAI grouping and always-available credential
   controls through existing plugin actions.
-- [ ] Restore direct OpenAI's session auth selector and verify override,
+- [x] Restore direct OpenAI's session auth selector and verify override,
   reset, effective request mode, and applicable API controls.
-- [ ] Rebuild the embedded archive and Release simulator app; run focused
+- [x] Rebuild the embedded archive and Release simulator app; run focused
   public-path acceptance and report manual tests accurately.
-- [ ] Update maintained documentation, requirement evidence, and parent
+- [x] Update maintained documentation, requirement evidence, and parent
   status.
 
 ### Requirement verification
@@ -272,3 +269,79 @@ broader onboarding documentation is planned.
 - Preserve modal presentation settling and production accessibility/test
   identifiers. Keep API keys and tokens out of logs and snapshots; retain
   intentional one-time URL/code reporting in the manually gated login test.
+
+## Implementation Notes
+
+- 2026-10-06: Execution approved with Reviewer initially hidden/disabled.
+  Implementation moved to
+  `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20261006-local-provider-settings`
+  after earlier edits disappeared from the shared checkout during testing.
+  Implementation and simulator verification completed on 2026-10-06.
+- Source verification: 39 Python tests passed, 58 mobile suites / 303 tests
+  passed, plus the new pending-edit close regression. Both real-HTTP
+  authentication override/reset cases passed through the production modal
+  and adapter, including auth-aware Flex/Fast visibility. TypeScript,
+  Swift parsing, bundle action/provider checks, and documentation preparation
+  passed.
+- Native settings verification exposed Global Settings opening while the Home
+  menu was still dismissing. The existing fixed delay remained unreliable
+  across repeated navigation; both settings routes now open from iOS's actual
+  menu `onDismiss` callback. Android retains the existing delayed handoff.
+  The simulator regression passed initial hidden/disabled Reviewer, first
+  global opt-in followed by key entry, auth/key persistence after relaunch,
+  and preservation of an explicitly disabled profile across hide/show.
+- The first hosted OpenAI matrix request completed a real tool call, then
+  exposed a stale diagnostic: it still searched for the removed `directory`
+  core UI element. Update the diagnostic to consume the workspace application's
+  public session UI schema, persist `workspace_id`, and retain boundary and
+  isolation checks. This corrects test infrastructure to the current product
+  contract without restoring an obsolete setting or bypassing validation.
+- Hosted simulator evidence: both the direct OpenAI and real Ireland Reviewer
+  rows passed with `apply_patch`, old-local-session preservation, workspace
+  selection, boundary rejection, isolation, and relaunch evidence. The
+  production Reviewer path used its bundled public CA and the existing caller
+  credential; no server configuration or credentials were changed.
+- The ungated real ChatGPT login-start/cancel case passed while API stayed the
+  default. It verified plugin-provided login URL/code and follow-up actions.
+  At the unattended checkpoint, the browser-authorized request case was
+  collected but not run. The later manual acceptance is recorded below.
+- Maintained mobile/application documentation now describes defaults versus
+  overrides and the two-step Reviewer flow. Root command
+  `npm run test:ios:local-provider-settings` runs the native settings
+  regression. No second-round Home/contextual-content implementation was
+  started.
+- Final reconciliation onto `develop` preserved unrelated changes. All 30
+  session-owned files matched the verified worktree. The final develop check
+  passed 54 Python tests, TypeScript, 58 mobile Jest suites / 304 tests, and
+  `git diff --check`. Implementation changes remain uncommitted.
+
+## Completion Notes
+
+Completed on 2026-10-06.
+
+- All six requirements are verified. The approved OpenAI layout, names,
+  session authentication override/reset, two-step Reviewer setup, independent
+  switches, removed Make-default controls, and persistence are implemented.
+- R3's final manual Release-simulator test passed after the user approved the
+  real device-code login. API remained the provider default; a ChatGPT session
+  override completed an actual `apply_patch` request after app relaunch, with
+  tool-result and workspace boundary/isolation assertions. The gated command
+  exited successfully: 1 test passed; the separately verified ungated
+  start/cancel case was intentionally skipped in this mode.
+- Earlier manual attempts exposed an incorrect scroll direction toward the
+  provider switch at the top of the new card. Correcting the test's direction
+  preserved the production user flow. A failed continuation attempt confirmed
+  that a new Detox invocation reinstalls the app and clears its login; the
+  temporary resume branch was removed. Final acceptance used a fresh,
+  browser-approved login without credential injection or test-only shortcuts.
+- Supporting verification passed: 54 Python checks, 58 mobile suites /
+  304 tests, production HTTP auth override/reset cases, TypeScript, Swift
+  parsing, source/bundle checks, Release simulator settings and real OpenAI/
+  Reviewer requests, and maintained documentation preparation.
+- Product findings fixed in scope were the Home-menu modal handoff and
+  pending provider edits on close. The matrix diagnostic now consumes the
+  existing public workspace-ID contract. No physical-device gate or
+  production-server modification was needed.
+- Changes are uncommitted on `develop`, with verification artifacts in the
+  isolated worktree. The second-round Home/contextual-content task directory
+  remains Draft and was not implemented.
