@@ -303,6 +303,30 @@ directories and connections; the matrix command set stays unchanged.
   asymmetry) — next correction. Task 150 approach decided: option (a)
   process isolation, recorded in the task file.
 
+- October 7, 2026 (correction results): (1) tg08/tg10 variance re-run
+  (`b1v3-gpt6-tg08tg10-r2`, fresh): both failed again identically —
+  STABLE gpt-6-luna behavioral regression, not variance. Both responses
+  end with the model asking a clarifying question ("Should the task
+  file include an execution plan, or record the requirements without a
+  plan? I'll wait to create it until you choose.") and producing no
+  task files. Evaluation finding, not a suite defect. (2) Judge-JSON
+  retry landed (commit `65766248`), suite green (248 tests). (3)
+  from-plan child cache instability diagnosis so far: child identities
+  ARE deterministic (r4 and r1 glm-preserve omit-plan children share
+  identity `3eb901fd…`; `from_plan_identity` = agent/model/scenario/
+  variant/effort/parent-identity/thinking, cache_key=identity) yet NO
+  cache entry exists for them; a passing r1 producer (tg09 glm) is also
+  absent from the cache while an r1 assessment IS present (newest glm
+  entry, Oct 6 04:52, source readability run). So publish works for
+  assessment runs but not for workspace-bearing producer/from-plan
+  runs — run-model publish path (`eval.py` publish block: predicate
+  passes for valid values; `_replace_with_error` would surface publish
+  exceptions but error is None) or harness/AgentEval construction
+  difference is the remaining suspect; next: trace why
+  `AgentEval.run` publish block is not reached (or declines) for
+  fixture-workspace runs, add regression test, then re-verify
+  cross-label replay for producers and children.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
