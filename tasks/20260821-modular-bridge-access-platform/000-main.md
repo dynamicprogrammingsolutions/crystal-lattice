@@ -20,14 +20,17 @@ services.
   E2EE, and usage contracts.
 - [ ] **P1** — A bounded hosted demo lets invited testers authenticate,
   register their own runtime, connect from mobile and use account-bound
-  free/challenge access without a purchase.
+  free/challenge access over HTTPS/WSS without a purchase, E2EE or production
+  quota/metering prerequisite.
 - [ ] **P2** — Public AWS deployment components expose the configuration,
   metrics, and lifecycle hooks needed by community and hosted deployments.
 
 ### Non-functional requirements
 
 - [ ] **P1** — Hosted bridge content is end-to-end encrypted between the
-  frontend and the user's server before production launch.
+  frontend and the user's server before production launch. The approved
+  limited invited-tester demo uses HTTPS/WSS with accurate relay-visibility
+  guidance and is exempt from that E2EE release gate.
 - [ ] **P1** — Public documentation and contracts preserve the public/private
   implementation boundary and do not expose private operational context.
 
@@ -119,12 +122,16 @@ keeping the challenge/login providers replaceable. Scope approval does not
 approve these Draft implementation plans or deployment.
 
 - Preserve 030/040 as the demo-provider and real-client enforcement proof;
-  preserve their dependency into 060/070 encryption.
-- Bring forward 080's usable account/login UI, 130's public quota contracts,
-  140's grant/ownership enforcement, 150's CLI login/server claiming and
-  170's common transport integration.
+  preserve their dependency into later 060/070 encryption.
+- Bring forward 080's usable account/login UI, 140's basic grant/ownership
+  enforcement and 150's CLI login/server claiming. 140 consumes 040's demo
+  allowances without depending on production quota/metering in 130.
 - The public community identity task deploys the account/grant service;
   175 owns the bounded hosted release and actual tester-path acceptance.
+- The approved scope/dependency revision keeps E2EE in 060/070, production
+  quota/metering in 130 and their combined transport integration in 170 as
+  later work. 170 explicitly depends on 070/130/140; commercial client and
+  sandbox tasks 160/220 retain that prerequisite.
 - 160 retains purchase/subscription delivery and later credits the base
   account UI supplied by 080. Notification delivery, production payment
   adapters and commercial account services do not gate the demo.
@@ -132,8 +139,12 @@ approve these Draft implementation plans or deployment.
   real community identity, bind allowances to verified accounts and preserve
   the non-production demo guards. Its configuration is decided and reviewed
   in 175; an unsafe production override is not an accepted release path.
-- Mac desktop distribution remains the higher-priority delivery. This
-  independent demo group may run alongside CLI/PKG/onboarding work.
+- Completed history and current macOS/homepage/waitlist intake remain first.
+  Move the full core demo prerequisite chain together ahead of remaining
+  CLI/PKG/onboarding work. Independent work may proceed in parallel.
+- The demo uses real account auth, HTTPS/WSS, ownership, grant expiry/revocation
+  and the basic 040 allowances. Privacy guidance describes that the relay
+  can read application content during processing.
 
 ## Required reading
 
@@ -156,8 +167,11 @@ static-token protection and deployment policy so current user-deployed bridges
 are secure without waiting for accounts or payment. Add a deliberately
 non-production external provider and limits implementation next, proving the
 replaceable service boundary before production integrations exist. Design and
-implement E2EE before making hosted-service claims. Then add public identity,
-ownership, quota, client, transport, deployment, and release contracts.
+implement public identity, ownership and client contracts next, delivering
+the limited hosted demo through the community service and base grant path.
+Then implement E2EE, production quota/metering and their shared transport
+integration before production hosted launch. Keep demo availability and
+privacy claims aligned with its HTTPS/WSS protection and relay visibility.
 
 The bridge remains an HTTP-agnostic relay. It consumes normalized access grants
 and quota decisions; it does not import Apple, Google, Authentik tenant, or
@@ -176,8 +190,9 @@ self-hosters and fail safely when a selected security profile is incomplete.
   later operational decision.
 - The demo provider is intentionally unsuitable for production and must be
   rejected by production configuration without an explicit test override.
-- Hosted production requires E2EE. Community deployments may choose whether to
-  require it.
+- Hosted production requires E2EE. The approved limited hosted demo uses
+  HTTPS/WSS without E2EE or production quota/metering. Community deployments
+  may choose whether to require E2EE.
 - Exact commercial limits, quota windows, AWS region, and EC2 versus Fargate
   remain outside this public umbrella's decisions.
 

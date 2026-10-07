@@ -77,6 +77,11 @@ available to later notification routing through the preserved public contract.
 The deployment/service/source decisions below remain open and the execution
 plan remains Draft.
 
+The scope/dependency revision approved on October 7, 2026 uses the basic
+040/080/140/150 contracts for the HTTPS/WSS demo. E2EE and production quota/
+metering are later integration work. Coordination with 170 above covers those
+later profiles and does not make it a community-service or demo prerequisite.
+
 ## Open requirement questions
 
 1. Which deployment form is the first supported community baseline?

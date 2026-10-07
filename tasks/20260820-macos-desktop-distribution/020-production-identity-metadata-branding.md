@@ -13,13 +13,17 @@ Control identity and align the native target for direct distribution.
 - [x] Debug/test target identity changes do not break native UI tests or React Native module registration.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md
+Historical dependency (retired):
+tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md
 
 ## Supersession — October 7, 2026
 
-Disposition: superseded historical contract.
+Disposition: done by user-approved supersession on October 7, 2026.
 
 SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+This closes the task as historical work; it does not mark its unmet original
+requirements fulfilled. Its former execution dependency is retired.
 
 The user approved `Crystal Lattice Desktop` and reuse of the iOS icon input.
 The replacement delivered that identity, rather than the original name and

@@ -32,7 +32,15 @@ Depends On:
 
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
 - `tasks/20260821-modular-bridge-access-platform/160-mobile-login-purchase-and-subscription-ux.md`
+- `tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md`
 - Store/control-plane sandbox endpoints implementing the public contracts
+
+## Approved dependency clarification — October 7, 2026
+
+The purchase/hosted-access scenarios retain E2EE and production-metering
+acceptance through 170, which integrates 070/130 with the base grant path in
+140. This later commercial harness is independent of the limited demo release
+in 175. Its requirements remain intact and its execution plan remains Draft.
 
 ## Required reading
 

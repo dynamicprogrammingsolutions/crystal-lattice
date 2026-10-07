@@ -117,15 +117,18 @@ work by the delivery being prioritized while `main_task` retains task ownership.
 Group order is a priority recommendation; independent groups may proceed in
 parallel.
 
-Completed rows remain visible with evidence and completion dates. Superseded
-rows are also retained in a clearly labeled historical group, with replacement
-links in `notes`. Their original unmet contracts retain `pending`; supersession
-is not a fifth status and does not mean those requirements were fulfilled.
-Active rows point to the current owner instead of depending on retired rows.
+Completed rows remain visible with evidence and completion dates. Retain
+superseded rows near their replacement with explicit `SUPERSEDED BY` links in
+`notes`. User-approved closure by supersession uses `done` and records the
+closure date; this does not mean unmet original requirements were fulfilled.
+Keep those requirement records intact and distinguish closure from verified
+delivery in the notes.
 
-The generated Sheet readiness is a mechanical status/dependency calculation.
-A historical superseded row is not executable even if that calculation says
-`ready` or `queued`; its historical group and supersession note take precedence.
+Closed superseded tasks have no active execution dependencies. Preserve any
+former dependency as historical context in the task file. Active rows point
+to the current owner instead of depending on retired rows. Partially completed
+tasks retain their active status and outstanding scope even when displayed
+before the release that supplied their completed portion.
 
 ## CSV format
 

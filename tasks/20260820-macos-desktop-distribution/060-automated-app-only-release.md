@@ -14,13 +14,17 @@ notarizes, and publishes the retained app-only DMG.
 - [ ] The DMG workflow remains independently runnable after PKG automation is later added.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md
+Historical dependency (retired):
+tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md
 
 ## Supersession — October 7, 2026
 
-Disposition: superseded historical contract.
+Disposition: done by user-approved supersession on October 7, 2026.
 
 SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+This closes the task as historical work; it does not mark its unmet original
+requirements fulfilled. Its former execution dependency is retired.
 
 The approved replacement delivered local Fastlane parity, clean hosted
 build-only run `36633536807` and exact-candidate CDN publication run

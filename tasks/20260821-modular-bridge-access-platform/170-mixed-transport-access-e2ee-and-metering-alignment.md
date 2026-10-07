@@ -30,7 +30,17 @@ Depends On:
 
 - `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 - `tasks/20260821-modular-bridge-access-platform/070-e2ee-implementation.md`
+- `tasks/20260821-modular-bridge-access-platform/130-production-quota-metering-contracts-and-bridge-hooks.md`
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
+
+## Approved later-production boundary — October 7, 2026
+
+140 supplies basic grant/ownership enforcement, authorization parity and
+credential separation/redaction for the early demo. This task owns integrating
+those decisions with 070's E2EE and 130's production quota/metering across all
+transports. It is a prerequisite for the later commercial client and sandbox
+deliveries in 160/220; it does not gate the limited hosted demo in 175.
+The implementation plan remains Draft.
 
 ## Required reading
 
@@ -46,6 +56,11 @@ Rebase/reconcile the mixed-transport implementation, centralize credentials and
 policy decisions in the shared bridge connection abstraction, make encrypted
 payloads and usage hooks first-class in HTTP transfers, and expand the existing
 transport matrix rather than adding parallel adapters.
+
+Reuse 140's base verifier, ownership checks and credential handling. Add the
+encrypted-path policy and production quota/usage enforcement previously
+bundled with grant enforcement. Keep 040's basic demo allowances available
+independently of this later integration.
 
 ### Implementation decisions and open questions
 

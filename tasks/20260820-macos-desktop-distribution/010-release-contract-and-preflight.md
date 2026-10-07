@@ -58,7 +58,7 @@ boundaries in this task.
 
 - Recommend App Sandbox only if attachment, download, selected-workspace persistence, local network access, and profile discovery all pass with least-privilege entitlements.
 - If sandboxing blocks approved behavior, document the security tradeoff and use Hardened Runtime without App Sandbox for direct distribution.
-- Confirm whether one workflow with independent DMG/PKG jobs or separate workflows provides the clearest protected-environment and publication boundaries; defer implementation to subtasks 060 and 100.
+- Reuse the DMG automation delivered by `tasks/20260928-universal-macos-desktop-fastlane-release.md`; decide the additional PKG workflow and publication boundaries in subtask 100. Superseded 060 is not an implementation dependency.
 
 ### Documentation
 

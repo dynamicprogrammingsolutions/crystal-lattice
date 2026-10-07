@@ -45,6 +45,10 @@ Important rules:
 - Every other column is arbitrary and is preserved in CSV order through
   Markdown and Google Sheets. The current roadmap includes `main_task`,
   `completed_at`, `title`, `purpose`, and `notes`.
+- `title` and `purpose` describe the whole approved task, including work
+  already completed. Record progress, remaining work, follow-ups, and
+  supersession in `status`, `completed_at`, and `notes`; do not narrow the
+  task description to its unfinished requirements.
 - `completed_at` is manually maintained as `YYYY-MM-DD`. When marking a row
   done, use the user-confirmed completion date or the strongest matching
   completion commit; do not overwrite an existing date merely because a later

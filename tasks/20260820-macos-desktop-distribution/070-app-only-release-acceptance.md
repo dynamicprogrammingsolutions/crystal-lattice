@@ -13,13 +13,17 @@ bundled-CLI and PKG work begins.
 - [ ] Human observations, defects, waivers, and acceptance are recorded; unresolved release blockers keep this subtask incomplete.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md
+Historical dependency (retired):
+tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md
 
 ## Supersession — October 7, 2026
 
-Disposition: superseded historical acceptance contract.
+Disposition: done by user-approved supersession on October 7, 2026.
 
 SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+This closes the task as historical work; it does not mark its unmet original
+requirements fulfilled. Its former execution dependency is retired.
 
 Its public-candidate and technical security/metadata checks have September 30
 evidence. The replacement explicitly defers real Intel hardware feedback to

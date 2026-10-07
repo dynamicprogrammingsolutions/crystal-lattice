@@ -1,8 +1,8 @@
 # Host And Release The Bridge Demo For Invited Testers
 
 Deliver a bounded, account-based free bridge demo using the existing public
-identity, challenge, ownership, encryption and limit implementations. This
-task owns the operated deployment and complete tester experience.
+identity, challenge, ownership and demo-limit implementations over HTTPS/WSS.
+This task owns the operated deployment and complete tester experience.
 
 ## Requirements checklist
 
@@ -15,8 +15,8 @@ task owns the operated deployment and complete tester experience.
   replaceable and work through the existing contracts. Demo grants are bound
   to authenticated accounts; arithmetic is not treated as authentication.
 - [ ] The deployed service enforces account/server isolation, signed grant
-  validity, expiry/revocation, approved limits and authenticated E2EE, while
-  preserving non-production demo guards.
+  validity, expiry/revocation, approved demo limits and HTTPS/WSS transport,
+  while preserving non-production demo guards.
 - [ ] The operator has an approved tester cap, access duration, operating
   limits and cost boundary, plus usable provisioning/removal, monitoring,
   support, recovery and shutdown procedures.
@@ -25,19 +25,16 @@ task owns the operated deployment and complete tester experience.
   credentials, private account configuration or tester personal information.
 - [ ] Actual deployed mobile/CLI flows and human review establish release
   acceptance before invitations; public availability and privacy/support
-  guidance accurately describe the limited demo.
+  guidance accurately describe the limited demo and relay visibility.
 
 Parent Task: tasks/20260821-modular-bridge-access-platform/000-main.md
 
 Depends On:
 
 - tasks/20260821-modular-bridge-access-platform/040-demo-entitlement-limits-and-client-integration.md
-- tasks/20260821-modular-bridge-access-platform/070-e2ee-implementation.md
 - tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md
-- tasks/20260821-modular-bridge-access-platform/130-production-quota-metering-contracts-and-bridge-hooks.md
 - tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md
 - tasks/20260821-modular-bridge-access-platform/150-terminal-server-login-and-ownership.md
-- tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md
 - tasks/20260824-os-level-notification-delivery/020-community-authentik-bridge-identity.md
 
 Coordinates With:
@@ -50,6 +47,12 @@ Coordinates With:
 
 Scope approved on October 7, 2026. Implementation and deployment are not yet
 approved; the execution plan below is Draft.
+
+The scope and dependency revision approved on October 7, 2026 brings the
+complete login/demo prerequisite chain ahead of CLI/PKG/onboarding work.
+E2EE, production quota/metering and their advanced transport integration are
+later deliveries and do not gate this demo. Keep the existing demo allowance
+limits, actual identity, ownership, grant enforcement and HTTPS/WSS.
 
 **HUMAN JUDGMENT — unresolved before deployment:** hosting/data location,
 capacity and cost boundary; enabled login sources and callback configuration;
@@ -73,10 +76,14 @@ production override is not an approved solution.
 - The community identity task owns the reusable Authentik/account/ownership/
   grant service and its deployment/recovery capability. Reuse that service;
   this task owns operating and accepting the selected hosted instance.
-- 130/140/170 own the public quota/grant/transport contracts. They do not
-  require purchases or a commercial metering service.
-- 060/070 own encryption and independent security review. The hosted demo
-  requires their accepted security evidence.
+- 040 owns demo allowance enforcement; 140 owns basic grant/ownership
+  enforcement, credential separation, transport authorization and redaction.
+  These are the early-demo foundations.
+- 060/070 own E2EE and its security review; 130/170 own production quota/
+  metering and encrypted/metered integration. None gates this demo.
+- HTTPS/WSS protects transport to the relay. The demo relay can read
+  application content while processing it; public guidance must describe
+  this and must not claim that the demo is end-to-end encrypted.
 - Mobile connects to the runtime on the tester's Mac. Desktop bridge-login
   UI, subscription purchases, push notifications and commercial launch are
   outside this delivery.
@@ -94,8 +101,9 @@ Status: Draft
 Use real community identity to establish the stable account. An independently
 replaceable access/challenge policy determines that account's demo allowance.
 The service issues normalized app/server grants; the bridge validates them,
-ownership, quotas and encrypted transport. The CLI retains server-scoped
-credentials, while the mobile client retains its own secure account session.
+ownership, demo allowances and HTTPS/WSS transport. The CLI retains
+server-scoped credentials, while the mobile client retains its own secure
+account session.
 The relay remains independent of identity-provider and payment internals.
 
 The community task supplies reusable deployment and account-service behavior.
@@ -106,9 +114,10 @@ deployed acceptance and do not replace it.
 
 ### Delivery steps and human boundaries
 
-1. **AGENT:** Verify dependency delivery, accepted security review and the
-   actual compatible client/runtime revisions. Resolve stale task/spec
-   references. Record genuine gaps instead of claiming Draft work exists.
+1. **AGENT:** Verify dependency delivery, base authentication/transport
+   security evidence and actual compatible client/runtime revisions. Resolve
+   stale task/spec references. Record genuine gaps instead of claiming Draft
+   work exists.
 2. **AGENT + HUMAN JUDGMENT:** Prepare the smallest deployment proposal and
    settle the unresolved policy choices above. Show resources, data handling,
    limits, operations and rollback. Keep secrets and tester lists private.
@@ -122,7 +131,7 @@ deployed acceptance and do not replace it.
    integration and production guards before any hosted mutation.
 5. **AGENT:** Verify locally using the real services and production clients:
    login, account mapping/linking, claiming, isolation, challenge/limits,
-   credential refresh/revocation and encrypted request flow.
+   credential refresh/revocation and request flow over HTTPS/WSS.
 6. **HUMAN JUDGMENT + EXPLICIT DEPLOYMENT APPROVAL:** Review the concrete
    commands/change set, enabled providers, privacy/support text and spend
    exposure. Approve the selected deployment and controlled test identities.
@@ -138,9 +147,11 @@ deployed acceptance and do not replace it.
    account's runtime; uninvited access is denied; grants expire/revoke within
    their documented bounds; and challenge renewal/tier limits remain
    account-scoped. Use approved short policies through normal configuration.
-10. **AGENT:** Confirm encrypted content and credentials are absent from
-    relay/log/review evidence. Exercise restart/recovery and operator removal
-    through normal interfaces, with authorized controlled test data.
+10. **AGENT:** Confirm logs and public review evidence exclude credentials,
+    application payloads and tester personal information. Check credential
+    separation/forwarding and privacy claims against the actual relay
+    behavior. Exercise restart/recovery and operator removal through normal
+    interfaces, with authorized controlled test data.
 11. **HUMAN JUDGMENT:** Accept the actual tester UX, demonstrated login sources,
     challenge/limit messages, support/recovery and public claims. Record
     observations; automated checks do not substitute for this acceptance.
@@ -152,7 +163,10 @@ deployed acceptance and do not replace it.
 ### Implementation decisions and open questions
 
 - Approved: one hosted-demo task in this directory reuses the existing
-  provider, client, ownership, encryption and community-service tasks.
+  provider, client, ownership, demo-limit and community-service tasks.
+- Approved: this limited demo uses HTTPS/WSS and real identity without E2EE
+  or production quota/metering. Those later production requirements remain
+  owned by 060/070/130/170.
 - Approved: real login and free/demo entitlement are separate replaceable
   concerns. No purchase or notification delivery is a prerequisite.
 - Approved: production mobile/CLI paths are decisive. Desktop bridge support
@@ -171,7 +185,8 @@ deployed acceptance and do not replace it.
   task. Add only hosted-demo operating configuration and supported tester
   onboarding to owning bridge/application/mobile documentation.
 - Public guidance describes real sign-in, CLI registration, connection,
-  challenge/allowance, withdrawal of access and support behavior.
+  challenge/allowance, withdrawal of access, relay visibility and support
+  behavior. Distinguish HTTPS/WSS transport protection from later E2EE.
 - Update current availability/privacy/support wording only with approved,
   verified deployment facts. Keep operational secrets and tester records out
   of public task/source/documentation.
@@ -185,7 +200,8 @@ deployed acceptance and do not replace it.
 - [ ] **HUMAN:** Approve concrete deployment and controlled hosted tests.
 - [ ] **AGENT:** Deploy and verify the actual services.
 - [ ] **AGENT + HUMAN:** Complete hosted login/claim/connect/challenge flows.
-- [ ] **AGENT:** Verify isolation, expiry/revocation, limits, E2EE and recovery.
+- [ ] **AGENT:** Verify isolation, expiry/revocation, demo limits, HTTPS/WSS,
+  credential handling, log redaction and recovery.
 - [ ] **HUMAN JUDGMENT:** Accept tester UX, policy and public guidance.
 - [ ] **AGENT + HUMAN:** Open the approved cohort and record operations/evidence.
 
@@ -195,17 +211,20 @@ deployed acceptance and do not replace it.
   issuer/community service and hosted bridge. Confirm account mapping,
   claiming, pairing, challenge/renewal and reconnect using the normal APIs.
 - Requirement 4: two-account hosted negative cases, normal configured
-  expiry/limit policies and real E2EE traffic. Include tamper/revocation
-  evidence from the actual grant path; mocks do not supply authorization.
+  expiry/demo-limit policies and actual HTTPS/WSS request traffic. Include
+  tamper/revocation evidence from the actual grant path; mocks do not supply
+  authorization.
 - Requirements 5–6: execute authorized provisioning/removal and recovery,
   inspect effective configuration/monitoring, and check logs/public artifacts
   for leaked credentials or personal data.
 - Requirement 7: human acceptance of the real client experience and current
-  public instructions, followed by approved cohort opening and verification.
+  public instructions, including accurate relay-visibility claims, followed
+  by approved cohort opening and verification.
 
 ### Additional implementation verification
 
-- Reuse the provider-replacement and transport matrices from 030/040/170;
+- Reuse provider-replacement and transport/auth evidence from 030/040/140 and
+  `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`;
   preserve HTTP product behavior and explicit legacy diagnostics.
 - Verify local/static-token profiles remain usable with hosted auth disabled.
 - Verify retirement/recovery follows the selected data and credential policy

@@ -36,7 +36,11 @@ release history and does not authorize the remaining implementation plans.
   preflight and Developer ID Installer delivery remain incomplete.
 - **SUPERSEDED BY:** 020, 060 and 070 are retained historical contracts whose
   replacement is `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
-  Their unmet original conditions are not marked complete.
+  The user closed these tasks as done by supersession on October 7, 2026.
+  Their unmet original requirements remain unchecked; closure does not claim
+  those conditions were delivered. Retired execution dependencies are removed.
+  Display these closed tasks and partially completed 010/040 immediately before
+  the replacement release in the roadmap.
 - The replacement acceptance record still needs explicit Apple Silicon
   public-artifact human confirmation. The first DMG's Intel hardware waiver
   is not evidence of successful future CLI/PKG architecture acceptance.
@@ -64,17 +68,17 @@ release history and does not authorize the remaining implementation plans.
 ## Subtasks
 
 - [ ] `tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/020-production-identity-metadata-branding.md`
-  - SUPERSEDED BY `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+- [x] `tasks/20260820-macos-desktop-distribution/020-production-identity-metadata-branding.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; original unmet requirements are retired.
 - [x] `tasks/20260820-macos-desktop-distribution/030-reproducible-macos-release-build.md`
   - COMPLETED VIA `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
 - [ ] `tasks/20260820-macos-desktop-distribution/040-developer-id-signing-bootstrap.md`
 - [x] `tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md`
   - COMPLETED VIA `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
-- [ ] `tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md`
-  - SUPERSEDED BY `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
-- [ ] `tasks/20260820-macos-desktop-distribution/070-app-only-release-acceptance.md`
-  - SUPERSEDED BY `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+- [x] `tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; original unmet requirements are retired.
+- [x] `tasks/20260820-macos-desktop-distribution/070-app-only-release-acceptance.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; active acceptance remains in the replacement task.
 - [ ] `tasks/20260820-macos-desktop-distribution/080-desktop-cli-payload.md`
 - [ ] `tasks/20260820-macos-desktop-distribution/090-combined-app-cli-pkg.md`
 - [ ] `tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md`

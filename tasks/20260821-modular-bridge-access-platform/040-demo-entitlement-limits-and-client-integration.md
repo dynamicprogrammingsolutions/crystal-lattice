@@ -46,7 +46,9 @@ cross-subject and real-client evidence remains required. Real account login
 is owned by 080 and the public community identity implementation.
 
 `tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`
-adds the hosted invited-tester release after auth/encryption prerequisites.
+adds the hosted invited-tester release after account login and ownership
+prerequisites. The scope revision approved on October 7, 2026 keeps E2EE and
+production quota/metering as later work.
 That task verifies these flows against the deployed service and binds demo
 allowances to verified accounts. It does not replace this task's contract
 tests or require purchases.
