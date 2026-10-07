@@ -66,6 +66,27 @@ actual working form to the homepage mobile-download step.
   concurrent changes. This release gate does not prevent building the service
   or testing the form now.
 
+Coordinates With:
+`tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+
+## Approved shared publication checkpoint — October 7, 2026
+
+Website 030 owns bounded positioning, all six reviewed visual stories, the
+three public compatibility views, integrated content acceptance and live
+website checks. This task retains the service/form and single integrated
+website publishing push.
+
+Before the publishing step, obtain 030's accepted content candidate as well as
+this task's verified backend/form and approved privacy policy. 030 need not be
+marked done at that point: its live checks follow this same push. Afterward,
+run this task's production signup/receipt/withdrawal checks and 030's public
+website checks against the identical artifact, then record both outcomes.
+
+There is no mutual whole-task completion dependency. Final content readiness
+does not gate service/form implementation or isolated deployed-API tests.
+The approved checkpoint does not resolve pending data-policy decisions or
+authorize AWS mutations, email sending, commits/pushes or publication.
+
 ## Human decisions and actions required
 
 The sender and SES region are already selected by the user. Remaining
@@ -508,12 +529,16 @@ deployed storage or email delivery.
    recipient data and tokens.
 9. **HUMAN JUDGMENT:** Review confirmation, consent/privacy text, capacity
    behavior, withdrawal, and actual integrated page. Confirm SES production
-   access and sender verification are complete.
+   access and sender verification are complete. Require website 030's accepted
+   content candidate with all six visuals, three compatibility views and
+   reviewed launch positioning; do not require its post-publication checks
+   to be complete before this push.
 10. **HUMAN — MANDATORY:** Authorize the specific commit/push and production
     website publication, including concurrent homepage changes in that
     release. Do not push during the earlier local review.
 11. **AGENT:** Set the approved non-secret endpoint variable, publish through
-    the existing site workflow, and run the decisive production browser flow.
+    the existing site workflow once, and run the decisive production browser
+    flow. Coordinate 030's live page/asset/table checks on the same artifact.
 12. **AGENT + HUMAN:** Authorize and delete controlled test records; verify
     active export exclusion and no remaining test PII in application logs,
     artifacts, or exports. Record evidence and unresolved items in this task
@@ -524,6 +549,10 @@ deployed storage or email delivery.
 Preserved scope: immediate activation; confirmation receipt only; minimal
 email/consent data; encrypted DynamoDB; SES; opaque hashed withdrawal token;
 no public administration, bulk campaigns, tracking, or extra profile data.
+
+Approved publication ownership: this task owns the single integrated push;
+website 030 supplies content acceptance before it and public checks after it.
+Backend work remains independent of that publishing-stage gate.
 
 Selected by the user on October 6, 2026: reuse
 `support@dynamicprogrammingsolutions.com` through SES in `us-west-2`.
@@ -593,8 +622,12 @@ revise this Draft before implementing that behavior.
 - [ ] **AGENT:** Update privacy, landing, deployment, and operation docs.
 - [ ] **AGENT:** Pass isolated browser tests against the deployed API.
 - [ ] **HUMAN JUDGMENT:** Approve final integrated website and privacy copy.
+- [ ] **AGENT + HUMAN:** Confirm website 030's accepted complete content
+      candidate at the publishing checkpoint.
 - [ ] **HUMAN — MANDATORY:** Approve commit/push and production publication.
 - [ ] **AGENT:** Publish and verify the production browser/email/data flow.
+- [ ] **AGENT:** Record the same publishing artifact and coordinate website
+      030's live checks.
 - [ ] **AGENT + HUMAN:** Authorize cleanup; verify private test-record removal.
 - [ ] **AGENT:** Record completion evidence and update parent status.
 

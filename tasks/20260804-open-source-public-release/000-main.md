@@ -6,7 +6,9 @@ known developers and early adopters.
 
 ## Requirements checklist
 
-- [ ] The repository is not made public until every mandatory pre-publication subtask passes its release gate.
+- [ ] The repository is not made public until every mandatory pre-publication
+      subtask passes its release gate and the complete user website in
+      website task 030 is published and accepted.
 - [ ] The publication candidate contains no known active credentials or unapproved private data in its current tree, and any historical findings are documented, revoked where applicable, and explicitly accepted without rewriting Git history.
 - [ ] Claude Tools and its normalized fixtures are consistently licensed under Apache-2.0 with accurate public-behavior provenance and no claim that Anthropic's license applies merely because Claude Code was observed.
 - [ ] A new contributor can understand the project, report a security issue privately, request support, and open a useful issue without internal guidance.
@@ -37,6 +39,25 @@ changes. If the user limits the request to local files, do not mutate the
 sheet.
 
 ## Scope and release stages
+
+### Approved group 1 website gate — October 7, 2026
+
+`tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+supplies accepted production website evidence with all six reviewed visual
+stories, the three public compatibility views and owner-reviewed launch
+positioning. Existing product evidence supports this bounded release without
+requiring extensive research.
+
+Subtasks 070/080 move together to the end of delivery group 1. 070 waits for
+website acceptance as well as the existing readiness gate, then 080 verifies
+anonymous clone/setup, public links and workflows. Refresh current-tip and
+remote-ref deltas before visibility; preserve completed preparation evidence.
+Website source availability is truthful before visibility and promoted/
+verified by 070/080 afterward, so no reverse website dependency is introduced.
+
+This approves the tracking/scope change, not a visibility operation, publishing
+push or other external mutation. Existing security requirements and owner
+confirmation remain.
 
 ### Do now: mandatory before or immediately around publication
 
@@ -119,7 +140,7 @@ cloud cost, or a major obstacle to understanding the repository.
     bootstraps, and preserved directories.
 - [x] `tasks/20260804-open-source-public-release/060-publication-readiness-gate.md`
   - COMPLETED on 2026-09-07: approved the tested readiness baseline and
-    baseline-plus-delta publication procedure after clean-clone validation,
+baseline-plus-delta publication procedure after clean-clone validation,
     sensitive-data scans, hosted-output review, and owner authorization to
     begin task `070`.
 - [ ] `tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
@@ -139,7 +160,8 @@ Status: Draft
 Execute the mandatory path in numerical order. Tasks `010` through `050` can
 progress independently where they do not overlap, but `060` is the single
 pre-publication go/no-go review. Task `070` is the manual GitHub visibility
-transition and its immediately adjacent settings. Task `080` must be completed
+transition after accepted website publication, with its immediately adjacent
+settings. Task `080` must be completed
 before the initial publication is considered successful.
 
 Do not begin post-publication tasks merely because the repository has become
@@ -167,6 +189,7 @@ operational cost over speculative polish.
 
 - [ ] Complete mandatory subtasks `010` through `050`.
 - [ ] Perform the `060` publication readiness review and receive owner approval.
+- [ ] Confirm website 030's published-site acceptance before visibility changes.
 - [ ] Complete the manual visibility/settings procedure in `070`.
 - [ ] Complete immediate anonymous/public validation in `080`.
 - [ ] Reprioritize `110` through `140` after early-adopter feedback.

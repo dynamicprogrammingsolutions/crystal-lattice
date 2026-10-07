@@ -58,6 +58,31 @@ then review the integrated website and real form before final publication.
   the reviewed website.
 - Production publication is completed through subtask `020` after the service
   and final integrated website have both passed human review.
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+  owns the complete website's bounded positioning review, compatibility
+  presentation, integrated content acceptance and live website checks.
+  Its accepted candidate is consumed by `020`'s publishing step; both record
+  evidence from the same artifact and publishing push.
+
+## Approved shared website checkpoint — October 7, 2026
+
+The group 1 outcome includes the published complete user website with all
+six reviewed visual stories, three public compatibility views and rethought
+owner-approved launch positioning. The existing product evidence supports
+that bounded review; broad market research remains later.
+
+Service/form work in 020 stays independent of final copy/proof readiness.
+Before the single integrated publishing push, website 030 supplies its accepted
+content candidate and 020 supplies its verified service/form and approved
+privacy policy. After the push, 030 verifies live pages/assets/tables and 020
+verifies the production signup/receipt/withdrawal flow. These are stage
+checkpoints, not mutual whole-task completion dependencies.
+
+Website 030's published-site acceptance gates open-source visibility in
+`tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`.
+Its anonymous-user validation follows in
+`tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`.
+No actual AWS/site/source publication is authorized by this tracking approval.
 
 ## Supporting facts
 
@@ -136,7 +161,10 @@ Subtask `020` independently deploys the minimal AWS service, verifies
 confirmation and withdrawal behavior, and adds the actual form to the mobile-download
 step. This keeps the public form contract driven by a real backend rather than
 a placeholder endpoint. The final integrated site is reviewed again before
-one protected production publication.
+one protected production publication. Include website 030's accepted launch
+positioning, all six 018 visual stories and all three compatibility views in
+that candidate. After the same push, run both 030's live website checks and
+020's production form checks.
 
 The three-subtask structure also keeps personal-data handling separate from
 general website content. Website components must not gain direct AWS
@@ -164,6 +192,9 @@ repository files, or application logs.
 
 - Decision: under the October 5 instruction, implement the waitlist service
   alongside remaining 015/018 work; review the final integrated site together.
+- Decision: website 030 owns complete content acceptance; 020 retains the
+  single publishing push. Use stage checkpoints rather than circular
+  whole-task completion dependencies.
 - Decision: make structural implementation independently approvable while
   copy, assets, ordering, and final layout remain Draft.
 - Decision: the waitlist subtask adds the actual form; the website subtask

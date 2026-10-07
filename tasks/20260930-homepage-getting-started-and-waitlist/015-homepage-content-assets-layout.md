@@ -776,3 +776,20 @@ fixtures, row hiding/reordering, or final proof assets in this subtask.
 - Deferred scope: real agent metadata/product changes and final proof assets
   belong to subtask `018`; the email waitlist belongs to subtask `020`.
 - No push, AWS mutation, or production publication occurred.
+
+## Post-completion follow-up
+
+### October 7, 2026 — bounded launch positioning and shared publication
+
+The original Completion Notes and accepted copy/layout evidence remain intact.
+The group 1 scope revision brings
+`tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+forward as owner of a short product-based positioning review and complete
+website acceptance. It may propose changes to the earlier hero/proposition,
+subject to owner review; no final wording is selected by this tracking update.
+
+Record approved new decisions and viable alternatives in
+`landing_page/docs/development/homepage-positioning-and-visual-decisions.md`.
+Keep the existing Getting Started review and 018 proof ownership intact.
+Waitlist 020 performs the single integrated publishing push after 030 supplies
+the accepted complete content candidate.

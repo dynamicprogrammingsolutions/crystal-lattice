@@ -14,7 +14,19 @@ lightweight feedback loop for the first known developers and early adopters.
 - [ ] Unexpected cost, abuse, support, or security behavior is monitored during the initial release window.
 
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
-Depends On: tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md
+Depends On:
+
+- tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md
+- tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md
+
+## Approved group 1 completion gate — October 7, 2026
+
+This task follows the accepted published website and 070's visibility/security
+transition at the end of group 1. Preserve the anonymous clone/setup,
+public-workflow, link and security checks. Verify that source/clone controls
+and open-source availability now describe the actual public repository.
+The broader website research, paid bridge, public mobile stores and combined
+CLI installers are not prerequisites. The execution plan remains Draft.
 
 ## Execution plan
 Status: Draft
@@ -49,6 +61,8 @@ blocker.
 ### Task checklist
 
 - [ ] Verify logged-out repository and Issues access.
+- [ ] Verify/promote public source and clone controls after the visibility
+  transition without misrepresenting the preceding private state.
 - [ ] Clone and validate from a clean environment.
 - [ ] Validate issue forms and private security reporting.
 - [ ] Verify public workflows and protected deployments.

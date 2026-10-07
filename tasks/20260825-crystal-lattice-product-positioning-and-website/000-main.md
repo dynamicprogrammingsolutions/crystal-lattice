@@ -11,6 +11,9 @@ and release choices.
 
 - [ ] Every deployed website version gives an unfamiliar early user an
       accurate explanation of Crystal Lattice and a useful first action.
+- [ ] The first user website is published with owner-reviewed launch
+      positioning, all six approved visual stories and the three public
+      compatibility views, without extensive research as a prerequisite.
 - [ ] The website progressively incorporates product, feature, search,
       community, competitor, early-user, and remote-access findings without
       waiting for the complete research program.
@@ -51,6 +54,33 @@ programme. The broader evidence-informed positioning, experiments and final
 website outcomes remain outstanding; current homepage delivery is not a
 reason to mark 090, 160 or 170 complete.
 
+## Approved group 1 website and source release — October 7, 2026
+
+Subtask 030 owns the complete first website's bounded positioning pass,
+compatibility presentation, integrated content acceptance and live checks.
+Homepage 015/018 supply the selected copy and six real proof stories; 025
+supplies the reusable asset workflow. The accepted compatibility baseline in
+020 remains done and is consumed rather than re-audited wholesale.
+
+`tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
+retains the single integrated website publishing push. Before that step, 030
+supplies an accepted content candidate; after the same push, both tasks run
+their real production checks. Their completion does not depend mutually on
+each other, and the waitlist backend remains independently implementable.
+
+Open-source
+`tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
+waits for 030's published-site acceptance, then
+`tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`
+verifies anonymous use. These deliveries end group 1. Source availability is
+truthful before the visibility operation and verified afterward.
+
+Legacy partially completed PKG/preflight records and an optional fresh Desktop
+DMG are not blanket website/source gates. Public download-specific claims must
+match an actual release or be clearly identified as source-build behavior.
+This scope/tracking approval does not authorize product implementation,
+AWS/email/site publication or the repository visibility operation.
+
 ## Requirement questions
 
 - Which proposition and visitor group should receive primary homepage
@@ -77,12 +107,14 @@ reason to mark 090, 160 or 170 complete.
   belongs under `landing_page/research/`; disposable output belongs under
   ignored `landing_page/artifacts/`.
 - The website uses several progressive rewrites.
-- Community and competitor research complete before the first
-  evidence-informed rewrite.
+- Community and competitor research complete before the later
+  research-informed rewrite in 090; they do not gate the first complete
+  product-based website in 030.
 - Early-user recruiting and interviews do not block the release-safe or first
   evidence-informed website.
-- Current positioning begins coding-agent-first until evidence and delivered
-  defaults justify a different target.
+- Current positioning begins coding-agent-first. 030's short product-based
+  review may propose a revised launch direction supported by real behavior
+  and approved by the owner; market-validation work remains later.
 - Crystal Lattice compatibility profiles must not be presented as official
   upstream products or sessions.
 
@@ -232,7 +264,10 @@ Status: Draft
 Keep the current website useful throughout the program. Establish package-local
 documentation and target ownership first, audit current product and
 compatibility truth, integrate a truthful and performant early visual baseline,
-then publish a release-safe early-user rewrite.
+then publish the complete early-user site with six reviewed visual stories,
+three compatibility views and owner-reviewed launch positioning. Coordinate
+one integrated publishing push through homepage waitlist 020, then complete
+open-source 070/080. Extensive research does not gate this sequence.
 
 After the research foundation is approved, built-in feature mining, search,
 community, and competitor research may proceed in parallel. Their accepted
@@ -241,7 +276,7 @@ supports early-user recruiting and remote-access research, followed by another
 bounded rewrite.
 
 Only after the source research and early-user evidence are available should
-the work select a primary positioning architecture, run proposition and CTA
+the work select the later validated positioning architecture, run proposition and CTA
 experiments, finalize page briefs, create production visual proof, and deliver
 the larger validated release. Production measurement then drives bounded
 iteration. The production paid managed remote-access offer receives a separate
@@ -282,7 +317,8 @@ authority required for the remote mutation.
       application-feature truth.
 - [ ] Integrate the current visual baseline and establish the reusable
       browser-side asset foundation.
-- [ ] Publish the release-safe early-user website.
+- [ ] Publish the positioned early-user website with all six reviewed visual
+      stories and three compatibility views through the shared checkpoint.
 - [ ] Complete source research and the first evidence-informed rewrite.
 - [ ] Complete early-user and remote-access research and the second rewrite.
 - [ ] Select and test the primary positioning and page architecture.
