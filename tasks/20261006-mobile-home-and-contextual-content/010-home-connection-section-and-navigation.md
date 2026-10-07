@@ -7,20 +7,20 @@ is adopted.
 
 ## Requirements checklist
 
-- [ ] H1 — The first Home section provides connection management and state;
+- [x] H1 — The first Home section provides connection management and state;
   the bottom navigation no longer contains Connections. Preserve the existing
   card presentation and most-recently-used ordering. Initially show up to
   three cards; a button below the cards expands all connections and collapses
   back to three. Show no toggle when there are three or fewer connections.
-- [ ] H2 — Users can create, open/switch, reconnect, disconnect, and remove
+- [x] H2 — Users can create, open/switch, reconnect, disconnect, and remove
   saved connections, and reach connection/server/global settings through
   Home. The existing iOS Local agent entry and available connection methods
   remain accessible. Connection setup and bridge repair appear in a modal.
   Card taps retain Sessions navigation; explicit Open stays on Home.
-- [ ] H3 — Existing connection records, transport behavior, cached sessions,
+- [x] H3 — Existing connection records, transport behavior, cached sessions,
   Watchlist/Recent navigation, selected sessions, and relaunch persistence
   remain compatible with the navigation change.
-- [ ] H4 — Starting new connection setup keeps the current connection open.
+- [x] H4 — Starting new connection setup keeps the current connection open.
   Cancellation or failed setup leaves it available; successful setup replaces
   it with the new connection.
 
@@ -148,14 +148,14 @@ first-round authentication/reviewer wording owned by subtask `027`.
 ### Task checklist
 
 - [x] Confirm the Home interaction/density/wizard choices and execution plan.
-- [ ] Extract production connection controls into the top Home section.
-- [ ] Move wizard presentation and remove Connections-tab navigation.
-- [ ] Retain the current connection through pending, cancelled, or failed
+- [x] Extract production connection controls into the top Home section.
+- [x] Move wizard presentation and remove Connections-tab navigation.
+- [x] Retain the current connection through pending, cancelled, or failed
   setup and clean up candidates on successful replacement or cancellation.
-- [ ] Preserve saved connection/session state and Home drag behavior.
-- [ ] Update affected component/native tests and pass the real connection
+- [x] Preserve saved connection/session state and Home drag behavior.
+- [x] Update affected component/native tests and pass the real connection
   journey.
-- [ ] Update maintained mobile navigation documentation and requirement
+- [x] Update maintained mobile navigation documentation and requirement
   evidence.
 
 ### Requirement verification
@@ -187,3 +187,58 @@ Run the affected mobile Jest/TypeScript checks and existing Home native
 geometry/Watchlist scenario. Check that new top content does not displace
 drag calculations or create nested full-screen scroll owners. Native
 harness-only runs are reported separately from the real HTTP scenario.
+
+## Implementation Notes
+
+- Implementation runs in isolated worktree
+  `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20261007-home-connections`
+  from approved-plan commit `a20cd6bf`. Other develop edits remain separate.
+- Extracted card rendering, connection command state, the Home list/collapse
+  section, wizard modal/step views, and candidate setup handoff. App retains
+  transport/persistence ownership; Home keeps one scroll owner.
+- The mobile component suite passes: 59 suites, 312 tests. TypeScript and the
+  Release simulator build pass. The public-flow simulator test is in progress;
+  its first run exposed a test tap/scroll during native modal dismissal with
+  synchronization disabled. Explicit modal-transition settling is required,
+  as in existing real-backend Detox consumers.
+- Public-flow Detox passes through the production App and real HTTP servers,
+  proving retained cancellation/failure, successful replacement, collapse,
+  session creation, and reopening after relaunch.
+- Existing native Home/Watchlist and connections/settings scenarios pass after
+  updating viewport assumptions for the section above Watchlist. Drag,
+  geometry, notes, action pinning, settings, and relaunch assertions remain.
+  Bridge mode selection also passes in the production wizard modal.
+
+## Completion Notes
+
+Completed on 2026-10-07.
+
+- H1/H2: unchanged production cards are composed above Watchlist and Recent
+  Sessions, with three visible by default and the approved footer toggle.
+  Connections-tab navigation is removed. Setup and repair use a modal;
+  card/Open behavior, actions, and pin preferences remain compatible.
+- H3: the real HTTP Detox journey creates and reopens a saved session after
+  relaunch. Native Home and connections/settings consumers retain their
+  geometry, drag/reorder, notes, settings, and persistence checks.
+- H4: the real HTTP journey proves cancellation and refused connection setup
+  retain the active server by creating further sessions on it, then proves
+  successful replacement through the new server's agent/session path.
+  Focused setup tests also reject late results and verify transport cleanup.
+- Verification: mobile Jest 59 suites/312 tests, TypeScript, Release iOS
+  simulator build, the real HTTP Detox scenario, native Home/Watchlist,
+  native connections/settings, and bridge mode selection all pass. The
+  isolated application ZIP import/ChatGPT-status smoke, documentation
+  preparation, and diff checks pass. No physical-device or hosted-model
+  acceptance is required.
+- Implementation extracts card presentation, command state, list composition,
+  candidate handoff, and wizard modal/step views. App retains transport and
+  persistence ownership. No shared connection protocol or plugin schema was
+  changed.
+- Test development corrected native selector/transition timing and supplied
+  the existing test provider's required model/provider configuration. The
+  decisive journey still traverses the production App, SDK, HTTP routes, and
+  session persistence without test-control shortcuts.
+- ESLint was not run successfully because this package has no ESLint
+  configuration; no unrelated lint configuration was added.
+- `020` and `030` remain Draft and unimplemented. The approved bridge follow-up
+  retains ownership of later transport/product changes within this modal.

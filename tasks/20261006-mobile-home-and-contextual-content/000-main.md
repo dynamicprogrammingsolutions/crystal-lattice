@@ -4,11 +4,12 @@ Plan the second round of mobile usability improvements: move connections onto
 Home, introduce reusable contextual content, and use it for actionable empty
 states, persistent help access, and plugin-driven workspace guidance.
 The user reviewed and accepted this overall shape. Execution of `010` was
-approved on 2026-10-07; `020`, `030`, and this overall plan remain Draft.
+approved and completed on 2026-10-07; `020`, `030`, and this overall plan remain
+Draft.
 
 ## Requirements checklist
 
-- [ ] M1 — Connection management appears at the top of Home and the separate
+- [x] M1 — Connection management appears at the top of Home and the separate
   Connections bottom tab is removed. Existing connection creation, saved
   connection management, switching, disconnect, settings, and session
   navigation remain accessible. Preserve the cards and behavior, initially
@@ -114,7 +115,7 @@ requirements, and no unresolved behavior should be implemented by assumption.
 
 ## Subtasks
 
-- [ ] `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`
+- [x] `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`
 - [ ] `tasks/20261006-mobile-home-and-contextual-content/020-contextual-content-contract-and-shared-renderer.md`
 - [ ] `tasks/20261006-mobile-home-and-contextual-content/030-empty-states-info-affordances-and-local-workspace-guidance.md`
 
@@ -198,7 +199,7 @@ planning handoff.
 ### Task checklist
 
 - [ ] Resolve the material questions and approve the relevant execution plans.
-- [ ] Complete `010` and its public connection-flow verification.
+- [x] Complete `010` and its public connection-flow verification.
 - [ ] Complete `020` and its real-backend contract/display verification.
 - [ ] Complete `030`, including the shared help consumers and embedded
   workspace guidance flow.
@@ -220,3 +221,13 @@ documentation preparation, and `git diff --check` in the owning changes.
 Re-run existing Home/connection and notification consumers when shared
 helpers or navigation change. Do not expand into a provider/API matrix
 unless a change or failure exposes a relevant provider risk.
+
+## Implementation Notes
+
+- `010` completed on 2026-10-07. M1 is supported by the real HTTP simulator
+  connection/session journey and native Home, connection-settings, and bridge
+  mode consumers. Existing cards, ordering, actions, pinning, and persistence
+  remain; setup uses the approved modal and retained-connection handoff.
+- The connection/navigation portion of M6 is verified by `010`; M6 remains
+  incomplete until the other owning children supply their evidence.
+- The contextual-content contract and adoption in `020`/`030` remain Draft.
