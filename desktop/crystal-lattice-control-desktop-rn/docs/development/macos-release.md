@@ -9,6 +9,22 @@ The first release completed both the local and hosted GitHub Actions paths.
 Local review builds use the same release lane; publication is a separate
 explicit action.
 
+The local and hosted universal Developer ID build, notarization, stapling,
+Gatekeeper and launch smoke have been verified. Build-only run `36633536807`
+produced `0.9.0 (4)` from clean source
+`1a04b8689eab0821727be2c3efc9213e57ebafe7` on September 29, 2026.
+Publication run `36685765746` published that exact candidate on September 30
+through the existing download CDN.
+
+The DMG contains the application and an Applications shortcut. Mount it, copy
+Crystal Lattice Desktop to Applications and launch it there; Metro and a source
+checkout are not required. The DMG does not install the CLI. Start a compatible
+runtime separately and use the existing Desktop connection flow.
+
+Current source/native website captures may include newer product changes.
+They do not establish the contents of a previously published DMG; validate a
+fresh signed candidate before publishing those changes.
+
 ## Local review DMG
 
 From the repository root, build an installable review DMG with:
@@ -72,6 +88,7 @@ this launch check passes. Local uncommitted builds have
 `source_tree_clean = false`; the public candidate validator still requires a
 clean reviewed source commit. The local command does not change the public
 version or website download.
+/var/folders/j5/g0_m7cb52q935c_px994vbp80000gn/T/crystal-roadmap-move-j8dazge7/0-theirs.txt
 
 ## Local toolchain and lanes
 

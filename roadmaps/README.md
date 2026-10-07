@@ -4,6 +4,11 @@ Roadmaps are repository work-tracking documents that place selected tasks in a
 useful priority order while preserving the dependencies needed to interpret
 that order.
 
+Maintain and synchronize authored roadmaps from the `develop` worktree.
+Accepted tracking updates on `develop` take precedence over older copies on
+`main`. Release evidence may come from `main`; reconcile that evidence into
+the current develop tracking before synchronizing the configured Sheets.
+
 Each roadmap has two files:
 
 - `<name>.csv` is the authored source of truth and may be edited by people or
@@ -104,6 +109,23 @@ tasks as context without reproducing every historical prerequisite. When an
 older dependency is already complete and omitted from the CSV, record that fact
 in an arbitrary context field such as `notes`. Every dependency retained after
 normalization must refer to an earlier row.
+
+## Delivery groups and retained history
+
+The authored roadmaps include an arbitrary `delivery_group` column. It groups
+work by the delivery being prioritized while `main_task` retains task ownership.
+Group order is a priority recommendation; independent groups may proceed in
+parallel.
+
+Completed rows remain visible with evidence and completion dates. Superseded
+rows are also retained in a clearly labeled historical group, with replacement
+links in `notes`. Their original unmet contracts retain `pending`; supersession
+is not a fifth status and does not mean those requirements were fulfilled.
+Active rows point to the current owner instead of depending on retired rows.
+
+The generated Sheet readiness is a mechanical status/dependency calculation.
+A historical superseded row is not executable even if that calculation says
+`ready` or `queued`; its historical group and supersession note take precedence.
 
 ## CSV format
 

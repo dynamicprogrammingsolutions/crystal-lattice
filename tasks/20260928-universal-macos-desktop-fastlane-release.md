@@ -7,10 +7,11 @@ through manual GitHub Actions automation, and add a small accessible
 download icon to the public website only after the signed and notarized
 artifact is publicly available and independently verified.
 
-This is a deliberately narrow release task. It does not replace or modify
-`tasks/20260820-macos-desktop-distribution/000-main.md` or any of that task's
-subtasks. After this task is complete, its evidence can be used in a separate
-user-approved reconciliation of the broader macOS distribution task.
+This was a deliberately narrow first-release implementation. It left
+`tasks/20260820-macos-desktop-distribution/000-main.md` and its subtasks
+unchanged during that implementation. On October 7, 2026 the user approved a
+separate tracking reconciliation using this release evidence. Remaining
+human closeout here is recorded independently from that maintenance.
 
 ## Requirements checklist
 
@@ -45,14 +46,14 @@ user-approved reconciliation of the broader macOS distribution task.
       Universal Intel slices are verified automatically; real Intel hardware
       feedback is intentionally deferred to initial testers and is not a
       pre-release gate.
-- [ ] After release acceptance, the landing-page header contains a small,
+- [x] After release acceptance, the landing-page header contains a small,
       keyboard-accessible download icon whose accessible name identifies the
       macOS download and whose HTTPS target is the verified versioned DMG.
 - [x] Current desktop release documentation explains local and GitHub Actions
       release operation, required credentials, verification, recovery, and
       installation without exposing secret values.
-- [x] The existing broader macOS distribution task and subtasks remain
-      unchanged during this task.
+- [x] The existing broader macOS distribution task and subtasks remained
+      unchanged during the original release implementation.
 
 ## Scope
 
@@ -85,7 +86,8 @@ Excluded:
   subdomain. The first release reuses the existing CLI download
   infrastructure with a distinct `crystal-lattice-desktop` prefix.
 - A full `/desktop` marketing or download page.
-- Changes to `tasks/20260820-macos-desktop-distribution/`.
+- Changes to `tasks/20260820-macos-desktop-distribution/` during the original
+  release implementation; later tracking reconciliation is separately approved.
 
 ## Human-action legend
 
@@ -786,7 +788,7 @@ both architecture acceptance boundaries.
       `mac setup_signing`, and `mac release`.
 - [x] **HUMAN — MANDATORY:** Supply or authorize the Developer ID Application
       certificate boundary (G2 certificate created and paired private key
-      exported; encrypted match import remains pending).
+      exported; encrypted import and read-only retrieval subsequently verified).
 - [x] **AGENT:** Verify read-only signing retrieval and notarization
       authentication.
 - [x] **AGENT + HUMAN JUDGMENT:** Produce and accept the first local signed,
@@ -806,10 +808,10 @@ both architecture acceptance boundaries.
 - [x] **AGENT:** Add and test the website download metadata and header icon.
 - [ ] **HUMAN JUDGMENT:** Approve the icon placement and presentation.
 - [ ] **HUMAN — MANDATORY:** Approve production website publication.
-- [ ] **AGENT:** Deploy through the existing protected site workflow and
+- [x] **AGENT:** Deploy through the existing protected site workflow and
       verify the production download.
-- [ ] **AGENT:** Complete user/maintainer documentation and the future
-      reconciliation crosswalk without modifying the broader macOS task.
+- [x] **AGENT:** Complete release documentation and record the separately
+      approved reconciliation crosswalk while preserving first-release history.
 
 ### Requirement verification
 
@@ -857,8 +859,9 @@ both architecture acceptance boundaries.
   - The production link downloads the accepted versioned DMG and its checksum
     matches the displayed/maintained value.
 - Existing-task preservation requirement:
-  - `git diff` confirms no files under
-    `tasks/20260820-macos-desktop-distribution/` changed during this task.
+  - Original release commit scope confirms no files under
+    `tasks/20260820-macos-desktop-distribution/` changed during its
+    implementation. October 7 tracking maintenance is separately authorized.
 - Documentation requirement:
   - Package and landing builds pass and current documentation agrees with the
     released artifact and workflow.
@@ -1625,10 +1628,11 @@ UI automation investigation:
   accepts `PLAYWRIGHT_PORT` and
   `PLAYWRIGHT_REUSE_EXISTING_SERVER=false`, allowing a fresh production-like
   test server without stopping or altering that user process.
-- Website source changes remain local and unpushed. A push touching
+- At the September 30 checkpoint, website source changes were local and
+  unpushed. A push touching
   `landing_page/**` automatically invokes the protected production static-site
-  workflow, so the task remains paused for human icon-placement review and
-  explicit production website publication approval.
+  workflow. The October 7 verification below supersedes the unpublished-state
+  observation without inferring human review from deployment.
 
 ## Post-completion follow-up
 
@@ -1772,3 +1776,32 @@ After delivery, the user explicitly requested a commit of this follow-up.
 That authorization covers the signed-DMG command, release-output preservation,
 focused tests, documentation, and this task record. It does not include the
 concurrent website/screenshot changes or authorize a push or publication.
+
+### October 7, 2026 tracking reconciliation
+
+Progress: review. The current public release metadata still reports
+`0.9.0 (4)`, source `1a04b8689eab0821727be2c3efc9213e57ebafe7`, both
+architectures and accepted notarization. Production HTML contains the header
+link named `Download Crystal Lattice Desktop for macOS`, targeting the
+maintained versioned DMG. The September local keyboard/responsive evidence is
+retained above. The website's technical delivery is credited.
+
+Apple Silicon public-artifact human acceptance, icon-placement acceptance and
+the explicit website-publication authorization record remain unchecked until
+confirmed. Workflow success or a live link does not establish those human
+observations.
+
+The user separately approved maintenance of the broader task tree:
+
+- COMPLETED VIA this task: 030 reproducible build and 050 app-only DMG.
+- PARTIALLY COMPLETED VIA this task: 010 app-contract/preflight and 040
+  Application signing/notarization; PKG/Installer scope remains.
+- SUPERSEDED BY this task: 020's former-name/SVG contract, 060's original
+  GitHub Release publication contract and 070's initial real-Intel gate.
+- Future scope remains 080–130: signed CLI payloads, combined installers,
+  automation, onboarding, two download choices and final acceptance.
+
+Subsequent reviewed product changes are tracked separately in
+`tasks/20261007-macos-desktop-tester-update.md`. Source/native capture proof is
+not evidence that those changes are present in this immutable public artifact.
+/var/folders/j5/g0_m7cb52q935c_px994vbp80000gn/T/crystal-roadmap-move-j8dazge7/23-theirs.txt

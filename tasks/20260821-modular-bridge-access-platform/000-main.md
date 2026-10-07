@@ -18,6 +18,9 @@ services.
 - [ ] **P1** — Public clients and bridge transports consume and enforce the
   same normalized identity, access-grant, entitlement, ownership, quota,
   E2EE, and usage contracts.
+- [ ] **P1** — A bounded hosted demo lets invited testers authenticate,
+  register their own runtime, connect from mobile and use account-bound
+  free/challenge access without a purchase.
 - [ ] **P2** — Public AWS deployment components expose the configuration,
   metrics, and lifecycle hooks needed by community and hosted deployments.
 
@@ -63,6 +66,7 @@ sheet.
 - [ ] `tasks/20260821-modular-bridge-access-platform/150-terminal-server-login-and-ownership.md`
 - [ ] `tasks/20260821-modular-bridge-access-platform/160-mobile-login-purchase-and-subscription-ux.md`
 - [ ] `tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md`
+- [ ] `tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`
 - [ ] `tasks/20260821-modular-bridge-access-platform/180-public-aws-bridge-template-modularization.md`
 - [ ] `tasks/20260821-modular-bridge-access-platform/200-production-autoscaling-public-metrics-and-validation-tools.md`
 - [ ] `tasks/20260821-modular-bridge-access-platform/210-public-privacy-terms-store-and-e2ee-documentation.md`
@@ -92,15 +96,44 @@ This public umbrella owns the bridge, SDK, mobile, terminal/server, E2EE,
 provider interfaces, reference/demo providers, public tests, and community
 deployment components.
 
-Production account databases, payment-provider server adapters, commercial
-entitlement administration, private infrastructure composition, fraud
-operations, and customer-support tooling are supplied by a separately operated
-hosted service. Public code communicates with that service only through
-versioned, documented contracts and public keys.
+The public community identity/account/ownership/grant implementation is owned
+by `tasks/20260824-os-level-notification-delivery/020-community-authentik-bridge-identity.md`.
+It can support the hosted demo without a commercial service or notification
+delivery dependency. Authentik authenticates identities; that replaceable
+community service owns stable accounts, identity links and server credentials.
+
+Commercial account/control-plane storage, payment-provider adapters,
+commercial entitlement administration, private infrastructure composition,
+fraud operations and commercial support tooling remain separately operated
+hosted-service responsibilities. Public code communicates through versioned
+contracts and public keys.
 
 The demo profile is the required proof that the replaceable contracts support
 trial access, challenge-earned access, tiered limits, expiration, and
 enforcement before production providers are integrated.
+
+## Approved delivery grouping — October 7, 2026
+
+The user approved bringing non-billing auth into the invited-tester demo while
+keeping the challenge/login providers replaceable. Scope approval does not
+approve these Draft implementation plans or deployment.
+
+- Preserve 030/040 as the demo-provider and real-client enforcement proof;
+  preserve their dependency into 060/070 encryption.
+- Bring forward 080's usable account/login UI, 130's public quota contracts,
+  140's grant/ownership enforcement, 150's CLI login/server claiming and
+  170's common transport integration.
+- The public community identity task deploys the account/grant service;
+  175 owns the bounded hosted release and actual tester-path acceptance.
+- 160 retains purchase/subscription delivery and later credits the base
+  account UI supplied by 080. Notification delivery, production payment
+  adapters and commercial account services do not gate the demo.
+- The arithmetic challenge is not authentication. The hosted demo must use
+  real community identity, bind allowances to verified accounts and preserve
+  the non-production demo guards. Its configuration is decided and reviewed
+  in 175; an unsafe production override is not an accepted release path.
+- Mac desktop distribution remains the higher-priority delivery. This
+  independent demo group may run alongside CLI/PKG/onboarding work.
 
 ## Required reading
 

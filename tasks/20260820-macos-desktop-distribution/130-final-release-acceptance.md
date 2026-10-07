@@ -15,7 +15,17 @@ secure, documented, and publicly downloadable.
 - [ ] Human acceptance is recorded for both distribution choices; unresolved blockers leave the parent task incomplete.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/120-workspace-onboarding.md
+Depends On:
+tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md
+tasks/20260820-macos-desktop-distribution/110-desktop-landing-distribution-options.md
+tasks/20260820-macos-desktop-distribution/120-workspace-onboarding.md
+
+## Reconciliation — October 7, 2026
+
+Progress: pending. This task joins final installer automation, onboarding and
+public presentation. The first app-only DMG's Intel hardware waiver does not
+establish the matching-architecture CLI/PKG or final acceptance evidence here.
+
 
 ## Manual verification boundary
 

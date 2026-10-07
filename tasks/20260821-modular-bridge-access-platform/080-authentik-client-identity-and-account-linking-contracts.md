@@ -16,6 +16,9 @@ implementation.
 - [ ] **P1** — Login, logout, account switching, identity conflicts, token
   expiration, provider cancellation, and provider failures have explicit
   client behavior.
+- [ ] **P1** — The mobile app exposes usable login, logout, account switching
+  and explicit identity-linking controls without requiring purchase or
+  subscription screens.
 
 ### Non-functional requirements
 
@@ -28,6 +31,24 @@ implementation.
 Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/030-replaceable-access-providers-and-demo-challenge-service.md`
+
+## Approved ownership clarification — October 7, 2026
+
+This task owns the base account/session UI as well as the OIDC clients and
+contracts. It is brought forward for
+`tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`.
+Task 160 later consumes and credits this account foundation while adding
+purchase/subscription behavior; it is not a prerequisite for login.
+
+Account mapping, ownership persistence and account-disable/delete operations
+are supplied by
+`tasks/20260824-os-level-notification-delivery/020-community-authentik-bridge-identity.md`.
+Use fixtures for contract development and that real service for deployed
+acceptance. Bridge login remains separate from model-provider authorization.
+Desktop bridge-login UI is outside the current mobile/terminal scope.
+
+The implementation plan remains Draft. Enabled social sources, callbacks and
+owner credential setup must be resolved before real-provider acceptance.
 
 ## Required reading
 
@@ -52,9 +73,12 @@ changing canonical account or billing identity schemas.
 Status: Draft
 
 Implement reusable OIDC clients and account/identity DTOs, secure credential
-storage, callbacks, device-code terminal UX, and explicit linking flows against
-configurable issuer/client settings. Test with a non-production tenant or
-fixture; keep production tenant bootstrap outside this repository.
+storage, callbacks, device-code terminal UX and the base mobile account/session
+controls. Exercise login/logout/switch/link through production client surfaces
+against configurable issuer/client settings. Use a non-production tenant or
+fixture during contract development and the public community identity service
+for deployed acceptance. Community deployment belongs to its existing task;
+commercial tenant bootstrap remains outside this task.
 
 ### Implementation decisions and open questions
 
@@ -72,7 +96,7 @@ fixture; keep production tenant bootstrap outside this repository.
 ### Task checklist
 
 - [ ] Define public account and identity-link schemas.
-- [ ] Add mobile OIDC PKCE flow and callbacks.
+- [ ] Add mobile OIDC PKCE flow, callbacks and usable base account/session controls.
 - [ ] Add terminal device-code flow.
 - [ ] Add secure token storage and refresh.
 - [ ] Add explicit Apple/Google identity linking and conflict handling.
@@ -88,3 +112,5 @@ fixture; keep production tenant bootstrap outside this repository.
 - Verify secrets and refresh tokens are absent from logs and ordinary storage.
 - Demonstrate adding a fake third identity provider without account-schema
   changes.
+- Complete login/logout/account-switch/link through the production mobile UI
+  without purchase screens, using the real configured issuer/account service.

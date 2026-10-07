@@ -63,6 +63,20 @@ Coordinates With:
 
 - `tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md`
 
+## Approved early-demo use — October 7, 2026
+
+This independently useful public identity/account/grant implementation is
+brought forward for
+`tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`.
+The new task operates and accepts a bounded deployment; this task continues
+to own the reusable service and its deployment/recovery capability.
+
+No notification-delivery, purchase, commercial entitlement or private
+account-service task becomes a prerequisite. Identity and server IDs remain
+available to later notification routing through the preserved public contract.
+The deployment/service/source decisions below remain open and the execution
+plan remains Draft.
+
 ## Open requirement questions
 
 1. Which deployment form is the first supported community baseline?

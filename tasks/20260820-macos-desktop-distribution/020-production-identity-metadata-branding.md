@@ -6,14 +6,30 @@ Control identity and align the native target for direct distribution.
 ## Requirements checklist
 
 - [ ] The macOS app displays `Crystal Lattice Control` in Finder, the menu bar, About, Hide, Quit, and other user-visible native surfaces.
-- [ ] The production bundle ID is `com.dynamicprogrammingsolutions.crystallatticecontrol.macos` in all Release-relevant settings.
-- [ ] The Apple team, marketing version, build version source, and macOS deployment target are consistent.
+- [x] The production bundle ID is `com.dynamicprogrammingsolutions.crystallatticecontrol.macos` in all Release-relevant settings.
+- [x] The Apple team, marketing version, build version source, and macOS deployment target are consistent.
 - [ ] A complete macOS AppIcon set is generated reproducibly from the approved shared SVG source.
-- [ ] Hardened Runtime, privacy manifest inclusion, entitlements, sandbox posture, network access, and file access match the approved preflight decision.
-- [ ] Debug/test target identity changes do not break native UI tests or React Native module registration.
+- [x] Hardened Runtime, privacy manifest inclusion, entitlements, sandbox posture, network access, and file access match the approved preflight decision.
+- [x] Debug/test target identity changes do not break native UI tests or React Native module registration.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
 Depends On: tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md
+
+## Supersession — October 7, 2026
+
+Disposition: superseded historical contract.
+
+SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+The user approved `Crystal Lattice Desktop` and reuse of the iOS icon input.
+The replacement delivered that identity, rather than the original name and
+SVG-source conditions above. Those two conditions remain unchecked and are
+retired; they are not active work to restore the old brand. The unchanged
+metadata/security/test outcomes are credited from the replacement task's
+September build inspection and native checks.
+
+The following starting state and Draft plan are retained as history. Active
+builds use the replacement contract.
 
 ## Known starting state
 

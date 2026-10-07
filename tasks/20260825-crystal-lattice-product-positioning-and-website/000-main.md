@@ -36,6 +36,21 @@ and release choices.
 - [ ] The program preserves contradictory evidence and may revise or abandon
       initial positioning hypotheses.
 
+## Tracking reconciliation — October 7, 2026
+
+The current product/compatibility baseline in subtask 020 is complete; its
+accepted-draft projection remains a source for downstream work rather than
+proof of a completed website release.
+
+OVERLAP:
+tasks/20260930-homepage-getting-started-and-waitlist/000-main.md
+
+That task owns the current homepage/intake delivery and its proof work.
+Current download/waitlist publication does not wait for this entire research
+programme. The broader evidence-informed positioning, experiments and final
+website outcomes remain outstanding; current homepage delivery is not a
+reason to mark 090, 160 or 170 complete.
+
 ## Requirement questions
 
 - Which proposition and visitor group should receive primary homepage

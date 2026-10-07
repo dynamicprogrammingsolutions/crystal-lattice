@@ -4,6 +4,19 @@ Create the real screenshots, diagrams, and short interaction sequences required
 by approved content briefs, with deterministic product states and a
 maintainable refresh workflow.
 
+## Tracking reconciliation — October 7, 2026
+
+Progress: pending for the broader research-led outcome.
+
+OVERLAP:
+tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md
+
+The current homepage's independently reviewed captures are owned there. This
+task retains its content-brief and asset-baseline dependencies. Extra roadmap
+gates on every store release or combined-PKG acceptance are removed: each
+visual must instead support the actual available/source/tester claim it makes.
+No broader research or human acceptance is credited from an earlier capture.
+
 ## Requirements checklist
 
 - [ ] Every production visual has an approved communication purpose and maps to

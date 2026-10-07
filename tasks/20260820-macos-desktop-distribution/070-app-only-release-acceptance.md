@@ -5,8 +5,8 @@ bundled-CLI and PKG work begins.
 
 ## Requirements checklist
 
-- [ ] A release candidate DMG is produced by GitHub Actions, published through the intended release/download path, and downloaded as an end user would obtain it.
-- [ ] Gatekeeper, signature, notarization, stapling, checksum, version, bundle identity, architecture, and privacy resources are independently verified.
+- [x] A release candidate DMG is produced by GitHub Actions, published through the intended release/download path, and downloaded as an end user would obtain it.
+- [x] Gatekeeper, signature, notarization, stapling, checksum, version, bundle identity, architecture, and privacy resources are independently verified.
 - [ ] Installation and first launch succeed on a clean Apple Silicon Mac.
 - [ ] Installation and first launch succeed on a clean Intel Mac or an approved equivalent real-architecture environment.
 - [ ] Core desktop connection/session behavior works without Metro, source checkout, development credentials, or bundled CLI assumptions.
@@ -14,6 +14,23 @@ bundled-CLI and PKG work begins.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
 Depends On: tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md
+
+## Supersession — October 7, 2026
+
+Disposition: superseded historical acceptance contract.
+
+SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+Its public-candidate and technical security/metadata checks have September 30
+evidence. The replacement explicitly defers real Intel hardware feedback to
+initial testers and requires automated universal validation. This differs from
+the original mandatory clean Intel gate, which remains unchecked as retired
+scope rather than being falsely marked passed.
+
+Explicit Apple Silicon public-artifact human acceptance remains open in the
+replacement record. No clean-machine or subjective observations are inferred
+from workflow success. That replacement record is the active prerequisite for
+bundled-CLI work; the original Draft plan is retained as history.
 
 ## Manual verification boundary
 

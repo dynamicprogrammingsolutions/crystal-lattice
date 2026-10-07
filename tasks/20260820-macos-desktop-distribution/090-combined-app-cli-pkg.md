@@ -16,12 +16,14 @@ an independent output.
 - [ ] Building PKGs does not remove, overwrite, or weaken the app-only DMG output.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/080-desktop-cli-payload.md
+Depends On:
+tasks/20260820-macos-desktop-distribution/080-desktop-cli-payload.md
+tasks/20260820-macos-desktop-distribution/040-developer-id-signing-bootstrap.md
 
 ## Approved installation layout
 
 ```text
-/Applications/Crystal Lattice Control.app
+/Applications/Crystal Lattice Desktop.app
 /Library/Application Support/Crystal Lattice/CLI/<cli-version>/<architecture>/...
 /usr/local/bin/crystal-lattice
 ```
