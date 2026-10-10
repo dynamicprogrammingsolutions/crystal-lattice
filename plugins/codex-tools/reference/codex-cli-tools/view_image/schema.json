@@ -1,17 +1,27 @@
 {
   "type": "function",
   "name": "view_image",
-  "description": "View a local image from the filesystem (only use if given a full filepath by the user, and the image isn't already attached to the thread context within <image ...> tags).",
+  "description": "View a local image file from the filesystem when visual inspection is needed. Use this for images already available on disk.",
   "strict": false,
   "parameters": {
     "type": "object",
     "properties": {
+      "detail": {
+        "type": "string",
+        "enum": [
+          "high",
+          "original"
+        ],
+        "description": "Image detail level. Defaults to `high`; use `original` to preserve exact resolution."
+      },
       "path": {
         "type": "string",
-        "description": "Local filesystem path to an image file"
+        "description": "Local filesystem path to an image file."
       }
     },
-    "required": ["path"],
+    "required": [
+      "path"
+    ],
     "additionalProperties": false
   }
 }

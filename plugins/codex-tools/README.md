@@ -52,7 +52,7 @@ Load a local image file for model-visible vision input.
 - **Schema name**: `view_image`
 - **Primary schema**: OpenAI Responses function tool without `output_schema`; successful results return an `input_image` content item directly
 - **Chat fallback**: OpenAI chat-completions function schema plus JSON/text tool result containing the image data URL
-- **Parameters**: `path` (string, required), `detail` (optional `"original"`; enabled by default)
+- **Parameters**: `path` (string, required), `detail` (optional enum `high | original`, default `high`; `original` preserves the file's original resolution; enabled by default and hidden when `enable_view_image_detail_original` is false)
 - **Execution**: Resolves paths against `working_directory`, enforces `allowed_paths`, validates PNG/JPEG/GIF/WebP magic bytes, and returns a data URL
 
 ### MCP Tools

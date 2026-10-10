@@ -1,34 +1,25 @@
-// This is the Lark grammar used by Codex CLI's freeform `apply_patch` tool.
-// It is copied from Codex's `core/src/tools/handlers/tool_apply_patch.lark`.
+// Lark grammar used by Codex CLI's freeform `apply_patch` tool.
+// Copied from the upstream Codex repo: codex-rs/core/assets/tools/apply_patch.lark
+// (verified identical on 2026-10-08).
 //
 // NOTE: This grammar is part of the *tool contract*: the model is expected to
 // produce content matching it when calling the freeform tool.
+start: begin_patch hunk+ end_patch
+begin_patch: "*** Begin Patch" LF
+end_patch: "*** End Patch" LF?
 
-start: patch
+hunk: add_hunk | delete_hunk | update_hunk
+add_hunk: "*** Add File: " filename LF add_line+
+delete_hunk: "*** Delete File: " filename LF
+update_hunk: "*** Update File: " filename LF change_move? change?
 
-patch: begin_patch file_op* end_patch
+filename: /(.+)/
+add_line: "+" /(.*)/ LF -> line
 
-begin_patch: "*** Begin Patch" NEWLINE
-end_patch: "*** End Patch" NEWLINE
+change_move: "*** Move to: " filename LF
+change: (change_context | change_line)+ eof_line?
+change_context: ("@@" | "@@ " /(.+)/) LF
+change_line: ("+" | "-" | " ") /(.*)/ LF
+eof_line: "*** End of File" LF
 
-file_op: add_file | delete_file | update_file
-
-add_file: "*** Add File: " path NEWLINE add_line+
-delete_file: "*** Delete File: " path NEWLINE
-update_file: "*** Update File: " path NEWLINE move_to? hunk*
-
-move_to: "*** Move to: " path NEWLINE
-
-hunk: "@@" hunk_header? NEWLINE hunk_line+ end_of_file?
-
-hunk_header: /[^\r\n]*/
-
-hunk_line: (" "|"-"|"+") /[^\r\n]*/ NEWLINE
-
-end_of_file: "*** End of File" NEWLINE
-
-add_line: "+" /[^\r\n]*/ NEWLINE
-
-path: /[^\r\n]*/
-
-NEWLINE: /\r?\n/
+%import common.LF
