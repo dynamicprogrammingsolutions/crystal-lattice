@@ -341,6 +341,32 @@ directories and connections; the matrix command set stays unchanged.
   "unclassified keep" dirs (record-less replays from the current
   labels) remain under `runs/` — harmless, current-label only.
 
+- October 10, 2026 (cache instability diagnosis closed, fix landed
+  `af772480`): PROVEN mechanism — continuation children pass
+  `workspace=parent.workspace` (a bare Path inside the main repo), and
+  `_git_root` walked up to the AMBIENT repo, embedding its HEAD and
+  status into the prepared-workspace fingerprint, which is a cache-key
+  component: every commit between invocations rotated every child's
+  cache key (all observed misses correlate 1:1 with commits; r2→r3:
+  ce64b642, r3→r4: af1f73a2, r4→r1: 5c882354/667d705d). Parent-state
+  binding is already correctly carried by `parent_snapshot_sha256`.
+  Fix: `_git_root` now only accepts a repo whose root IS the workspace
+  (staged git workspaces unaffected); regression test in
+  `test_workspace.py`. Also disproved along the way: identities stable
+  across invocations (all five planning runs share one identity),
+  env/workspace fingerprints stable across processes and staging
+  locations, fixture commits date-pinned and deterministic,
+  compilation sha repo-content-independent. OPEN: planning-run keys
+  from r4 (4e305c7a…) still don't match today's recomputed key
+  (3f01d26c…) despite identical reconstructable inputs — verify with a
+  real two-invocation slice (planning + one from-plan cell, commit in
+  between) once task 150's serialization lands; the ambient-repo leak
+  was proven for children and is the only confirmed key-rotator.
+  Note: 3 pre-existing test failures (doc-standard preflight ×2,
+  requirement-quality frozen datasets) are cleanup/model-switch
+  fallout, verified to fail with the fix stashed too — triage
+  separately.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
