@@ -323,13 +323,31 @@ def _source_fingerprint(source: object) -> object:
 
 
 def _git_root(path: Path) -> Path | None:
+    """The git root of the workspace itself, never an ambient parent repo.
+
+    A workspace staged inside a larger repository (evaluation artifact
+    trees, continuation workspaces reused from parent runs) must not
+    inherit that repository's HEAD or status: those change with every
+    commit in the surrounding checkout and would silently rotate the
+    prepared-workspace fingerprint — and with it the execution-cache
+    key — between invocations. Only a repository whose root IS the
+    workspace counts; ``parent_snapshot_sha256`` already binds
+    continuation runs to their parent state.
+    """
+
+    git_dir = path / ".git"
+    if not git_dir.exists():
+        return None
     result = _run(
         ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
         check=False,
     )
     if result.returncode != 0:
         return None
-    return Path(result.stdout.strip()).resolve()
+    root = Path(result.stdout.strip()).resolve()
+    if root != path.resolve():
+        return None
+    return root
 
 
 def _status_paths(status: str) -> tuple[str, ...]:

@@ -73,6 +73,7 @@ def test_cached_git_run_restores_tracked_and_untracked_changes(
         artifact_root=tmp_path / "artifacts",
         cache_root=tmp_path / "cache",
     ) as evaluation:
+
         def modify(context):
             assert context.services.workspace is not None
             context.services.workspace.joinpath("tracked.txt").write_text(
@@ -102,12 +103,14 @@ def test_cached_git_run_restores_tracked_and_untracked_changes(
 
         assert second.cache_hit is True
         assert second.workspace is not None
-        assert second.workspace.joinpath("tracked.txt").read_text(
-            encoding="utf-8"
-        ) == "cached change\n"
-        assert second.workspace.joinpath("untracked.txt").read_text(
-            encoding="utf-8"
-        ) == "cached untracked\n"
+        assert (
+            second.workspace.joinpath("tracked.txt").read_text(encoding="utf-8")
+            == "cached change\n"
+        )
+        assert (
+            second.workspace.joinpath("untracked.txt").read_text(encoding="utf-8")
+            == "cached untracked\n"
+        )
         assert second.changed_paths == first.changed_paths
 
 
@@ -134,3 +137,59 @@ def test_existing_path_requires_explicit_workspace_for_continuation(
 
     assert child.error is not None
     assert child.error.phase == "workspace.restore"
+
+
+def test_path_workspace_inside_parent_repo_has_no_ambient_git_fingerprint(
+    tmp_path: Path,
+) -> None:
+    """A bare path workspace must not adopt the surrounding repo's HEAD.
+
+    Continuation runs pass the parent run's workspace (a plain path
+    inside the evaluation artifact tree, which itself lives inside a
+    larger git checkout). Embedding that ambient repo's HEAD or status
+    in the prepared-workspace fingerprint rotates the execution-cache
+    key on every commit in the surrounding checkout, so identical
+    requests never replay across invocations. Only a repository whose
+    root is the workspace itself counts as a git workspace.
+    """
+
+    from agent_eval.workspace import prepare_workspace
+
+    # A parent repo with a commit, and a nested plain workspace dir.
+    parent = tmp_path / "parent-repo"
+    (parent / "nested").mkdir(parents=True)
+    subprocess.run(["git", "-C", str(parent), "init", "-q"], check=True)
+    subprocess.run(
+        ["git", "-C", str(parent), "commit", "--allow-empty", "-m", "base"],
+        check=True,
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.invalid",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        },
+    )
+    workspace = parent / "nested"
+    (workspace / "file.txt").write_text("content", encoding="utf-8")
+
+    prepared = prepare_workspace(workspace, run_dir=tmp_path / "run")
+
+    assert prepared.git_root is None
+    assert prepared.fingerprint is not None
+    assert prepared.fingerprint["path_kind"] == "directory"
+    assert prepared.fingerprint["revision"] is None
+    # A fresh commit in the ambient repo must not change the fingerprint.
+    subprocess.run(
+        ["git", "-C", str(parent), "commit", "--allow-empty", "-m", "next"],
+        check=True,
+        env={
+            **__import__("os").environ,
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.invalid",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.invalid",
+        },
+    )
+    prepared_again = prepare_workspace(workspace, run_dir=tmp_path / "run2")
+    assert prepared_again.fingerprint == prepared.fingerprint
