@@ -85,7 +85,7 @@ current workaround is the runner's `--max-concurrent 1` cap.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved (user directed execution start on October 10, 2026)
 
 1. Inventory: every reader of the overlay-managed keys
    (`REPO_ROOT`, `WORKING_DIR`, and any other resolved config env
@@ -103,6 +103,22 @@ Status: Draft
    deterministic tests covering the new mechanism at its public
    boundary; then remove the `--max-concurrent` requirement from
    matrix-run guidance.
+
+## Implementation Notes
+
+- October 10, 2026 (execution started): inventory of overlay-managed
+  key readers (`REPO_ROOT`/`WORKING_DIR`, excluding tests): framework
+  — `agent_core/utils.py`, `agent_app/config.py`,
+  `agent_terminal_app/cloud_runtime.py`; plugins — the
+  `plugins/claude-tools/investigation/scripts/*` family (web search,
+  compaction, read, glob, web fetch, write, task stop, mcp, mcp
+  output, and more). Process-isolation (option a) requires NO changes
+  to any of these readers — they keep reading their per-process
+  environment; the isolation work is confined to the
+  `agent_eval.crystal_lattice` environment (worker spawn, IPC for
+  value/snapshot/traceback, teardown). Next: design the worker
+  protocol in the crystal-lattice environment (the eval kernel stays
+  in the parent).
 
 ### Implementation decisions and open questions
 
