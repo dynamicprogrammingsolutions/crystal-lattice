@@ -327,6 +327,20 @@ directories and connections; the matrix command set stays unchanged.
   fixture-workspace runs, add regression test, then re-verify
   cross-label replay for producers and children.
 
+- October 7, 2026 (tmp cleanup, user-approved): reclaimed ~17G
+  (tmp 22G → 4.9G). Removed: `documentation-standard/` artifacts
+  (15G, evaluation complete and frozen elsewhere), September
+  task-guidance run labels and superseded replay copies (342 dirs via
+  `prune_runs.py --keep-labels b1v3-gpt6-r1,d-trial-tg01-r4,
+  b1v3-gpt6-tg08tg10-r2 --execute`), `task-guidance-sentinel/`,
+  `zai-smoke`, and misc scratch. Kept intact for the current
+  evaluation: runs for the three current labels (incl. all genuine
+  b1v3-gpt6-r1 evidence and the r4 two-stage children), the 2.0G
+  execution cache (entirely Oct 5–6 model generation), plugin-cache,
+  consolidated records, and runtime configs. The prune tool's
+  "unclassified keep" dirs (record-less replays from the current
+  labels) remain under `runs/` — harmless, current-label only.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
