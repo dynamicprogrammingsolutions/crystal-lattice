@@ -8,8 +8,10 @@ Run macOS UI tests and simulator UI automation sequentially to avoid focus
 changes dismissing transient popovers. Their builds can run concurrently.
 
 XCUITest must never terminate an already-running Crystal Lattice process.
-Ordinary Release instances can coexist with the Debug test harness and are not
-blockers. If an existing Xcode test or Debug-harness session prevents
+A harness can coexist with the installed app when it uses a separate bundle
+identifier. Debug and Release builds normally share the app's bundle identifier;
+use an isolated identifier as in the action-display command below when the
+installed app is running. If an existing Xcode test or Debug-harness session prevents
 automation or a new harness launch, stop the run and report that specific
 conflict to the user; do not terminate it automatically. Do not add
 `forceTerminate`, `killall`, `pkill`, or equivalent process cleanup to XCTest
@@ -42,10 +44,28 @@ npm run test:macos-ui:connections
 
 The action-display harness emits a direct modal response through the production
 global display owner. Its focused XCUITest opens the native React window,
-scrolls a 300-line compiled-message body, and closes the window:
+scrolls a 300-line compiled-message body, and verifies reopening with the same
+display ID and body after both the card's Close button and the native window
+close button:
 
 ```bash
 npm run test:macos-ui:action-display
+```
+
+To run only the reopening regression alongside an installed app, use this
+command from the desktop package directory. It gives the harness a separate
+bundle identifier and build directory:
+
+```bash
+CLC_ENABLE_ACTION_DISPLAY_HARNESS=1 FORCE_BUNDLING=1 xcodebuild \
+  -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace \
+  -scheme CrystalLatticeControlDesktopRN-macOS \
+  -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath build/action-display-reopen-derived-data \
+  PRODUCT_BUNDLE_IDENTIFIER=com.dynamicprogrammingsolutions.crystallatticecontrol.macos.actiondisplayuitests \
+  test \
+  -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/ActionDisplayWindowUITests/testLongDirectActionDisplayReopensAfterBothCloseMethods
 ```
 
 The desktop-workspace harness mounts the production Home, History, activity

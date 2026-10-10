@@ -2,7 +2,7 @@
 
 Exposes report and reset session actions backed by the SQLite duration
 store. The report combines reset-aware current-project totals with fixed
-seven-day cross-project views.
+seven-day views for the current project, current session, and all projects.
 
 The store location is resolved the same way the duration tracking
 feature resolves it, so both surfaces read and write the same
@@ -134,7 +134,8 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 "label": "Show duration report",
                 "description": (
                     "Return reset-aware current-project totals and rankings, "
-                    "plus fixed seven-day daily and cross-project views."
+                    "plus seven-day daily views for the project, session, "
+                    "and all projects."
                 ),
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
@@ -239,6 +240,15 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             db_path, working_directory=working_directory
         )
         daily_totals = duration_store.daily_duration_totals(db_path, days=7)
+        daily_project_totals = duration_store.daily_duration_totals(
+            db_path, days=7, working_directory=working_directory
+        )
+        daily_session_totals = duration_store.daily_duration_totals(
+            db_path,
+            days=7,
+            working_directory=working_directory,
+            session_id=session_id,
+        )
         top_projects = duration_store.top_projects_by_human_time_recent(
             db_path, days=7, limit=3
         )
@@ -300,22 +310,37 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
                 f"`{_format_duration_ms(int(tool_total_ms / tool_call_count))}`"
             )
 
-        lines.extend(
-            [
-                "",
-                "### Last 7 days",
-                "",
-                "| Day | LLM time | Tool time | Human time |",
-                "| --- | --- | --- | --- |",
-            ]
-        )
-        for day, totals in daily_totals.items():
-            lines.append(
-                f"| {day} "
-                f"| `{_format_duration_ms(int(totals.get('llm_total_ms') or 0))}` "
-                f"| `{_format_duration_ms(int(totals.get('tool_total_ms') or 0))}` "
-                f"| `{_format_duration_ms(int(totals.get('human_total_ms') or 0))}` |"
+        project_label = f"Project: `{_project_display_name(working_directory)}`"
+        for scope, context_label, daily in (
+            ("current project", project_label, daily_project_totals),
+            (
+                "current session",
+                f"{project_label} · Session: `{session_id}`",
+                daily_session_totals,
+            ),
+            ("all projects", None, daily_totals),
+        ):
+            lines.extend(["", f"### Last 7 days — {scope}", ""])
+            if context_label:
+                lines.extend([context_label, ""])
+            lines.extend(
+                [
+                    "| Day | LLM time | Tool time | Human time |",
+                    "| --- | --- | --- | --- |",
+                ]
             )
+            for day, totals in daily.items():
+                lines.append(
+                    f"| {day} "
+                    f"| `{_format_duration_ms(int(totals.get('llm_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(totals.get('tool_total_ms') or 0))}` "
+                    f"| `{_format_duration_ms(int(totals.get('human_total_ms') or 0))}` |"
+                )
+            total_cells = [
+                f"`{_format_duration_ms(sum(int(row.get(key) or 0) for row in daily.values()))}`"
+                for key in ("llm_total_ms", "tool_total_ms", "human_total_ms")
+            ]
+            lines.append("| **Total** | " + " | ".join(total_cells) + " |")
 
         if top_projects:
             lines.extend(
@@ -417,6 +442,8 @@ class DurationTrackingAppPlugin(ApplicationPlugin):
             "report": project_summary,
             "project_summary_since_reset": project_summary,
             "daily_totals_last_7_days": daily_totals,
+            "daily_totals_project_last_7_days": daily_project_totals,
+            "daily_totals_session_last_7_days": daily_session_totals,
             "top_sessions": top_project_sessions,
             "top_projects": top_projects,
             "top_projects_last_7_days": top_projects,

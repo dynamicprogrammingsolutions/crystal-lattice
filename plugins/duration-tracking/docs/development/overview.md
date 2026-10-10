@@ -6,8 +6,9 @@ platform.
 The timestamp extension's duration feature (`DurationExtension`,
 `plugins/timestamp-extension`) measures each provider call and stamps
 the duration facts (`duration_ms`, `duration_started_at`,
-`duration_finished_at`) onto the assistant owner message in
-provider-native `_metadata`. This plugin records one row per measured
+`duration_finished_at`) onto the native response owner in `_metadata`.
+The owner can be an assistant message or a function/custom tool call when
+there is no assistant text. This plugin records one row per measured
 provider call (LLM round) into a SQLite store, feeds the chat status
 bar a store-backed session total, and exposes a report action.
 
@@ -92,9 +93,11 @@ request pipeline.
   (`duration_ms` plus both timestamps), records the row, and stamps the
   session totals onto the finals and the matching native-tail entries.
   Finalize runs once per LLM round (tool loops share one request id
-  across rounds; the round stamps separate the rows). Requests without
-  assistant finals (or with the duration feature
-  disabled) record nothing.
+  across rounds; the round stamps separate the rows). Tool-only LLM responses
+  record their measured native function/custom tool-call owner once, even if
+  the response has multiple calls. Executed tool outputs are excluded from
+  LLM recording. Responses without measured finals (or with the duration
+  feature disabled) record nothing.
 - **Tool rows** — the feature's `finalize_tool_call` records from the
   per-call stamps on the tool-result message it receives in the chain;
   it reads only that message, never the session history.
@@ -230,9 +233,19 @@ window boundary, or local midnight contributes only its overlapping portion.
   first turn uses zero as its baseline. If a prior completed turn exists
   without a usable total, or the cumulative total regresses, the delta is
   omitted rather than guessed.
+- Completed-turn detection recognizes explicit tool-call lists, native
+  `has_tool_calls`/`turn.has_tool_calls` flags, nonterminal
+  `turn.is_terminal: false` markers, and commentary phases. The same predicate
+  governs stamping, baseline selection, and public metadata projection.
+- Projection of retained native history recalculates old human deltas from
+  its completed-turn snapshots, overriding saved deltas that used an
+  intermediate baseline. Projection of only the new finals preserves the
+  delta stamped against full history. Neither path reads today's human total
+  into an older message.
 - The delta is an uploaded snapshot. Human spans that remain open or have not
   reached the plugin when the assistant message finalizes are reflected only
-  by a later request; finalized messages are not rewritten.
+  by a later request. Repair changes the delta calculation, not the uploaded
+  total saved when the message finalized.
 - The report action has two intentionally different windows:
   - current-project summary, human-ranked top sessions, and LLM-ranked top
     sessions cover records after that project's latest reset (or all project
@@ -293,12 +306,26 @@ in the SQLite store and the report.
 
 The **Show duration report** session action renders explicitly labeled LLM,
 tool, combined LLM + tool, and human durations; LLM/tool call counts and
-averages remain separate. Its human-time section shows the overall total,
-current-session total, top 10 sessions, top 3 projects, session-less project
-time, and diagnostics. The machine-duration tables use `LLM duration`,
-`Tool duration`, and `Combined` columns and remain ranked by LLM duration
-(project names resolve from `projects.json` under the Crystal data directory).
-Totals cover all recorded calls; there are no reset windows.
+averages remain separate. The current-project summary and project session
+rankings start at that project's latest reset. Separate seven-day daily tables
+cover the current project, the current session within that project, and all
+projects. Each shows LLM, tool, and human time for seven local calendar dates
+(today and the preceding six days), including zero days, plus a total row.
+Project tables include session-less human time; session tables exclude it.
+Human spans crossing midnight or the window boundary contribute only the
+overlapping portion. Seven-day tables and cross-project rankings ignore resets.
+
+The report retains the top 10 sessions by human time for the current project
+since reset and across projects for the last seven days, the top 3 projects
+by human time for the last seven days, and the current-project sessions ranked
+by LLM duration since reset. Rankings show all three times. Project names resolve
+from `projects.json` under the Crystal data directory. Human-time diagnostics
+show factual all-time collection totals and readiness independently of these
+report windows.
+
+The action response retains `daily_totals_last_7_days` for all projects and adds
+`daily_totals_project_last_7_days` and `daily_totals_session_last_7_days`, with
+the same date-keyed `llm_total_ms`, `tool_total_ms`, and `human_total_ms` values.
 
 ## Tests
 
@@ -312,3 +339,16 @@ the UI elements, and the report action. The integration tests run real
 plugins and assert rows land in the store and totals reach the public
 assistant message metadata, including across a tool-loop turn and a
 session reload.
+
+The local recovery command documented in the package README previews missing
+measured rounds and saved metadata corrections without writing. An optional
+`--session` filter limits the database query and file repairs to that session
+within the selected project. Applying
+recovery backs up SQLite and changed session files, inserts only missing
+rounds from each session's known tracking window, and repairs LLM cumulative
+snapshots and human deltas. Unknown request/model provenance remains null;
+unique provenance from other recorded rounds of the same turn is retained.
+Session ids and native measurement stamps supply identity without loading an
+agent. Reset markers, human spans, tool rows, and message content are preserved.
+The summary CSV remains an append-only journal of the original recording
+events; recovery does not regenerate it.

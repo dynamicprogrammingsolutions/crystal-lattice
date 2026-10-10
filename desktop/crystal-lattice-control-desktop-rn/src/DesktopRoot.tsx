@@ -53,7 +53,6 @@ import {
   desktopWindowEvents,
   DesktopWindowManager,
 } from './windows/desktopWindowManager';
-import { dismissActiveActionDisplayWindowFromSystem } from './windows/actionDisplayWindowCoordinator';
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
@@ -886,9 +885,6 @@ function DesktopRootInner({
         }
         if (windowKey === 'serverSettings') {
           setActiveServerSettingsWindow(null);
-        }
-        if (windowKey === 'actionDisplay') {
-          dismissActiveActionDisplayWindowFromSystem();
         }
         if (windowKey === 'sessionNote') {
           clearSessionNoteWindowFromSystem();

@@ -395,7 +395,7 @@ class DurationTrackingExtension(FeaturePlugin):
             return final_messages, native_messages, state
         human_totals_md = (
             self._build_human_time_metadata(state)
-            if owner.get("role") == "assistant" and not self._has_tool_calls(owner)
+            if self._is_completed_assistant(owner)
             else {}
         )
         turn_md = self._human_time_turn_metadata(
@@ -450,6 +450,7 @@ class DurationTrackingExtension(FeaturePlugin):
         """
 
         _ = (state, context)
+        human_turns = self._human_turn_metadata_by_index(native_messages)
         out: List[Dict[str, Any]] = []
         for message in messages:
             if not isinstance(message, dict) or message.get("role") != "assistant":
@@ -458,9 +459,9 @@ class DurationTrackingExtension(FeaturePlugin):
 
             metadata_raw = message.get("metadata")
             metadata = dict(metadata_raw) if isinstance(metadata_raw, dict) else {}
-            has_tool_calls = self._has_tool_calls(message)
+            is_completed = self._is_completed_assistant(message)
             removed_human_metadata = False
-            if has_tool_calls:
+            if not is_completed:
                 filtered_metadata = {
                     key: value
                     for key, value in metadata.items()
@@ -477,6 +478,7 @@ class DurationTrackingExtension(FeaturePlugin):
                 continue
 
             extra_md: Dict[str, Any] = {}
+            human_index: Optional[int] = None
             for index in native_indices:
                 if not isinstance(index, int) or not (
                     0 <= index < len(native_messages)
@@ -493,19 +495,36 @@ class DurationTrackingExtension(FeaturePlugin):
                     for key, value in internal.items()
                     if isinstance(key, str)
                     and key.startswith(_SESSION_METADATA_PREFIXES)
-                    and not (has_tool_calls and key.startswith("human_time_"))
+                    and not (
+                        key.startswith("human_time_")
+                        and (
+                            not is_completed
+                            or not self._is_completed_assistant(native_item)
+                        )
+                    )
                 }
+                if is_completed and index in human_turns:
+                    human_index = index
                 if candidate:
                     extra_md = candidate
-
-            if not extra_md:
-                out.append(projected_message)
-                continue
 
             merged = dict(metadata)
             for key, value in extra_md.items():
                 if key not in merged:
                     merged[key] = value
+            # Saved deltas may have used an intermediate tool-loop response as
+            # their baseline. Repair from the uploaded snapshots, never today's
+            # database total, when projecting retained native history.
+            if human_index is not None:
+                merged = {
+                    key: value
+                    for key, value in merged.items()
+                    if not key.startswith("human_time_turn_")
+                }
+                merged.update(human_turns[human_index])
+            if merged == metadata:
+                out.append(projected_message)
+                continue
             out.append({**message, "metadata": merged})
 
         return out
@@ -610,7 +629,7 @@ class DurationTrackingExtension(FeaturePlugin):
     def _find_duration_owner_index(cls, items: List[Dict[str, Any]]) -> Optional[int]:
         for idx in range(len(items) - 1, -1, -1):
             item = items[idx]
-            if not isinstance(item, dict) or item.get("role") != "assistant":
+            if not isinstance(item, dict) or not cls._is_llm_output(item):
                 continue
             internal = item.get("_metadata")
             if isinstance(internal, dict) and cls._is_duration_record_source(internal):
@@ -618,7 +637,16 @@ class DurationTrackingExtension(FeaturePlugin):
         return None
 
     @staticmethod
+    def _is_llm_output(message: Dict[str, Any]) -> bool:
+        return message.get("role") == "assistant" or message.get("type") in (
+            "function_call",
+            "custom_tool_call",
+        )
+
+    @staticmethod
     def _has_tool_calls(message: Dict[str, Any]) -> bool:
+        if message.get("type") in ("function_call", "custom_tool_call"):
+            return True
         tool_calls = message.get("tool_calls")
         if isinstance(tool_calls, list) and tool_calls:
             return True
@@ -626,10 +654,31 @@ class DurationTrackingExtension(FeaturePlugin):
             internal = message.get(metadata_key)
             if not isinstance(internal, dict):
                 continue
+            if internal.get("has_tool_calls") is True:
+                return True
+            turn = internal.get("turn")
+            if isinstance(turn, dict) and turn.get("has_tool_calls") is True:
+                return True
             tool_calls = internal.get("tool_calls")
             if isinstance(tool_calls, list) and tool_calls:
                 return True
         return False
+
+    @classmethod
+    def _is_completed_assistant(cls, message: Dict[str, Any]) -> bool:
+        if message.get("role") != "assistant" or cls._has_tool_calls(message):
+            return False
+        if message.get("phase") == "commentary":
+            return False
+        for metadata in (message.get("_metadata"), message.get("metadata")):
+            if not isinstance(metadata, dict):
+                continue
+            if metadata.get("phase") == "commentary":
+                return False
+            turn = metadata.get("turn")
+            if isinstance(turn, dict) and turn.get("is_terminal") is False:
+                return False
+        return True
 
     @staticmethod
     def _human_total(message: Dict[str, Any]) -> Optional[int]:
@@ -650,7 +699,7 @@ class DurationTrackingExtension(FeaturePlugin):
         native_messages: List[Dict[str, Any]],
         totals_md: Dict[str, Any],
     ) -> Dict[str, Any]:
-        if owner.get("role") != "assistant" or cls._has_tool_calls(owner):
+        if not cls._is_completed_assistant(owner):
             return {}
 
         current_value = totals_md.get("human_time_session_total")
@@ -658,8 +707,6 @@ class DurationTrackingExtension(FeaturePlugin):
             current_value, (int, float)
         ):
             return {}
-        current_total = max(0, int(current_value))
-
         history_offset = len(native_messages)
         if native_messages and len(final_messages) <= len(native_messages):
             history_offset = len(native_messages) - len(final_messages)
@@ -670,12 +717,22 @@ class DurationTrackingExtension(FeaturePlugin):
         for message in reversed(history):
             if not isinstance(message, dict):
                 continue
-            if message.get("role") != "assistant" or cls._has_tool_calls(message):
+            if not cls._is_completed_assistant(message):
                 continue
             found_previous_final = True
             previous_total = cls._human_total(message)
             break
 
+        return cls._human_time_delta(
+            max(0, int(current_value)), previous_total, found_previous_final
+        )
+
+    @staticmethod
+    def _human_time_delta(
+        current_total: int,
+        previous_total: Optional[int],
+        found_previous_final: bool,
+    ) -> Dict[str, Any]:
         if found_previous_final and previous_total is None:
             return {}
         baseline = previous_total if previous_total is not None else 0
@@ -687,6 +744,37 @@ class DurationTrackingExtension(FeaturePlugin):
             "human_time_turn_delta": delta,
             "human_time_turn_delta_formatted": _format_duration_ms(delta),
         }
+
+    @classmethod
+    def _human_turn_metadata_by_index(
+        cls, native_messages: List[Dict[str, Any]]
+    ) -> Dict[int, Dict[str, Any]]:
+        turns: Dict[int, Dict[str, Any]] = {}
+        previous_total: Optional[int] = None
+        found_previous_final = False
+        has_history_boundary = False
+        for index, message in enumerate(native_messages):
+            if not isinstance(message, dict):
+                continue
+            if message.get("role") in ("user", "system", "developer"):
+                has_history_boundary = True
+            if not cls._is_completed_assistant(message):
+                continue
+            current_total = cls._human_total(message)
+            # Core also projects just the new native finals. That slice has no
+            # previous turn: keep the delta calculated by finalize against the
+            # full history rather than incorrectly resetting its baseline to zero.
+            if found_previous_final or has_history_boundary:
+                turns[index] = (
+                    cls._human_time_delta(
+                        current_total, previous_total, found_previous_final
+                    )
+                    if current_total is not None
+                    else {}
+                )
+            previous_total = current_total
+            found_previous_final = True
+        return turns
 
     def _record_and_build_metadata(
         self, internal: Dict[str, Any], state: Dict[str, Any]
