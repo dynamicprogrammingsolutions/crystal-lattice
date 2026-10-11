@@ -22,6 +22,8 @@
     "detox:test:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e --cleanup",
     "detox:test:bridge-transport:ios": "detox test -c ios.sim.release e2e/bridgeTransportMode.e2e.test.ts --cleanup",
     "detox:test:bridge-transport:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/bridgeTransportMode.e2e.test.ts --cleanup",
+    "detox:test:bridge-connection:ios": "detox test -c ios.sim.release e2e/bridgeConnection.e2e.test.ts --cleanup",
+    "detox:test:bridge-connection:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/bridgeConnection.e2e.test.ts --cleanup",
     "detox:test:connections-settings:ios": "detox test -c ios.sim.release e2e/connectionsSettings.e2e.test.ts --cleanup",
     "detox:test:connections-settings:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/connectionsSettings.e2e.test.ts --cleanup",
     "detox:test:action-forms:ios": "detox test -c ios.sim.release e2e/actionForms.e2e.test.ts --cleanup",

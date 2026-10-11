@@ -54,7 +54,8 @@ access.
 
 ## Frontend transport modes
 
-The frontend chooses one explicit bridge mode:
+The frontend uses HTTP in normal product operation. Development callers may
+explicitly select the retained legacy modes:
 
 | Mode | Discovery and pairing | `GET /events` | Other proxied requests |
 | --- | --- | --- | --- |
@@ -62,8 +63,10 @@ The frontend chooses one explicit bridge mode:
 | `http` | HTTP v1 | HTTP v1 proxy | HTTP v1 proxy |
 | `hybrid` | HTTP v1 | Legacy WebSocket | HTTP v1 proxy |
 
-`websocket` is the compatibility default. A missing saved mode means
-`websocket`.
+An omitted SDK mode selects HTTP. Mobile applies the HTTP default to new and
+historical saved records while preserving their server identity and pairing
+credentials. Home → Development Settings provides a separately persisted,
+app-wide legacy override for later connection construction.
 
 Hybrid routing is exact. Only a `GET` whose path is `/events` or starts with
 `/events?` uses the legacy path. Every control operation and every other
@@ -118,14 +121,14 @@ Internet-facing deployments terminate TLS before the bridge origin.
 ## Compatibility and rollout
 
 The legacy `BridgeTransport` and its wire messages remain supported and are not
-internally rewritten to use the HTTP path. HTTP and hybrid modes are opt-in.
-
-Changing the default requires separate approval after:
-
-- the transfer-safety requirement is fully verified;
-- bounded concurrent load/soak evidence is available;
-- physical-device iOS and Android network checks pass;
-- rollback to WebSocket remains available.
+internally rewritten to use the HTTP path. WebSocket and hybrid are explicit
+development choices. The HTTP product-default follow-up is approved, with
+verification and human acceptance tracked separately. Existing transfer-safety,
+cluster, and hosted evidence remains recorded. The updated frontend default,
+saved-endpoint UX, and diagnostic controls require their own automated checks.
+Human mobile UX review precedes desktop bridge implementation. Physical-device
+network and bounded-soak checks have not been rerun in this follow-up;
+approval alone does not imply that evidence.
 
 ## Non-goals
 
@@ -133,4 +136,5 @@ Changing the default requires separate approval after:
 - Automatic transport fallback or replay.
 - Replacing the registered server's WebSocket control connection.
 - Defining the application API carried through the bridge.
-- Making HTTP or hybrid the permanent default in the current baseline.
+- Removing legacy development transports or migrating desktop before human
+  mobile UX review.

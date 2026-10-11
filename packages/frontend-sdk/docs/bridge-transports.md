@@ -1,8 +1,8 @@
 # Bridge transports
 
 The frontend SDK exposes one bridge connection interface with three explicit
-transport modes. WebSocket is the default and compatibility path; HTTP and
-hybrid are opt-in.
+transport modes. HTTP is the product default; WebSocket and hybrid remain
+explicit development diagnostic choices.
 
 ## Create a bridge transport
 
@@ -12,7 +12,7 @@ import {
   type BridgeTransportMode,
 } from '@crystal-lattice/frontend-sdk';
 
-const mode: BridgeTransportMode = 'websocket';
+const mode: BridgeTransportMode = 'http';
 
 const bridge = createBridgeConnectionTransport({
   bridgeUrl: 'wss://bridge.example/ws/websocket',
@@ -24,7 +24,8 @@ const bridge = createBridgeConnectionTransport({
 await bridge.connect();
 ```
 
-Omitting `mode` selects `websocket`.
+Omitting `mode` selects `http`. Explicit `websocket` and `hybrid` preserve the
+existing legacy implementations.
 
 ## Modes
 
@@ -57,8 +58,16 @@ await bridge.submitPairingCode(server.server_id, code);
 const pairingToken = bridge.getPairingToken();
 ```
 
-Persist the bridge URL, server ID, pairing token, and explicit mode. A saved
-record without a mode should be treated as WebSocket for compatibility.
+Persist the bridge URL, server ID, and pairing token. The optional historical
+record mode remains readable, but mobile reconstructs every saved record as
+HTTP unless an app-wide development override is active. New mobile records
+store HTTP independently of a diagnostic override.
+
+Endpoint history is separate from paired server connections. The SDK exports
+`SavedBridgeUrl` (`url`, optional `label`, and `lastUsedAt` in Unix milliseconds),
+`loadSavedBridgeUrls(store)`, `saveSavedBridgeUrls(store, entries)`, and
+`SAVED_BRIDGES_STORAGE_KEY`. They use `KeyValueStore` and
+`clc_saved_bridges_v1`; removing an endpoint leaves connection credentials intact.
 
 When `serverId` and `pairingToken` are supplied, `connect()` resumes or
 validates the pairing:
@@ -70,7 +79,8 @@ validates the pairing:
 
 ## HTTP origin
 
-HTTP and hybrid accept the normal WebSocket bridge URL. The SDK:
+HTTP and hybrid accept HTTP(S) origins and existing WebSocket bridge URLs.
+The SDK:
 
 - converts `ws` to `http` and `wss` to `https`;
 - removes a trailing `/ws` or `/ws/websocket`;
@@ -120,4 +130,8 @@ await bridge.connect();
 
 HTTP and hybrid require bridge HTTP protocol version 1. `connect()` checks
 `/bridge/v1/capabilities` and fails clearly if the bridge does not advertise
-that version. Select WebSocket explicitly for an older bridge.
+that version. Missing capability routes (404/405) also report protocol
+incompatibility. Update an older bridge or explicitly select legacy WebSocket
+for diagnostics. Mobile exposes that choice in Home → Development Settings,
+where it applies to later connection construction and leaves open requests
+untouched.

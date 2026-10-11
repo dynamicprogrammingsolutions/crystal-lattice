@@ -2,6 +2,12 @@ import type { BridgeTransportMode } from '../transport/bridgeConnectionTransport
 
 export type ConnectionKind = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
 
+export interface SavedBridgeUrl {
+  url: string;
+  label?: string;
+  lastUsedAt: number;
+}
+
 export interface BaseConnectionRecord {
   id: string;
   kind: ConnectionKind;

@@ -14,6 +14,7 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
   - Lets you reconnect with a single tap instead of re-entering details or pairing codes (when the bridge still knows about the pairing)
   - Shows up to three existing cards, with a button to expand the list
   - Opens setup in a modal and keeps the current connection until new setup succeeds
+  - Remembers bridge endpoints before server pairing
 - 📡 Connect to discovered services
 - ✅ Execute GET and PUT requests
 - 🔐 Secure pairing with bridge servers
@@ -26,8 +27,9 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 - **mDNS Library**: `react-native-zeroconf`
 - **WebSocket**: Native WebSocket API with polyfills
 - **Service Type**: `_http._tcp`
-- **Bridge Protocol**: Phoenix WebSocket control with optional HTTP v1 proxy
-  transport
+- **Bridge Protocol**: HTTP v1 discovery/pairing/proxy on the frontend; Phoenix
+  WebSocket control on the registered server. Legacy frontend modes are
+  development overrides in Home → Development Settings.
 
 ## Prerequisites
 
@@ -478,17 +480,15 @@ without changing the production release manifest.
 
 2. **Start a server with bridge connection:**
    ```bash
-   cd ../server-python
-   python bonjour_server.py --bridge ws://localhost:4000/ws/websocket
+   crystal-lattice --server --console --enable-bridge \
+     --bridge-url ws://localhost:4000/ws/websocket
    ```
 
 3. **In the app:**
-   - Select "Bridge Service"
-   - Enter bridge URL (default: `ws://localhost:4000/ws/websocket`)
+   - Open Home → New connection and select "Bridge Service"
+   - Select a saved bridge, or choose Add New Bridge and enter its URL
      - For iOS device testing bridge on Mac: use Mac's IP address
      - Example: `ws://192.168.1.100:4000/ws/websocket`
-   - Select a transport. `WebSocket` is the stable default; `HTTP` and
-     `Hybrid` are experimental opt-ins.
    - Tap "Connect to Bridge"
    - Select a server from the list
    - Tap to request pairing
@@ -496,11 +496,11 @@ without changing the production release manifest.
    - Enter the code in the app
    - Tap "Submit Code"
 
-HTTP mode uses plain HTTP for pairing and all backend requests, including
-event polling. Hybrid mode uses plain HTTP for pairing and normal requests,
-while exact `GET /events` polling stays on the existing WebSocket transport.
-The selected mode is saved with the connection. Older saved connections have
-no mode field and continue to use WebSocket.
+The normal frontend uses HTTP for pairing and every backend request,
+including events. HTTPS is used for secure bridge URLs. Discovery saves the
+endpoint before pairing; existing paired connections reuse their credentials.
+Home → Development Settings provides explicit legacy WebSocket/hybrid
+diagnostics for later connection construction, independently of saved records.
 
 4. **Make requests:**
    - Once connected, tap "GET /api/data" or "PUT /api/data"

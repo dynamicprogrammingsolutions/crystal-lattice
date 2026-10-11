@@ -23,6 +23,8 @@ import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
 import { DEFAULT_MOBILE_TRANSCRIPT_RANGE } from './transcriptRange';
 import GlobalDisplayLayer from './components/GlobalDisplayLayer';
 import GlobalSettingsModal from './components/GlobalSettingsModal';
+import DevelopmentSettingsModal from './components/DevelopmentSettingsModal';
+import type { DevelopmentSettingsState } from './settings/useDevelopmentSettings';
 import ServerSettingsModal from './components/ServerSettingsModal';
 import HomeScreen from './HomeScreen';
 import { useHomeWorkspace } from './HomeWorkspaceContext';
@@ -34,6 +36,7 @@ import EmbeddedRuntimeSettingsModal from './embeddedRuntime/EmbeddedRuntimeSetti
 import type { EmbeddedRuntimePublicConfiguration } from './embeddedRuntime/embeddedPythonRuntime';
 
 interface ConnectedRootProps {
+  developmentSettings?: DevelopmentSettingsState;
   backend: AgentBackend | null;
   transport: Transport | null;
   onDisconnect: () => void;
@@ -107,6 +110,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   debugTimeline,
   onAppendDebugTimelineEntry,
   onEmbeddedSettingsChanged,
+  developmentSettings,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -116,6 +120,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResponse, setDemoResponse] = useState('');
   const [globalSettingsVisible, setGlobalSettingsVisible] = useState(false);
+  const [developmentSettingsVisible, setDevelopmentSettingsVisible] = useState(false);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
   const [embeddedSettingsVisible, setEmbeddedSettingsVisible] = useState(false);
   const [newSessionRequestToken, setNewSessionRequestToken] = useState(0);
@@ -350,6 +355,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
             sessionsCache={sessionsCache}
             statusesByConnection={statusesByConnection}
             onOpenGlobalSettings={() => setGlobalSettingsVisible(true)}
+            onOpenDevelopmentSettings={developmentSettings
+              ? () => setDevelopmentSettingsVisible(true) : undefined}
             onOpenEmbeddedSettings={
               Platform.OS === 'ios'
                 ? () => setEmbeddedSettingsVisible(true)
@@ -540,6 +547,13 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         visible={serverSettingsVisible}
         onRequestClose={() => setServerSettingsVisible(false)}
       />
+      {developmentSettings ? (
+        <DevelopmentSettingsModal
+          visible={developmentSettingsVisible}
+          onRequestClose={() => setDevelopmentSettingsVisible(false)}
+          preferences={developmentSettings}
+        />
+      ) : null}
       <EmbeddedRuntimeSettingsModal
         visible={embeddedSettingsVisible}
         onRequestClose={() => setEmbeddedSettingsVisible(false)}

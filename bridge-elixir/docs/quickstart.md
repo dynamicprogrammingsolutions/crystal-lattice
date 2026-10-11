@@ -51,11 +51,11 @@ HTTP origin cannot be derived from the WebSocket URL.
 
 In Crystal Lattice Control:
 
-1. Create a new connection.
+1. Open Home → New connection.
 2. Choose Bridge.
-3. Enter `ws://<reachable-host>:4000/ws/websocket`.
-4. Leave WebSocket selected for the compatibility path, or explicitly select
-   HTTP or Hybrid.
+3. Select a saved bridge or choose Add New Bridge and enter
+   `ws://<reachable-host>:4000/ws/websocket`.
+4. The app connects through HTTP and saves the endpoint after discovery.
 5. Select the registered server.
 6. Enter the six-digit code printed by the server process.
 
@@ -65,6 +65,10 @@ secret, and the server returns with the same `server_id`.
 
 For a physical device, use an address reachable from that device rather than
 `127.0.0.1`.
+
+Home → Development Settings exposes explicit legacy WebSocket/hybrid
+diagnostics. Changes apply to the next bridge open, preserve the saved
+authorization, and never replay an in-flight request.
 
 ## Run the two-node bridge
 

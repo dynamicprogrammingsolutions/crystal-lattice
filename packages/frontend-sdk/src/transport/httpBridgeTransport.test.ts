@@ -16,6 +16,16 @@ function jsonResponse(data: any, status = 200): Response {
 }
 
 describe('HttpBridgeTransport', () => {
+  it.each([404, 405])('explains HTTP capability incompatibility on HTTP %s without fallback', async (status) => {
+    const wsFactory = vi.fn(() => { throw new Error('Unexpected socket'); });
+    const transport = createBridgeConnectionTransport({
+      bridgeUrl: 'wss://old.test/ws/websocket',
+      fetchImpl: vi.fn(async () => jsonResponse({ error: 'not_found' }, status)),
+      wsFactory,
+    });
+    await expect(transport.connect()).rejects.toThrow('does not support HTTP transport protocol v1');
+    expect(wsFactory).not.toHaveBeenCalled();
+  });
   it('derives an HTTP origin from supported bridge URLs', () => {
     expect(deriveBridgeHttpBaseUrl('ws://bridge.test:4000/ws/websocket')).toBe(
       'http://bridge.test:4000',
@@ -172,7 +182,6 @@ describe('HttpBridgeTransport', () => {
     });
     const transport = createBridgeConnectionTransport({
       bridgeUrl: 'wss://bridge.test/ws/websocket',
-      mode: 'http',
       serverId: 'server-1',
       pairingToken: 'pairing-token',
       fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -263,13 +272,19 @@ describe('HybridBridgeTransport', () => {
     expect(httpPaths).toEqual(['/events', '/events/archive', '/sessions']);
   });
 
-  it('uses an explicit mode factory and defaults to legacy WebSocket', () => {
+  it('defaults to HTTP and retains explicit legacy constructors', () => {
     expect(
       createBridgeConnectionTransport({
         bridgeUrl: 'ws://bridge.test/ws/websocket',
         wsFactory: () => {
           throw new Error('not connected in this test');
         },
+      }),
+    ).toBeInstanceOf(HttpBridgeTransport);
+    expect(
+      createBridgeConnectionTransport({
+        bridgeUrl: 'ws://bridge.test/ws/websocket',
+        mode: 'websocket',
       }),
     ).toBeInstanceOf(BridgeTransport);
     expect(

@@ -488,6 +488,7 @@ export type {
 export { RestAgentBackend } from "./backend/restBackend";
 
 export type {
+  SavedBridgeUrl,
   ConnectionKind,
   BaseConnectionRecord,
   ManualConnectionRecord,
@@ -514,6 +515,11 @@ export {
   loadConnections,
   saveConnections,
 } from "./connections/store";
+export {
+  SAVED_BRIDGES_STORAGE_KEY,
+  loadSavedBridgeUrls,
+  saveSavedBridgeUrls,
+} from "./connections/savedBridges";
 export {
   SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
   SESSION_SCOPED_MESSAGES_CACHE_ENTRY_KEY_PREFIX,

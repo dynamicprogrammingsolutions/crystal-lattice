@@ -68,8 +68,8 @@ overwrite loaded records.
 The host supplies:
 
 - manual/discovery direct HTTP factory using mobile timeout rules;
-- bridge factory retaining saved WebSocket/HTTP/hybrid mode and pairing
-  fields;
+- bridge factory using HTTP by default or an app-wide development override,
+  retaining saved server identity and pairing fields;
 - cloud factory retaining orchestrator routing and token fields;
 - readiness functions where the shared adapter requires them;
 - redacted diagnostic callbacks.
@@ -77,8 +77,10 @@ The host supplies:
 The shared controller owns attempt authority and candidate promotion. The host
 does not set a backend or navigate directly after an unguarded await.
 
-An absent saved bridge mode remains WebSocket. No mobile lifecycle operation
-adds fallback/replay between bridge transport families.
+All historical saved bridge modes resolve to HTTP unless an explicit app-wide
+development override is active. No mobile lifecycle operation adds
+fallback/replay between bridge transport families. Preference changes affect
+later construction and do not replace an active runtime.
 
 ## Wizard attempt model
 
@@ -268,8 +270,8 @@ adapter injection rather than duplicate test-only UI.
 The host migration preserves:
 
 - existing saved connection IDs and records;
-- absent bridge mode as WebSocket;
-- explicit bridge HTTP/hybrid opt-in and no fallback;
+- HTTP product mode for new and historical bridge records;
+- explicit legacy development overrides and no fallback;
 - current backend HTTP contracts;
 - connection/session cache key identity;
 - bottom navigation;

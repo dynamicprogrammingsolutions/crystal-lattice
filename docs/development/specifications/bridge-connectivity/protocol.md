@@ -115,7 +115,7 @@ Errors use:
 
 No authentication. A compatible response identifies protocol version `1`,
 HTTP proxy support, body download/upload support, and `http`/`hybrid` modes.
-An opt-in frontend fails explicitly if version 1 is not advertised.
+An HTTP frontend fails explicitly if version 1 is not advertised.
 
 ### Discovery
 

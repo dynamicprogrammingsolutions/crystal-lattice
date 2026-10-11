@@ -16,7 +16,8 @@ card's **Open** action connects while staying on Home. The active connection
 offers Disconnect, Health Check, and server settings. Each card's **+** opens
 the connection when needed, then shows the agent picker for a new session.
 The Connections heading has just **New connection**, without an ellipsis.
-The Home menu on the left provides New connection, Global Settings, and
+The Home menu on the left provides New connection, Global Settings,
+Development Settings, and
 Local provider settings on iOS. The right-hand header area remains empty until
 login is implemented.
 
@@ -24,6 +25,28 @@ New connection opens setup in a modal. The current connection stays open
 while you configure and validate another. Closing, cancelling, or failed
 setup retains it; successful setup switches to the new connection. Bridge
 re-pairing also uses the setup modal.
+
+Choose **Bridge** in that modal to see saved bridge endpoints first. Tap an
+entry to connect and list its servers, or choose **Add New Bridge** to enter
+a bridge URL. Successful discovery saves the URL before pairing, including
+when no servers are currently available. The trash button removes that
+endpoint from the list; paired server connections and credentials remain.
+
+Normal bridge connections use HTTP, including existing saved connections.
+Existing `ws://` and `wss://` bridge URLs continue to work.
+
+## Development Settings
+
+Open **Home menu → Development Settings** for development preferences.
+The **Bridge** section offers HTTP as the product default and WebSocket or
+hybrid as explicit legacy diagnostics. Selection persists on this device and
+applies to the next bridge connection you open. Changing it leaves an already
+open connection running. **Reset bridge transport** restores HTTP and
+preserves other development settings.
+
+An older bridge that lacks HTTP protocol v1 requires an update. Development
+Settings provides the explicit legacy WebSocket option for diagnosing such a
+deployment; the app does not switch transports automatically.
 
 ## Watchlist
 

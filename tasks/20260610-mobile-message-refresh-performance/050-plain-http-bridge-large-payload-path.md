@@ -2,6 +2,12 @@
 
 Add opt-in HTTP-only and hybrid bridge transports while preserving the existing WebSocket bridge transport as the stable default. In hybrid mode, only event polling uses the existing WebSocket request path; all other frontend bridge control and backend API requests use HTTP.
 
+The original opt-in delivery below is completed historical scope. Current
+execution is the approved **HTTP-only product bridge mode** follow-up later
+in this file, which supersedes the original frontend-default rule. Mobile
+implementation and automated verification are complete; human review remains
+open. Desktop implementation follows confirmed human mobile review.
+
 ## Requirements checklist
 
 - [x] Keep the existing `BridgeTransport`, its WebSocket wire messages, and its pairing/control/event/normal-request behavior fully intact and make WebSocket-only mode the default.
@@ -644,40 +650,40 @@ approved.
 
 ### Follow-up requirements checklist
 
-- [ ] HTTP is the only bridge transport presented in the normal frontend
+- [x] HTTP is the only bridge transport presented in the normal frontend
   connection flow and is the effective default for new and existing saved
   bridge connections.
-- [ ] WebSocket and hybrid frontend transports remain implemented and
+- [x] WebSocket and hybrid frontend transports remain implemented and
   testable, but are labeled legacy development overrides rather than normal
   product connection choices.
-- [ ] A dedicated Development Settings window is available from the Home menu
+- [x] A dedicated Development Settings window is available from the Home menu
   and lets a developer select the product HTTP behavior, legacy WebSocket, or
   legacy hybrid for later bridge connection construction. The window supports
   additional independent development settings; bridge transport is its first
   setting.
-- [ ] The development override is stored separately from connection records,
+- [x] The development override is stored separately from connection records,
   applies app-wide, survives relaunch, and can be reset to the HTTP product
   default.
-- [ ] The bridge wizard in the app-owned modal opened from Home presents
+- [x] The bridge wizard in the app-owned modal opened from Home presents
   saved bridge URLs first. Selecting one immediately connects and lists
   available servers; Add New Bridge enables manual entry, and successful
   bridge discovery saves the URL for reuse without requiring server pairing.
-- [ ] Saved bridge URLs persist separately from paired server connections and
+- [x] Saved bridge URLs persist separately from paired server connections and
   development preferences, retain optional labels and last-use timestamps,
   and can be removed without deleting paired connections or their credentials.
-- [ ] Existing records with a missing, WebSocket, or hybrid `transportMode`
+- [x] Existing records with a missing, WebSocket, or hybrid `transportMode`
   reconnect through HTTP when no development override is active, while
   retaining their server identity and pairing credential.
-- [ ] Changing the development override does not replay, fall back, or mutate
+- [x] Changing the development override does not replay, fall back, or mutate
   an in-flight request and does not silently replace an already-open runtime;
   it takes effect when a bridge transport is next constructed.
-- [ ] Older bridges without HTTP protocol v1 fail with a clear compatibility
+- [x] Older bridges without HTTP protocol v1 fail with a clear compatibility
   error in normal operation, and the Development Settings window remains the
   explicit route to a legacy WebSocket diagnostic connection.
-- [ ] The shared SDK, mobile host, formal bridge specification, mobile
+- [x] The shared SDK, mobile host, formal bridge specification, mobile
   lifecycle target, and package documentation consistently describe HTTP as
   the product default and WebSocket/hybrid as development-only overrides.
-- [ ] Automated SDK, mobile component, persistence, integration, and native
+- [x] Automated SDK, mobile component, persistence, integration, and native
   tests prove the HTTP default, saved-record migration, Home-menu settings
   flow, saved/add/remove bridge URL workflow, explicit legacy diagnostics, and
   absence of automatic fallback.
@@ -820,7 +826,7 @@ developer has explicitly set a global legacy override.
 
 ## Follow-up execution plan — HTTP-only product bridge mode
 
-Status: Draft
+Status: Approved
 
 Update the formal target first, then change the SDK default and mobile host in
 small checkpoints. Preserve explicit legacy constructors throughout so every
@@ -1068,39 +1074,41 @@ bridge transport and must not submit an incomplete paired record.
 
 ### Task checklist
 
-- [ ] Confirm completion/evidence of
+- [x] Confirm completion/evidence of
   `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`
   and use its delivered Home connection modal before starting implementation.
-- [ ] Update the bridge and mobile lifecycle target specifications first.
-- [ ] Change the SDK factory default to HTTP and retain explicit legacy modes.
-- [ ] Add versioned general development preference persistence with
+- [x] Update the bridge and mobile lifecycle target specifications first.
+- [x] Change the SDK factory default to HTTP and retain explicit legacy modes.
+- [x] Add versioned general development preference persistence with
   independent field updates and a transport-scoped reset.
-- [ ] Make saved-record reconstruction default every historical record shape
+- [x] Make saved-record reconstruction default every historical record shape
   to HTTP unless a development override is active.
-- [ ] Keep new records on HTTP without persisting the diagnostic override.
-- [ ] Add/export the saved bridge URL type/store and SDK persistence tests
+- [x] Keep new records on HTTP without persisting the diagnostic override.
+- [x] Add/export the saved bridge URL type/store and SDK persistence tests
   required by the earlier saved-URL task.
-- [ ] Add the saved-first bridge picker, Add New Bridge, successful discovery
+- [x] Add the saved-first bridge picker, Add New Bridge, successful discovery
   auto-save, and independent URL removal/persistence inside the Home modal.
-- [ ] Remove transport choices from the normal bridge connection wizard.
-- [ ] Add the general Home-menu Development Settings modal with its initial
+- [x] Remove transport choices from the normal bridge connection wizard.
+- [x] Add the general Home-menu Development Settings modal with its initial
   Bridge section and transport-scoped reset.
-- [ ] Route saved-endpoint discovery, new, saved, and repair construction
+- [x] Route saved-endpoint discovery, new, saved, and repair construction
   through one effective-mode resolver.
-- [ ] Add SDK default/explicit-mode/no-fallback regression tests.
-- [ ] Add mobile preference parsing, hydration, persistence, migration, and
+- [x] Add SDK default/explicit-mode/no-fallback regression tests.
+- [x] Add mobile preference parsing, hydration, persistence, migration, and
   reconstruction tests.
-- [ ] Add Home menu/modal component tests and saved/add/remove wizard tests
+- [x] Add Home menu/modal component tests and saved/add/remove wizard tests
   through the Home connection modal, including cancellation, preference
   hydration, and saved-endpoint hydration.
-- [ ] Replace the old selector Detox scenario with focused Home development
+- [x] Replace the old selector Detox scenario with focused Home development
   settings and HTTP-only normal-wizard coverage on iOS and Android.
-- [ ] Verify saved URL selection through real discovery using the production
-  frontend bridge adapter, then update the earlier task's acceptance checklist.
-- [ ] Run the existing HTTP, WebSocket, hybrid, cluster, and bridge-restart
+- [x] Verify saved URL selection through real discovery using the production
+  frontend bridge adapter.
+- [x] Update the earlier saved-URL task's acceptance checklist after native
+  verification is complete.
+- [x] Run the existing HTTP, WebSocket, hybrid, cluster, and bridge-restart
   regression suites appropriate to the unchanged protocol boundary.
-- [ ] Update current package documentation and live requirement evidence.
-- [ ] Run documentation preparation/build and focused link checks.
+- [x] Update current package documentation and live requirement evidence.
+- [x] Run documentation preparation/build and focused link checks.
 - [ ] Provide a mobile review build and walkthrough, resolve feedback, and
   record the user's human-testing confirmation.
 - [ ] Start the desktop stage only after that confirmation is recorded.
@@ -1197,3 +1205,212 @@ bridge transport and must not submit an incomplete paired record.
 - `python docs_site/scripts/prepare_mkdocs_site.py`
 - `(cd docs_site && mkdocs build)`
 - focused relative-link/stale-default checks and `git diff --check`
+
+## Follow-up Implementation Notes
+
+- Execution approved by the user on 2026-10-07. Implementation is isolated in
+  `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/20261007-http-bridge-mobile-ux`
+  on branch `task/20261007-http-bridge-mobile-ux`, based on `develop` at
+  `768fe0f7`. The latest task drafts were copied from the main worktree;
+  unrelated main-worktree changes remain intact.
+- The Home-navigation prerequisite is complete in this baseline. Its checked
+  requirements and completion/follow-up evidence include the production HTTP
+  Detox journey, setup cancellation/failure retention, native Home/settings,
+  and bridge selection within the delivered modal.
+- Stage 1 is authorized. Stage 3 remains gated on human mobile review.
+  Short-address input remains an unresolved proposal outside implementation.
+- Implemented the HTTP SDK default, separate endpoint/development stores,
+  saved-first Home-modal bridge flow, and general Development Settings window.
+  Legacy transport implementations and Python/server wire behavior are intact.
+  Repair reuses the original connection ID for the same server and retains the
+  active connection until candidate promotion, preserving cache ownership.
+- Current automated evidence:
+  - SDK: 52 suites / 381 tests pass, including default/no-socket, legacy,
+    hybrid, endpoint storage, and 404/405 capability errors.
+  - Mobile: 61 suites / 334 tests pass; the added repair identity regression
+    also passes in the focused 9-test App bridge suite. TypeScript passes.
+  - Real mobile App integration passes through Home discovery, save before
+    pairing, pairing, relaunch/same-token reopen, and session creation after
+    selecting a legacy preference while the HTTP runtime remains open.
+  - Real SDK bridge E2E against a local production Phoenix process: 4 pass;
+    the Docker-managed restart case is intentionally skipped in external mode.
+  - Python bridge/CLI regression: 55 pass. Elixir: 63 tests, no failures,
+    4 pre-existing skips.
+  - iOS Release simulator and Android E2E builds pass in this worktree.
+    Documentation preparation/build and 17 preparation tests pass.
+- Docker-managed regression first failed before assertions because Docker's
+  filesystem rejects build leases as read-only. A local `mix run --no-halt`
+  bridge on port 4400 provides the real production API for remaining tests.
+  Docker restart/cluster verification has not been rerun.
+- The first iOS native run timed out while `simctl launch` was blocked before
+  the app's first bridge request. Task-owned processes were stopped; a fresh
+  `HTTP-Bridge-Review` simulator (`562E9666-900C-4BA0-8400-15E1C2F7962B`)
+  is being used for a focused retry. Native results remain incomplete.
+- Native retries did not complete successfully:
+  - the fresh iOS simulator also stalled in `simctl launch` before application
+    requests; task-owned automation was stopped and the device shut down;
+  - Android's initial run reported no activities, then stalled during failure
+    capture and lost its settings service;
+  - a cold, headless software-rendered Android retry reached Home but failed
+    with an Espresso window-focus error while opening Development Settings;
+  - a synchronized retry exposed System UI nonresponsiveness and an app ANR
+    blocked in the platform `WindowManager.hasNavigationBar` binder call
+    during React-root creation.
+  Native checks remain unresolved and are not counted as passing. Retrying on
+  a healthy runtime must resolve both startup and the observed modal-focus
+  failure. Global simulator/Docker service resets were not performed because
+  other existing applications/processes are outside this task.
+- The final real-bridge component integration additionally sends a message
+  through the production composer and observes an assistant response through
+  the public backend. A pending real HTTP event request remains un-aborted
+  when the development preference changes.
+- Saved opens now disconnect the previous transport only after the candidate
+  succeeds. A focused App regression proves that pending and cancelled repair
+  of another server leave the active HTTP event request intact.
+- Saved-connection details omit per-record transport labels: stored product
+  metadata cannot accurately describe an already-open diagnostic transport.
+- Root connection-lifecycle targets were also corrected to the HTTP default,
+  preventing a later shared-controller migration from restoring the retired
+  default.
+- Final mobile regression passes: 62 suites / 336 tests, including repair
+  retention, with no lingering Jest-handle warning. TypeScript and the final
+  real-bridge integration (including send/assistant response) pass. Both review
+  builds were rebuilt after the final source changes.
+- Review artifacts:
+  - `artifacts/bridge-mobile-review/CrystalLattice-HTTP-Bridge-Simulator.zip`
+    (iOS simulator application bundle, 40 MB);
+  - `artifacts/bridge-mobile-review/CrystalLattice-HTTP-Bridge-E2E.apk`
+    (Android E2E application, 77 MB).
+- Implementation is ready for continued native verification and review.
+  Native acceptance, human feedback/confirmation, and all desktop delivery
+  remain incomplete. No follow-up completion notes are recorded because those
+  gates are still open.
+
+### Verification retry — 2026-10-08
+
+- After the user's Docker restart, the Docker-backed SDK suite passes all five
+  cases, including managed bridge restart/resume. The earlier read-only build
+  failure is resolved.
+- The two-node Docker/HAProxy runner passes all three legacy scenarios and the
+  HTTP pairing/raw-transfer scenario. Its assertions prove a 1.2 MB request
+  and 900 KB response traverse both bridge nodes.
+- The production mobile App integration also passes against that two-node
+  bridge, including discovery, pairing, saved-token reopen, sending/assistant
+  response, and the retained in-flight request after preference change.
+- iOS Development Settings Detox passes on the dedicated review simulator:
+  HTTP default, explicit legacy selections, relaunch persistence, reset,
+  and the normal wizard's absence of legacy selectors.
+- The iOS real-bridge Detox journey also passes against the two-node bridge:
+  saves discovery before pairing, reuses the saved endpoint after relaunch,
+  pairs, sends through the production composer and observes the assistant
+  response, removes only endpoint history, and reopens the paired server
+  without another code. It creates both expected backend sessions.
+- Native test timing was corrected to wait for enabled controls and completed
+  alert/agent-picker transitions when synchronization is disabled. One
+  attempted wait matcher was unsupported by this Detox version and was replaced
+  by polling the documented native `enabled` attribute; TypeScript passes.
+  No product behavior, mocks, or transport shortcuts were changed.
+- The real CLI-to-bridge integration passes against the cluster. Android native
+  verification was retried through the documented emulator preparation:
+  both native suites fail before the Home entry points can be exercised.
+  The failure screenshot shows the emulator's “System UI isn't responding”
+  dialog stealing window focus; this is not counted as passing Android
+  coverage. A healthy Android runtime remains necessary for acceptance.
+- Final retry results: Docker SDK 5/5; cluster legacy 3/3 plus cross-node HTTP
+  transfer; real CLI 1/1; real mobile App integration 1/1; iOS native settings
+  1/1 and real bridge journey 1/1. TypeScript and `git diff --check` pass.
+  Product source and review binaries are unchanged; only native test waits
+  and task/specification evidence were updated.
+
+### Android verification retry — 2026-10-10
+
+- The user requested another Android check. Existing APKs were reused, and
+  the original AVD was retried with a cold boot, four CPU cores, and 3 GB RAM
+  instead of its saved one-core/2 GB profile. Instrumentation did not become
+  ready and failed before feature assertions.
+- The host had only 2.8 GB of free space. Removed generated
+  `ios/build/Build/Intermediates.noindex` and
+  `android/app/build/intermediates` from this task worktree, reclaiming about
+  5 GB. APKs, the simulator application, and review archives were preserved.
+  No unrelated source/worktree or global cache cleanup was performed.
+- Created the separate `CLC_HTTP_Bridge_20261010` AVD using the installed API
+  36.1 image, four cores, 3 GB RAM, and fresh data. The original AVD was
+  preserved. Applied the documented emulator preparation so first-run
+  immersive-mode confirmation was recorded before testing.
+- Final prepared clean-AVD run: both collected scenarios failed. Settings
+  reached Home and opened its menu; the screenshot shows the Development
+  Settings item, but Espresso failed to select a focused window while waiting
+  for that item. The real bridge journey failed to find the initial New
+  connection control after startup. Logs also report native ANRs in Android
+  Settings/content-provider access and UI automation.
+- Android acceptance remains incomplete. The run does not establish whether
+  the remaining modal-focus issue is confined to runtime/automation or exposes
+  an Android product issue; successful native verification is still required.
+  No product code or test assertions were changed in this retry.
+
+### Android blocker resolution and mobile review handoff — 2026-10-10
+
+- The user resolved the host disk constraint and authorized continuing
+  investigation with web research. The generated APKs had been removed during
+  cleanup, so rebuilt the app and instrumentation with the supported
+  `-PreactNativeArchitectures=arm64-v8a` setting.
+- Installed the API 35 plain AOSP ARM64 image and created the isolated
+  `CLC_HTTP_Bridge_AOSP35_20261010` AVD. Original/user-created AVDs were
+  preserved. Research into the AndroidX window-focus issue was a diagnostic
+  lead; the actual blocker was identified from the native failure screenshot
+  and app source.
+- The plain-image screenshot showed Android's first-run fullscreen
+  confirmation covering Home. `MainActivity.onCreate` already skips immersive
+  mode for `IS_DETOX_E2E`, but its focus callback re-enabled it. Applied the same
+  existing E2E guard to `onWindowFocusChanged`; normal builds retain their
+  existing behavior. This fixes test infrastructure without replacing UI,
+  transport, backend, or assertions.
+- Android native verification now passes in one complete command: 2 suites,
+  2 tests, successful cleanup/exit. It covers Home → Development Settings,
+  legacy selection/persistence/reset, HTTP-only normal setup, discovery saved
+  before pairing, native pairing, send/assistant response, relaunch,
+  independent endpoint removal, and saved-server reopen through the real
+  Docker bridge and Python backend.
+- Verified invocation, from the mobile package:
+  `DETOX_ANDROID_AVD=CLC_HTTP_Bridge_AOSP35_20261010 BRIDGE_E2E_MODE=external BRIDGE_E2E_URL=ws://127.0.0.1:4000/ws/websocket node_modules/.bin/detox test -c android.emu.e2e e2e/bridgeTransportMode.e2e.test.ts e2e/bridgeConnection.e2e.test.ts --device-boot-args='-no-snapshot -cores 4 -memory 3072' --cleanup`.
+- The Android review APK was refreshed with the tested ARM64 build. The iOS
+  review archive remains the previously verified build. Automated mobile
+  requirements are satisfied; this does not constitute human UX confirmation.
+- Post-fix verification: mobile TypeScript passes; all 62 component suites /
+  336 tests pass with successful exit; documentation preparation, 17 site
+  preparation tests, and MkDocs build pass with existing unrelated link
+  warnings. `git diff --check` passes. The ARM64 Android review APK is 31 MB;
+  the unchanged iOS simulator archive is 40 MB.
+
+#### Human review walkthrough
+
+Use the review builds under `artifacts/bridge-mobile-review/` with a registered
+server on an HTTP-v1-capable bridge:
+
+1. Home → New connection → Bridge. Verify the saved-first picker and Add New
+   Bridge, then discover servers. Close setup before pairing, reopen, and use
+   the saved endpoint without retyping.
+2. Pair using the server's normal six-digit code. Create/send in a session and
+   relaunch to reopen the paired server without another code.
+3. Remove the endpoint from the picker. Verify the paired server card and its
+   authorization remain available.
+4. Home menu → Development Settings. Review the general window and Bridge
+   section, legacy diagnostic labels, persistence/reset, and next-open wording.
+   Changing the setting must leave an already-open connection running.
+5. Confirm the mobile UX is acceptable, or report feedback. Desktop bridge
+   implementation remains blocked until that confirmation is recorded.
+
+### Integration before develop merge — 2026-10-11
+
+- The user requested a `--no-ff` merge into `develop`. Committed the verified
+  implementation as `d076ddf2`, then integrated `develop` at `750b0ea7`
+  in the isolated task worktree before the final target-branch merge.
+- Conflicts were limited to the earlier Draft task records. Preserved the
+  approved execution status, completed evidence, and original completion
+  notes, and removed a duplicated saved-URL reconciliation section.
+- Combined-state verification passes: SDK 381 tests, shared React Native UI
+  76 tests, mobile 63 suites / 340 tests, and mobile TypeScript. The feature
+  diff against `develop` passes whitespace checks. Incoming unrelated changes
+  were preserved without edits.
+- Merging the code does not constitute human mobile UX confirmation; desktop
+  bridge implementation remains gated as recorded above.

@@ -7,8 +7,8 @@ connection, pairing, identity, and resume lifecycle methods.
 
 `createBridgeConnectionTransport()` is the mode boundary:
 
-- absent or `websocket` returns `BridgeTransport`;
-- `http` returns `HttpBridgeTransport`;
+- absent or `http` returns `HttpBridgeTransport`;
+- explicit `websocket` returns `BridgeTransport`;
 - `hybrid` returns `HybridBridgeTransport`.
 
 Keep mode-specific behavior in those implementations. In particular, do not
@@ -65,6 +65,12 @@ logging options as a directly constructed compatibility transport.
 `BridgeConnectionRecord.transportMode` is optional. Consumers must apply the
 factory default rather than rewriting old stored records. The SDK connection
 record owns data shape; each host owns storage and reconstruction.
+
+Mobile ignores historical record modes when selecting its product transport:
+an app-wide development preference supplies a legacy override, otherwise HTTP
+is used. Its new records store HTTP and reuse existing identities/tokens.
+The SDK saved-URL store owns credential-free endpoint history independently
+of the paired connection store.
 
 ## Error and retry policy
 

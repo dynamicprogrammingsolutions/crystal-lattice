@@ -94,9 +94,10 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
   - Bridge connections:
     `createBridgeConnectionTransport({ bridgeUrl, mode, serverId, pairingToken })`
   - Backend implementation: `new RestAgentBackend({ transport })`
-- Bridge connection records keep an optional `transportMode`; absence means
-  WebSocket. HTTP and hybrid remain experimental opt-ins with no automatic
-  fallback.
+- Bridge records keep optional historical `transportMode` metadata. Mobile
+  uses HTTP for all records unless the app-wide development preference
+  explicitly selects legacy WebSocket or hybrid, with no automatic fallback.
+  Saved bridge endpoints and development settings use separate stores.
 - `App.tsx` passes the ready `backend` (and `transport` for generic health checks) into `ConnectedRoot`.
 
 **Connected navigation shell** (`src/ConnectedRoot.tsx`):
