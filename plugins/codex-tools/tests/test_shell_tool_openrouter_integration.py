@@ -3,7 +3,7 @@
 Tests the complete shell tool selection flow using:
 - Real OpenRouter provider
 - CodexVariantFeature for codex-variant tag emission
-- Shell tools (shell, shell_command, shell_legacy)
+- Shell tools (shell, shell_command, exec_command, write_stdin, shell_legacy)
 
 No real API requests are made - only config loading and plugin resolution.
 """
@@ -20,6 +20,7 @@ from openrouter_plugins.openrouter_provider import OpenRouterProvider
 from codex_tools.shell_tool import ShellArrayTool
 from codex_tools.shell_command_tool import ShellCommandTool
 from codex_tools.shell_tool_legacy import ShellTool
+from codex_tools.unified_exec_tool import ExecCommandTool, WriteStdinTool
 from codex_tools.codex_variant_feature import CodexVariantFeature
 
 
@@ -40,6 +41,8 @@ class TestShellToolSelectionWithOpenRouter:
         core.register_feature(CodexVariantFeature)
         core.register_tool(ShellArrayTool)
         core.register_tool(ShellCommandTool)
+        core.register_tool(ExecCommandTool)
+        core.register_tool(WriteStdinTool)
         core.register_tool(ShellTool)
         return core
 
@@ -60,8 +63,8 @@ class TestShellToolSelectionWithOpenRouter:
             config["force_enabled_plugins"] = force_enabled_plugins
         return config
 
-    def test_codex_model_enables_shell_command_auto_mode(self):
-        """Codex model (ends with -codex) should enable shell_command in auto mode."""
+    def test_codex_model_enables_unified_exec_auto_mode(self):
+        """Codex model (ends with -codex) should enable unified exec in auto mode."""
         core = self._create_core_with_plugins()
         config = self._make_config(model="openai/gpt-5.2-codex")
 
@@ -70,7 +73,9 @@ class TestShellToolSelectionWithOpenRouter:
 
         assert "codex-variant" in tags, "codex-variant tag should be emitted for -codex model"
         assert "shell" not in tool_names, "shell should be disabled for codex model"
-        assert "shell_command" in tool_names, "shell_command should be enabled for codex model"
+        assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode"
+        assert "exec_command" in tool_names, "exec_command should be enabled for codex model"
+        assert "write_stdin" in tool_names, "write_stdin should be enabled for codex model"
         assert "shell_legacy" not in tool_names, "shell_legacy should be disabled by default"
 
     def test_non_codex_model_enables_shell_auto_mode(self):
@@ -84,10 +89,12 @@ class TestShellToolSelectionWithOpenRouter:
         assert "codex-variant" not in tags, "codex-variant tag should not be emitted for non-codex model"
         assert "shell" in tool_names, "shell should be enabled for non-codex model"
         assert "shell_command" not in tool_names, "shell_command should be disabled for non-codex model"
+        assert "exec_command" not in tool_names, "exec_command should be disabled for non-codex model"
+        assert "write_stdin" not in tool_names, "write_stdin should be disabled for non-codex model"
 
     @pytest.mark.parametrize("model", ["openai/gpt-5.1", "openai/gpt-5.2", "openai/gpt-5.4"])
-    def test_shell_command_family_plain_models_enable_shell_command(self, model):
-        """Plain GPT-5 shell-command-family models should use shell_command."""
+    def test_shell_command_family_plain_models_enable_unified_exec(self, model):
+        """Plain GPT-5 shell-command-family models should use unified exec."""
         core = self._create_core_with_plugins()
         config = self._make_config(model=model)
 
@@ -95,11 +102,13 @@ class TestShellToolSelectionWithOpenRouter:
         tool_names = [t.name for t in tools]
 
         assert "codex-variant" in tags
-        assert "shell_command" in tool_names
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
         assert "shell" not in tool_names
+        assert "shell_command" not in tool_names
 
-    def test_gpt_5_1_codex_enables_shell_command(self):
-        """gpt-5.1-codex should enable shell_command."""
+    def test_gpt_5_1_codex_enables_unified_exec(self):
+        """gpt-5.1-codex should enable unified exec."""
         core = self._create_core_with_plugins()
         config = self._make_config(model="openai/gpt-5.1-codex")
 
@@ -107,11 +116,13 @@ class TestShellToolSelectionWithOpenRouter:
         tool_names = [t.name for t in tools]
 
         assert "codex-variant" in tags
-        assert "shell_command" in tool_names
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
         assert "shell" not in tool_names
+        assert "shell_command" not in tool_names
 
-    def test_gpt_5_3_codex_enables_shell_command(self):
-        """gpt-5.3-codex should enable shell_command."""
+    def test_gpt_5_3_codex_enables_unified_exec(self):
+        """gpt-5.3-codex should enable unified exec."""
         core = self._create_core_with_plugins()
         config = self._make_config(model="openai/gpt-5.3-codex")
 
@@ -119,8 +130,24 @@ class TestShellToolSelectionWithOpenRouter:
         tool_names = [t.name for t in tools]
 
         assert "codex-variant" in tags
-        assert "shell_command" in tool_names
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
         assert "shell" not in tool_names
+        assert "shell_command" not in tool_names
+
+    def test_gpt_6_luna_enables_unified_exec(self):
+        """Named GPT-6 variants (luna) should enable unified exec."""
+        core = self._create_core_with_plugins()
+        config = self._make_config(model="openai/gpt-6-luna")
+
+        provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
+        tool_names = [t.name for t in tools]
+
+        assert "codex-variant" in tags
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
+        assert "shell" not in tool_names
+        assert "shell_command" not in tool_names
 
     def test_shell_mode_forces_shell_for_codex_model(self):
         """shell_tool_mode='shell' should force shell even for codex model."""
@@ -136,6 +163,8 @@ class TestShellToolSelectionWithOpenRouter:
         assert "codex-variant" in tags  # Tag is still emitted
         assert "shell" in tool_names, "shell should be forced on in shell mode"
         assert "shell_command" not in tool_names, "shell_command should be off in shell mode"
+        assert "exec_command" not in tool_names, "exec_command should be off in shell mode"
+        assert "write_stdin" not in tool_names, "write_stdin should be off in shell mode"
 
     def test_shell_mode_forces_shell_for_non_codex_model(self):
         """shell_tool_mode='shell' should force shell for non-codex model."""
@@ -165,6 +194,8 @@ class TestShellToolSelectionWithOpenRouter:
         assert "codex-variant" not in tags
         assert "shell" not in tool_names, "shell should be off in shell_command mode"
         assert "shell_command" in tool_names, "shell_command should be forced on"
+        assert "exec_command" not in tool_names, "exec_command should be off in shell_command mode"
+        assert "write_stdin" not in tool_names, "write_stdin should be off in shell_command mode"
 
     def test_force_enabled_plugins_enables_both_tools(self):
         """force_enabled_plugins should enable both shell tools regardless of mode."""
@@ -207,6 +238,8 @@ class TestShellToolSelectionWithOpenRouter:
         assert "codex-variant" not in tags
         assert "shell" in tool_names
         assert "shell_command" not in tool_names
+        assert "exec_command" not in tool_names
+        assert "write_stdin" not in tool_names
 
 
 class TestCodexVariantFeature:

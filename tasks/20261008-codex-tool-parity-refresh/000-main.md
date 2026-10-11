@@ -22,15 +22,27 @@ unified exec.
   `plugins/codex-tools/reference/codex-cli-tools/` for `view_image` and the
   `apply_patch` freeform schema reflect the current upstream contract
   (owner: 010 subtask).
-- [ ] A plan exists for implementing the upstream unified exec shell tools
-  (`exec_command` + `write_stdin`) with explicit rollout and compatibility
-  decisions; implementation is tracked separately
+- [x] An `exec_command` + `write_stdin` unified exec shell surface is
+  implemented for codex agents with upstream-parity schemas, interactive
+  sessions, and explicitly decided rollout (plan approved 2026-10-10:
+  `auto` flips for shell-command family models; approval params omitted;
+  cross-request sessions)
   (owner: `tasks/20261008-codex-tool-parity-refresh/020-unified-exec-shell-tools.md`).
+- [ ] Windows support for the unified exec tools is planned and tracked
+  (native shell resolution, ConPTY, Windows schema variant)
+  (owner: `tasks/20261008-codex-tool-parity-refresh/030-windows-unified-exec-support.md`).
+- [ ] An opt-in settings plugin (separate project, not in the default
+  config) exposes `shell_tool_mode` as a per-session setting, enabling the
+  legacy `shell_command` for individual sessions without a restart; with
+  model-based selection dropped (`auto` = unified exec for every model)
+  (owner: `tasks/20261008-codex-tool-parity-refresh/040-shell-command-session-selector.md`).
 
 ## Subtasks
 
 - [x] [010-sync-view-image-apply-patch-descriptions.md](tasks/20261008-codex-tool-parity-refresh/010-sync-view-image-apply-patch-descriptions.md) — completed 2026-10-08; unit tests, full plugin suite, and both hosted-API view_image runs passed.
-- [ ] [020-unified-exec-shell-tools.md](tasks/20261008-codex-tool-parity-refresh/020-unified-exec-shell-tools.md) — unified exec shell tool implementation; planning only, `Status: Draft`.
+- [x] [020-unified-exec-shell-tools.md](tasks/20261008-codex-tool-parity-refresh/020-unified-exec-shell-tools.md) — completed 2026-10-10; unified exec implemented and verified (full plugin suite, key-gated selection suites, hosted-API round-trip on gpt-6-luna); see its Completion Notes.
+- [ ] [030-windows-unified-exec-support.md](tasks/20261008-codex-tool-parity-refresh/030-windows-unified-exec-support.md) — Windows port of the unified exec tools (ConPTY, Windows shell resolution, schema variant); planning only, `Status: Draft`; depends on 020.
+- [ ] [040-shell-command-session-selector.md](tasks/20261008-codex-tool-parity-refresh/040-shell-command-session-selector.md) — opt-in settings plugin exposing `shell_tool_mode` as a per-session setting plus dropping model-based selection; plan approved 2026-10-10 (drop model-based `auto`); execution pending; depends on 020.
 
 ## Supporting details
 
@@ -73,7 +85,9 @@ Audit findings (verified against `../codex` working tree and git history on
 
 ## Open questions
 
-- 020 (design decisions, unresolved): unified exec rollout mode naming and
-  default selection, whether `shell`/`shell_command` remain available, PTY
-  session runtime approach, and reference snapshot restructure. See the 020
-  subtask.
+- 030 (design decisions, unresolved): ConPTY runtime approach (`pywinpty`
+  vs ctypes), default Windows shell, Windows verification environment
+  availability, and `tty` fallback if ConPTY is unavailable. See the 030
+  subtask. The 020 design decisions were resolved with the user on
+  2026-10-10 (rollout option B; approval params omitted; cross-request
+  sessions via the runtime store).

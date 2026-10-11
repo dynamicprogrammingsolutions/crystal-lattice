@@ -1,5 +1,12 @@
 # `shell`
 
+**Historical:** upstream Codex CLI removed the array-based `shell` tool on
+2026-05-13 (`83decfa3`, #22246) and now ships the unified exec surface
+(`exec_command` + `write_stdin`) instead; see `../exec_command/`. This
+snapshot preserves the final pre-removal contract, which the platform still
+serves to legacy (non-shell-command-family) models under
+`shell_tool_mode: "auto"` and to any agent via `shell_tool_mode: "shell"`.
+
 ## JSON tool spec
 
 - `schema.with_request_permissions.json` corresponds to Codex runs where the `RequestPermissions` feature is enabled (it adds `additional_permissions`).

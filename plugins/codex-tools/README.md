@@ -4,6 +4,34 @@ Codex CLI-compatible tool plugin bundle. Provides shell tools and apply-patch wi
 
 ## Exposed Tools
 
+### Unified Exec (`exec_command` + `write_stdin`)
+The current upstream Codex shell surface: start a command (optionally in a
+PTY), wait up to `yield_time_ms`, and either return the finished output
+with its exit code or a `session_id` for a still-running process.
+
+- **Plugin names**: `exec_command`, `write_stdin`
+- **exec_command parameters**: `cmd` (string, required), `workdir` (string),
+  `tty` (boolean), `yield_time_ms` (number, default 10000, clamped to
+  250-30000), `max_output_tokens` (number, default 10000), `shell` (string),
+  `login` (boolean, default true)
+- **write_stdin parameters**: `session_id` (number, required), `chars`
+  (string, default empty poll; `\x03` interrupts), `yield_time_ms` (number),
+  `max_output_tokens` (number)
+- **Sessions**: Long-running commands stay interactable across tool calls
+  and requests; PTY-backed sessions accept stdin writes, pipe-backed ones
+  reject them with the upstream error text. Idle sessions are reaped after
+  `unified_exec_session_ttl_seconds` (default 900) and concurrent sessions
+  are capped at `unified_exec_max_sessions` (default 8).
+- **Models**: Shell-command GPT family (`gpt-5.1+`, `gpt-6.x`, codex
+  variants, Sol/Terra/Luna/Astra) via `auto`; any agent via
+  `shell_tool_mode: "exec_command"`
+- **Platform divergence**: Upstream approval parameters
+  (`sandbox_permissions`, `justification`, `prefix_rule`,
+  `additional_permissions`) and `environment_id` are not served (no
+  per-command sandbox, approval flow, or multi-environment concept).
+- **Windows**: Not yet supported (POSIX only); tracked in
+  `tasks/20261008-codex-tool-parity-refresh/030-windows-unified-exec-support.md`.
+
 ### Shell (Array-based)
 Execute shell commands using array-style arguments passed directly to execvp.
 
@@ -13,7 +41,9 @@ Execute shell commands using array-style arguments passed directly to execvp.
 - **Command format**: Array of strings (e.g., `["bash", "-lc", "echo hello"]`)
 - **Execution**: Direct execvp (no shell wrapper)
 - **Models**: Baseline GPT-5 shell family (`gpt-5`, `gpt-5-mini`)
-- **Selection**: Auto-selected when `codex-variant` tag is absent
+- **Selection**: Auto-selected when `codex-variant` tag is absent; forced via
+  `shell_tool_mode: "shell"`. Historical upstream tool (removed upstream
+  2026-05-13).
 
 ### Shell Command (String-based)
 Execute shell scripts using the user's default shell.
@@ -23,9 +53,9 @@ Execute shell scripts using the user's default shell.
 - **Parameters**: `command` (string, required), `workdir` (string), `timeout_ms` (number), `login` (boolean)
 - **Command format**: String script (e.g., `"echo hello"`)
 - **Execution**: Wrapped via shell (e.g., `bash -lc "echo hello"`)
-- **Models**: Codex variants plus the shell-command GPT family (`gpt-5.1`,
-  `gpt-5.2`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later)
-- **Selection**: Auto-selected when `codex-variant` tag is present
+- **Selection**: Explicit `shell_tool_mode: "shell_command"` only. Historical
+  upstream tool (removed upstream 2026-08-20); under `auto` the
+  shell-command family now selects unified exec.
 
 ### Shell Legacy
 Legacy shell tool with string-based command execution.
@@ -92,22 +122,26 @@ Tools are automatically selected based on:
 | Condition | Tool Enabled |
 |-----------|-------------|
 | `gpt-5` and `gpt-5-mini` (auto mode) | `shell` |
-| `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later GPT families (auto mode) | `shell_command` |
+| `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later GPT families (auto mode) | `exec_command` + `write_stdin` |
 | `shell_tool_mode: "shell"` | `shell` (forced) |
 | `shell_tool_mode: "shell_command"` | `shell_command` (forced) |
+| `shell_tool_mode: "exec_command"` | `exec_command` + `write_stdin` (forced) |
 
 ### Selection Logic
 
 ```
 shell_tool_mode = "auto" (default)
-├── codex-variant tag present -> shell_command enabled
+├── codex-variant tag present -> exec_command + write_stdin enabled
 └── codex-variant tag absent -> shell enabled
 
 shell_tool_mode = "shell"
-└── shell forced on, shell_command forced off
+└── shell forced on, other shell tools forced off
 
-shell_tool_mode = "shell_command"  
-└── shell_command forced on, shell forced off
+shell_tool_mode = "shell_command"
+└── shell_command forced on, other shell tools forced off
+
+shell_tool_mode = "exec_command"
+└── exec_command + write_stdin forced on, other shell tools forced off
 ```
 
 ## Configuration
@@ -140,7 +174,10 @@ shell_tool_mode = "shell_command"
 
 | Key | Level | Description |
 |-----|-------|-------------|
-| `shell_tool_mode` | Agent | Shell tool selection mode: `"auto"` (default), `"shell"`, `"shell_command"` |
+| `shell_tool_mode` | Agent | Shell tool selection mode: `"auto"` (default), `"shell"`, `"shell_command"`, `"exec_command"` |
+| `unified_exec_session_ttl_seconds` | Agent | Idle lifetime before an interactive exec session is reaped (default 900) |
+| `unified_exec_max_sessions` | Agent | Cap on concurrently registered unified exec sessions (default 8) |
+| `unified_exec_max_output_tokens` | Agent | Default per-call output token budget for unified exec tools (default 10000) |
 | `intercept_apply_patch` | Agent/Provider | When true, shell tools intercept Codex-style `apply_patch` shell invocations and route them to the internal patch runtime |
 | `enable_view_image_detail_original` | Agent | Exposes and honors `view_image.detail = "original"` by default; set to `false` to disable |
 | `view_image_max_bytes` | Agent | Maximum local image size accepted by `view_image` |
