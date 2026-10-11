@@ -1,0 +1,7 @@
+{
+  "module": "chat_operations_fixture",
+  "entries": ["chat_operations_fixture.ChatOperationsFixture"],
+  "kinds": {
+    "chat_operations_fixture.ChatOperationsFixture": "application"
+  }
+}

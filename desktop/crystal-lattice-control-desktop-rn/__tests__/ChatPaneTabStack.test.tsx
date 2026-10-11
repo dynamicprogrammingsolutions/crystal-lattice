@@ -11,6 +11,7 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const React = require('react');
 
   return {
+    ...jest.requireActual('@crystal-lattice/frontend-sdk-react'),
     ApplicationPluginsProvider: ({ children }: { children: React.ReactNode }) =>
       React.createElement(React.Fragment, null, children),
   };
@@ -158,6 +159,7 @@ function renderTabsUi(
 }
 
 describe('ChatPaneTabStack', () => {
+  const includeHiddenElements = { includeHiddenElements: true };
   it('keeps all tab labels visible while mounting only the 3 warm panes', () => {
     const screen = render(renderTabsUi(tabs[0].tabId, tabs.slice(0, 1)));
 
@@ -170,13 +172,24 @@ describe('ChatPaneTabStack', () => {
     expect(screen.getByText('Three')).toBeTruthy();
     expect(screen.getByText('Four')).toBeTruthy();
 
-    expect(screen.queryByTestId('chat-pane-session-1')).toBeNull();
-    expect(screen.getByTestId('chat-pane-session-2')).toBeTruthy();
-    expect(screen.getByTestId('chat-pane-session-3')).toBeTruthy();
+    expect(
+      screen.queryByTestId('chat-pane-session-1', includeHiddenElements),
+    ).toBeNull();
+    expect(
+      screen.getByTestId('chat-pane-session-2', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('chat-pane-session-3', includeHiddenElements),
+    ).toBeTruthy();
     expect(screen.getByTestId('chat-pane-session-4')).toBeTruthy();
+    expect(screen.queryByTestId('chat-pane-session-2')).toBeNull();
 
-    expect(screen.getByText('active:session-2:yes')).toBeTruthy();
-    expect(screen.getByText('active:session-3:yes')).toBeTruthy();
+    expect(
+      screen.getByText('active:session-2:yes', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('active:session-3:yes', includeHiddenElements),
+    ).toBeTruthy();
     expect(screen.getByText('active:session-4:yes')).toBeTruthy();
   });
 
@@ -187,18 +200,30 @@ describe('ChatPaneTabStack', () => {
     screen.rerender(renderTabsUi(tabs[2].tabId, tabs.slice(0, 3)));
     screen.rerender(renderTabsUi(tabs[3].tabId, tabs));
 
-    expect(screen.queryByTestId('chat-pane-session-1')).toBeNull();
+    expect(
+      screen.queryByTestId('chat-pane-session-1', includeHiddenElements),
+    ).toBeNull();
 
     screen.rerender(renderTabsUi(tabs[0].tabId, tabs));
 
     expect(screen.getByTestId('chat-pane-session-1')).toBeTruthy();
-    expect(screen.queryByTestId('chat-pane-session-2')).toBeNull();
-    expect(screen.getByTestId('chat-pane-session-3')).toBeTruthy();
-    expect(screen.getByTestId('chat-pane-session-4')).toBeTruthy();
+    expect(
+      screen.queryByTestId('chat-pane-session-2', includeHiddenElements),
+    ).toBeNull();
+    expect(
+      screen.getByTestId('chat-pane-session-3', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId('chat-pane-session-4', includeHiddenElements),
+    ).toBeTruthy();
 
     expect(screen.getByText('active:session-1:yes')).toBeTruthy();
-    expect(screen.getByText('active:session-3:yes')).toBeTruthy();
-    expect(screen.getByText('active:session-4:yes')).toBeTruthy();
+    expect(
+      screen.getByText('active:session-3:yes', includeHiddenElements),
+    ).toBeTruthy();
+    expect(
+      screen.getByText('active:session-4:yes', includeHiddenElements),
+    ).toBeTruthy();
     expect(screen.getByText('cache:session-1:yes')).toBeTruthy();
   });
 
@@ -230,10 +255,16 @@ describe('ChatPaneTabStack', () => {
 
     screen.rerender(renderTabsUi(tabs[2].tabId, tabs, true));
 
-    expect(screen.queryByTestId('chat-pane-session-1')).toBeNull();
-    expect(screen.getByTestId('chat-pane-session-2')).toBeTruthy();
+    expect(
+      screen.queryByTestId('chat-pane-session-1', includeHiddenElements),
+    ).toBeNull();
+    expect(
+      screen.getByTestId('chat-pane-session-2', includeHiddenElements),
+    ).toBeTruthy();
     expect(screen.getByTestId('chat-pane-session-3')).toBeTruthy();
-    expect(screen.getByTestId('chat-pane-session-4')).toBeTruthy();
+    expect(
+      screen.getByTestId('chat-pane-session-4', includeHiddenElements),
+    ).toBeTruthy();
   });
 
   it('promotes the matching preview identity before a Chat mutation', () => {

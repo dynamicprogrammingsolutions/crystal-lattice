@@ -96,3 +96,17 @@ Additional maintainer entry points:
 - `src/actions/RichConfigDropdown.tsx`
 - `src/actions/SessionListActionsBar.tsx`
 - `src/actions/SessionActionsBar.tsx`
+
+## Chat activity and editing context
+
+`ChatActivityRow` displays a single bounded row above the transcript. Hosts
+supply activity labels and optional local send-recovery callbacks. Activity
+text is limited to two lines. Recovery presents a short summary with Resend
+and Cancel; error details do not expand this row. Cancel remains available
+offline because it dismisses local recovery. The component does not execute
+requests or infer server cancellation.
+
+`ComposerEditContext` displays a single-line warning-colored canonical message
+index and Cancel edit control above the composer. Its optional identifier
+prefix supports the mobile expanded editor. Hosts own the separate edit buffer,
+ordinary draft restoration, action eligibility, and submission lifetime.

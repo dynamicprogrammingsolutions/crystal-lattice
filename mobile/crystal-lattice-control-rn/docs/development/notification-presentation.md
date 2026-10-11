@@ -32,6 +32,19 @@ Current placement:
 The Sessions header uses the shared pinnable action bar for Server settings,
 Refresh, New session, and plugin actions.
 
+Unconfirmed Chat sends use the compact top activity row, offering **Resend**
+and **Cancel**. This replaces the large panel formerly between the transcript
+and composer and avoids a blocking ordinary-send error alert. Resend retains
+the original payload and idempotency key; subsequent draft changes do not alter
+that retry. The draft is cleared after acknowledgement only if it still matches
+the retried payload.
+
+Cancel dismisses local recovery while preserving the unsent draft. It does not
+claim to cancel a request accepted by the server. Known active work retains the
+normal hard/soft cancellation controls. Recovery is not discarded solely
+because an unrelated current request is observed. The bounded row participates
+in normal layout and leaves transcript gestures available.
+
 See the shared React Native
 [notification components](../../../../packages/frontend-rn-components/docs/development/notification-components.md),
 the frontend SDK

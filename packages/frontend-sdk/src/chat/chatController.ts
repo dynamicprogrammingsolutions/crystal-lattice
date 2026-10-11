@@ -123,6 +123,10 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   private autoReloadInFlight = false;
   private cursorExpiryRecoveryInFlight = false;
   private lastLoadRange: { start?: number; end?: number } = {};
+  private requestRevision = 0;
+  private submissionRevision = 0;
+  private completedRequestIds = new Set<string>();
+  private disposed = false;
 
   constructor(options: {
     backend: AgentBackend;
@@ -163,7 +167,13 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.stopEventStreaming();
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.disposed = false;
+    return super.subscribe(listener);
   }
 
   setEventsListener(listener: ((events: Event[]) => void) | null): void {
@@ -214,7 +224,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
       dirty: false,
       dirtyReason: null,
       updatedAtMs: options.updatedAtMs ?? current.updatedAtMs,
-      activeRequestId: options.activeRequestId ?? current.activeRequestId,
+      activeRequestId: options.activeRequestId === undefined
+        ? current.activeRequestId
+        : options.activeRequestId,
       requestError: null,
       streamingRow: null,
     });
@@ -275,6 +287,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     this.beginEpoch();
     const range = this.getSnapshot().historyRange ?? this.lastLoadRange;
     await this.reloadMessages(range, { bumpEpoch: false });
+    await this.reconcileActiveRequest();
   }
 
   async recoverAfterCursorExpiry(): Promise<void> {
@@ -287,6 +300,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     const range = this.getSnapshot().historyRange ?? this.lastLoadRange;
     try {
       await this.reloadMessages(range, { bumpEpoch: false });
+      await this.reconcileActiveRequest();
     } catch (err) {
       this.setSnapshot({
         ...this.getSnapshot(),
@@ -298,7 +312,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     }
   }
 
-  private restartEventStreamingFromNullCursor(): void {
+  private async restartEventStreamingFromNullCursor(): Promise<void> {
+    await this.reconcileActiveRequest();
+    if (this.disposed) return;
     const current = this.getSnapshot();
     this.setSnapshot({
       ...current,
@@ -316,7 +332,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
       current.eventsCursorId === current.listCursorEventId;
 
     if (expiredSnapshotCursor) {
-      this.restartEventStreamingFromNullCursor();
+      void this.restartEventStreamingFromNullCursor();
       return;
     }
 
@@ -365,31 +381,57 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     idempotencyKey?: string;
   }): Promise<void> {
     this.beginEpoch();
+    const submission = ++this.submissionRevision;
+    this.requestRevision += 1;
     const response = await this.backend.sendMessage(this.sessionId, params);
-
-    const requestId = response?.request_id;
-    if (typeof requestId === 'string' && requestId.trim()) {
-      const current = this.getSnapshot();
-      this.setSnapshot({
-        ...current,
-        activeRequestId: requestId,
-      });
-    }
+    await this.acknowledgeRequest(response?.request_id, submission);
   }
 
   async send(
     params: { configOverrides?: Record<string, any>; idempotencyKey?: string } = {},
   ): Promise<void> {
     this.beginEpoch();
+    const submission = ++this.submissionRevision;
+    this.requestRevision += 1;
     const response = await this.backend.send(this.sessionId, params);
+    await this.acknowledgeRequest(response?.request_id, submission);
+  }
 
-    const requestId = response?.request_id;
-    if (typeof requestId === 'string' && requestId.trim()) {
+  private async acknowledgeRequest(requestId: unknown, submission: number): Promise<void> {
+    if (
+      this.disposed ||
+      submission !== this.submissionRevision ||
+      typeof requestId !== 'string' ||
+      !requestId.trim() ||
+      this.completedRequestIds.has(requestId)
+    ) return;
+    const current = this.getSnapshot();
+    this.requestRevision += 1;
+    this.setSnapshot({ ...current, activeRequestId: requestId });
+    await this.reconcileActiveRequest();
+  }
+
+  private async reconcileActiveRequest(): Promise<void> {
+    if (this.disposed || !this.backend.getSessionRequestStatuses || this.getSnapshot().readonly) return;
+    const revision = this.requestRevision;
+    try {
+      const response = await this.backend.getSessionRequestStatuses([this.sessionId]);
+      if (this.disposed || revision !== this.requestRevision) return;
+      const status = response?.statuses?.find(entry => entry.session_id === this.sessionId);
+      if (!status) return;
+      const activeRequestId = status.state === 'running' ? status.request_id : null;
       const current = this.getSnapshot();
+      if (activeRequestId === current.activeRequestId) return;
+      this.requestRevision += 1;
       this.setSnapshot({
         ...current,
-        activeRequestId: requestId,
+        activeRequestId,
+        streamingRow: current.streamingRow?.requestId === activeRequestId
+          ? current.streamingRow
+          : null,
       });
+    } catch {
+      return;
     }
   }
 
@@ -438,6 +480,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
 
     const source = new PollingEventSource(this.backend);
     this.eventSource = source;
+    if (options.initialSinceId == null) {
+      void this.reconcileActiveRequest();
+    }
     source.start({
       sessionId: this.sessionId,
       initialSinceId: options.initialSinceId,
@@ -483,6 +528,20 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     const applyHistory = next.followTail;
 
     for (const ev of relevant) {
+      if (
+        ev.type === 'request_started' ||
+        ev.type === 'request_completed' ||
+        ev.type === 'request_cancelled' ||
+        ev.type === 'error'
+      ) {
+        this.requestRevision += 1;
+        if (ev.type !== 'request_started' && typeof ev.request_id === 'string') {
+          this.completedRequestIds.add(ev.request_id);
+          if (this.completedRequestIds.size > 100) {
+            this.completedRequestIds.delete(this.completedRequestIds.values().next().value!);
+          }
+        }
+      }
       if (!next.dirty && applyHistory) {
         const history = reduceMessageHistoryWithOptions(next.messages, ev, {
           maxMessages: next.maxMessages,
@@ -586,6 +645,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     });
 
     try {
+      const revision = this.requestRevision;
       const {
         messages,
         cursorEventId,
@@ -594,6 +654,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         snapshotId,
       } = await this.backend.listMessages(this.sessionId, range);
 
+      if (this.disposed) return;
       const windowed = trimTail(messages, maxMessages);
       this.setSnapshot({
         ...this.getSnapshot(),
@@ -604,7 +665,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         dirty: false,
         dirtyReason: null,
         updatedAtMs: Date.now(),
-        activeRequestId,
+        activeRequestId: revision === this.requestRevision
+          ? (activeRequestId && this.completedRequestIds.has(activeRequestId) ? null : activeRequestId)
+          : this.getSnapshot().activeRequestId,
         readonly: readonly === true,
         snapshotId: snapshotId ?? null,
         requestError: null,

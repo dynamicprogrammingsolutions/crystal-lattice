@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -90,11 +89,6 @@ export interface MessageBubbleProps {
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
   onChangePinnedForRole?: (role: string, pinned: MessageActionKey[]) => void;
   allowedActions?: MessageActionKey[];
-  isEditing?: boolean;
-  editingText?: string;
-  onChangeEditingText?: (text: string) => void;
-  onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
-  onCancelEdit?: () => void;
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
   pluginActionDefs?: MessageActionDefinition[];
@@ -109,11 +103,6 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   onAction,
   onChangePinnedForRole,
   allowedActions,
-  isEditing,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -137,42 +126,6 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.userBubble]}>
-          <Text
-            style={[
-              styles.headerText,
-              styles.userHeaderText,
-              styles.standaloneHeaderText,
-            ]}
-          >{`[${index}] User`}</Text>
-          <TextInput
-            style={[styles.editInput, styles.editInputOnBlue]}
-            value={editingText ?? ''}
-            onChangeText={onChangeEditingText}
-            multiline
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View
@@ -240,11 +193,6 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   onAction,
   onChangePinnedForRole,
   allowedActions,
-  isEditing,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -272,36 +220,6 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] System`}</Text>
-          <TextInput
-            style={styles.editInput}
-            value={editingText ?? ''}
-            onChangeText={onChangeEditingText}
-            multiline
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View
@@ -517,11 +435,6 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   onAction,
   onChangePinnedForRole,
   allowedActions,
-  isEditing,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -595,38 +508,6 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
       Alert.alert('Unable to open link', url);
     }
   };
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble]}>
-          <View style={styles.headerRow}>
-            <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
-          </View>
-          <TextInput
-            style={styles.editInput}
-            value={editingText ?? ''}
-            onChangeText={onChangeEditingText}
-            multiline
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View
@@ -889,11 +770,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onAction,
   onChangePinnedForRole,
   allowedActions,
-  isEditing,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -915,11 +791,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         allowedActions={allowedActions}
-        isEditing={isEditing}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -937,11 +808,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         allowedActions={allowedActions}
-        isEditing={isEditing}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -976,11 +842,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onAction={onAction}
         onChangePinnedForRole={onChangePinnedForRole}
         allowedActions={allowedActions}
-        isEditing={isEditing}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}

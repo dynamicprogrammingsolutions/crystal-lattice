@@ -328,6 +328,7 @@ export function SessionTabs({
         />
       </Pressable>
       <ScrollView
+        testID="desktop-session-tabs-scroll"
         ref={scrollRef}
         horizontal
         scrollEnabled={!activeDrag}

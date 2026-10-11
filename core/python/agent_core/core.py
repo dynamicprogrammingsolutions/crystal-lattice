@@ -511,6 +511,8 @@ class AgentCore:
             "content": content,
             "metadata": dict(target_dict.get("metadata") or {}),
         }
+        if "multipartContent" in target_dict:
+            core_msg["multipartContent"] = target_dict["multipartContent"]
 
         native_suffix = self._core_messages_to_native_for_config(
             [core_msg], config or {}, context=context
@@ -802,9 +804,10 @@ class AgentCore:
         """Modify message content and return an updated session.
 
         Only `system`, `user`, and `assistant` messages are supported. The
-        message role and metadata remain unchanged. When provider-native
-        history is present and safely mappable via `native_indices`, the
-        corresponding native messages are updated. Otherwise, native history
+        message role, metadata, and multipart content remain unchanged. When
+        provider-native history is present and safely mappable via
+        `native_indices`, the corresponding native messages are updated.
+        Otherwise, native history
         is dropped and will be reconstructed on the next request.
 
         Args:

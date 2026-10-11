@@ -13,6 +13,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -23,6 +24,8 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
+  ChatActivityRow,
+  ComposerEditContext,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
   RichConfigDropdownControl,
@@ -58,6 +61,7 @@ import {
   deriveSessionListPresentationFromGroups,
   emitDisplayPresentation,
   filterFooterElements,
+  generateIdempotencyKey,
   getDefaultPinnedConfigRichUiKeys,
   groupSessionListFields,
   isSessionActionPlacedAt,
@@ -98,6 +102,8 @@ import {
   useSessionSettingsController,
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
+  useSessionChatWorkspace,
+  type PendingChatRequest,
 } from '@crystal-lattice/frontend-sdk-react';
 import {
   MacTextView,
@@ -569,6 +575,23 @@ export const ChatPane = React.memo(function ChatPane({
 }: ChatPaneProps): React.JSX.Element {
   const theme = useTheme();
   const {
+    state: workspaceState,
+    update: updateWorkspace,
+    get: getWorkspace,
+    runAction,
+  } = useSessionChatWorkspace(connectionId, sessionId);
+  const editingIndex = workspaceState.edit?.index ?? null;
+  const runningHeaderActionIds = useMemo(() => new Set(
+    Object.keys(workspaceState.actions)
+      .map(key => JSON.parse(key) as [string, string, string, number | null])
+      .filter(entry => entry[2] === sessionId && entry[3] == null)
+      .map(entry => entry[1]),
+  ), [sessionId, workspaceState.actions]);
+  const sendInFlight = workspaceState.submitting;
+  const setSendInFlight = useCallback((submitting: boolean) => {
+    updateWorkspace(current => ({ ...current, submitting }));
+  }, [updateWorkspace]);
+  const {
     recordActivity: recordHumanTimeActivity,
     splitForComposedMessage: splitHumanTimeForComposedMessage,
   } = useDesktopHumanTimeTelemetry();
@@ -584,6 +607,8 @@ export const ChatPane = React.memo(function ChatPane({
     () => createStyles(theme, styleVariant),
     [theme, styleVariant],
   );
+  const [paneHeight, setPaneHeight] = useState(0);
+  const compactLayout = paneHeight > 0 && paneHeight < 650;
   const sessionBaseActions = useMemo(
     () => [
       ...BUILTIN_SESSION_ACTIONS,
@@ -600,9 +625,6 @@ export const ChatPane = React.memo(function ChatPane({
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
     Record<number, 'markdown' | 'raw'>
   >({});
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const [editingInitialText, setEditingInitialText] = useState('');
   const [pinnedMessageActionsByRole, setPinnedMessageActionsByRole] = useState<
     Record<string, MessageActionKey[]>
   >({});
@@ -617,7 +639,6 @@ export const ChatPane = React.memo(function ChatPane({
   const didHydrateRangeFromCacheRef = useRef(false);
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
-  const [sendInFlight, setSendInFlight] = useState(false);
   const [appendInFlight, setAppendInFlight] = useState(false);
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const reloadInFlightRef = useRef(false);
@@ -626,7 +647,6 @@ export const ChatPane = React.memo(function ChatPane({
   const [softCancelledRequestId, setSoftCancelledRequestId] = useState<
     string | null
   >(null);
-  const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<
     ActionDisplayEntry[]
   >([]);
@@ -1064,12 +1084,30 @@ export const ChatPane = React.memo(function ChatPane({
       return rows;
     }, [composerAttachmentElements]);
 
-  const [attachmentsAbove, setAttachmentsAbove] = useState<
-    ComposerAttachmentDraft[]
-  >([]);
-  const [attachmentsBelow, setAttachmentsBelow] = useState<
-    ComposerAttachmentDraft[]
-  >([]);
+  const attachmentsAbove = workspaceState.attachmentDrafts.above as ComposerAttachmentDraft[];
+  const attachmentsBelow = workspaceState.attachmentDrafts.below as ComposerAttachmentDraft[];
+  const setAttachmentsAbove = useCallback((next: React.SetStateAction<ComposerAttachmentDraft[]>) => {
+    updateWorkspace(current => ({
+      ...current,
+      attachmentDrafts: {
+        ...current.attachmentDrafts,
+        above: typeof next === 'function'
+          ? next(current.attachmentDrafts.above as ComposerAttachmentDraft[])
+          : next,
+      },
+    }));
+  }, [updateWorkspace]);
+  const setAttachmentsBelow = useCallback((next: React.SetStateAction<ComposerAttachmentDraft[]>) => {
+    updateWorkspace(current => ({
+      ...current,
+      attachmentDrafts: {
+        ...current.attachmentDrafts,
+        below: typeof next === 'function'
+          ? next(current.attachmentDrafts.below as ComposerAttachmentDraft[])
+          : next,
+      },
+    }));
+  }, [updateWorkspace]);
   const [attachmentsAboveExpanded, setAttachmentsAboveExpanded] =
     useState(false);
   const [attachmentsBelowExpanded, setAttachmentsBelowExpanded] =
@@ -1524,6 +1562,17 @@ export const ChatPane = React.memo(function ChatPane({
     return chatState?.messages ?? cachedEntry?.messages ?? [];
   }, [chatState?.messages, cachedEntry?.messages]);
 
+  useEffect(() => {
+    if (!isVisible || !chatController) return;
+    const snapshot = chatController.getSnapshot();
+    if (snapshot.messages.length === 0 && snapshot.eventsCursorId == null) return;
+    let cancelled = false;
+    void chatController.recoverAfterResume().catch((error: Error) => {
+      if (!cancelled) setLoadError(error.message);
+    });
+    return () => { cancelled = true; };
+  }, [chatController, isVisible]);
+
   const messagesForCacheRef = useRef<IndexedMessage[]>(messages);
   useEffect(() => {
     messagesForCacheRef.current = messages;
@@ -1545,8 +1594,13 @@ export const ChatPane = React.memo(function ChatPane({
     cachedComposeText: cachedEntry?.composeText,
     getMessagesForCache,
     onUpdateCache,
-    composerRef,
+    composerRef: editingIndex == null ? composerRef : undefined,
   });
+
+  useEffect(() => {
+    composerRef.current?.setText(getWorkspace().edit?.text ?? composeTextRef.current);
+    if (editingIndex != null) composerRef.current?.focus();
+  }, [editingIndex, getWorkspace, composeTextRef]);
 
   const streamingRow = chatState?.streamingRow ?? null;
   const bottomContentRevisionRef = useRef(0);
@@ -1674,14 +1728,18 @@ export const ChatPane = React.memo(function ChatPane({
     chatController != null &&
     isActive &&
     !sendInFlight &&
+    !workspaceState.recovery &&
     !chatState?.activeRequestId &&
     !attachmentActionInProgress &&
     !unresolvedAttachmentDraft &&
     !selectedSnapshotId;
 
   const canSendNow =
-    canSend && (composeText.trim().length > 0 || hasAttachments);
-  const requestInProgress = sendInFlight || Boolean(chatState?.activeRequestId);
+    editingIndex != null
+      ? backend != null && chatController != null && !selectedSnapshotId &&
+        !workspaceState.modifying && !!workspaceState.edit?.text.trim()
+      : canSend && (composeText.trim().length > 0 || hasAttachments);
+  const requestInProgress = sendInFlight || workspaceState.modifying || Boolean(chatState?.activeRequestId);
 
   const buildMultipartContentPayload = useCallback(() => {
     const mapDraft = (d: ComposerAttachmentDraft) => ({
@@ -2118,7 +2176,8 @@ export const ChatPane = React.memo(function ChatPane({
 
   const handleSend = useCallback(
     async (overrideText?: string) => {
-      if (!canSendNow) {
+      if (!canSendNow || !chatController || getWorkspace().edit ||
+          getWorkspace().submitting || getWorkspace().recovery) {
         if (unresolvedAttachmentDraft) {
           Alert.alert(
             'Attachment not ready',
@@ -2137,6 +2196,13 @@ export const ChatPane = React.memo(function ChatPane({
       }
 
       const content = trimmed.length > 0 ? trimmed : '';
+      const submission: PendingChatRequest = {
+        kind: 'send_message',
+        message: { role: 'user', content, multipartContent },
+        idempotencyKey: generateIdempotencyKey(),
+        requestedAtMs: Date.now(),
+        errorMessage: '',
+      };
 
       onBeforeSessionMutation?.();
       setSendInFlight(true);
@@ -2144,11 +2210,7 @@ export const ChatPane = React.memo(function ChatPane({
         await runComposedMessageSubmission(
           splitSessionForComposedMessage,
           () =>
-            sendComposerMessageAtomically(chatController, {
-              role: 'user',
-              content,
-              multipartContent,
-            }),
+            sendComposerMessageAtomically(chatController, submission.message, submission.idempotencyKey),
         );
         setComposeText('');
         composerRef.current?.setText('');
@@ -2159,7 +2221,10 @@ export const ChatPane = React.memo(function ChatPane({
           typeof err?.message === 'string' && err.message
             ? err.message
             : 'Failed to send message.';
-        Alert.alert('Failed to send', message);
+        updateWorkspace(current => ({
+          ...current,
+          recovery: { ...submission, errorMessage: message },
+        }));
       } finally {
         setSendInFlight(false);
       }
@@ -2171,10 +2236,13 @@ export const ChatPane = React.memo(function ChatPane({
       clearComposerAttachments,
       composeText,
       composeTextRef,
+      getWorkspace,
       setComposeText,
       unresolvedAttachmentDraft,
       onBeforeSessionMutation,
       splitSessionForComposedMessage,
+      setSendInFlight,
+      updateWorkspace,
     ],
   );
 
@@ -2186,11 +2254,13 @@ export const ChatPane = React.memo(function ChatPane({
 
   const canOpenAttachmentPlus =
     canRunComposerActions &&
+    editingIndex == null &&
     composerAttachmentPlusRows.length > 0 &&
     !attachmentActionInProgress;
 
   const appendMessageForRole = useCallback(
     async (role: AppendAsRole) => {
+      if (getWorkspace().edit) return;
       const raw = composeTextRef.current || composeText;
       const content = String(raw ?? '').trim();
       const multipartContent = buildMultipartContentPayload();
@@ -2326,19 +2396,25 @@ export const ChatPane = React.memo(function ChatPane({
       Alert.alert('Offline', 'Connect to a server to resend.');
       return;
     }
-    if (sendInFlight || chatState?.activeRequestId) {
+    if (getWorkspace().submitting || getWorkspace().edit || getWorkspace().recovery || chatState?.activeRequestId) {
       return;
     }
 
     onBeforeSessionMutation?.();
     setSendInFlight(true);
+    const submission: PendingChatRequest = {
+      kind: 'send',
+      idempotencyKey: generateIdempotencyKey(),
+      requestedAtMs: Date.now(),
+      errorMessage: '',
+    };
     try {
       chatController.clearRequestState();
-      await chatController.send();
+      await chatController.send({ idempotencyKey: submission.idempotencyKey });
       composerRef.current?.focus();
     } catch (err: any) {
       const message = err?.message || 'Failed to resend request.';
-      Alert.alert('Failed to resend', message);
+      updateWorkspace(current => ({ ...current, recovery: { ...submission, errorMessage: message } }));
     } finally {
       setSendInFlight(false);
     }
@@ -2348,7 +2424,44 @@ export const ChatPane = React.memo(function ChatPane({
     chatState?.activeRequestId,
     onBeforeSessionMutation,
     sendInFlight,
+    getWorkspace,
+    setSendInFlight,
+    updateWorkspace,
   ]);
+
+  const handleRetryPendingRequest = useCallback(async () => {
+    const pending = getWorkspace().recovery;
+    if (!pending || !chatController || getWorkspace().submitting || getWorkspace().edit) return;
+    setSendInFlight(true);
+    try {
+      chatController.clearRequestState();
+      if (pending.kind === 'send_message') {
+        await chatController.sendMessage({
+          message: pending.message,
+          idempotencyKey: pending.idempotencyKey,
+          configOverrides: pending.configOverrides,
+        });
+        if (
+          composeTextRef.current.trim() === pending.message.content &&
+          JSON.stringify(buildMultipartContentPayload()) === JSON.stringify(pending.message.multipartContent ?? [])
+        ) {
+          setComposeText('');
+          composerRef.current?.setText('');
+          clearComposerAttachments();
+        }
+      } else {
+        await chatController.send({ idempotencyKey: pending.idempotencyKey, configOverrides: pending.configOverrides });
+      }
+      updateWorkspace(current => ({ ...current, recovery: null }));
+    } catch (error: any) {
+      updateWorkspace(current => ({
+        ...current,
+        recovery: { ...pending, errorMessage: error?.message || 'Resend failed.' },
+      }));
+    } finally {
+      setSendInFlight(false);
+    }
+  }, [buildMultipartContentPayload, chatController, clearComposerAttachments, composeTextRef, getWorkspace, setComposeText, setSendInFlight, updateWorkspace]);
 
   const handleCancel = useCallback(async () => {
     if (!canRunComposerActions) {
@@ -2822,8 +2935,10 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
-      setPluginActionRunning(true);
-      try {
+      await runAction(
+        JSON.stringify([element.plugin, element.id, context.sessionId, context.messageContext?.index]),
+        `Running ${element.label}…`,
+        async () => {
         const { ok, effects, display, errorMessage } =
           await runApplicationAction({
             backend,
@@ -2874,9 +2989,8 @@ export const ChatPane = React.memo(function ChatPane({
         if (normalizedDisplay) {
           presentActionDisplay(normalizedDisplay, context);
         }
-      } finally {
-        setPluginActionRunning(false);
-      }
+        },
+      );
     },
     [
       actionsById,
@@ -2885,6 +2999,7 @@ export const ChatPane = React.memo(function ChatPane({
       handleReload,
       onOpenSessionTab,
       presentActionDisplay,
+      runAction,
       sessionId,
     ],
   );
@@ -3782,11 +3897,12 @@ export const ChatPane = React.memo(function ChatPane({
       }
       const content =
         typeof message.content === 'string' ? message.content : '';
-      setEditingIndex(index);
-      setEditingText(content);
-      setEditingInitialText(content);
+      if (getWorkspace().modifying || selectedSnapshotId) return;
+      updateWorkspace(current => ({ ...current, edit: { index, text: content } }));
+      composerRef.current?.setText(content);
+      composerRef.current?.focus();
     },
-    [],
+    [getWorkspace, selectedSnapshotId, updateWorkspace],
   );
 
   const handleSubmitEditMessage = useCallback(
@@ -3802,25 +3918,30 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
+      const edit = getWorkspace().edit;
+      if (!edit || edit.index !== index || getWorkspace().modifying) return;
+      updateWorkspace(current => ({ ...current, modifying: true }));
       try {
         onBeforeSessionMutation?.();
         await chatController.modifyMessage(index, trimmed);
-        setEditingIndex(null);
-        setEditingText('');
-        setEditingInitialText('');
+        await chatController.loadMessages();
+        updateWorkspace(current => ({ ...current, edit: null }));
+        composerRef.current?.setText(composeTextRef.current);
       } catch (err: any) {
         const message = err?.message || 'Failed to modify message.';
         Alert.alert('Error', message);
+      } finally {
+        updateWorkspace(current => ({ ...current, modifying: false }));
       }
     },
-    [backend, chatController, onBeforeSessionMutation],
+    [backend, chatController, composeTextRef, getWorkspace, onBeforeSessionMutation, updateWorkspace],
   );
 
   const handleCancelEditMessage = useCallback(() => {
-    setEditingIndex(null);
-    setEditingText('');
-    setEditingInitialText('');
-  }, []);
+    if (getWorkspace().modifying) return;
+    updateWorkspace(current => ({ ...current, edit: null }));
+    composerRef.current?.setText(composeTextRef.current);
+  }, [composeTextRef, getWorkspace, updateWorkspace]);
 
   const handleMessageAction = useCallback(
     async (action: MessageActionKey, index: number, message: any) => {
@@ -3976,7 +4097,6 @@ export const ChatPane = React.memo(function ChatPane({
       const allowedActions = ALL_MESSAGE_ACTIONS.filter(def =>
         def.allowedRoles.includes(role),
       ).map(def => def.key as MessageActionKey);
-      const isEditing = editingIndex === msg.index;
       const defaultModeForRole: 'markdown' | 'raw' =
         role === 'assistant' ? 'markdown' : 'raw';
       const renderMode =
@@ -3995,14 +4115,6 @@ export const ChatPane = React.memo(function ChatPane({
             onAction={(action, index, message) =>
               handleMessageAction(action, index, message)
             }
-            isEditing={isEditing}
-            editingInitialText={isEditing ? editingInitialText : undefined}
-            editingText={isEditing ? editingText : undefined}
-            onChangeEditingText={isEditing ? setEditingText : undefined}
-            onSubmitEdit={(index, _message, nextText) =>
-              handleSubmitEditMessage(index, nextText)
-            }
-            onCancelEdit={handleCancelEditMessage}
             renderMode={renderMode}
             footerElements={footerElements}
             pluginActionDefs={pluginMessageActionDefs}
@@ -4011,9 +4123,6 @@ export const ChatPane = React.memo(function ChatPane({
       );
     },
     [
-      editingIndex,
-      editingInitialText,
-      editingText,
       footerElements,
       handleCancelEditMessage,
       handleMessageAction,
@@ -4048,20 +4157,13 @@ export const ChatPane = React.memo(function ChatPane({
         role === 'assistant' ? 'markdown' : 'raw';
       const renderMode =
         messageViewModeByIndex[msg.index] ?? defaultModeForRole;
-      const isEditing = msg.index === editingIndex;
       return [
         renderMode,
         footerElements,
-        isEditing,
-        isEditing ? editingInitialText : null,
-        isEditing ? editingText : null,
       ];
     },
     [
       activeDisplayActionId,
-      editingIndex,
-      editingInitialText,
-      editingText,
       footerElements,
       inlineActionDisplays,
       messageViewModeByIndex,
@@ -4137,18 +4239,28 @@ export const ChatPane = React.memo(function ChatPane({
     ) : null;
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
+    <View
+      style={styles.root}
+      onLayout={event => setPaneHeight(event.nativeEvent.layout.height)}
+    >
+      <View
+        testID="chat-header"
+        accessible
+        accessibilityRole="summary"
+        accessibilityLabel="Session"
+        collapsable={false}
+        style={[styles.header, compactLayout && styles.compactHeader]}
+      >
         <View style={styles.headerLeft}>
           <Text
             style={styles.title}
-            numberOfLines={2}
+            numberOfLines={compactLayout ? 1 : 2}
             selectable
             testID="chat-header-title"
           >
             {displayTitle}
           </Text>
-          <View style={styles.metaRow}>
+          <View style={[styles.metaRow, compactLayout && styles.compactMetaRow]}>
             <Text style={styles.metaText} numberOfLines={1}>
               {connectionName}
             </Text>
@@ -4180,7 +4292,7 @@ export const ChatPane = React.memo(function ChatPane({
           </View>
           <Text
             style={styles.subtitle}
-            numberOfLines={2}
+            numberOfLines={compactLayout ? 1 : 2}
             selectable
             testID="chat-header-subtitle"
           >
@@ -4207,9 +4319,7 @@ export const ChatPane = React.memo(function ChatPane({
               if (isLocalSessionActionKey(String(key))) {
                 return !localActionsEnabled;
               }
-              if (pluginActionRunning) {
-                return true;
-              }
+              if (runningHeaderActionIds.has(String(key))) return true;
               if (!canRunHeaderActions) {
                 return true;
               }
@@ -4245,30 +4355,37 @@ export const ChatPane = React.memo(function ChatPane({
         </View>
       </View>
 
-      <DesktopConnectionDisplayRail />
-      {sessionDisplayRail}
+      <ScrollView
+        testID="chat-notification-rail"
+        style={[
+          styles.notificationRail,
+          { maxHeight: compactLayout ? paneHeight * 0.12 : 180 },
+        ]}
+      >
+        <DesktopConnectionDisplayRail />
+        {sessionDisplayRail}
+      </ScrollView>
+      <ChatActivityRow
+        recovery={workspaceState.recovery && !sendInFlight ? {
+          onResend: () => { void handleRetryPendingRequest(); },
+          onCancel: () => updateWorkspace(current => ({ ...current, recovery: null })),
+          disabled: !backend || workspaceState.edit != null,
+        } : null}
+        activities={[
+        ...(workspaceState.modifying ? [`Saving message [${editingIndex}]…`] : []),
+        ...(sendInFlight ? ['Sending…'] : chatState?.activeRequestId ? ['Generating response…'] : []),
+        ...Object.values(workspaceState.actions),
+        ...(chatState?.loading && !workspaceState.modifying ? ['Loading messages…'] : []),
+        ...(attachmentActionInProgress ? [attachmentActionText] : []),
+      ]} />
 
-      <View style={styles.body}>
+      <View style={[styles.body, compactLayout && styles.compactBody]}>
         <View style={styles.statusRow}>
           <Text style={styles.hintSecondary}>Messages: {messagesCount}</Text>
           <Text style={styles.hintSecondary}>
             Streaming: {chatController?.isEventStreaming() ? 'on' : 'off'}
           </Text>
         </View>
-
-        {chatState?.loading ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={theme.textSecondary} />
-            <Text style={styles.hintSecondary}>Loading…</Text>
-          </View>
-        ) : null}
-
-        {attachmentActionInProgress ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={theme.textSecondary} />
-            <Text style={styles.hintSecondary}>{attachmentActionText}</Text>
-          </View>
-        ) : null}
 
         {loadError ? (
           <View style={styles.errorRow}>
@@ -4300,7 +4417,17 @@ export const ChatPane = React.memo(function ChatPane({
           />
         ) : null}
 
-        <View style={styles.transcriptFrame}>
+        <View
+          testID="chat-transcript-viewport"
+          accessible
+          accessibilityRole="summary"
+          accessibilityLabel="Messages"
+          collapsable={false}
+          style={[
+            styles.transcriptFrame,
+            paneHeight > 0 && { minHeight: paneHeight * 0.30 },
+          ]}
+        >
           <PinnedMessageActionsProvider
             value={pinnedMessageActionsContextValue}
           >
@@ -4452,13 +4579,9 @@ export const ChatPane = React.memo(function ChatPane({
                     role === 'assistant' ? 'markdown' : 'raw';
                   const renderMode =
                     messageViewModeByIndex[item.index] ?? defaultModeForRole;
-                  const isEditing = item.index === editingIndex;
                   return [
                     renderMode,
                     footerElements,
-                    isEditing,
-                    isEditing ? editingInitialText : null,
-                    isEditing ? editingText : null,
                   ];
                 }}
                 scrollEventThrottle={16}
@@ -4512,14 +4635,35 @@ export const ChatPane = React.memo(function ChatPane({
           ) : null}
         </View>
 
-        <View style={styles.composerArea}>
+        <View
+          testID="chat-composer"
+          accessible
+          accessibilityRole="summary"
+          accessibilityLabel="Message composer"
+          collapsable={false}
+          style={styles.composerArea}
+        >
+          {editingIndex != null && !compactLayout && <ComposerEditContext
+            index={editingIndex}
+            submitting={workspaceState.modifying}
+            onCancel={handleCancelEditMessage}
+          />}
           <View style={styles.composerHeaderRow}>
-            <View style={styles.composerHeaderRight}>
+            {editingIndex != null && compactLayout && <ComposerEditContext
+              index={editingIndex}
+              submitting={workspaceState.modifying}
+              onCancel={handleCancelEditMessage}
+              style={styles.compactEditContext}
+            />}
+            <View style={[
+              styles.composerHeaderRight,
+              editingIndex != null && compactLayout && styles.compactEditActions,
+            ]}>
               <ActionsMenuBar<ActionDefinition>
                 title="Composer actions"
                 variant="dropdown"
                 style={styles.composerActionsBar}
-                pinnedRows={2}
+                pinnedRows={compactLayout ? 1 : 2}
                 secondPinnedRowPlacement="below"
                 isActive={isActive}
                 renderIcon={({ name, size, color }) => (
@@ -4529,6 +4673,7 @@ export const ChatPane = React.memo(function ChatPane({
                 extraActions={composerPluginActionDefs}
                 pinned={pinnedComposerActionKeys}
                 pinnedKeysForBar={pinnedComposerActionKeysForBar}
+                maxPinnedActionsForBar={editingIndex != null && compactLayout ? 0 : undefined}
                 onChangePinned={next => setPinnedComposerActionKeys(next)}
                 onAction={handleComposerActionWithPlugins}
                 renderPinnedAction={renderPinnedComposerSessionAction}
@@ -4536,6 +4681,10 @@ export const ChatPane = React.memo(function ChatPane({
                   if (!canRunComposerActions) {
                     return true;
                   }
+                  if (editingIndex != null && (
+                    key === 'append' || key === 'appendAs' || key === 'resend' ||
+                    composerAttachmentElementByActionKey[String(key)]
+                  )) return true;
                   if (key === 'append' || key === 'appendAs') {
                     if (appendInFlight || attachmentActionInProgress) {
                       return true;
@@ -4543,7 +4692,7 @@ export const ChatPane = React.memo(function ChatPane({
                     return !composeText.trim() && !hasAttachments;
                   }
                   if (key === 'resend') {
-                    return sendInFlight || !!chatState?.activeRequestId;
+                    return sendInFlight || !!workspaceState.recovery || !!chatState?.activeRequestId;
                   }
                   if (key === 'cancel') {
                     return cancelInFlight || !chatState?.activeRequestId;
@@ -4563,7 +4712,7 @@ export const ChatPane = React.memo(function ChatPane({
                   const sessionAction =
                     composerSessionActionByActionKey[String(key)];
                   if (sessionAction) {
-                    return sessionAction.disabled === true;
+                    return sessionAction.disabled === true || runningHeaderActionIds.has(sessionAction.id);
                   }
                   const attachment =
                     composerAttachmentElementByActionKey[String(key)];
@@ -4578,7 +4727,7 @@ export const ChatPane = React.memo(function ChatPane({
             </View>
           </View>
 
-          {attachmentsAbove.length > 0 ? (
+          {editingIndex == null && attachmentsAbove.length > 0 ? (
             attachmentsAboveExpanded ? (
               <View style={styles.attachmentsExpandedContainer}>
                 <View style={styles.attachmentsExpandedChevronRow}>
@@ -4599,7 +4748,7 @@ export const ChatPane = React.memo(function ChatPane({
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsAbove)}
                   disabled={
-                    !canRunComposerActions || attachmentActionInProgress
+                    editingIndex != null || !canRunComposerActions || attachmentActionInProgress
                   }
                   onMove={(draftId, direction) =>
                     handleMoveDraft('above', draftId, direction)
@@ -4613,7 +4762,7 @@ export const ChatPane = React.memo(function ChatPane({
             ) : (
               <AttachmentThumbnailStrip
                 attachments={buildAttachmentStripRows(attachmentsAbove)}
-                disabled={!canRunComposerActions || attachmentActionInProgress}
+                disabled={editingIndex != null || !canRunComposerActions || attachmentActionInProgress}
                 expanded={false}
                 onToggleExpanded={() => setAttachmentsAboveExpanded(true)}
               />
@@ -4656,7 +4805,7 @@ export const ChatPane = React.memo(function ChatPane({
             <View
               style={[
                 styles.composerInputFrame,
-                { height: composerHeight },
+                { height: Math.min(composerHeight, compactLayout ? 48 : 120) },
                 !backend && styles.composerInputDisabled,
               ]}
             >
@@ -4665,24 +4814,32 @@ export const ChatPane = React.memo(function ChatPane({
                 accessibilityLabel="Message composer"
                 ref={composerRef}
                 style={styles.composerInput}
-                initialText={initialComposeText}
+                initialText={workspaceState.edit?.text ?? initialComposeText}
                 placeholder={
                   backend ? 'Type a message…' : 'Offline (read-only)'
                 }
                 placeholderTextColor={theme.textMuted}
                 textColor={theme.text}
                 fontSize={13}
-                editable={backend != null && !sendInFlight}
+                editable={backend != null && !sendInFlight && !workspaceState.modifying}
                 autoGrow
                 minHeight={34}
-                maxHeight={120}
+                maxHeight={compactLayout ? 48 : 120}
                 onHeightChange={handleComposerHeightChange}
                 onChangeText={text => {
                   recordSessionActivity();
-                  handleComposerChangeText(text);
+                  if (editingIndex != null) {
+                    updateWorkspace(current => current.edit
+                      ? { ...current, edit: { ...current.edit, text } }
+                      : current);
+                  } else {
+                    handleComposerChangeText(text);
+                  }
                 }}
                 onSubmit={text => {
-                  handleSend(text).catch(() => {
+                  (editingIndex != null
+                    ? handleSubmitEditMessage(editingIndex, text)
+                    : handleSend(text)).catch(() => {
                     // errors are handled in `handleSend`
                   });
                 }}
@@ -4691,7 +4848,8 @@ export const ChatPane = React.memo(function ChatPane({
             <Pressable
               testID="composer-send"
               accessibilityRole="button"
-              accessibilityLabel="Send message"
+              accessibilityLabel={`${editingIndex != null ? 'Save edit' : 'Send message'}${requestInProgress ? ', in progress' : ''}`}
+              accessibilityValue={{ text: requestInProgress ? 'In progress' : 'Ready' }}
               accessibilityState={{
                 disabled: !canSendNow,
                 busy: requestInProgress,
@@ -4703,24 +4861,28 @@ export const ChatPane = React.memo(function ChatPane({
               ]}
               disabled={!canSendNow}
               onPress={() => {
-                handleSend(composeTextRef.current).catch(() => {
+                (editingIndex != null
+                  ? handleSubmitEditMessage(editingIndex, getWorkspace().edit?.text ?? '')
+                  : handleSend(composeTextRef.current)).catch(() => {
                   // errors are handled in `handleSend`
                 });
               }}
             >
               {requestInProgress ? (
-                <ActivityIndicator
+                <View
                   testID="composer-send-progress"
-                  size="small"
-                  color={theme.textOnPrimary}
-                />
-              ) : (
-                <Text style={styles.sendButtonText}>Send</Text>
-              )}
+                  accessible
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={workspaceState.modifying ? 'Saving edit' : 'Request in progress'}
+                >
+                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                </View>
+              ) : null}
+              <Text style={styles.sendButtonText}>{editingIndex != null ? 'Save edit' : 'Send'}</Text>
             </Pressable>
           </View>
 
-          {attachmentsBelow.length > 0 ? (
+          {editingIndex == null && attachmentsBelow.length > 0 ? (
             attachmentsBelowExpanded ? (
               <View style={styles.attachmentsExpandedContainer}>
                 <View style={styles.attachmentsExpandedChevronRow}>
@@ -4741,7 +4903,7 @@ export const ChatPane = React.memo(function ChatPane({
                 <ComposerAttachmentsExpandedPanel
                   attachments={buildManageRows(attachmentsBelow)}
                   disabled={
-                    !canRunComposerActions || attachmentActionInProgress
+                    editingIndex != null || !canRunComposerActions || attachmentActionInProgress
                   }
                   onMove={(draftId, direction) =>
                     handleMoveDraft('below', draftId, direction)
@@ -4755,7 +4917,7 @@ export const ChatPane = React.memo(function ChatPane({
             ) : (
               <AttachmentThumbnailStrip
                 attachments={buildAttachmentStripRows(attachmentsBelow)}
-                disabled={!canRunComposerActions || attachmentActionInProgress}
+                disabled={editingIndex != null || !canRunComposerActions || attachmentActionInProgress}
                 expanded={false}
                 onToggleExpanded={() => setAttachmentsBelowExpanded(true)}
               />
@@ -4898,6 +5060,17 @@ function createStyles(
       flex: 1,
       gap: 4,
     },
+    compactHeader: {
+      paddingVertical: 6,
+    },
+    compactMetaRow: {
+      flexWrap: 'nowrap',
+      overflow: 'hidden',
+    },
+    notificationRail: {
+      flexGrow: 0,
+      flexShrink: 0,
+    },
     headerRight: {
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
@@ -5032,8 +5205,13 @@ function createStyles(
     },
     body: {
       flex: 1,
+      minHeight: 0,
       padding: 12,
       gap: 10,
+    },
+    compactBody: {
+      padding: 8,
+      gap: 6,
     },
     statusRow: {
       flexDirection: 'row',
@@ -5182,6 +5360,13 @@ function createStyles(
       alignItems: 'stretch',
       paddingTop: Platform.OS === 'macos' ? 2 : 0,
     },
+    compactEditContext: {
+      flex: 1,
+    },
+    compactEditActions: {
+      flex: 0,
+      width: 44,
+    },
     composerActionsBar: {
       width: '100%',
     },
@@ -5225,6 +5410,9 @@ function createStyles(
       opacity: 0.7,
     },
     sendButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 10,

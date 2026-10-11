@@ -23,6 +23,7 @@
 		8D1000510000000000000001 /* ConnectionsPanelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000520000000000000001 /* ConnectionsPanelUITests.swift */; };
 		8D1000610000000000000001 /* ActionDisplayWindowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000620000000000000001 /* ActionDisplayWindowUITests.swift */; };
 		8D1000710000000000000001 /* HumanTimeTelemetryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000720000000000000001 /* HumanTimeTelemetryUITests.swift */; };
+		8D1000810000000000000001 /* ChatOperationsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000820000000000000001 /* ChatOperationsUITests.swift */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 		B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */; };
 		B1C2D3E4F5A60718293A4B6D /* MacSelectManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5D /* MacSelectManager.mm */; };
@@ -60,6 +61,7 @@
 		8D1000520000000000000001 /* ConnectionsPanelUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsPanelUITests.swift; sourceTree = "<group>"; };
 		8D1000620000000000000001 /* ActionDisplayWindowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDisplayWindowUITests.swift; sourceTree = "<group>"; };
 		8D1000720000000000000001 /* HumanTimeTelemetryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanTimeTelemetryUITests.swift; sourceTree = "<group>"; };
+		8D1000820000000000000001 /* ChatOperationsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatOperationsUITests.swift; sourceTree = "<group>"; };
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
 		AB85723B3B404E1E97A72B48 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 				8D1000520000000000000001 /* ConnectionsPanelUITests.swift */,
 				8D1000620000000000000001 /* ActionDisplayWindowUITests.swift */,
 				8D1000720000000000000001 /* HumanTimeTelemetryUITests.swift */,
+				8D1000820000000000000001 /* ChatOperationsUITests.swift */,
 			);
 			path = "CrystalLatticeControlDesktopRN-macOSUITests";
 			sourceTree = "<group>";
@@ -456,6 +459,7 @@
 				8D1000510000000000000001 /* ConnectionsPanelUITests.swift in Sources */,
 				8D1000610000000000000001 /* ActionDisplayWindowUITests.swift in Sources */,
 				8D1000710000000000000001 /* HumanTimeTelemetryUITests.swift in Sources */,
+				8D1000810000000000000001 /* ChatOperationsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

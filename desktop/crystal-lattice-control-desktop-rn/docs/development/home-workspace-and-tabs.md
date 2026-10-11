@@ -21,6 +21,13 @@ inactive stack, its pointer and accessibility interaction is disabled, and
 the same three-entry MRU warm set remains mounted for a later tab return.
 Home itself does not count toward or reset that bound.
 
+A visible return to Chat revalidates the cached message window and request
+state through the controller. Fresh supported request-status reads establish
+current work even when a stored checkpoint still contains an older request ID.
+Explicit null values clear completed request IDs or invalidated cursors in
+the in-memory cache; omitted fields preserve existing state. Cached transcript content
+remains visible during recovery.
+
 ## Home data
 
 `DesktopHomeWorkspaceProvider` persists:
