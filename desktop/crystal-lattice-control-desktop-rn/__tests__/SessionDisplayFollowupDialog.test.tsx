@@ -126,7 +126,11 @@ test.each(['sessions', 'chat'])('%s host uses the existing native dialog coordin
   expect(screen.getByText('Neutral result')).toBeTruthy();
   fireEvent.press(screen.getByText('Enter value'));
   fireEvent.changeText(screen.getByTestId('action-form-input-value'), `${host} value`);
-  fireEvent.press(screen.getByTestId('application-action-dialog-primary'));
+  if (host === 'chat') {
+    fireEvent(screen.getByTestId('action-form-input-value'), 'submitEditing');
+  } else {
+    fireEvent.press(screen.getByTestId('application-action-dialog-primary'));
+  }
   await waitFor(() => expect(screen.getByText('Saved')).toBeTruthy());
   expect(execute).toHaveBeenLastCalledWith(expect.objectContaining({
     sessionId: 'session-1',

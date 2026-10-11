@@ -1,3 +1,4 @@
+export { useActionFormScroll } from './useActionFormScroll';
 export type {
   ActionKey,
   ActionDefinition,

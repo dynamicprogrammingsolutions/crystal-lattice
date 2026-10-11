@@ -154,6 +154,18 @@ directly in the returned display surface before pressing a follow-up action.
 The embedded form schema is intentionally the same form schema used by action
 dialogs:
 
+Keep embedded forms small and adjacent to the result they explain, such as one
+callback URL or a pair of short inputs. Mobile result modals reserve separate
+scroll areas for markdown and embedded fields, keeping the title and follow-up
+actions outside both areas. The software keyboard reduces the available space,
+so an embedded form may require scrolling even with only a few fields.
+
+Use a [follow-up action dialog](#follow-up-action-dialogs) for larger forms or
+workflows that involve substantial keyboard entry. Ordinary mobile action
+dialogs support arbitrary field counts through a scrollable body with fixed
+Cancel/OK controls. There is no enforced field-count cutoff for embedded forms;
+their presentation is intended for small workflows.
+
 ```json
 {
   "display": {

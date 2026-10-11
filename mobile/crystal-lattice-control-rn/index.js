@@ -14,6 +14,7 @@ import { MobileSelectableCodeBlockHarness } from "./src/testing/MobileSelectable
 import { MobileOrderedListMarkdownHarness } from "./src/testing/MobileOrderedListMarkdownHarness";
 import { MobileNotificationUiEffectsHarness } from "./src/testing/MobileNotificationUiEffectsHarness";
 import { MobileConnectionsSettingsHarness } from "./src/testing/MobileConnectionsSettingsHarness";
+import { MobileActionFormsHarness } from "./src/testing/MobileActionFormsHarness";
 import { MobileHomeHarness } from "./src/testing/MobileHomeHarness";
 import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
 import { MobileRichSessionUiHarness } from "./src/testing/MobileRichSessionUiHarness";
@@ -42,6 +43,8 @@ const RootComponent = (props) => {
     Component = MobileWebsiteVisualHarness;
   } else if (props?.clcConnectionsSettingsHarness === "1") {
     Component = MobileConnectionsSettingsHarness;
+  } else if (props?.clcActionFormsHarness === "1") {
+    Component = MobileActionFormsHarness;
   } else if (props?.clcHomeHarness === "1") {
     Component = MobileHomeHarness;
   } else if (props?.clcRichSessionUiHarness === "1") {
@@ -98,6 +101,7 @@ AppRegistry.registerComponent(
   "MobileConnectionsSettingsHarness",
   () => MobileConnectionsSettingsHarness
 );
+AppRegistry.registerComponent("MobileActionFormsHarness", () => MobileActionFormsHarness);
 AppRegistry.registerComponent("MobileHomeHarness", () => MobileHomeHarness);
 AppRegistry.registerComponent(
   "MobileRichSessionUiHarness",

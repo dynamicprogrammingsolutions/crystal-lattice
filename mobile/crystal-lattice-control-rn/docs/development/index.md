@@ -18,6 +18,8 @@
   polling, retry, and cross-layer verification.
 - [Markdown display](markdown-display.md) — display preferences, renderer
   selection, capability fallback, and typography.
+- [Action forms and results](action-forms-and-results.md) — viewport sizing,
+  keyboard handling, native tests, and real-plugin manual checkpoints.
 - [Website visual capture](website-visual-capture.md) — deterministic product
   states, real action-display fixtures, sanitization, and capture boundaries.
 

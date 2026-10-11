@@ -1,8 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  Pressable,
+  SafeAreaView,
   StyleSheet,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 
@@ -52,37 +56,64 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [viewportHeight, setViewportHeight] = useState<number | undefined>();
+  const verticalPadding = viewportHeight !== undefined && viewportHeight < 260 ? 4 : 12;
+  useEffect(() => {
+    if (visible) Keyboard.dismiss();
+  }, [visible]);
+
+  const handleClose = () => {
+    Keyboard.dismiss();
+    onRequestClose();
+  };
 
   const variant = display?.variant ?? 'info';
   const dismissible = display?.dismissible !== false;
   const content = (
-    <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
-      <View
-        testID={testID}
-        accessibilityViewIsModal={!overlayChildren}
-        accessibilityElementsHidden={!!overlayChildren}
-        importantForAccessibility={overlayChildren ? 'no-hide-descendants' : 'auto'}
-        style={styles.overlay}
-      >
-        <TouchableWithoutFeedback onPress={() => {}}>
+    <KeyboardAvoidingView
+      testID={testID}
+      enabled={!overlayChildren}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      accessibilityViewIsModal={!overlayChildren}
+      accessibilityElementsHidden={!!overlayChildren}
+      importantForAccessibility={overlayChildren ? 'no-hide-descendants' : 'auto'}
+      style={styles.overlay}
+    >
+      <Pressable
+        accessible={false}
+        style={StyleSheet.absoluteFill}
+        onPress={dismissible ? handleClose : undefined}
+      />
+      <SafeAreaView style={styles.safeViewport} pointerEvents="box-none">
+        <View
+          testID="action-result-viewport"
+          pointerEvents="box-none"
+          style={[styles.viewport, { paddingVertical: verticalPadding }]}
+          onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+        >
           <View style={styles.panel}>
             {display ? (
               <ActionDisplayCard
                 display={display}
-                onDismiss={onRequestClose}
+                onDismiss={handleClose}
                 onFollowupAction={onFollowupAction}
                 activeActionId={activeActionId}
                 variantLabel={VARIANT_LABELS[variant]}
                 footerDismissLabel={null}
                 fieldRenderers={fieldRenderers}
                 bounded
-                bodyTestID={testID ? `${testID}-body` : undefined}
+                bodyTestID={testID ? `${testID}-body` : 'action-result-body'}
+                maxHeight={
+                  viewportHeight === undefined
+                    ? undefined
+                    : Math.max(0, viewportHeight - verticalPadding * 2)
+                }
               />
             ) : null}
           </View>
-        </TouchableWithoutFeedback>
-      </View>
-    </TouchableWithoutFeedback>
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 
   if (!visible || !display) {
@@ -103,10 +134,16 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
       visible
       transparent
       animationType="fade"
+      supportedOrientations={['portrait', 'landscape']}
       onRequestClose={
         overlayChildren && onOverlayRequestClose
-          ? onOverlayRequestClose
-          : dismissible ? onRequestClose : () => {}
+          ? () => {
+              Keyboard.dismiss();
+              onOverlayRequestClose();
+            }
+          : dismissible
+          ? handleClose
+          : () => {}
       }
     >
       <View style={styles.modalRoot}>
@@ -125,9 +162,15 @@ const createStyles = (theme: Theme) =>
     overlay: {
       flex: 1,
       backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    },
+    safeViewport: {
+      flex: 1,
+    },
+    viewport: {
+      flex: 1,
+      padding: 12,
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 20,
     },
     absoluteOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -137,8 +180,6 @@ const createStyles = (theme: Theme) =>
     panel: {
       width: '100%',
       maxWidth: 560,
-      maxHeight: '80%',
-      justifyContent: 'center',
     },
   });
 

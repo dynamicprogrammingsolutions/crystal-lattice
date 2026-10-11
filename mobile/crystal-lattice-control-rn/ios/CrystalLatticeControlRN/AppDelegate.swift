@@ -73,6 +73,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }) {
       moduleName = "MobileConnectionsSettingsHarness"
     } else if arguments.contains(where: {
+      $0 == "-clcActionFormsHarness" || $0 == "clcActionFormsHarness"
+    }) {
+      moduleName = "MobileActionFormsHarness"
+    } else if arguments.contains(where: {
       $0 == "-clcHomeHarness" || $0 == "clcHomeHarness"
     }) {
       moduleName = "MobileHomeHarness"

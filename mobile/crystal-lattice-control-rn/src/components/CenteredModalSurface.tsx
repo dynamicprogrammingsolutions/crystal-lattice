@@ -53,6 +53,7 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
       visible
       transparent
       animationType="fade"
+      supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onRequestClose}
     >
       {keyboardAvoiding ? (
