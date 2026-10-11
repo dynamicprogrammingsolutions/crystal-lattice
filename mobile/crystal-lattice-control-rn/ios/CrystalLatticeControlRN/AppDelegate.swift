@@ -33,7 +33,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           arguments[index + 1] == "largest"
       } ?? false
     let moduleName: String
-    if arguments.contains(where: {
+    var initialProperties: [String: Any] = [:]
+    for name in ["clcChatOperationsBaseUrl", "clcChatOperationsSessions", "clcDisplayPreset"] {
+      if let index = arguments.firstIndex(where: { $0 == "-\(name)" || $0 == name }),
+         arguments.indices.contains(index + 1) {
+        initialProperties[name] = arguments[index + 1]
+      }
+    }
+    if initialProperties["clcChatOperationsBaseUrl"] != nil {
+      moduleName = "MobileChatOperationsHarness"
+    } else if arguments.contains(where: {
       $0 == "-clcSessionListHarness" || $0 == "clcSessionListHarness"
     }) {
       moduleName = useLargestDisplayPreset
@@ -103,7 +112,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       moduleName = "CrystalLatticeControlRN"
     }
 
-    var initialProperties: [String: Any] = [:]
     for key in ["clcEmbeddedMatrixAgent", "clcEmbeddedMatrixAuthMode"] {
       if let index = arguments.firstIndex(where: {
         $0 == "-\(key)" || $0 == key

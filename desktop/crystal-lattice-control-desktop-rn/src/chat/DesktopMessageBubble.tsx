@@ -17,7 +17,6 @@ import {
   selectDisplayContent,
   selectSingleLineContent,
 } from '@crystal-lattice/frontend-sdk';
-import { MacTextView } from '@crystal-lattice/react-native-mac-text-view';
 import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
@@ -31,12 +30,6 @@ export interface DesktopMessageBubbleProps {
   message: ApiMessage;
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
   allowedActions?: MessageActionKey[];
-  isEditing?: boolean;
-  editingInitialText?: string;
-  editingText?: string;
-  onChangeEditingText?: (text: string) => void;
-  onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
-  onCancelEdit?: () => void;
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
   pluginActionDefs?: MessageActionDefinition[];
@@ -115,12 +108,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   footerElements,
   pluginActionDefs,
 }) => {
@@ -141,42 +128,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={[styles.headerText, styles.userHeaderText]}>
-            {`[${index}] User`}
-          </Text>
-          <MacTextView
-            style={[styles.editInput, styles.editInputOnBlue]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            addToHeight={8}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.row}>
@@ -223,18 +174,11 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   footerElements,
   pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [editHeight, setEditHeight] = useState(60);
   const content = selectDisplayContent(message);
   const role = 'system';
   const footerParts = useMemo(() => {
@@ -250,41 +194,6 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-          <Text style={styles.headerText}>{`[${index}] System`}</Text>
-          <MacTextView
-            style={[styles.editInput, { height: editHeight }]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            addToHeight={16}
-            onHeightChange={setEditHeight}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.row}>
@@ -447,19 +356,12 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [editHeight, setEditHeight] = useState(60);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const content = selectDisplayContent(message);
@@ -505,42 +407,6 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble]}>
-          <View style={styles.headerRow}>
-            <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
-          </View>
-          <MacTextView
-            style={[styles.editInput, { height: editHeight }]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            onHeightChange={setEditHeight}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.row}>
@@ -719,12 +585,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -740,12 +600,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -759,12 +613,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -791,12 +639,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}

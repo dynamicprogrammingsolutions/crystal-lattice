@@ -102,3 +102,28 @@ checks, not network end-to-end tests.
 Harnesses report theme-derived values and measured frames. Native assertions
 compare those values and relative geometry instead of copying display-preset
 numbers, allowing preset tuning without rewriting native tests.
+
+## Chat operations through HTTP
+
+Run the focused production Chat workflow with:
+
+```bash
+npm run test:macos-ui:chat-operations
+```
+
+The host runner seeds sessions and a connection in a real temporary backend,
+then launches the production desktop root with four permanent session tabs.
+The forwarding HTTP proxy can interrupt send acknowledgement and delay edit
+acknowledgement while preserving the actual backend response bytes. XCTest
+drives request/tab eviction and return, main-composer editing, concurrent
+actions, and recovery Resend/Cancel. It measures native transcript/status
+frames and wheel movement. The runner applies a command-line bundle identifier
+override only to its test build, so the installed desktop application can stay
+open. It checks for an existing instance of that isolated test build and never
+terminates it. The maintained application identifiers are unchanged.
+
+The Debug bundle and DerivedData are built in `build/chat-operations`.
+The runner writes its fixture to `build/chat-operations-fixture.json`; XCTest
+resolves that path from its compiled source checkout. The fixture is removed
+after the run. Direct HTTP inspection verifies the selected message changed
+and retry did not duplicate the original user payload.

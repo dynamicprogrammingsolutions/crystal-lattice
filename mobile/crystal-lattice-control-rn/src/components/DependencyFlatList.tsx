@@ -1,6 +1,7 @@
 import React from "react";
 import type {
   FlatList,
+  FlatListProps,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -27,6 +28,8 @@ export interface DependencyFlatListProps<TItem> {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   testID?: string;
+  keyboardDismissMode?: FlatListProps<TItem>["keyboardDismissMode"];
+  keyboardShouldPersistTaps?: FlatListProps<TItem>["keyboardShouldPersistTaps"];
 
   ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
@@ -108,6 +111,8 @@ function DependencyFlatListInner<TItem>(
     style,
     contentContainerStyle,
     testID,
+    keyboardDismissMode,
+    keyboardShouldPersistTaps,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -447,6 +452,8 @@ function DependencyFlatListInner<TItem>(
 
   return (
     <NativeFlatList<DependencyFlatListRow>
+      keyboardDismissMode={keyboardDismissMode}
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       style={style}
       ref={flatListRef}
       contentContainerStyle={contentContainerStyle}

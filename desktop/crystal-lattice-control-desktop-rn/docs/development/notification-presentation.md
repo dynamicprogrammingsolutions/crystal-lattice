@@ -27,6 +27,11 @@ dismissal retains its separate revision and backend authority rules.
 The global display owner subscribes to the native action-window close event,
 so dismissal follows the same path in the main app and focused native harness.
 
+Within Chat, the combined connection/session rail scrolls within a bounded
+height so notifications cannot consume the transcript. Short panes cap the
+rail at 12% of the pane height; taller panes cap it at 180 points. Notification
+content, follow-up actions, and dismissal retain their existing ownership.
+
 See the shared React Native
 [notification components](../../../../packages/frontend-rn-components/docs/development/notification-components.md),
 the frontend SDK
@@ -34,6 +39,19 @@ the frontend SDK
 and the cross-package
 [notification frontend behavior](../../../../docs/development/specifications/notifications/frontend-behavior.md)
 for portable contracts.
+
+An unconfirmed ordinary send uses the compact Chat status row above the
+transcript, with **Resend** and **Cancel**, instead of a blocking alert.
+Resend submits the original payload with its original idempotency key, including
+attachments. It clears the ordinary draft only when that draft still matches
+the retried payload. Cancel dismisses local recovery and retains the draft;
+it does not claim to cancel server work. Known active requests continue to use
+the existing request cancellation controls.
+
+This transient recovery state is connection/session-scoped. It shares the
+request/action progress slot and does not replace server-owned notification
+rails or their dismissal protocol. Long transport errors do not expand the
+main message area because the row presents a short, bounded summary.
 
 Maintainer entry points:
 

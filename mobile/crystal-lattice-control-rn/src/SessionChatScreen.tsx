@@ -81,6 +81,8 @@ import {
   ACTIONS_MENU_BAR_ITEM_WIDTH,
   ApplicationActionDialog,
   ActionsMenuBar,
+  ChatActivityRow,
+  ComposerEditContext,
   RichConfigDropdownControl,
   RichConfigToggleControl,
   runComposedMessageSubmission,
@@ -101,6 +103,8 @@ import {
   useChatController,
   useAgentsController,
   useDisplayFollowupDialog,
+  useSessionChatWorkspace,
+  type ChatEditDraft,
 } from "@crystal-lattice/frontend-sdk-react";
 import {
   buildConfigSchemaByKey,
@@ -126,7 +130,6 @@ import DebugEventsView from "./components/DebugEventsView";
 import ExpandedComposerModal from "./components/ExpandedComposerModal";
 import {
   describePendingRequestRecovery,
-  shouldClearPendingRequestRecovery,
   type PendingRequestRecovery,
 } from "./chatRecovery";
 import {
@@ -387,11 +390,6 @@ type ChatTranscriptProps = {
   sessionSummary: SessionSummary | null;
   pinnedMessageActionsByRole: Record<string, MessageActionKey[]>;
   messageViewModeByIndex: Record<number, "markdown" | "raw">;
-  editingIndex: number | null;
-  editingText: string;
-  onChangeEditingText: (text: string) => void;
-  onSubmitEdit: (index: number, message: ApiMessage, newText: string) => void;
-  onCancelEdit: () => void;
   onMessageAction: (
     action: MessageActionKey,
     index: number,
@@ -420,11 +418,6 @@ const ChatTranscript = React.memo(
     sessionSummary,
     pinnedMessageActionsByRole,
     messageViewModeByIndex,
-    editingIndex,
-    editingText,
-    onChangeEditingText,
-    onSubmitEdit,
-    onCancelEdit,
     onMessageAction,
     onChangePinnedForRole,
     getPinnedActionsForRole,
@@ -494,7 +487,6 @@ const ChatTranscript = React.memo(
             role === "assistant" || role === "user" ? "markdown" : "raw";
           const renderMode =
             messageViewModeByIndex[row.index] ?? defaultModeForRole;
-          const isEditing = editingIndex === row.index;
           return [
             isActive,
             footerElements,
@@ -502,8 +494,6 @@ const ChatTranscript = React.memo(
             sessionSummary,
             pinnedMessageActionsByRole[role],
             renderMode,
-            isEditing,
-            isEditing ? editingText : null,
           ];
         }}
         renderItem={({ item: row }) => {
@@ -548,7 +538,6 @@ const ChatTranscript = React.memo(
                 allowedActions={[]}
                 onAction={onMessageAction}
                 onChangePinnedForRole={onChangePinnedForRole}
-                isEditing={false}
                 renderMode="markdown"
                 footerElements={footerElements}
                 pluginActionDefs={pluginMessageActionDefs}
@@ -562,7 +551,6 @@ const ChatTranscript = React.memo(
             def.allowedRoles.includes(role)
           ).map((def) => def.key as MessageActionKey);
           const pinnedForRole = getPinnedActionsForRole(role);
-          const isEditing = editingIndex === m.index;
           const defaultModeForRole: "markdown" | "raw" =
             role === "assistant" || role === "user" ? "markdown" : "raw";
           const renderMode =
@@ -578,13 +566,6 @@ const ChatTranscript = React.memo(
                 allowedActions={allowedActions}
                 onAction={onMessageAction}
                 onChangePinnedForRole={onChangePinnedForRole}
-                isEditing={isEditing}
-                editingText={isEditing ? editingText : undefined}
-                onChangeEditingText={
-                  isEditing ? onChangeEditingText : undefined
-                }
-                onSubmitEdit={onSubmitEdit}
-                onCancelEdit={onCancelEdit}
                 renderMode={renderMode}
                 footerElements={footerElements}
                 pluginActionDefs={pluginMessageActionDefs}
@@ -627,6 +608,12 @@ type ChatComposerProps = {
   isActive: boolean;
   renderPinnedComposerAction?: (params: any) => React.ReactNode | undefined;
   onSend: (text: string) => Promise<boolean>;
+  edit: ChatEditDraft | null;
+  modifying: boolean;
+  onChangeEdit: (text: string) => void;
+  onSaveEdit: (text: string) => Promise<boolean>;
+  onCancelEdit: () => void;
+  activities: readonly string[];
 };
 
 const ChatComposer = React.memo(
@@ -654,6 +641,12 @@ const ChatComposer = React.memo(
       isActive,
       renderPinnedComposerAction,
       onSend,
+      edit,
+      modifying,
+      onChangeEdit,
+      onSaveEdit,
+      onCancelEdit,
+      activities,
     },
     ref
   ) {
@@ -662,6 +655,26 @@ const ChatComposer = React.memo(
     const [composeText, setComposeText] = useState(initialComposeText ?? "");
     const [expanded, setExpanded] = useState(false);
     const composeTextRef = useRef(initialComposeText ?? "");
+    const inputRef = useRef<TextInput | null>(null);
+    const dismissEditorKeyboard = () => {
+      inputRef.current?.blur();
+      Keyboard.dismiss();
+    };
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
+    useEffect(() => {
+      const show = Keyboard.addListener(
+        Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+        () => setKeyboardVisible(true),
+      );
+      const hide = Keyboard.addListener(
+        "keyboardDidHide",
+        () => setKeyboardVisible(false),
+      );
+      return () => { show.remove(); hide.remove(); };
+    }, []);
+    useEffect(() => {
+      if (edit != null) inputRef.current?.focus();
+    }, [edit?.index]);
     const hasDraftMessage =
       composeText.trim().length > 0 || attachmentsCount > 0;
 
@@ -687,10 +700,12 @@ const ChatComposer = React.memo(
       [onDraftTextChange]
     );
     const attachmentsDisabled =
-      !!selectedSnapshotId || attachmentActionInProgress;
-    const requestInProgress = sendInProgress || !!activeRequestId;
+      edit != null || !!selectedSnapshotId || attachmentActionInProgress;
+    const requestInProgress = sendInProgress || modifying || !!activeRequestId;
     const canSend =
-      !!backend &&
+      edit != null
+      ? !!backend && !selectedSnapshotId && !modifying && !!edit.text.trim()
+      : !!backend &&
       !selectedSnapshotId &&
       !sendInProgress &&
       !appendInProgress &&
@@ -698,6 +713,9 @@ const ChatComposer = React.memo(
       !activeRequestId &&
       !attachmentActionInProgress &&
       hasDraftMessage;
+    const editorText = edit?.text ?? composeText;
+    const changeEditorText = edit ? onChangeEdit : updateComposeText;
+    const submitEditor = () => edit ? onSaveEdit(edit.text) : onSend(composeTextRef.current);
     const primaryComposerLayout = resolveComposerPrimaryLayout({
       pinnedKeys: pinnedComposerActions,
       preferenceKeys: PRIMARY_COMPOSER_ACTION_PREFERENCE,
@@ -719,13 +737,33 @@ const ChatComposer = React.memo(
       isComposerActionDisabled(primaryComposerAction.key, hasDraftMessage);
 
     return (
-      <View style={styles.composer}>
+      <View testID="chat-composer" style={styles.composer}>
+        {edit != null && !keyboardVisible && <ComposerEditContext index={edit.index} onCancel={onCancelEdit} submitting={modifying} />}
         <View style={styles.composerMainColumn}>
-          <View style={styles.composerTopRow}>
+          <View style={[styles.composerTopRow, keyboardVisible && styles.composerCompactTopRow]}>
+            {edit != null && keyboardVisible && <ComposerEditContext
+              index={edit.index}
+              onCancel={onCancelEdit}
+              submitting={modifying}
+              style={styles.composerCompactContext}
+            />}
+            {keyboardVisible && <TouchableOpacity
+              testID="composer-dismiss-keyboard"
+              accessibilityRole="button"
+              accessibilityLabel="Hide keyboard"
+              style={styles.composerKeyboardButton}
+              onPressIn={Platform.OS === "ios" ? dismissEditorKeyboard : undefined}
+              onPress={dismissEditorKeyboard}
+            >
+              <Icon name="chevron-down" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>}
             <ActionsMenuBar<ActionDefinition>
+              key="composer-actions"
+              style={keyboardVisible ? styles.composerCompactActionsBar : undefined}
               title="Composer actions"
               variant="modal"
-              pinnedRows={2}
+              pinnedRows={keyboardVisible ? 1 : 2}
+              maxPinnedActionsForBar={keyboardVisible ? 0 : undefined}
               secondPinnedRowPlacement="below"
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
@@ -754,22 +792,24 @@ const ChatComposer = React.memo(
           </View>
 
           <AttachmentThumbnailStrip
-            attachments={attachmentsAboveStrip}
+            attachments={edit || keyboardVisible ? [] : attachmentsAboveStrip}
             onPressManageAll={() => onOpenAttachmentsManage("above")}
             disabled={attachmentsDisabled}
           />
 
           <View style={styles.composerInputRow}>
-            <View style={styles.composerInputFrame}>
+            <View style={[styles.composerInputFrame, keyboardVisible && styles.composerCompactInput]}>
               <TextInput
+                ref={inputRef}
                 testID="message-composer-input"
-                style={styles.composerInput}
+                style={[styles.composerInput, keyboardVisible && styles.composerCompactInput]}
                 placeholder="Type your message..."
                 placeholderTextColor={theme.textSecondary}
-                value={composeText}
-                onChangeText={updateComposeText}
+                value={editorText}
+                onChangeText={changeEditorText}
+                editable={!modifying}
                 onBlur={() => {
-                  onSaveComposeText(composeTextRef.current);
+                  if (!edit) onSaveComposeText(composeTextRef.current);
                 }}
                 multiline
                 textAlignVertical="top"
@@ -788,7 +828,7 @@ const ChatComposer = React.memo(
               testID="composer-side-buttons"
               style={styles.composerSideButtons}
             >
-              {primaryComposerAction && (
+              {!keyboardVisible && primaryComposerAction && (
                 <TouchableOpacity
                   testID={
                     primaryComposerAction.key === "cancel"
@@ -825,7 +865,7 @@ const ChatComposer = React.memo(
               <TouchableOpacity
                 testID="composer-send"
                 accessibilityRole="button"
-                accessibilityLabel="Send message"
+                accessibilityLabel={edit ? "Save edit" : "Send message"}
                 accessibilityState={{
                   disabled: !canSend,
                   busy: requestInProgress,
@@ -833,11 +873,12 @@ const ChatComposer = React.memo(
                 style={[
                   styles.composerSideButton,
                   styles.primaryButton,
+                  edit && styles.composerEditSendButton,
                   !canSend && styles.composerSideButtonDisabled,
                 ]}
                 disabled={!canSend}
                 onPress={() => {
-                  void onSend(composeTextRef.current);
+                  void submitEditor();
                 }}
               >
                 {requestInProgress ? (
@@ -846,35 +887,40 @@ const ChatComposer = React.memo(
                     size="small"
                     color={theme.textOnPrimary}
                   />
-                ) : (
+                ) : !edit ? (
                   <Icon name="send" size={18} color={theme.textOnPrimary} />
-                )}
+                ) : null}
+                {edit && <Text numberOfLines={1} style={styles.composerEditSendTitle}>Save edit</Text>}
               </TouchableOpacity>
             </View>
           </View>
 
           <AttachmentThumbnailStrip
-            attachments={attachmentsBelowStrip}
+            attachments={edit || keyboardVisible ? [] : attachmentsBelowStrip}
             onPressManageAll={() => onOpenAttachmentsManage("below")}
             disabled={attachmentsDisabled}
           />
         </View>
         <ExpandedComposerModal
           visible={expanded}
-          value={composeText}
-          onChangeText={updateComposeText}
+          value={editorText}
+          onChangeText={changeEditorText}
           onCollapse={() => {
-            onSaveComposeText(composeTextRef.current);
+            if (!edit) onSaveComposeText(composeTextRef.current);
             setExpanded(false);
           }}
-          onSend={() => onSend(composeTextRef.current)}
+          onSend={submitEditor}
           canSend={canSend}
           sending={requestInProgress}
-          attachmentsAbove={attachmentsAboveStrip}
-          attachmentsBelow={attachmentsBelowStrip}
+          attachmentsAbove={edit ? [] : attachmentsAboveStrip}
+          attachmentsBelow={edit ? [] : attachmentsBelowStrip}
           onOpenAttachmentsAbove={() => onOpenAttachmentsManage("above")}
           onOpenAttachmentsBelow={() => onOpenAttachmentsManage("below")}
           attachmentsDisabled={attachmentsDisabled}
+          editIndex={edit?.index ?? null}
+          onCancelEdit={onCancelEdit}
+          modifying={modifying}
+          activities={activities}
         />
       </View>
     );
@@ -906,6 +952,26 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const {
+    state: workspaceState,
+    update: updateWorkspace,
+    get: getWorkspace,
+    runAction,
+  } = useSessionChatWorkspace(connectionId, sessionId);
+  const sendInProgress = workspaceState.submitting;
+  const pendingRequestRecovery = workspaceState.recovery;
+  const runningHeaderActionIds = useMemo(() => new Set(
+    Object.keys(workspaceState.actions)
+      .map(key => JSON.parse(key) as [string, string, string, number | null])
+      .filter(entry => entry[2] === sessionId && entry[3] == null)
+      .map(entry => entry[1]),
+  ), [sessionId, workspaceState.actions]);
+  const setSendInProgress = useCallback((submitting: boolean) => {
+    updateWorkspace(current => ({ ...current, submitting }));
+  }, [updateWorkspace]);
+  const setPendingRequestRecovery = useCallback((recovery: PendingRequestRecovery | null) => {
+    updateWorkspace(current => ({ ...current, recovery }));
+  }, [updateWorkspace]);
   const { splitForComposedMessage } = useHumanTimeTelemetry();
   const {
     hydrated: homeWorkspaceHydrated,
@@ -928,14 +994,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [isAppActive, setIsAppActive] = useState(
     () => AppState.currentState === "active"
   );
-  const [sendInProgress, setSendInProgress] = useState(false);
   const [appendInProgress, setAppendInProgress] = useState(false);
-  const [attachmentsAbove, setAttachmentsAbove] = useState<
-    MultipartPartDraft[]
-  >([]);
-  const [attachmentsBelow, setAttachmentsBelow] = useState<
-    MultipartPartDraft[]
-  >([]);
+  const attachmentsAbove = workspaceState.attachmentDrafts.above as MultipartPartDraft[];
+  const attachmentsBelow = workspaceState.attachmentDrafts.below as MultipartPartDraft[];
+  const setAttachmentsAbove = useCallback((next: React.SetStateAction<MultipartPartDraft[]>) => {
+    updateWorkspace(current => ({
+      ...current,
+      attachmentDrafts: {
+        ...current.attachmentDrafts,
+        above: typeof next === "function"
+          ? next(current.attachmentDrafts.above as MultipartPartDraft[])
+          : next,
+      },
+    }));
+  }, [updateWorkspace]);
+  const setAttachmentsBelow = useCallback((next: React.SetStateAction<MultipartPartDraft[]>) => {
+    updateWorkspace(current => ({
+      ...current,
+      attachmentDrafts: {
+        ...current.attachmentDrafts,
+        below: typeof next === "function"
+          ? next(current.attachmentDrafts.below as MultipartPartDraft[])
+          : next,
+      },
+    }));
+  }, [updateWorkspace]);
   const [attachmentsManageVisible, setAttachmentsManageVisible] =
     useState(false);
   const [attachmentsManageSide, setAttachmentsManageSide] =
@@ -1034,12 +1117,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [messageViewModeByIndex, setMessageViewModeByIndex] = useState<
     Record<number, "markdown" | "raw">
   >({});
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState("");
   const [debugVisible, setDebugVisible] = useState(false);
   const [debugEvents, setDebugEvents] = useState<Event[]>([]);
-  const [pendingRequestRecovery, setPendingRequestRecovery] =
-    useState<PendingRequestRecovery | null>(null);
   const [resumeRecoveryInProgress, setResumeRecoveryInProgress] =
     useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -1067,8 +1146,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     useState<ComposerRichConfigControl | null>(null);
   const [activeRichSessionAction, setActiveRichSessionAction] =
     useState<SessionActionRichUiElement | null>(null);
-  const [pluginActionInProgress, setPluginActionInProgress] = useState(false);
-  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
   const { actionsById, sessionListFields } = useApplicationPlugins();
 
   const listRef = useRef<MobileTranscriptListHandle | null>(null);
@@ -1176,20 +1253,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     },
     [clearAttachmentPickRecoveryTimer]
   );
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const show = Keyboard.addListener("keyboardDidShow", (e) => {
-      setAndroidKeyboardHeight((e.endCoordinates?.height ?? 0) - 30);
-    });
-    const hide = Keyboard.addListener("keyboardDidHide", () => {
-      setAndroidKeyboardHeight(0);
-    });
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
 
   useEffect(() => {
     onSaveScrollAnchorRef.current = onSaveScrollAnchor;
@@ -1319,20 +1382,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     });
     setPendingRangeRestore(null);
   }, [messages, pendingRangeRestore]);
-
-  useEffect(() => {
-    if (
-      shouldClearPendingRequestRecovery({
-        pending: pendingRequestRecovery,
-        activeRequestId,
-      })
-    ) {
-      setPendingRequestRecovery(null);
-      appendDebugNote("Pending request reconciled", activeRequestId, {
-        reason: "active_request_known",
-      });
-    }
-  }, [activeRequestId, appendDebugNote, pendingRequestRecovery]);
 
   useEffect(() => {
     if (lastEventsStatusRef.current === eventsStatus) {
@@ -2404,8 +2453,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
 
-      setPluginActionInProgress(true);
-      try {
+      await runAction(
+        JSON.stringify([element.plugin, element.id, context.sessionId, context.messageContext?.index]),
+        `Running ${element.label}…`,
+        async () => {
         const actionContext = {
           ...context,
           connectionId: connectionId ?? undefined,
@@ -2456,9 +2507,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         if (display) {
           presentActionDisplay(display, actionContext);
         }
-      } finally {
-        setPluginActionInProgress(false);
-      }
+        },
+      );
     },
     [
       actionsById,
@@ -2470,6 +2520,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       reloadSessionSummaries,
       sessionContextController,
       sessionId,
+      runAction,
     ]
   );
 
@@ -2561,9 +2612,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           activeRequestId: snapshot.activeRequestId,
           eventsCursorId: snapshot.eventsCursorId,
         });
-        if (snapshot.activeRequestId) {
-          setPendingRequestRecovery(null);
-        }
         return snapshot;
       } catch (err: any) {
         console.log("Failed to recover chat after resume", err);
@@ -3584,7 +3632,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       );
       return false;
     }
-    if (sendInProgress) {
+    if (getWorkspace().submitting || getWorkspace().edit) {
       return false;
     }
     if (activeRequestId) {
@@ -3597,7 +3645,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (pendingRequestRecovery) {
       Alert.alert(
         "Send status unclear",
-        "Check status or retry the previous send before sending a new message."
+        "Resend or cancel the previous send before sending a new message."
       );
       return false;
     }
@@ -3651,7 +3699,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         idempotencyKey,
         multipartCount: multipartContent.length,
       });
-      Alert.alert("Error", message);
       return false;
     } finally {
       setSendInProgress(false);
@@ -3659,7 +3706,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   };
 
   const handleResend = async () => {
-    if (sendInProgress) {
+    if (getWorkspace().submitting || getWorkspace().edit) {
       return;
     }
     if (activeRequestId) {
@@ -3672,7 +3719,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     if (pendingRequestRecovery) {
       Alert.alert(
         "Send status unclear",
-        "Check status or retry the previous send before starting another resend."
+        "Resolve the previous send using Resend or Cancel."
       );
       return;
     }
@@ -3705,7 +3752,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       appendDebugNote("Resend ack failed", message, {
         idempotencyKey,
       });
-      Alert.alert("Error", message);
     } finally {
       setSendInProgress(false);
     }
@@ -3760,40 +3806,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
-  const handleCheckPendingRequestStatus = async () => {
-    if (!pendingRequestRecovery) {
-      return;
-    }
-    appendDebugNote(
-      "Pending request status check started",
-      describePendingRequestRecovery(pendingRequestRecovery),
-      {
-        idempotencyKey: pendingRequestRecovery.idempotencyKey,
-      }
-    );
-    const snapshot = await recoverChatAfterResume("pending_status_check");
-    if (snapshot) {
-      setPendingRequestRecovery(null);
-      appendDebugNote(
-        "Pending request status reconciled",
-        snapshot.activeRequestId ?? "no_active_request",
-        {
-          idempotencyKey: pendingRequestRecovery.idempotencyKey,
-        }
-      );
-      return;
-    }
-    appendDebugNote(
-      "Pending request still unresolved",
-      pendingRequestRecovery.errorMessage,
-      {
-        idempotencyKey: pendingRequestRecovery.idempotencyKey,
-      }
-    );
-  };
-
   const handleRetryPendingRequest = async () => {
-    if (!pendingRequestRecovery || !chatController) {
+    const pendingRequestRecovery = getWorkspace().recovery;
+    if (!pendingRequestRecovery || !chatController || getWorkspace().submitting || getWorkspace().edit) {
       return;
     }
 
@@ -3814,6 +3829,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           configOverrides: pendingRequestRecovery.configOverrides,
           idempotencyKey: pendingRequestRecovery.idempotencyKey,
         });
+        if (
+          composeTextRef.current.trim() === pendingRequestRecovery.message.content &&
+          JSON.stringify([...attachmentsAbove, ...attachmentsBelow].map(({ type, content, metadata }) =>
+            ({ type, content, metadata: metadata ?? {} }))) ===
+            JSON.stringify(pendingRequestRecovery.message.multipartContent ?? [])
+        ) clearComposerDraft();
       } else {
         await chatController.send({
           configOverrides: pendingRequestRecovery.configOverrides,
@@ -3839,7 +3860,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       appendDebugNote("Pending request retry failed", message, {
         idempotencyKey: pendingRequestRecovery.idempotencyKey,
       });
-      Alert.alert("Retry failed", message);
     } finally {
       setSendInProgress(false);
     }
@@ -3935,6 +3955,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       if (!backend) {
         return true;
       }
+      if (workspaceState.edit != null && (
+        key === "append" || key === "appendAs" || key === "resend" ||
+        composerAttachmentElementByActionKey[key]
+      )) return true;
       if (key === "resend") {
         return (
           sendInProgress ||
@@ -3968,7 +3992,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       const sessionAction = composerSessionActionByActionKey[key];
       if (sessionAction) {
-        return sessionAction.disabled === true;
+        return sessionAction.disabled === true || runningHeaderActionIds.has(sessionAction.id);
       }
 
       return false;
@@ -3984,6 +4008,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       composerSessionActionByActionKey,
       pendingRequestRecovery,
       sendInProgress,
+      workspaceState.edit,
+      runningHeaderActionIds,
     ]
   );
   const handleSwitchAgent = async (agentId: string) => {
@@ -4392,38 +4418,43 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       return;
     }
     const content = typeof message.content === "string" ? message.content : "";
-    setEditingIndex(index);
-    setEditingText(content);
+    if (getWorkspace().modifying || selectedSnapshotId) return;
+    updateWorkspace(current => ({ ...current, edit: { index, text: content } }));
   };
 
   const handleSubmitEditMessage = async (
-    index: number,
-    _message: ApiMessage,
     newText: string
-  ) => {
+  ): Promise<boolean> => {
     const trimmed = newText.trim();
     if (!trimmed) {
       Alert.alert("Invalid content", "Message content cannot be empty.");
-      return;
+      return false;
     }
     if (!chatController) {
       Alert.alert("No connection", "Connect to a server to modify messages.");
-      return;
+      return false;
     }
+    const edit = getWorkspace().edit;
+    if (!edit || getWorkspace().modifying) return false;
+    updateWorkspace(current => ({ ...current, modifying: true }));
     try {
-      await chatController.modifyMessage(index, trimmed);
-      setEditingIndex(null);
-      setEditingText("");
+      await chatController.modifyMessage(edit.index, trimmed);
+      await chatController.loadMessages();
+      updateWorkspace(current => ({ ...current, edit: null }));
+      return true;
     } catch (err: any) {
       console.log("Failed to modify message", err);
       const msg = err?.message || "Failed to modify message";
       Alert.alert("Error", msg);
+      return false;
+    } finally {
+      updateWorkspace(current => ({ ...current, modifying: false }));
     }
   };
 
   const handleCancelEditMessage = () => {
-    setEditingIndex(null);
-    setEditingText("");
+    if (getWorkspace().modifying) return;
+    updateWorkspace(current => ({ ...current, edit: null }));
   };
 
   const handleMessageAction = async (
@@ -4955,18 +4986,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoiding}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={64}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
-      <View
-        style={[
-          styles.container,
-          Platform.OS === "android" &&
-            androidKeyboardHeight > 0 && {
-              paddingBottom: androidKeyboardHeight,
-            },
-        ]}
-      >
+      <View style={styles.container}>
         <View style={styles.headerContainer} testID="messages-screen-header">
           <View style={styles.headerRow}>
             <View style={styles.headerNavigation}>
@@ -5019,7 +5042,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                     return !homeWorkspaceHydrated || connectionId == null;
                   }
                   return (
-                    pluginActionInProgress ||
+                    runningHeaderActionIds.has(String(action)) ||
                     (action === "resend"
                       ? isComposerActionDisabled("resend")
                       : action === "cancel"
@@ -5062,6 +5085,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           sessionId={sessionId}
           testID="messages-notification-banner-rail"
         />
+        <ChatActivityRow
+          recovery={pendingRequestRecovery && !sendInProgress ? {
+            onResend: () => { void handleRetryPendingRequest(); },
+            onCancel: () => setPendingRequestRecovery(null),
+            disabled: !backend || workspaceState.edit != null,
+          } : null}
+          activities={[
+          ...(workspaceState.modifying ? [`Saving message [${workspaceState.edit?.index}]…`] : []),
+          ...(sendInProgress ? ["Sending…"] : activeRequestId ? ["Generating response…"] : []),
+          ...Object.values(workspaceState.actions),
+          ...(loadingMessages && !workspaceState.modifying ? ["Loading messages…"] : []),
+          ...(resumeRecoveryInProgress ? ["Revalidating chat…"] : []),
+          ...(attachmentActionInProgress ? [attachmentActionText] : []),
+        ]} />
 
         {sessionDirty && (
           <View style={styles.dirtyBanner}>
@@ -5119,24 +5156,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           </View>
         )}
 
-        {(loadingMessages ||
-          pluginActionInProgress ||
-          attachmentActionInProgress ||
-          resumeRecoveryInProgress) && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={theme.primary} />
-            <Text style={styles.loadingText}>
-              {loadingMessages
-                ? "Loading messages..."
-                : resumeRecoveryInProgress
-                ? "Revalidating chat after resume..."
-                : pluginActionInProgress
-                ? "Running action..."
-                : attachmentActionText}
-            </Text>
-          </View>
-        )}
-
         {attachmentPickInProgress && (
           <View style={styles.pickerRecoveryContainer}>
             <View style={styles.loadingContainer}>
@@ -5182,11 +5201,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           sessionSummary={currentSessionSummary}
           pinnedMessageActionsByRole={pinnedMessageActionsByRole}
           messageViewModeByIndex={messageViewModeByIndex}
-          editingIndex={editingIndex}
-          editingText={editingText}
-          onChangeEditingText={setEditingText}
-          onSubmitEdit={handleSubmitEditMessage}
-          onCancelEdit={handleCancelEditMessage}
           onMessageAction={handleMessageAction}
           onChangePinnedForRole={handleChangePinnedForRole}
           getPinnedActionsForRole={getPinnedActionsForRole}
@@ -5204,53 +5218,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             <Text testID="session-chat-error-detail" style={styles.errorText}>
               {activeError.detail}
             </Text>
-          </View>
-        )}
-
-        {pendingRequestRecovery && (
-          <View style={styles.pendingRecoveryContainer}>
-            <Text style={styles.pendingRecoveryTitle}>
-              Send not yet confirmed
-            </Text>
-            <Text style={styles.pendingRecoveryText}>
-              {pendingRequestRecovery.errorMessage}
-            </Text>
-            <Text style={styles.pendingRecoveryText}>
-              Retry reuses the original idempotency key, so it will not
-              duplicate a request that the server already accepted.
-            </Text>
-            <View style={styles.pendingRecoveryButtonsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.secondaryButton,
-                  styles.pendingRecoveryButton,
-                ]}
-                onPress={() => {
-                  handleCheckPendingRequestStatus().catch(() => {});
-                }}
-                disabled={
-                  sendInProgress || loadingMessages || resumeRecoveryInProgress
-                }
-              >
-                <Text style={styles.buttonTextSecondary}>Check status</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.primaryButton,
-                  styles.pendingRecoveryButton,
-                ]}
-                onPress={() => {
-                  handleRetryPendingRequest().catch(() => {});
-                }}
-                disabled={
-                  sendInProgress || loadingMessages || resumeRecoveryInProgress
-                }
-              >
-                <Text style={styles.buttonText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
 
@@ -5283,6 +5250,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           isActive={isActive}
           renderPinnedComposerAction={renderPinnedComposerSessionAction}
           onSend={handleSend}
+          edit={workspaceState.edit}
+          modifying={workspaceState.modifying}
+          onChangeEdit={text => updateWorkspace(current => current.edit
+            ? { ...current, edit: { ...current.edit, text } }
+            : current)}
+          onSaveEdit={handleSubmitEditMessage}
+          onCancelEdit={handleCancelEditMessage}
+          activities={[
+            ...(workspaceState.modifying ? [`Saving message [${workspaceState.edit?.index}]…`] : []),
+            ...(sendInProgress ? ["Sending…"] : activeRequestId ? ["Generating response…"] : []),
+            ...Object.values(workspaceState.actions),
+          ]}
         />
 
         <ComposerAttachmentsManageModal
@@ -6070,6 +6049,14 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 10,
       marginBottom: 4,
     },
+    composerCompactTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+    },
+    composerCompactContext: { flex: 1, minWidth: 0 },
+    composerCompactActionsBar: { width: 44 },
+    composerCompactInput: { minHeight: 76, maxHeight: 96 },
     composerInputRow: {
       flexDirection: "row",
       alignItems: "flex-end",
@@ -6093,7 +6080,7 @@ const createStyles = (theme: Theme) =>
       borderRadius: 8,
       paddingHorizontal: 10,
       paddingVertical: 8,
-      paddingRight: 38,
+      paddingRight: 70,
       fontSize: theme.typography.fontSize.normal,
       lineHeight: theme.typography.lineHeight.normal,
       color: theme.text,
@@ -6101,6 +6088,7 @@ const createStyles = (theme: Theme) =>
     },
     composerMaximizeButton: {
       position: "absolute",
+      zIndex: 1,
       top: 5,
       right: 5,
       width: 30,
@@ -6110,6 +6098,21 @@ const createStyles = (theme: Theme) =>
       borderRadius: 7,
       backgroundColor: theme.surfaceAlt,
     },
+    composerKeyboardButton: {
+      width: 44,
+      height: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 7,
+      backgroundColor: theme.surfaceAlt,
+    },
+    composerEditSendTitle: {
+      color: theme.textOnPrimary,
+      fontSize: theme.typography.fontSize.tiny,
+      lineHeight: theme.typography.lineHeight.tiny,
+      textAlign: "center",
+    },
+    composerEditSendButton: { width: 76, paddingHorizontal: 2 },
     composerSideButtons: {
       gap: 6,
     },

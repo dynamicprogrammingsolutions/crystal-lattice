@@ -34,6 +34,7 @@ import { useSessionRequestStatuses } from './useSessionRequestStatuses';
 import { HumanTimeTelemetryProvider } from './humanTimeTelemetry/HumanTimeTelemetryProvider';
 import EmbeddedRuntimeSettingsModal from './embeddedRuntime/EmbeddedRuntimeSettingsModal';
 import type { EmbeddedRuntimePublicConfiguration } from './embeddedRuntime/embeddedPythonRuntime';
+import { ChatWorkspaceProvider } from '@crystal-lattice/frontend-sdk-react';
 
 interface ConnectedRootProps {
   developmentSettings?: DevelopmentSettingsState;
@@ -712,4 +713,6 @@ const createStyles = (theme: Theme, insets: { top: number; bottom: number; left:
     },
   });
 
-export default ConnectedRoot;
+export default function ConnectedChatWorkspace(props: ConnectedRootProps) {
+  return <ChatWorkspaceProvider><ConnectedRoot {...props} /></ChatWorkspaceProvider>;
+}

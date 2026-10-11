@@ -29,3 +29,19 @@ The public `error` event represents a fatal request error. Frontend streaming
 state therefore clears a matching active request when it receives `error`;
 the normal later `request_completed` event is idempotent. An error for an older
 request does not clear a newer active request.
+
+## Reconciliation and acknowledgement ordering
+
+`ChatController.recoverAfterResume()` reloads the selected history window and,
+when supported, queries `getSessionRequestStatuses` for current active work.
+The message-list request ID can describe an older checkpoint; the optional
+status query observes the current active-request registry. Unavailable or
+unsupported status reads do not establish completion.
+
+Cursor recovery uses the same reconciliation before restarting from the latest
+event. Send acknowledgement also checks current work, and completed request
+IDs prevent a late acknowledgement from restoring a request that already
+finished, including when a later message reload still carries that request's
+checkpoint ID. Request revisions prevent an older status response from clearing
+newer work. This observes current state; it does not create durable operation
+history or prove whether an unacknowledged send was accepted.

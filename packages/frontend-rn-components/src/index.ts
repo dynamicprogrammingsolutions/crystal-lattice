@@ -241,3 +241,6 @@ export { SessionPluginsList } from "./SessionPluginsList";
 
 export type { SessionListFiltersPanelProps } from "./SessionListFiltersPanel";
 export { SessionListFiltersPanel } from "./SessionListFiltersPanel";
+export { ChatActivityRow } from "./ChatActivityRow";
+export type { ChatActivityRowProps } from "./ChatActivityRow";
+export { ComposerEditContext } from "./ComposerEditContext";

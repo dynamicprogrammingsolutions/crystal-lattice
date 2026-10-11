@@ -34,6 +34,19 @@ retry. Successful non-running or missing-session data replaces it
 authoritatively, while a bounded staleness window prevents unavailable
 authority from leaving Running visible indefinitely.
 
+## Transient Chat workspace
+
+`ChatWorkspaceProvider` owns in-memory Chat state by connection/session.
+`useSessionChatWorkspace` supplies the edit buffer, attachment drafts,
+unconfirmed-send payload, submission/modification state, and independently
+tracked application actions. Desktop places the provider above its warm-pane
+stack; mobile places it above connected navigation. This lets edits and
+recovery survive screen remounts without a disk-cache schema change.
+
+Hosts retain ordinary draft persistence and use their existing controllers
+and backend adapters. `runAction` guards the same action/context identity and
+removes only that operation's activity on completion.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

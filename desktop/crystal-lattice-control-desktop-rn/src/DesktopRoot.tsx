@@ -136,6 +136,7 @@ export interface DesktopHumanTimeNativeFixture {
   connection: ConnectionRecord;
   sessions: SessionSummary[];
   sessionId: string;
+  openSessionIds?: string[];
 }
 
 export function DesktopRoot(props: DesktopRootProps): React.JSX.Element {
@@ -338,20 +339,20 @@ function DesktopRootInner({
       targetSession.session_id,
     );
     return {
-      permanentTabs: [
-        {
-          tabId,
+      permanentTabs: (humanTimeNativeFixture.openSessionIds
+        ? humanTimeNativeFixture.sessions.filter(session => humanTimeNativeFixture.openSessionIds?.includes(session.session_id))
+        : [targetSession]).map(session => ({
+          tabId: buildTabId(humanTimeNativeFixture.connection.id, session.session_id),
           connectionId: humanTimeNativeFixture.connection.id,
-          sessionId: targetSession.session_id,
+          sessionId: session.session_id,
           title:
-            targetSession.presentation?.title ||
-            targetSession.preview ||
-            targetSession.session_id,
+            session.presentation?.title ||
+            session.preview ||
+            session.session_id,
           subtitle:
-            targetSession.presentation?.subtitle ??
+            session.presentation?.subtitle ??
             humanTimeNativeFixture.connection.name,
-        },
-      ],
+        })),
       previewTab: null,
       activeWorkspace: { kind: 'session' as const, tabId },
     };

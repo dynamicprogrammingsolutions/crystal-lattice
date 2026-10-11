@@ -346,6 +346,8 @@ export function InvertedTranscriptViewport<TItem>({
         style={[styles.list, listStyle]}
         testID={testID}
         inverted
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         onLayout={handleLayout}
         onContentSizeChange={handleContentSizeChange}
         onScroll={handleScroll}

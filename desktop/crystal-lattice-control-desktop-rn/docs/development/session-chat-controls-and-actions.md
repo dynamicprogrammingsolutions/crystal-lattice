@@ -30,6 +30,33 @@ plugin actions, attachment drafting, or Append. Append and attachment work use
 their own local in-flight guards, while the server remains authoritative for
 accepting concurrent mutations.
 
+Request submission, generation, message modification, and application actions
+also appear in a compact status row above the transcript. Concurrent actions
+retain independent activity entries; one finishing does not remove another's
+progress. Running an application action leaves unrelated session actions
+available.
+
+Panes shorter than 650 points use one-line title/subtitle text, a single-row
+composer action bar, and a composer input capped at 48 points. Extra pinned
+actions remain available in the overflow menu. The transcript reserves at
+least 30% of the pane height, and notification content scrolls within its
+bounded rail. Edit context shares the toolbar in short panes so long edits
+leave room for the transcript and primary button.
+
+Modify loads the selected user, assistant, or system message into the main
+composer. Warning-colored context shows its canonical zero-based index, and
+the primary button becomes **Save edit**. Saving modifies that message through
+the existing PATCH operation and confirms the updated transcript before
+leaving edit mode. It does not start a model response. Append, Append as,
+Resend, and attachment changes are disabled during editing. Request
+cancellation and unrelated settings/actions retain their ordinary eligibility.
+
+Edit text is separate from the ordinary draft and attachments. Saving or
+Cancel edit restores ordinary composition; a failed save retains the edit.
+The connection/session-scoped transient workspace keeps the edit and
+attachment drafts across warm-pane eviction without changing disk-cache
+schemas.
+
 See the shared React Native
 [actions menu components](../../../../packages/frontend-rn-components/docs/development/actions-menu-components.md)
 and frontend SDK

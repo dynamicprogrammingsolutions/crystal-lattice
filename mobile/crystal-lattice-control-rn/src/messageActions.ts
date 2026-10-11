@@ -4,6 +4,7 @@ export interface MessageActionDefinition {
   key: MessageActionKey;
   label: string;
   iconName: string;
+  testID?: string;
   // Roles for which this action is pinned by default (e.g. 'user', 'assistant', 'system', 'tool').
   defaultPinnedRoles: string[];
   // Roles where this action is allowed / should be offered.
@@ -13,6 +14,7 @@ export interface MessageActionDefinition {
 export const MESSAGE_ACTIONS: Record<MessageActionKey, MessageActionDefinition> = {
   modify: {
     key: 'modify',
+    testID: 'message-action-modify',
     label: 'Modify',
     iconName: 'edit-3',
     defaultPinnedRoles: ['user', 'assistant', 'system'],
