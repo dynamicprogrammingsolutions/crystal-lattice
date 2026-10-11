@@ -261,6 +261,84 @@ def test_show_duration_report_handles_empty_store(tmp_path: Path) -> None:
     assert "- LLM + tool duration: `0ms`" in result["display"]["body"]
     assert "- Human time: `0ms`" in result["display"]["body"]
     assert len(result["daily_totals_last_7_days"]) == 7
+    assert len(result["daily_totals_project_last_7_days"]) == 7
+    assert len(result["daily_totals_session_last_7_days"]) == 7
+
+
+def test_show_duration_report_seven_day_tables_scope_project_and_session(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    _seed(db_path)
+    duration_store.record_request_duration(
+        db_path,
+        session_id="session-1",
+        working_directory="/tmp/ws",
+        request_id="current-session",
+        duration_ms=2000,
+        time=_local_time_iso(hour=12),
+    )
+    duration_store.record_tool_duration(
+        db_path,
+        session_id="session-1",
+        working_directory="/tmp/ws",
+        request_id="current-session",
+        tool_call_id="current-tool",
+        duration_ms=1000,
+        time=_local_time_iso(hour=12),
+    )
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="current-human",
+        spans=[
+            {
+                "session_id": "session-1",
+                "from": _local_time_iso(hour=8),
+                "to": _local_time_iso(hour=8, minute=1),
+            },
+            {
+                "session_id": None,
+                "from": _local_time_iso(hour=9),
+                "to": _local_time_iso(hour=9, minute=2),
+            },
+        ],
+    )
+    duration_store.reset_project(
+        db_path, working_directory="/tmp/ws", time=_local_time_iso(hour=13)
+    )
+
+    result = DurationTrackingAppPlugin().execute_action(
+        _FakeApp(_session_config(tmp_path)),
+        "show_duration_report",
+        {"session_id": "session-1"},
+        None,
+        _state(),
+    )
+
+    today = datetime.now().astimezone().date().isoformat()
+    assert result["daily_totals_project_last_7_days"][today] == {
+        "llm_total_ms": 2500,
+        "tool_total_ms": 1000,
+        "human_total_ms": 180_000,
+    }
+    assert result["daily_totals_session_last_7_days"][today] == {
+        "llm_total_ms": 2000,
+        "tool_total_ms": 1000,
+        "human_total_ms": 60_000,
+    }
+    assert (
+        sum(row["llm_total_ms"] for row in result["daily_totals_last_7_days"].values())
+        == 3500
+    )
+    assert result["report"]["llm_total_ms"] == 0
+    body = result["display"]["body"]
+    assert "### Last 7 days — current project" in body
+    assert "### Last 7 days — current session" in body
+    assert "Session: `session-1`" in body
+    assert "### Last 7 days — all projects" in body
+    assert body.count("| Day | LLM time | Tool time | Human time |") == 3
+    assert "| **Total** | `2s` | `1s` | `1m` |" in body
 
 
 def test_show_duration_report_includes_human_time_line(tmp_path: Path) -> None:

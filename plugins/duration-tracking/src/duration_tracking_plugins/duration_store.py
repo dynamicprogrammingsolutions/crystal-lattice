@@ -1286,15 +1286,33 @@ def project_totals_since_reset(
         conn.close()
 
 
-def daily_duration_totals(db_path: Path, *, days: int = 7) -> Dict[str, Dict[str, int]]:
+def daily_duration_totals(
+    db_path: Path,
+    *,
+    days: int = 7,
+    working_directory: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> Dict[str, Dict[str, int]]:
     """Return zero-filled local-calendar-day LLM, tool, and human totals.
 
     Project reset markers do not affect this fixed historical view. Human
     spans crossing local midnight are split between the applicable days.
+    Optional project and session filters apply to all three duration sources.
+    A project-only view includes its session-less human time.
     """
 
     days = _validated_days(days)
     window_modifier = f"-{days - 1} days"
+    scope_filters: List[str] = []
+    scope_params: List[Any] = []
+    for column, value in (
+        ("working_directory", working_directory),
+        ("session_id", session_id),
+    ):
+        if value is not None:
+            scope_filters.append(f" AND {column} = ?")
+            scope_params.append(value)
+    scope_filter = "".join(scope_filters)
     conn = _connect(db_path)
     try:
         _ensure_schema(conn)
@@ -1331,16 +1349,17 @@ def daily_duration_totals(db_path: Path, *, days: int = 7) -> Dict[str, Dict[str
                 WHERE date(time, 'localtime')
                     BETWEEN date('now', 'localtime', ?)
                         AND date('now', 'localtime')
+                    {scope_filter}
                 GROUP BY date(time, 'localtime')
                 """,
-                (window_modifier,),
+                (window_modifier, *scope_params),
             ).fetchall()
             for day, total_ms in rows:
                 if day in totals:
                     totals[day][key] = int(total_ms)
 
         human_rows = conn.execute(
-            """
+            f"""
             WITH RECURSIVE window_days(day) AS (
                 SELECT date('now', 'localtime', ?)
                 UNION ALL
@@ -1377,10 +1396,11 @@ def daily_duration_totals(db_path: Path, *, days: int = 7) -> Dict[str, Dict[str
               ON julianday(to_time) > julianday(datetime(day, 'utc'))
              AND julianday(from_time)
                     < julianday(datetime(day, '+1 day', 'utc'))
+            WHERE 1 = 1{scope_filter}
             GROUP BY day
             ORDER BY day
             """,
-            (window_modifier,),
+            (window_modifier, *scope_params),
         ).fetchall()
         for day, total_ms in human_rows:
             if day in totals:

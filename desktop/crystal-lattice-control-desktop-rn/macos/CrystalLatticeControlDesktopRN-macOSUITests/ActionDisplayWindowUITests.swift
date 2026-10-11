@@ -17,7 +17,7 @@ final class ActionDisplayWindowUITests: XCTestCase {
     continueAfterFailure = false
   }
 
-  func testLongDirectActionDisplayOpensScrollableWindow() throws {
+  func testLongDirectActionDisplayReopensAfterBothCloseMethods() throws {
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_ACTION_DISPLAY_HARNESS"] = "1"
     app.launchArguments.append("--action-display-harness")
@@ -55,6 +55,33 @@ final class ActionDisplayWindowUITests: XCTestCase {
     XCTAssertTrue(close.waitForExistence(timeout: 10), app.debugDescription)
     close.click()
     let closed = NSPredicate(format: "exists == false")
+    expectation(for: closed, evaluatedWith: actionWindow)
+    waitForExpectations(timeout: 10)
+
+    let reopen = harnessWindow.descendants(matching: .any)
+      .matching(identifier: "action-display-harness-reopen")
+      .firstMatch
+    XCTAssertTrue(reopen.waitForExistence(timeout: 10), app.debugDescription)
+    reopen.click()
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(
+      actionWindow.staticTexts["Compiled system message"].waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+
+    let nativeClose = actionWindow.buttons[XCUIIdentifierCloseWindow]
+    XCTAssertTrue(nativeClose.waitForExistence(timeout: 10), app.debugDescription)
+    nativeClose.click()
+    expectation(for: closed, evaluatedWith: actionWindow)
+    waitForExpectations(timeout: 10)
+
+    reopen.click()
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(
+      actionWindow.staticTexts["Compiled system message"].waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    close.click()
     expectation(for: closed, evaluatedWith: actionWindow)
     waitForExpectations(timeout: 10)
   }

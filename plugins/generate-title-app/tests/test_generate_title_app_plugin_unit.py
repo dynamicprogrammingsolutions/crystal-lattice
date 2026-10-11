@@ -18,6 +18,18 @@ from plugins.controllable_openai_test_provider import (
 from generate_title_app import GenerateTitleAppPlugin  # noqa: F401
 
 
+def test_generate_title_menu_icons_are_supported_by_feather() -> None:
+    elements = GenerateTitleAppPlugin().get_ui_elements({})
+    assert {element["id"] for element in elements} == {
+        "generate_title_from_list",
+        "generate_title_from_view",
+    }
+    assert all(element["icon"] == "zap" for element in elements)
+    assert all(
+        element["action_id"] == "generate_title_for_session" for element in elements
+    )
+
+
 def _get_mutations(result: Dict[str, Any]) -> Dict[str, Any]:
     mutations = result.get("mutations")
     return mutations if isinstance(mutations, dict) else {}

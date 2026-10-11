@@ -1,9 +1,9 @@
 # Add a Generic Contextual-Content Contract and Shared Display
 
-Let plugins contribute contextual information and help through simple
-declarative metadata, while shared frontend code owns display, simple
-view-state visibility, actions, and presentation dismissal. Establish the
-contract with a neutral real-backend consumer before product adoption.
+Let plugins contribute contextual information and help through declarative
+metadata. Shared frontend code owns presentation, simple view-state
+visibility, actions, and local dismissal. Deliver a working shared host and
+one real-backend consumer before the production guidance adoption in `030`.
 
 ## Requirements checklist
 
@@ -33,181 +33,387 @@ Parent Task: tasks/20261006-mobile-home-and-contextual-content/000-main.md
 Depends On:
 tasks/20260910-ios-embedded-runtime-poc/027-local-agent-provider-settings-usability.md
 
-This is the agreed second-round sequence, not a dependency on the OpenAI
-layout implementation. `010` can run independently. Production screen and
-workspace content adoption is owned by `030`.
+`027` and the independently deliverable Home/navigation task `010` are complete.
+This task can proceed once its public contract and execution plan are approved.
+Production Home/Sessions/chat copy, the generic guidance producer, workspace
+content, and broad help adoption remain owned by
+`tasks/20261006-mobile-home-and-contextual-content/030-empty-states-info-affordances-and-local-workspace-guidance.md`.
 
-## Open questions
+## Decisions requested before execution
 
-- **Visibility:** recommend distinguishing `no_session` from `empty` and
-  `always`, with documented host meanings. Sessions emptiness should use the
-  authoritative collection rather than a filtered visible list; transcript
-  emptiness should not be inferred from a partial loaded range. Confirm the
-  wire values and how the host obtains sufficient facts.
-- **Dismissal:** recommend a device-local identity combining connection,
-  plugin/content ID, context scope, optional session ID, and producer
-  revision. Confirm whether a changed revision resurfaces automatically and
-  whether dismissal is session-local or connection-wide for each declaration.
-- **Help metadata:** should an element contain an inline `help` display,
-  reference a contextual-content ID, or support both? Recommendation:
-  references for reused content plus a small inline form for one-field help;
-  retain existing `description` as ordinary short help. Confirm the schema
-  before implementing it.
-- **Navigation actions:** recommend a contextual-action wrapper referencing
-  existing plugin actions and a finite set of app targets, initially
-  session settings and an optional setting key. Confirm whether this belongs
-  to contextual metadata or extends the shared action-display union.
-- **Sources and refresh:** confirm application versus session declaration
-  precedence and when content is refreshed. Recommendation: use authoritative
-  context-specific schemas and existing reload/invalidation boundaries;
-  no separate polling service or new persisted server content store.
+These are recommendations for review, not approved implementation decisions.
 
-## Supporting facts
+1. **Visibility and backend rules:** use `always`, `no_session`, and `empty`
+   as the small frontend vocabulary. An optional producer-computed boolean
+   gates automatic presentation separately from whether help content is
+   available. The default automatic gate is enabled. Python decides complex
+   rules from its real context; no expressions or executable rule code cross
+   the wire. Loading, errors, filtered lists, and partial message ranges do
+   not establish emptiness.
+2. **Dismissal:** keep it on this device, scoped to the owning context:
+   application declarations per connection, session declarations per session,
+   and application-owned Home content per device. Allow an explicit
+   connection-wide scope for a session declaration when a producer wants one
+   dismissal across that connection's sessions. A producer-controlled revision
+   resurfaces changed content; ordinary body/value changes do not implicitly
+   erase dismissal.
+3. **Help metadata:** support a small inline display or a reference to a
+   contextual-content ID in the same plugin/context. Existing `description`
+   text remains short inline help. Opening help ignores automatic-panel
+   visibility and dismissal, but still requires currently available content.
+4. **Actions and navigation:** reuse existing link/plugin-action metadata and
+   execution. Add a contextual-only frontend navigation action for
+   `session_settings` or `server_settings`, optionally focused on a setting
+   key. Keep the general action-result union unchanged. App-owned Home
+   guidance uses injected application callbacks for its existing connection
+   and local-provider navigation.
+5. **Source and refresh:** use the authoritative schema for the current
+   context instead of merging cached application and session declarations.
+   Reuse existing reload/invalidation boundaries. Recommend showing automatic
+   cached content only after a successful refresh of that context; loading
+   or refresh failure should not establish current eligibility. This is a
+   proposed presentation policy, not a change to existing registry consumers.
 
-- Core UI declarations are opaque and application UI schema adds plugin IDs
-  and ordering. The existing public application and session UI-schema
-  endpoints can carry an additional declarative element without replacing
-  current schemas.
-- Session application UI receives effective config and the persisted session.
-  Application UI receives an application context and server settings but no
-  selected session. Complex domain rules can therefore stay in the producer.
-- `PluginsRegistry` retains selected UI element families and will need to
-  expose normalized contextual elements. Session schema controllers already
-  have load/invalidation boundaries.
-- `ActionDisplayPayload` supports body, format, optional title/variant, and
-  link/copy/run-action follow-ups. The existing action runner understands
-  dialogs and parameter maps. Session directory acquisition already uses
-  `client_input` and returns an opaque grant to plugin actions.
-- `ActionDisplayCard` is currently mobile-owned and assumes a framed result
-  surface. Reuse its content/actions through composition or extraction;
-  do not fork its renderer into a second implementation.
-- Notification dismissal caches synchronize lifecycle mutations with the
-  server. Contextual dismissal can reuse key-value-store patterns, but does
-  not require those notification mutations or retry semantics.
+The proposed field names and combinations are recorded below for a concrete
+review. Approval should settle these five choices and the Draft plan together.
+No additional guidance copy or production producer is chosen here.
+
+## Research and feasibility
+
+Facts verified in the current checkout:
+
+- `AgentApplication.get_application_ui_schema()` passes an application
+  context, server settings, config, tags, and models to application plugins
+  and preserves opaque element data. `get_session_application_ui_schema_for_session()`
+  additionally supplies the complete persisted session, its ID, effective
+  overrides, and base config. Complex session eligibility needs no synthetic
+  session or new backend query endpoint.
+- `RestAgentBackend.listApplicationUiSchema()` uses
+  `/application/ui-schema`; `getSessionApplicationUiSchema()` uses
+  `/sessions/{id}/application/ui-schema`. Both already return opaque
+  dictionaries. The new family needs SDK interpretation, not another
+  transport protocol.
+- `PluginsRegistry` retains only selected element families in its public
+  result today. Its raw cache can carry contextual declarations, but the
+  registry and React context must expose their normalized form.
+- Application registry refresh already follows server-settings and
+  application-action invalidation. Session schema controllers have
+  connection/session cache keys and explicit invalidation. Existing action
+  responses can invalidate session schemas. Their caches are not themselves
+  a complete contextual refresh policy.
+- `ActionDisplayPayload` already has text/Markdown, title, body, ordinary
+  follow-up actions, optional forms, and presentation. `ActionDisplayCard`
+  is mobile-owned, always frames the body, and supplies an `Action Result`
+  title when none is provided. Its body/actions can be extracted for reuse;
+  contextual content should not inherit that result-specific title.
+- `ActionUiElement` includes `dialog`, `fixed_params`, `param_map`, owner,
+  and `client_input`. `runApplicationAction()` accepts acquired client
+  values. The current `ActionDisplayRunActionAction` type does not carry
+  `client_input`; merely reusing that type would not preserve directory
+  acquisition. The contextual adapter must preserve the existing UI-action
+  metadata and invoke the existing acquisition/dialog path.
+- Current message/query DTOs inspected for this work do not supply a
+  guaranteed full-history count. The mobile chat normally loads a range.
+  Do not infer an empty session from an empty displayed range or load the
+  entire transcript solely to show guidance. A session producer can compute
+  its automatic gate from the full session already in its schema context.
+- `NotificationDismissalCache` is tied to notification revisions and
+  server lifecycle acknowledgement. Its storage patterns are useful, but
+  contextual dismissal needs its own records and no notification mutation.
+- The existing mobile component integration harness starts a real public
+  backend and constructs `RestAgentBackend`. Its action-display integration
+  consumer already exercises real follow-up dialogs and returned displays.
+
+Feasibility conclusion: the existing schema, action, and rendering boundaries
+support this delivery. The work is concentrated in SDK selectors/state,
+shared presentation, and mobile adapters. It requires no model request,
+production server access, new native module, dependency installation during
+planning, or production default-config change.
+
+Primary continuation references:
+
+- `core/python/agent_app/application_future.py` — application/session schema
+  context and aggregation.
+- `packages/frontend-sdk/src/plugins/pluginsRegistry.ts`,
+  `types/plugins.ts`, `types/uiSchema.ts`, and `plugins/actionRunner.ts`.
+- `packages/frontend-sdk/src/uiSchema/sessionApplicationUiSchemaController.ts`
+  and existing schema/settings invalidation helpers.
+- `packages/frontend-sdk-react/src/applicationPlugins.tsx`.
+- `mobile/crystal-lattice-control-rn/src/components/ActionDisplayCard.tsx`,
+  `GlobalDisplayLayer.tsx`, and `SessionSettingsModal.tsx`.
+- `mobile/crystal-lattice-control-rn/__integration__/support/mobileComponentBackend.ts`
+  and `ActionDisplayForm.realBackend.integration.test.tsx`.
 
 ## Execution plan
 
 Status: Draft
 
-### Proposed declaration and boundaries
+### Proposed declaration
 
-Use `ui_type: "contextual_content"` as the proposed family. The following
-example records the reviewed shape; it is not a finalized public schema:
+Keep the family generic: `ui_type: "contextual_content"`. This example is a
+proposed schema for review, not a current supported declaration:
 
 ```json
 {
   "ui_type": "contextual_content",
   "id": "workspace-guidance",
   "placement": "session_chat",
-  "visibility": "empty",
+  "visibility": {
+    "when": "always",
+    "enabled": true
+  },
   "appearance": "card",
-  "dismissal": {"mode": "local", "revision": 1},
-  "show_info": true,
+  "dismissal": {
+    "scope": "session",
+    "revision": 1
+  },
   "display": {
     "format": "markdown",
     "title": "Working directory",
     "body": "Files are read and written in this session's selected workspace.",
-    "actions": []
+    "actions": [
+      {
+        "kind": "navigate",
+        "id": "open-workspace-setting",
+        "label": "Working directory",
+        "target": "session_settings",
+        "setting_key": "workspace"
+      }
+    ]
   }
 }
 ```
 
-Application schemas supply no-session content; session schemas supply content
-for a selected session. Specify source precedence and identity in the approved
-contract before adding merging behavior. Expose the available backend facts
-through existing plugin context rather than installing a frontend condition
-interpreter or manufacturing a hidden session.
+Use `session_list` and `session_chat` as the initial plugin placement targets.
+The host chooses the physical location within those screens; metadata does
+not name React components, native views, selectors, or arbitrary routes.
+Application-owned Home content passes the same normalized presentation shape
+to its own host.
 
-Add a normalized SDK type/selector and controller integration, keeping
-presentation metadata separate from eligibility logic. A host supplies
-explicit collection/selection/message state; its selector applies only the
-approved simple states. Do not treat loading or failure as proven emptiness.
+`appearance` is `card` or `plain`. Omitting `dismissal` makes the automatic
+panel non-dismissible. The proposed scope vocabulary is `connection` or
+`session` for plugin declarations; the host supplies context identity rather
+than trusting a descriptor to select another connection/session.
+Application-owned content can use its own device context without exposing a
+new remote device-scope operation.
 
-Put host-neutral React bindings in `frontend-sdk-react` where needed, and
-reusable presentation/help controls in `frontend-rn-components` with injected
-theme/Markdown/action renderers. Mobile provides those adapters and app-view
-navigation. Application-owned Home explanations pass the same normalized
-content shape, using application-owned action callbacks.
+Visibility applies to automatic placement. `no_session` uses selection state.
+`empty` is supplied as a known/unknown host fact and is true only after an
+authoritative empty collection is established. Successful unfiltered,
+unlimited list reads can establish list emptiness; a filter or partial range
+cannot. Session producers can instead use `when: "always"` with a Python-
+computed `enabled` flag based on full history. This lets them keep a help
+descriptor available after its automatic panel should disappear.
 
-Use existing plugin/action routes for operations and returned displays.
-Frontend navigation is a separate recognized action unless an approved
-extension to the shared action union is chosen. Publishing or viewing content
-does not execute an operation or model request. Preserve directory
-client-input handling when a contributed action requires it.
+For help, propose either:
 
-Store only local dismissal identities under the approved scope. An info sheet
-can reopen eligible content independently of whether its automatic panel was
-dismissed. Backend-ineligible content follows the approved source/refresh
-policy rather than remaining visible from an unrelated cached context.
+```json
+{"help": {"content_id": "workspace-guidance"}}
+```
 
-### Delivery steps
+or:
 
-1. Resolve and document the minimal wire fields, source/visibility semantics,
-   dismissal identity, help metadata, and navigation action.
-2. Implement SDK interpretation, scoped refresh/dismissal, and shared
-   presentation/help components.
-3. Connect a neutral application-plugin fixture through the real public
-   backend and production adapter to the shared host.
-4. Exercise a plugin rule change, action result, and help/dismissal behavior
-   in that consumer; publish supported author/SDK guidance.
+```json
+{"help": {"display": {"format": "text", "body": "Explanation of this setting."}}}
+```
+
+Resolve references in the declaring plugin's owning schema context.
+Application-owned help passes a resolved descriptor directly. Keep existing
+short descriptions; adding richer help does not move every description into
+a dialog or make it disappear.
+
+### Ownership and sources
+
+The backend owns content, domain rules, and publication. The SDK owns
+normalization, source identity, simple selection, and dismissal records. The
+React package binds those states to hosts. Shared RN components own body,
+frame/plain presentation, buttons, and info affordances. Mobile supplies
+Markdown/theme adapters, actual action execution, storage, and bounded
+navigation callbacks.
+
+Use the application schema for a no-session context and the selected session
+application schema for a selected session context. That session endpoint
+already reevaluates application plugins with the session context; do not
+overlay a stale application-registry copy of the same declaration. Core
+session config/schema remains available for help attached to its own elements.
+Preserve backend ordering and scope content identity by plugin and stable ID.
+Server settings uses its own schema context for declared help; it does not
+need an automatic content placement inside settings for this first delivery.
+
+App-owned Home content is independent from backend publication and remains
+usable before a connection exists. Publishing, selecting, dismissing, or
+reading content never executes a plugin action or model request.
+
+### Rendering and action flow
+
+Extract reusable display body/actions from `ActionDisplayCard` into the
+shared package with injected Markdown and action callbacks. Preserve the
+existing action-result wrapper, its forms, bounds, titles, and follow-up
+behavior through at least one existing consumer.
+
+Compose a contextual host and help control from that shared presentation.
+The automatic host uses the selector and local dismissal state. Help opens
+the currently available explanation even when its automatic panel is hidden
+or dismissed. Inside a settings modal, help must use that modal's existing
+overlay surface rather than presenting a competing native modal.
+
+Normalize contextual plugin operations with the existing `ActionUiElement`
+fields, preserving any declared dialog and client-input acquisition.
+Execute through `runApplicationAction()` and the production mobile adapter,
+bound to the source connection/session. Returned displays and effects go
+through the existing display/dialog pipeline.
+
+The contextual navigation variant dispatches only the approved host
+callbacks. It does not alter the shared `ActionDisplayFollowupAction` union
+or add a general navigation interpreter. The focused-setting path opens
+existing settings and reveals the declared field through the production
+settings host.
+
+### Refresh and local state
+
+Load declarations on entry to their owning view/context and reuse existing
+schema invalidation after settings, actions, and session changes. Ensure
+session-history changes refresh any schema-derived automatic gate. Preserve
+connection/session identity during asynchronous loads; an old response cannot
+populate another selected context.
+
+For contextual presentation, loading or a failed refresh is not authoritative
+eligibility. Retain data only within its owning cache context and do not
+automatically present cached guidance until that context has been refreshed
+successfully. Existing registry behavior for other element families stays
+unchanged. Add no separate polling service or server content store.
+
+Store dismissal in a separate device-local key-value record keyed by
+application/connection context, plugin or app producer, content ID, applicable
+session ID, and revision. A changed producer revision shows a new automatic
+panel. Viewing help does not clear dismissal or change a notification record.
+Use the existing storage-adapter pattern, with mobile supplying AsyncStorage.
+
+### Incremental delivery and affected boundaries
+
+1. Implement normalized declarations, source selection, and a basic text/
+   Markdown panel through the existing public schemas. Demonstrate it with a
+   neutral plugin and the production adapter before adding the complete
+   help/dismissal behavior.
+2. Extract shared body/actions and adapt the existing action display.
+   Add framed/plain contextual presentation and the bounded navigation/action
+   adapter; retain the established dialog and client-input flow.
+3. Add scoped local dismissal and inline/reference help. Exercise a real
+   setting label/control through its production renderer, not a fixture-only
+   imitation of settings.
+4. Complete dynamic backend eligibility, refresh/isolation checks, and
+   author/package documentation. Leave product guidance/configuration to `030`.
+
+Required changes are limited to:
+
+- SDK UI types/normalizers, application-registry exposure, context selection,
+  existing schema refresh integration, and local dismissal state.
+- React bindings for the new normalized state where existing hooks do not
+  suffice.
+- Shared display/help components and focused extraction from the existing
+  mobile display wrapper.
+- Mobile presentation/action/navigation adapters and one production settings
+  help entry point.
+- A neutral test plugin/consumer and its public-boundary checks.
+
+Keep neutral fixtures in their owning test package using supported plugin
+loading. Do not add a production guidance package or runtime dependency to
+make the test fixture discoverable.
 
 ### Implementation decisions and open questions
 
-- **Accepted direction:** declarative contextual content, Python-owned
-  complex eligibility, shared presentation, explicit simple frontend states,
-  and local presentation dismissal separate from notifications.
-- **Open:** the exact public fields and lifecycle semantics listed near the
-  top. Recommendations are not implementation decisions until confirmed.
-- Add no arbitrary component names, executable frontend rules, raw screen
-  selectors, or notification status fields to the descriptor.
-- Keep neutral fixtures in the owning test package or shared `test/` support;
-  they are not production guidance plugins. Use a real consumer of the shared
-  helper in verification.
+- The five contract/lifecycle recommendations near the top remain unapproved.
+  The JSON examples make them reviewable, not implemented or finalized.
+- Source selection is proposed as authoritative per context, with no app/
+  session duplicate merging or cross-plugin reference lookup.
+- The initial navigation targets are session/server settings plus an
+  optional setting key. Login, connection switching, folder browsing,
+  purchase flows, and arbitrary app targets are outside this delivery.
+- Config `description` remains current short help. The common helper must
+  allow `030` to adopt help beside other plugin/app elements without copying
+  rendering or defining another metadata family.
+- No new total-history endpoint is planned. Producers compute full-session
+  rules in Python; unknown frontend emptiness suppresses automatic empty
+  content.
+- Preserve existing treatment of unknown UI families and established
+  nonfatal schema diagnostics. Detailed validation follows the approved
+  field contract; do not invent unrelated fallback/error workflows.
+- Main risks are stale context, help inside an existing native modal,
+  preserving client-input/dialog behavior, and accidental action-display or
+  notification lifecycle coupling. Verify those actual boundaries.
 
 ### Documentation
 
-Document the supported declaration/help/action fields and a small Python
-producer example in `plugins/docs/ui-elements.md` and
-`plugins/docs/actions.md`. Explain the distinction from notifications in the
-existing notification/action-display guide.
+Keep the new schema visibly unimplemented in this Draft task. During approved
+execution, document supported producer fields, Python predicates, help,
+revision/dismissal, and contextual actions in `plugins/docs/ui-elements.md`
+and `plugins/docs/actions.md`; explain the distinction from notifications in
+the existing notification/action-display guide.
 
-Document shared SDK source/refresh/dismissal behavior and component adapter
-responsibilities in the owning package documentation. No separate
-specification hierarchy is required for this handoff.
+Document SDK source/refresh/local-state behavior in its existing development
+documentation and shared presentation/adapter responsibilities in the RN
+package. Use the React README for any new hook contract rather than creating
+placeholder documentation directories. Product onboarding copy belongs to
+`030`, not these framework docs.
 
 ### Task checklist
 
-- [ ] Confirm the public contract/lifecycle questions and execution plan.
-- [ ] Add normalized SDK declarations and context-specific schema exposure.
-- [ ] Implement shared presentation, actions, help, and scoped dismissal.
-- [ ] Integrate a neutral real-backend consumer and prove dynamic eligibility.
-- [ ] Verify existing action/notification consumers and update author/package
-  documentation.
-- [ ] Record requirement evidence for the downstream production adoption.
+- [ ] Confirm the five material recommendations and execution plan.
+- [ ] Add SDK declarations, context-specific exposure/selection, and a basic
+  real-backend text/Markdown consumer.
+- [ ] Extract shared presentation and preserve a production action-result
+  consumer.
+- [ ] Add contextual actions/settings navigation and preserve dialog/client
+  input handling.
+- [ ] Add scoped dismissal and inline/reference help through a real settings
+  renderer.
+- [ ] Verify backend predicate changes, refresh/revision, and context isolation.
+- [ ] Pass focused existing action/notification consumers and package checks.
+- [ ] Publish supported author/package documentation and requirement evidence
+  for `030`.
 
 ### Requirement verification
 
-- **C1/C3:** focused selector/component checks cover the approved visibility,
-  framed/plain, dismissal, text/Markdown/action, and help combinations.
+- **C1/C3:** selector/component checks exercise the approved simple states,
+  producer gate, framed/plain presentation, text/Markdown/actions, local
+  dismissal, and inline/reference help. Unknown/loading/filtered/partial-range
+  state must not be asserted to mean empty.
 - **C2/C4/C5 — decisive `Contextual content public integration`:** add
-  `__integration__/ContextualContent.realBackend.integration.test.tsx` in
-  mobile using `startMobileComponentBackend`, public UI-schema/action/config
-  routes, `RestAgentBackend`, real neutral plugins, and the production shared
-  host/runner. Fetch no-session content, select a real session, change a
-  plugin-owned state through a public action or setting, refresh, and assert
-  changed eligibility/content and correctly scoped action execution.
-  Assert the same operation does not create notification records or model
-  messages. Separate mocked route/display tests do not satisfy this check.
-- Planned decisive invocation, from the mobile package:
+  `mobile/crystal-lattice-control-rn/__integration__/ContextualContent.realBackend.integration.test.tsx`.
+  Use `startMobileComponentBackend`, public UI-schema/action/settings routes,
+  `RestAgentBackend`, a real neutral application plugin, and the production
+  shared host/adapter. Read no-session content without creating a session,
+  create/select a real session, change plugin-owned eligibility through a
+  public action/setting, refresh, and observe the new content/gate. Execute a
+  declared plugin operation and display its real result through the existing
+  runner. Compare model messages and notification records before/after
+  presentation and dismissal; they remain unchanged.
+- **C3/C4:** include a real production setting element with declared help.
+  Its info control opens the shared display inside the actual settings host.
+  A contextual navigation button opens/focuses that field through the
+  production adapter. Verify a real action dialog and the existing client-
+  input callback boundary without replacing action dispatch with a mock.
+- **C5:** through the same public consumer, check dismissal after remount,
+  reopening help, revision resurface, server/session isolation, and a late
+  schema response after context selection changes.
+- Decisive HTTP/component invocation from the mobile package:
   `npm run test:components:integration -- --runTestsByPath __integration__/ContextualContent.realBackend.integration.test.tsx`.
-- Verify local dismissal and connection/session identity through that
-  consumer using the approved revision rules. Use at least one real setting
-  element with declared help rather than a fixture-only help-button copy.
+- **Native modal boundary:** add a focused simulator case using the
+  production settings/help host and stable entity selectors. Prove that
+  help opens and closes inside settings, links/actions remain usable, and
+  returning leaves the setting interactive. Invocation:
+  `npx detox test -c ios.sim.release e2e/contextualContent.e2e.test.ts --cleanup`.
+  A native fixture can supply deterministic declarations, but cannot replace
+  the production modal or renderer. Report native UI evidence separately
+  from the real HTTP integration evidence.
 
 ### Additional implementation verification
 
 Run affected SDK, React-binding, shared-component, and mobile tests/types.
-Verify an existing action display and notification consumer after any shared
-renderer/runner change. Unknown/unsupported schema handling follows the
-approved compatibility contract; do not invent a new fallback during
-implementation merely to satisfy a test.
+Verify the existing `ActionDisplayForm.realBackend.integration.test.tsx`
+consumer after presentation/action extraction, plus an existing notification
+consumer to ensure its dismiss/resolve lifecycle remains independent.
+
+Add the decisive HTTP and simulator commands to root `package.json` during
+execution. No hosted API/provider matrix, manual ChatGPT login, production
+server access, new native module, or physical-device acceptance is required.

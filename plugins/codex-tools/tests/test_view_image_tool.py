@@ -52,6 +52,24 @@ def test_view_image_schema_is_responses_native_by_default(tmp_path: Path) -> Non
     assert list(params["properties"].keys()) == ["path", "detail"]
 
 
+def test_view_image_descriptions_match_current_codex_cli(tmp_path: Path) -> None:
+    wrapper, state = _wrapper(tmp_path)
+
+    schema = wrapper.get_tool_schemas(state)[0]
+
+    assert schema["description"] == (
+        "View a local image file from the filesystem when visual inspection "
+        "is needed. Use this for images already available on disk."
+    )
+    params = schema["parameters"]["properties"]
+    assert params["path"]["description"] == "Local filesystem path to an image file."
+    assert params["detail"]["enum"] == ["high", "original"]
+    assert params["detail"]["description"] == (
+        "Image detail level. Defaults to `high`; use `original` to preserve "
+        "exact resolution."
+    )
+
+
 def test_view_image_schema_detail_can_be_disabled(tmp_path: Path) -> None:
     wrapper, state = _wrapper(
         tmp_path,
@@ -167,7 +185,20 @@ def test_view_image_rejects_invalid_detail(tmp_path: Path) -> None:
     )
 
     assert result["success"] is False
-    assert "only supports `original`" in result["error"]
+    assert "only supports `high` and `original`" in result["error"]
+
+
+def test_view_image_accepts_high_detail(tmp_path: Path) -> None:
+    image = tmp_path / "tiny.png"
+    image.write_bytes(_png_bytes())
+    wrapper, state = _wrapper(tmp_path)
+
+    result = wrapper.execute_tool(
+        "view_image", {"path": "tiny.png", "detail": "high"}, state
+    )
+
+    assert result["success"] is True
+    assert result["detail"] == "high"
 
 
 def test_view_image_accepts_original_by_default(tmp_path: Path) -> None:

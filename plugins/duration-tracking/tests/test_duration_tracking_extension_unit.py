@@ -851,6 +851,11 @@ def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None
     native = [
         {
             "role": "assistant",
+            "content": "previous turn",
+            "_metadata": {"human_time_session_total": 180000},
+        },
+        {
+            "role": "assistant",
             "content": "hello",
             "_metadata": {
                 "duration_ms": 1200,
@@ -866,7 +871,7 @@ def test_from_native_messages_projects_human_time_totals(tmp_path: Path) -> None
         {
             "role": "assistant",
             "content": "hello",
-            "metadata": {"native_indices": [0]},
+            "metadata": {"native_indices": [1]},
         }
     ]
 
@@ -1104,3 +1109,205 @@ def test_finalize_omits_human_delta_when_total_regresses(tmp_path: Path) -> None
 
     assert _internal(new_finals[0])["human_time_session_total"] == 0
     assert "human_time_turn_delta" not in _internal(new_finals[0])
+
+
+@pytest.mark.parametrize("item_type", ["function_call", "custom_tool_call"])
+def test_finalize_records_tool_only_llm_response_once(
+    tmp_path: Path, item_type: str
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    owner = {
+        "type": item_type,
+        "call_id": "call-2",
+        "_metadata": _assistant_final()["_metadata"],
+    }
+    finals = [{"type": item_type, "call_id": "call-1"}, owner]
+    native = _native_history(finals)
+    feature = DurationTrackingExtension()
+
+    new_finals, new_native, _ = _finalize(feature, finals, native, _state(db_path))
+    _finalize(feature, new_finals, new_native, _state(db_path))
+
+    assert len(_request_rows(db_path)) == 1
+    assert _internal(new_finals[-1])["duration_session_total"] == 1200
+    assert _internal(new_native[-1])["duration_session_requests"] == 1
+    assert not any(key.startswith("human_time_") for key in _internal(new_finals[-1]))
+    import csv
+
+    with db_path.with_name("duration-tracking-summary.csv").open() as stream:
+        assert len(list(csv.DictReader(stream))) == 1
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"role": "tool"},
+        {"type": "function_call_output"},
+        {"type": "custom_tool_call_output"},
+        {"type": "reasoning"},
+    ],
+)
+def test_finalize_does_not_record_tool_execution_or_reasoning_as_llm(
+    tmp_path: Path, item: Dict[str, Any]
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    final = {**item, "_metadata": _assistant_final()["_metadata"]}
+
+    _finalize(
+        DurationTrackingExtension(),
+        [final],
+        _native_history([final]),
+        _state(db_path),
+    )
+
+    assert _request_rows(db_path) == []
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        {"has_tool_calls": True},
+        {"turn": {"has_tool_calls": True}},
+        {"turn": {"is_terminal": False}},
+    ],
+)
+def test_finalize_recognizes_native_nonterminal_markers(
+    tmp_path: Path, marker: Dict[str, Any]
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    feature = DurationTrackingExtension()
+    intermediate = _assistant_final(**marker)
+    new_finals, _, _ = _finalize(
+        feature, [intermediate], _native_history([intermediate]), _state(db_path)
+    )
+    assert not any(key.startswith("human_time_") for key in _internal(new_finals[0]))
+
+    # Old intermediate stamps must not become the next completed turn's baseline.
+    previous = _assistant_final(human_time_session_total=60_000)
+    old_intermediate = _assistant_final(**marker, human_time_session_total=120_000)
+    duration_store.record_human_time_spans(
+        db_path,
+        working_directory="/tmp/ws",
+        request_id="human",
+        spans=[
+            {
+                "session_id": "s1",
+                "from": "2026-09-25T08:00:00Z",
+                "to": "2026-09-25T08:02:00Z",
+            }
+        ],
+    )
+    final = _assistant_final(
+        started_at="2026-01-01T00:01:00+00:00",
+        finished_at="2026-01-01T00:01:01.200000+00:00",
+    )
+    new_finals, _, _ = _finalize(
+        feature,
+        [final],
+        [previous, old_intermediate, final],
+        _state(db_path),
+    )
+    assert _internal(new_finals[0])["human_time_turn_delta"] == 60_000
+
+
+@pytest.mark.parametrize("saved_delta", [0, 10_000])
+def test_projection_repairs_saved_human_delta_from_completed_snapshots(
+    saved_delta: int,
+) -> None:
+    native = [
+        _assistant_final(human_time_session_total=60_000),
+        _assistant_final(
+            has_tool_calls=True,
+            human_time_session_total=120_000 - saved_delta,
+            human_time_turn_delta=60_000 - saved_delta,
+        ),
+        _assistant_final(
+            human_time_session_total=120_000,
+            human_time_turn_delta=saved_delta,
+        ),
+    ]
+    messages = [
+        {
+            "role": "assistant",
+            "metadata": {
+                "native_indices": [1],
+                "has_tool_calls": True,
+                "human_time_turn_delta": 60_000 - saved_delta,
+                "human_time_session_total": 120_000 - saved_delta,
+            },
+        },
+        {
+            "role": "assistant",
+            "metadata": {
+                "native_indices": [2],
+                "human_time_turn_delta": saved_delta,
+                "human_time_turn_delta_formatted": "0ms",
+            },
+        },
+    ]
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    assert not any(key.startswith("human_time_") for key in projected[0]["metadata"])
+    assert projected[1]["metadata"]["human_time_turn_delta"] == 60_000
+    assert projected[1]["metadata"]["human_time_turn_delta_formatted"] == "1m"
+    assert native[2]["_metadata"]["human_time_turn_delta"] == saved_delta
+
+
+@pytest.mark.parametrize(
+    "previous_total,current_total",
+    [(None, 120_000), (120_000, 60_000)],
+)
+def test_projection_removes_unprovable_saved_human_delta(
+    previous_total: Optional[int], current_total: int
+) -> None:
+    native = [
+        _assistant_final(human_time_session_total=previous_total),
+        _assistant_final(
+            human_time_session_total=current_total,
+            human_time_turn_delta=1234,
+        ),
+    ]
+    messages = [
+        {
+            "role": "assistant",
+            "metadata": {"native_indices": [1], "human_time_turn_delta": 1234},
+        }
+    ]
+
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    assert "human_time_turn_delta" not in projected[0]["metadata"]
+
+
+def test_projection_of_current_finals_preserves_full_history_delta() -> None:
+    native = [
+        _assistant_final(
+            human_time_session_total=150_000,
+            human_time_turn_delta=90_000,
+            human_time_turn_delta_formatted="1.5m",
+        )
+    ]
+    messages = [{"role": "assistant", "metadata": {"native_indices": [0]}}]
+
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    assert projected[0]["metadata"]["human_time_turn_delta"] == 90_000
+
+
+def test_projection_of_first_complete_turn_uses_zero_baseline() -> None:
+    native = [
+        {"role": "user", "content": "hello"},
+        _assistant_final(
+            has_tool_calls=True,
+            human_time_session_total=60_000,
+        ),
+        _assistant_final(
+            human_time_session_total=60_000,
+            human_time_turn_delta=0,
+        ),
+    ]
+    messages = [{"role": "assistant", "metadata": {"native_indices": [2]}}]
+
+    projected = DurationTrackingExtension().from_native_messages(native, messages)
+
+    assert projected[0]["metadata"]["human_time_turn_delta"] == 60_000

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   emitDisplayPresentation,
@@ -28,38 +28,56 @@ function createBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
-function EmitLongActionDisplay({ backend }: { backend: AgentBackend }): null {
-  useEffect(() => {
-    emitDisplayPresentation(
-      backend,
-      normalizeDisplayEnvelope({
-        id: 'compiled-system-message',
-        source: 'action_response',
-        ownershipScope: 'session',
-        connectionId: 'local',
-        sessionId: 'long-prompt-session',
-        display: {
-          format: 'text',
-          title: 'Compiled system message',
-          body: LONG_BODY,
-          presentation: 'modal',
-          dismissible: true,
-          form: {
-            kind: 'form',
-            inputs: [
-              {
-                name: 'prompt',
-                type: 'multiline',
-                label: 'Prompt',
-                default: 'Initial prompt',
-              },
-            ],
-          },
+function presentLongActionDisplay(backend: AgentBackend): void {
+  emitDisplayPresentation(
+    backend,
+    normalizeDisplayEnvelope({
+      id: 'compiled-system-message',
+      source: 'action_response',
+      ownershipScope: 'session',
+      connectionId: 'local',
+      sessionId: 'long-prompt-session',
+      display: {
+        format: 'text',
+        title: 'Compiled system message',
+        body: LONG_BODY,
+        presentation: 'modal',
+        dismissible: true,
+        form: {
+          kind: 'form',
+          inputs: [
+            {
+              name: 'prompt',
+              type: 'multiline',
+              label: 'Prompt',
+              default: 'Initial prompt',
+            },
+          ],
         },
-      }),
-    );
+      },
+    }),
+  );
+}
+
+function EmitLongActionDisplay({
+  backend,
+}: {
+  backend: AgentBackend;
+}): React.JSX.Element {
+  useEffect(() => {
+    presentLongActionDisplay(backend);
   }, [backend]);
-  return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Show action report"
+      testID="action-display-harness-reopen"
+      onPress={() => presentLongActionDisplay(backend)}
+      style={styles.reopen}
+    >
+      <Text>Show action report</Text>
+    </Pressable>
+  );
 }
 
 export function DesktopActionDisplayHarness(): React.JSX.Element {
@@ -86,3 +104,7 @@ export function DesktopActionDisplayHarness(): React.JSX.Element {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  reopen: { padding: 16 },
+});

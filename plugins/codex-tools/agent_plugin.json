@@ -4,6 +4,8 @@
   "entries": [
     "codex_tools.shell_tool.ShellArrayTool",
     "codex_tools.shell_command_tool.ShellCommandTool",
+    "codex_tools.unified_exec_tool.ExecCommandTool",
+    "codex_tools.unified_exec_tool.WriteStdinTool",
     "codex_tools.shell_tool_legacy.ShellTool",
     "codex_tools.apply_patch_tool.ApplyPatchTool",
     "codex_tools.mcp_tool.CodexMCPTool",
@@ -14,6 +16,8 @@
   "kinds": {
     "codex_tools.shell_tool.ShellArrayTool": "tools",
     "codex_tools.shell_command_tool.ShellCommandTool": "tools",
+    "codex_tools.unified_exec_tool.ExecCommandTool": "tools",
+    "codex_tools.unified_exec_tool.WriteStdinTool": "tools",
     "codex_tools.shell_tool_legacy.ShellTool": "tools",
     "codex_tools.apply_patch_tool.ApplyPatchTool": "tools",
     "codex_tools.mcp_tool.CodexMCPTool": "tools",

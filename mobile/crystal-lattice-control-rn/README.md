@@ -367,6 +367,19 @@ npm run detox:test:session-list:ios
 npm run detox:test:session-list:android
 ```
 
+The action-form harness verifies production dialogs and result modals with
+long forms, independent markdown/form scrolling, software keyboards, and
+follow-up overlays:
+
+```bash
+npm run detox:test:action-forms:ios
+npm run detox:test:action-forms:android
+```
+
+See [Action forms and results](docs/development/action-forms-and-results.md)
+for verification boundaries and a manual checkpoint using the existing
+ChatGPT usage report and cost-tracking actions.
+
 The website visual harness renders the production chat background and session
 settings modal with deterministic coding-agent configuration. The iOS capture
 command builds the app, runs the scenario, and writes reviewed-candidate inputs

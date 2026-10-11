@@ -9,7 +9,10 @@ Codex supports two distinct `apply_patch` tool shapes.
    - Input is validated by a grammar (see `format.lark`).
 
 2. `schema.function.json` (`type: "function"`)
-   - Used by “JSON tool only” configurations (Codex mentions gpt-oss models as the intended target).
+   - **Historical**: upstream Codex removed the function-style `apply_patch`
+     tool on 2026-05-08; freeform (`type: "custom"`) is the only current
+     upstream shape. The snapshot is retained because this platform still
+     serves a function-style fallback on chat-completions providers.
    - Accepts a single JSON argument: `{ "input": "...full patch text..." }`.
 
 ## Model/feature variants

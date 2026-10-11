@@ -67,18 +67,21 @@ Physical-device testing is not an acceptance gate.
 
 ## Open questions
 
-- **Visibility semantics:** distinguish no selected session, an empty new
-  session, and an empty filtered list. Recommendation: expose explicit
-  frontend states; do not infer new-user state from a filtered list or a
-  partial transcript. The final field/value shape belongs to `020`.
+- **Visibility semantics:** `020` proposes a small explicit frontend
+  vocabulary plus a Python-computed automatic gate. Full-session rules stay
+  in the producer; filtered lists and partial transcripts do not prove
+  emptiness. Confirm that contract before implementation.
 - **Dismissal and help identity:** the accepted direction is device-local
   presentation dismissal, separate from server notification state. Scope,
-  revision changes, and reference-versus-inline help metadata remain to be
-  confirmed in `020`.
+  revision changes, and inline/reference help metadata are concretely
+  proposed for review in `020`.
 - **Actions and app navigation:** plugin actions and links can reuse existing
-  contracts. Opening a frontend view or a particular setting needs a small
-  explicit contract; its supported targets and ownership remain open in
-  `020`.
+  contracts. `020` proposes contextual-only navigation to session/server
+  settings, optionally focused on a field, while preserving client-input
+  acquisition and dialog metadata.
+- **Source and refresh:** `020` proposes authoritative context-specific
+  schemas, existing invalidation, and successful refresh before automatically
+  presenting cached content. That presentation policy still needs approval.
 - **Guidance producer/configuration:** confirm the recommended small generic
   application plugin for configurable Sessions/chat guidance, with
   working-directory content owned by the existing embedded workspace plugin.
@@ -89,13 +92,14 @@ requirements, and no unresolved behavior should be implemented by assumption.
 
 ## Supporting facts
 
-- `ConnectedRoot.tsx` currently starts on Home but renders separate Home,
-  Connections, Sessions, and Messages tabs. New connection actions switch to
-  the Connections tab, and the no-backend Sessions placeholder directs users
-  there.
-- `ConnectionsScreen.tsx` already exposes saved connection cards and their
-  open/disconnect/delete/health/settings actions. `App.tsx` owns connection
-  records and transport/backend creation.
+- `010` is implemented in commit `e992bd2f`: Home has the Connections section,
+  and navigation has Home, Sessions, and Messages. The Home menu remains on
+  the left with settings and New connection; its right-hand area is empty
+  until login is implemented. Setup uses a modal and retains the active
+  connection until replacement succeeds.
+- `src/connections/` owns card/list/actions/setup composition. Cards include
+  New session plus buttons. `App.tsx` still owns connection records and
+  transport/backend creation.
 - Home currently shows Watchlist and Recent Sessions with short static empty
   labels. Both sections are device-owned and can be present without a live
   backend.
@@ -231,3 +235,6 @@ unless a change or failure exposes a relevant provider risk.
 - The connection/navigation portion of M6 is verified by `010`; M6 remains
   incomplete until the other owning children supply their evidence.
 - The contextual-content contract and adoption in `020`/`030` remain Draft.
+- `020` has a refreshed Draft plan from current schema/action/rendering
+  inspection. It proposes five review decisions and an incremental real HTTP
+  consumer before production guidance. No `020` implementation has begun.

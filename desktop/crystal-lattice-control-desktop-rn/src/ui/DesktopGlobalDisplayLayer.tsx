@@ -33,10 +33,14 @@ import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationA
 import type { OpenConnectionsById } from '../connections/useOpenConnections';
 import {
   clearActiveActionDisplayWindow,
+  dismissActiveActionDisplayWindowFromSystem,
   getActiveActionDisplayWindow,
   setActiveActionDisplayWindow,
 } from '../windows/actionDisplayWindowCoordinator';
-import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import {
+  desktopWindowEvents,
+  DesktopWindowManager,
+} from '../windows/desktopWindowManager';
 import { ActionResultInlineCard } from './ActionResultInlineCard';
 
 const ACTION_DISPLAY_WINDOW_KEY = 'actionDisplay';
@@ -116,6 +120,18 @@ export function DesktopGlobalDisplayLayer({
     Record<string, ApplicationNotificationsController>
   >({});
 
+  useEffect(() => {
+    const subscription = desktopWindowEvents?.addListener(
+      'reactWindowCancelled',
+      payload => {
+        if (payload?.windowKey === ACTION_DISPLAY_WINDOW_KEY) {
+          dismissActiveActionDisplayWindowFromSystem();
+        }
+      },
+    );
+    return () => subscription?.remove();
+  }, []);
+
   const upsert = useCallback((envelope: DisplayEnvelope) => {
     const normalized = normalizeDisplayEnvelopeForHost(envelope, 'desktop');
     const key = displayEnvelopeLifecycleKey(normalized);
@@ -143,9 +159,13 @@ export function DesktopGlobalDisplayLayer({
   const dismissLocally = useCallback((envelope: DisplayEnvelope) => {
     const revision = displayEnvelopeRevisionKey(envelope);
     const lifecycle = displayEnvelopeLifecycleKey(envelope);
-    setDismissedRevisions((current) =>
-      current.includes(revision) ? current : [...current, revision],
-    );
+    // A direct action result is removed when closed. Its next invocation may
+    // reuse the same display ID and revision and must be presented again.
+    if (envelope.source !== 'action_response') {
+      setDismissedRevisions((current) =>
+        current.includes(revision) ? current : [...current, revision],
+      );
+    }
     setTransientItems((current) =>
       current.filter((item) => displayEnvelopeLifecycleKey(item) !== lifecycle),
     );

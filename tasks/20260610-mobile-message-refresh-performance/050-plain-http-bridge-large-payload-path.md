@@ -1399,3 +1399,18 @@ server on an HTTP-v1-capable bridge:
    Changing the setting must leave an already-open connection running.
 5. Confirm the mobile UX is acceptable, or report feedback. Desktop bridge
    implementation remains blocked until that confirmation is recorded.
+
+### Integration before develop merge — 2026-10-11
+
+- The user requested a `--no-ff` merge into `develop`. Committed the verified
+  implementation as `d076ddf2`, then integrated `develop` at `750b0ea7`
+  in the isolated task worktree before the final target-branch merge.
+- Conflicts were limited to the earlier Draft task records. Preserved the
+  approved execution status, completed evidence, and original completion
+  notes, and removed a duplicated saved-URL reconciliation section.
+- Combined-state verification passes: SDK 381 tests, shared React Native UI
+  76 tests, mobile 63 suites / 340 tests, and mobile TypeScript. The feature
+  diff against `develop` passes whitespace checks. Incoming unrelated changes
+  were preserved without edits.
+- Merging the code does not constitute human mobile UX confirmation; desktop
+  bridge implementation remains gated as recorded above.

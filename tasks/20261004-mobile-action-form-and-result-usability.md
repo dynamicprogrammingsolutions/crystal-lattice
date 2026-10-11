@@ -8,10 +8,10 @@ workflows and offering a separate follow-up dialog for larger forms.
 
 ## Requirements checklist
 
-- [ ] R1. Mobile action dialogs use the available safe viewport, avoid the
+- [x] R1. Mobile action dialogs use the available safe viewport, avoid the
   software keyboard, and provide a scrollable form area so every field and the
   submit/cancel controls remain reachable for an arbitrary number of fields.
-- [ ] R2. Mobile action-result modals are capped to the available safe viewport,
+- [x] R2. Mobile action-result modals are capped to the available safe viewport,
   avoid the software keyboard, keep long markdown independently scrollable,
   and keep follow-up actions discoverable without requiring users to scroll
   through the markdown.
@@ -22,7 +22,7 @@ workflows and offering a separate follow-up dialog for larger forms.
   can be entered with a native date/time selector on supported mobile
   platforms, cleared when optional, and edited through a text fallback where
   no selector is supported or an existing value cannot be parsed.
-- [ ] R5. The behavior tracked by
+- [x] R5. The behavior tracked by
   `tasks/20260620-action-display-followup-dialogs.md` is completed, allowing an
   action-result follow-up button to open the same arbitrary-length action
   dialog used by ordinary session actions while preserving existing immediate
@@ -61,6 +61,9 @@ workflows and offering a separate follow-up dialog for larger forms.
 - Desktop behavior is in scope only where required by the referenced
   cross-platform follow-up-dialog contract. The reported layout, keyboard, and
   native selector corrections are mobile concerns.
+- Portrait usability is the required mobile checkpoint. Landscape is optional
+  and must not block completion of stage 1; the user explicitly permitted
+  skipping it if it requires more than an easy fix.
 
 ## Requirement questions
 
@@ -76,13 +79,12 @@ boundaries above.
 
 ## Established facts
 
-- `ActionResultModal` currently renders its native modal without a
-  `KeyboardAvoidingView`.
-- `ActionDisplayCard` currently gives only the result body a bounded
-  `ScrollView`; its embedded form and follow-up actions are separate siblings.
-- The ordinary `ApplicationActionDialog` already has keyboard avoidance, but
-  its card does not provide a viewport-filling scrollable form body for an
-  arbitrary number of fields.
+- Stage 1 adds measured safe/keyboard-adjusted viewport constraints to
+  `ActionResultModal`, with independent markdown and embedded-form scroll
+  regions and fixed title/close/follow-up controls.
+- Stage 1 makes ordinary `ApplicationActionDialog` reuse
+  `ApplicationActionForm`, with a bounded scroll body and fixed title and
+  Cancel/OK controls.
 - The mobile action-field renderer currently specializes select and boolean
   fields. Unknown field types fall back to a text input.
 - The ChatGPT usage report currently emits `from` and `to` as string fields in
@@ -93,20 +95,20 @@ boundaries above.
 - The report parser accepts date-only, naive date/time, and ISO timestamps.
   Its current inclusive comparison interprets a date-only upper bound as
   midnight at the start of that date.
-- Existing action-display tests establish that a `ScrollView` is rendered but
-  do not prove native scrolling, keyboard avoidance, or last-field
-  reachability.
+- Stage 1 adds neutral native scenarios that exercise actual scrolling,
+  keyboard presentation, last-field reachability, and typed submission.
 - The first slice supplied the mobile field-renderer registry to global
   action-result forms and added follow-up dialogs. Those paths are available
   for the next layout slice.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-The first implementation slice is complete. This revision plans the next mobile
-layout slice and awaits approval. Datetime selectors and report migration will
-be planned and executed after the layout slice.
+The first implementation slice is complete. Stage 1 is approved for execution,
+including its tests and documentation. Stop after stage 1 for the user's manual
+checkpoint and report improvements and existing plugin entry points. Stages 2
+and 3 remain planned and require approval after that checkpoint.
 
 Use one common form contract and two intentionally different mobile
 presentations.
@@ -140,38 +142,55 @@ buttons. Selecting the range opens a `datetime` action dialog, and applying it
 re-runs the report. Python tests verify the plugin-specific schema, parameter
 mapping, timezone handling, date-only compatibility, and filtering behavior.
 
-Implement the work in this order:
+### Stage ownership and completion checkpoints
 
-1. Complete or incorporate the referenced follow-up-dialog protocol work so
-   display `run_action` entries can carry an ordinary dialog and map
-   `$dialog.<field>` values on mobile and desktop.
-2. Define and document the generic `datetime` form value contract, including
-   empty values, explicit timezone transport, fallback behavior, and the
-   distinction between exact timestamps and legacy date-only input.
-3. Refactor shared action-form value initialization, validation, clearing, and
-   submission so action dialogs and embedded result forms use identical
-   `datetime` semantics.
-4. Rework the mobile ordinary action dialog into a safe-area-aware,
-   viewport-capped layout with fixed chrome and a keyboard-aware scrollable
-   form body. Ensure focus can move to or reveal the final field regardless of
-   field count.
-5. Add the mobile native datetime renderer. Use a combined date/time selector
-   where the platform supports it and a platform-appropriate date-then-time
-   flow where it does not. Preserve a text fallback and add stable identifiers
-   for the field, selector trigger, picker, and clear action.
-6. Rework the action-result modal without combining markdown and controls into
-   one long scroll. Bound it to the safe viewport, add keyboard avoidance, keep
-   markdown scrollable, and keep the small embedded form plus follow-up actions
-   reachable. Supply mobile field renderers through every action-result host,
-   including global notification displays.
-7. Move ChatGPT report range entry from the embedded report form to a
-   follow-up `datetime` dialog, retaining a direct close action and existing
-   report refresh behavior.
-8. Correct date-only range normalization and ensure selector-generated
-   timezone-bearing timestamps compare correctly with journal timestamps.
-9. Add neutral component, real-backend, and native fixtures covering the
-   generic behavior, then update current plugin documentation and
-   plugin-specific unit tests.
+These stages are execution slices within the existing task files, not new
+subtasks. The proposed earlier report migration in stage 2 remains a sequencing
+recommendation for the later plan; it does not change the approved requirements.
+
+| Stage | Owning task | Requirement coverage |
+| --- | --- | --- |
+| 0. Follow-up-dialog foundation, completed | `tasks/20260620-action-display-followup-dialogs.md`, incorporated by this task's completed first slice | R5 protocol dependency; R8 fixture constraint |
+| 1. Mobile layout and keyboard handling | `tasks/20261004-mobile-action-form-and-result-usability.md` | R1, R2, layout portion of R3, remaining presentation portion of R5, scrolling portion of R9, embedded-form guidance portion of R10 |
+| 2. Real usage report adopts a text follow-up dialog and correct range boundaries | `tasks/20261004-mobile-action-form-and-result-usability.md` | Follow-up-dialog portion of R6; manual-input, date-only, timezone-bearing input, and inverted-range portions of R7 |
+| 3. Common datetime controls and real report adoption | `tasks/20261004-mobile-action-form-and-result-usability.md` | R4, datetime portions of R3 and R6, selector-to-filter verification for R7, remaining R9 and R10 |
+
+R8 applies to every stage. All proposed work has an existing owner. The former
+stage 4, final integration/regression/documentation, is removed: its checks and
+documentation belong to the stage that introduces the affected behavior.
+
+- **Stage 0:** completed with SDK, public-backend, mobile/desktop coverage and
+  protocol documentation. Manual demonstration is available through the
+  neutral plugin's `Show follow-up dialog`; the real usage report has not
+  adopted this capability yet.
+- **Stage 1:** implement the detailed mobile layout slice below. Complete its
+  neutral component and native iOS/Android tests, relevant existing
+  public-backend regressions, and mobile/plugin-author layout guidance in the
+  same stage. Manually test the existing ChatGPT report's long markdown and
+  embedded From/To text fields with the keyboard open. Existing ordinary
+  plugin dialogs provide an additional real consumer without plugin changes.
+- **Stage 2:** remove the real report's embedded range form and put its current
+  optional string fields in a follow-up dialog with `$dialog.*` mappings.
+  Preserve applied values, clearing, close/refresh behavior, and correction
+  dialogs on error results. Normalize date-only lower/upper bounds to the
+  start/end of the server-local day while preserving exact timestamps and
+  rejecting inverted ranges. Include plugin schema/usage-journal regression
+  tests, the existing neutral production-UI/public-backend checks, and the
+  plugin README describing the implemented text-dialog and range semantics.
+  Manual checks cover open/cancel/apply/reopen/clear, same-day inclusion, and
+  invalid/inverted ranges against existing journal history. R6 remains
+  incomplete until stage 3 upgrades the fields to datetime.
+- **Stage 3:** define `datetime` and consistent shared initialization,
+  validation, clearing, and submission; integrate a compatible native picker
+  and its fallback; upgrade the real report's two dialog fields to datetime.
+  Add shared/component and public-backend coverage, extend the neutral native
+  harness on both platforms for selectors in ordinary/follow-up dialogs and
+  small embedded forms, and verify emitted timezone-bearing values against
+  the report parser. Include native builds, relevant desktop fallback
+  regressions, current datetime authoring guidance, and the plugin README
+  update. Manual checks use native selection, optional clearing, retained
+  values, supported text fallback, and phone/server timezone differences on
+  the real report.
 
 ### First implementation slice: action-result follow-up dialogs
 
@@ -256,7 +275,7 @@ Decisive verification for this slice:
 
 ### Next implementation slice: mobile modal layout and keyboard handling
 
-Status: Draft
+Status: Approved
 
 Deliver the usable mobile form surface before adding native datetime controls.
 This slice addresses R1, R2, the layout portion of R3, and the remaining
@@ -291,6 +310,9 @@ Action-result modals:
   their natural height; cap overflow so fields cannot consume all the space
   reserved for markdown. When both regions overflow, prefer roughly two
   thirds of the middle area for markdown and one third for the form.
+  In short viewports, reserve a readable markdown line and enough form space
+  for a single-line input where the available height permits; use a compact
+  title/variant row to reduce fixed chrome.
 - Document embedded forms as small, context-adjacent input. Large or
   keyboard-heavy forms should use the now-supported follow-up dialog. Do not
   impose an arbitrary field-count rejection or automatically rewrite plugin
@@ -328,8 +350,9 @@ Decisive acceptance evidence:
   independently and prove the follow-up controls stay reachable while the
   keyboard is open; the stress fixture tests viewport containment, not a new
   arbitrary-form support promise for embedded results.
-- Cover portrait, a reduced-height viewport, and the existing larger
-  typography preset. Verify native frames/visibility rather than merely
+- Cover portrait, including the reduced height with the keyboard open, and the
+  existing larger typography preset. Landscape verification is optional.
+  Verify native frames/visibility rather than merely
   asserting that a `ScrollView` exists. Exercise both supported markdown
   renderers because selectable native text may affect scroll gestures.
 - Preserve the first slice's component and real-backend tests. Run mobile
@@ -344,16 +367,15 @@ Documentation describes the implemented modal behavior and the small embedded
 form limitation in `plugins/docs/actions.md`, with native harness commands in
 the mobile README/development guidance. Main risks are duplicate keyboard
 insets in overlay presentations, multiline/selectable text gesture handling,
-and shared-layout changes affecting the desktop presenter. A native datetime
-field will be added to these same fixtures in the following slice.
+and shared-layout changes affecting the desktop presenter. Stage 3 adds native
+datetime fields to these same fixtures.
 
 ### Implementation decisions and open questions
 
-- Proposed next-slice decision: cap an action result's embedded form in its
+- Approved stage-1 decision: cap an action result's embedded form in its
   own scroll region while reserving space for markdown and keeping follow-up
   controls fixed. The approximate two-to-one allocation is a layout
-  recommendation for overflow, not a field-count limit; approval of the next
-  slice confirms this presentation.
+  recommendation for overflow, not a field-count limit.
 - Decision: ordinary action dialogs, including follow-up dialogs, support
   arbitrary field counts; embedded action-result forms explicitly do not make
   that guarantee.
@@ -396,31 +418,36 @@ field will be added to these same fixtures in the following slice.
 
 - [x] Complete the protocol, SDK, mobile, desktop, tests, and documentation
   required by `tasks/20260620-action-display-followup-dialogs.md`.
-- [ ] Define shared datetime field semantics and types.
-- [ ] Consolidate shared action-form datetime initialization, validation,
-  submission, and clearing behavior.
-- [ ] Make ordinary mobile action dialogs viewport-capped, keyboard-aware, and
-  scrollable for arbitrary field counts.
-- [ ] Add and integrate the native mobile date/time selector with fallback.
-- [ ] Make mobile action-result modals viewport-capped and keyboard-aware while
-  preserving separate markdown scrolling and visible follow-up actions.
-- [ ] Wire mobile field renderers through every action-dialog and
-  action-result presentation path.
-- [ ] Move ChatGPT usage range entry to a datetime follow-up dialog.
-- [ ] Correct inclusive date-only upper-bound handling and preserve supported
-  manual formats.
-- [ ] Add neutral shared, mobile component, real-backend, and native UI
-  fixtures and tests.
-- [ ] Update plugin author and ChatGPT usage-report documentation.
-- [ ] Run focused and package-level verification and record the evidence.
+- [x] Stage 1: complete mobile ordinary-dialog and result-modal layout,
+  keyboard/focus handling, and host integration, with neutral component/native
+  tests, relevant backend/desktop regressions, required layout/embedded-form
+  documentation, and manual checkpoint instructions.
+  - [x] Implement shared form reuse, bounded mobile dialog/result layout,
+    focus reveal, overlay keyboard ownership, and orientation support.
+  - [x] Add and run component regressions, relevant public-backend checks,
+    shared package tests, and desktop dialog/TypeScript regressions.
+  - [x] Update plugin author guidance and mobile/shared documentation, including
+    existing-plugin manual checkpoint instructions.
+  - [x] Complete native iOS and Android portrait scrolling/keyboard verification.
+- [ ] User reviews the manual checkpoint after stage 1 before stage 2 begins.
+- [ ] Stage 2: migrate the real usage report to a text follow-up dialog and
+  correct range normalization, with plugin/schema/journal tests, neutral
+  frontend regressions, the plugin README update, and manual checkpoint
+  instructions.
+- [ ] Stage 3: implement common datetime semantics and native selectors,
+  upgrade the real report, and complete shared/component/backend/native and
+  desktop-fallback verification, required datetime documentation, and
+  manual checkpoint instructions.
 
 ### Requirement verification
 
-- R1: A neutral native action-dialog scenario on iOS and Android renders a
+- R1: Passed in stage 1 through `e2e/actionForms.e2e.test.ts` on iOS and
+  Android. A neutral native action-dialog scenario renders a
   fixture with enough mixed fields to exceed the viewport, scrolls from the
   first field to the last, focuses fields with the keyboard open, changes the
   last field, and submits all values through the production dialog.
-- R2: A neutral native action-result scenario on iOS and Android renders long
+- R2: Passed in stage 1 through `e2e/actionForms.e2e.test.ts` on iOS and
+  Android, with both markdown renderers. A neutral native action-result scenario renders long
   markdown with fixed follow-up actions, scrolls the markdown independently,
   and confirms the actions remain visible and operable before and after
   keyboard presentation.
@@ -432,7 +459,9 @@ field will be added to these same fixtures in the following slice.
   timezone-bearing submission, required validation, optional clearing,
   `submit_empty`, and unparseable-value fallback. The tests exercise both the
   ordinary dialog and embedded action-result form using neutral fixtures.
-- R5: The decisive SDK/backend integration uses a neutral fixture plugin that
+- R5: The completed protocol slice plus stage-1 native ordinary/follow-up
+  many-field scenarios provide the required evidence. The decisive SDK/backend
+  integration uses a neutral fixture plugin that
   returns a display follow-up with a dialog, opens it through the production
   frontend path, submits `$dialog.*` values, and observes the mapped values at
   the real public backend. Mobile and desktop presentation tests cover their
@@ -468,6 +497,11 @@ field will be added to these same fixtures in the following slice.
   existing behavior.
 
 ## Implementation Notes
+
+- Stage 1 execution is approved. The user requires a manual checkpoint after
+  this stage, with a report of the improvements and existing plugin workflows
+  where they can be tested. Stages 2 and 3 will not execute before that
+  checkpoint is reviewed.
 
 - Execution of the first slice began after explicit user approval.
 - Existing unrelated changes in the shared worktree, including desktop chat
@@ -509,8 +543,51 @@ field will be added to these same fixtures in the following slice.
   replacing this slice's SDK changes with their HEAD versions produced the
   identical 58 diagnostics; no new diagnostic was introduced. This broad
   check is not counted as passed.
-- R5's protocol dependency is completed through
-  `tasks/20260620-action-display-followup-dialogs.md`; R5 remains unchecked
-  until the arbitrary-length dialog layout required by R1 is implemented and
-  verified. Datetime fields, mobile sizing/keyboard/scroll corrections,
-  ChatGPT migration, and native iOS/Android selector tests remain planned.
+- After the first slice, R5's protocol dependency was completed through
+  `tasks/20260620-action-display-followup-dialogs.md`; its remaining
+  arbitrary-length layout evidence is supplied by stage 1 below.
+
+### Stage 1 checkpoint
+
+- Stage 1 is complete and execution stops for the requested manual review.
+  R1, R2, and R5 are verified. R3's layout portion is implemented, while its
+  datetime portion and R4/R6/R7/R9/R10's remaining work belong to later stages.
+- Ordinary mobile dialogs reuse the common form with a measured, scrollable
+  body and fixed title/Cancel/OK controls. Native focus reveal uses the
+  actual scroll viewport after layout/keyboard changes; form inputs remain
+  mounted during resizing.
+- Result modals have safe/keyboard-aware sizing, independent markdown/form
+  scroll regions, fixed follow-up controls, and reduced padding in short
+  viewports. The source keyboard is dismissed on dialog transitions, and
+  Android inputs disable fullscreen IME editing.
+- Native verification passed with the current code: 7 portrait scenarios on
+  iPhone 17 Pro / iOS 26.1 and 7 on the Android API 35 AOSP emulator. The
+  optional landscape scenario is intentionally skipped by the default
+  commands and is not included in those counts. A separate
+  `CLC_TEST_ACTION_FORM_LANDSCAPE=1` Android run passed its one focused
+  landscape scenario. Landscape is optional per the user's scope correction.
+- Commands: `npm run detox:build:ios`,
+  `npm run detox:test:action-forms:ios`, `npm run detox:build:android`, and
+  `DETOX_ANDROID_AVD=CLC_HTTP_Bridge_AOSP35_20261010 npm run detox:test:action-forms:android`.
+  Both builds and requested portrait suites exited successfully. The default
+  API 36.1 emulator initially showed a System UI ANR; that interrupted attempt
+  is not counted as verification.
+- Final checks passed: mobile Jest 321 tests, shared RN 76 tests, focused
+  desktop dialog regressions 3 tests, and the public-backend mobile
+  action-display integration 2 tests. Mobile and desktop TypeScript checks
+  passed. The desktop chat regression submits through Return/Enter.
+- Native checks exposed and fixed portrait-only iOS modal orientation causing
+  clipping during rotation and Android fullscreen keyboard editing covering
+  controls. Android bundling now tracks shared frontend/fixture directories,
+  so workspace component changes invalidate the production bundle inputs.
+- Current author guidance is updated in `plugins/docs/actions.md`; shared
+  form API notes are in `packages/frontend-rn-components/README.md`.
+  Mobile implementation, native commands, and manual instructions are in
+  `mobile/crystal-lattice-control-rn/docs/development/action-forms-and-results.md`.
+- Manual review is pending human confirmation. Use the existing
+  **Show ChatGPT usage report** action in a supported session to check
+  independent report/From/To scrolling and reachable Apply/Close controls
+  with the keyboard open. Use **Reset cost tracking** to inspect an ordinary
+  Bucket form, then cancel, and **Show cost report** for another real markdown
+  result. The backend/plugin schemas are unchanged for this stage; From/To
+  remain text fields. Stages 2 and 3 have not started.

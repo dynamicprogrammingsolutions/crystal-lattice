@@ -78,7 +78,11 @@ def test_apply_patch_exposes_custom_schema_for_responses_targets(tmp_path):
     assert schema["name"] == "apply_patch"
     assert schema["format"]["type"] == "grammar"
     assert schema["format"]["syntax"] == "lark"
-    assert "FREEFORM" in schema["description"]
+    assert schema["description"].startswith(
+        "The `apply_patch` tool can be used to edit files. This is a FREEFORM "
+        "tool, so do not wrap the patch in JSON."
+    )
+    assert "Paths are sandboxed to allowed_paths." in schema["description"]
 
 
 def test_apply_patch_prefers_custom_over_function_when_both_supported(tmp_path):

@@ -72,18 +72,14 @@ class ShellCommandTool(BaseCodexShellTool):
         """Determine if this tool should be enabled based on shell_tool_mode config.
 
         Selection logic:
-        - shell_tool_mode == "shell": Always disabled
-        - shell_tool_mode == "shell_command": Always enabled
-        - shell_tool_mode == "auto" (default): Enabled only if codex-variant tag present
+        - shell_tool_mode == "shell_command": Always enabled (legacy opt-in;
+          historical upstream tool, removed upstream 2026-08-20)
+        - any other mode, including "auto" (default): Disabled. ``auto``
+          selects the unified exec tools for every model.
         """
         mode = config.get("shell_tool_mode", "auto")
 
-        if mode == "shell":
-            return False
-        if mode == "shell_command":
-            return True
-        # mode == "auto"
-        return "codex-variant" in tags
+        return mode == "shell_command"
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schema matching Codex CLI shell_command."""
