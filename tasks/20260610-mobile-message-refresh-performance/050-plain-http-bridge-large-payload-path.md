@@ -652,10 +652,19 @@ approved.
   product connection choices.
 - [ ] A dedicated Development Settings window is available from the Home menu
   and lets a developer select the product HTTP behavior, legacy WebSocket, or
-  legacy hybrid for later bridge connection construction.
+  legacy hybrid for later bridge connection construction. The window supports
+  additional independent development settings; bridge transport is its first
+  setting.
 - [ ] The development override is stored separately from connection records,
   applies app-wide, survives relaunch, and can be reset to the HTTP product
   default.
+- [ ] The bridge wizard in the app-owned modal opened from Home presents
+  saved bridge URLs first. Selecting one immediately connects and lists
+  available servers; Add New Bridge enables manual entry, and successful
+  bridge discovery saves the URL for reuse without requiring server pairing.
+- [ ] Saved bridge URLs persist separately from paired server connections and
+  development preferences, retain optional labels and last-use timestamps,
+  and can be removed without deleting paired connections or their credentials.
 - [ ] Existing records with a missing, WebSocket, or hybrid `transportMode`
   reconnect through HTTP when no development override is active, while
   retaining their server identity and pairing credential.
@@ -670,7 +679,32 @@ approved.
   the product default and WebSocket/hybrid as development-only overrides.
 - [ ] Automated SDK, mobile component, persistence, integration, and native
   tests prove the HTTP default, saved-record migration, Home-menu settings
-  flow, explicit legacy diagnostics, and absence of automatic fallback.
+  flow, saved/add/remove bridge URL workflow, explicit legacy diagnostics, and
+  absence of automatic fallback.
+- [ ] The mobile bridge UX is human-tested, with the user's confirmation
+  recorded before desktop bridge implementation starts. Automated test
+  results alone do not satisfy this gate.
+- [ ] After the mobile review gate, the macOS desktop application can discover
+  bridge servers, pair, save and reopen paired connections, and use its
+  existing sessions/chat UI through the HTTP bridge. It reuses the accepted
+  saved-endpoint workflow and preserves manual direct connections.
+
+### Follow-up prerequisite and navigation ownership
+
+Depends On:
+tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md
+
+Begin this follow-up implementation only after that prerequisite is completed
+and verified. It owns moving connection management to Home, removing the
+Connections bottom tab, and presenting the existing wizard in an app-owned
+modal opened from Home. This follow-up adds the saved bridge picker and HTTP
+behavior inside that delivered modal; it must not recreate the old tab or
+introduce a second wizard host.
+
+Use the prerequisite's delivered connection callbacks, modal coordination,
+production selectors, and navigation behavior. Preserve its wizard
+cancellation and saved-connection/session compatibility. The separate Home
+menu → Development Settings window remains part of this follow-up.
 
 ### User-approved direction
 
@@ -679,6 +713,15 @@ approved.
   rollback through a dedicated settings window opened from the Home menu.
 - Make HTTP the normal bridge path for control, pairing, events, and every
   proxied application request.
+- Reconcile this rollout with the saved-bridge-URL workflow approved in
+  `tasks/20260628-cli-simplification-and-bridge-ux/040-frontend-saved-bridge-urls.md`.
+- Make Development Settings a general window capable of holding other
+  development settings, not a bridge-specific window.
+- Add desktop bridge connectivity as a later stage, after the mobile bridge
+  UX has been human-tested.
+- Perform this follow-up after
+  `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`,
+  using its Home connection modal as the wizard host.
 
 This direction supersedes the earlier rollout rule that made WebSocket the
 compatibility default and exposed all three modes in the connection wizard. It
@@ -699,11 +742,28 @@ Python server's control WebSocket.
 - The existing `BridgeConnectionRecord.transportMode` must remain readable for
   storage and downgrade compatibility, but a legacy per-record value must not
   silently keep production traffic on a retired mode.
+- Saved paired server records do not fulfill the earlier saved-bridge-URL
+  task. Current SDK/mobile code has no `SavedBridgeUrl` type, saved URL store,
+  or saved-first bridge picker. A bridge endpoint must be reusable before a
+  server is selected or paired.
+- Desktop's `ConnectionEditorWindow` creates manual host/port records,
+  `useOpenConnections` opens only manual records through `FetchTransport`,
+  and its closed-connection status reader also supports only manual records.
+  The desktop stage therefore needs editor/discovery/pairing, runtime, and
+  existing status-consumer integration, not merely a Bridge button.
+- Desktop already consumes the shared SDK connection store and has separate
+  native React windows with connection-editor save/cancel events. Reuse those
+  boundaries while adding bridge records.
+- Mobile has Detox iOS and Android scripts and an existing bridge-selector
+  scenario. Desktop uses Jest, real-backend integration tests, and macOS
+  XCUITest; no desktop Detox setup is currently present.
 - The completed bridge specification still defines WebSocket as the default
   in `BRG-003`, `BRG-004`, `BRG-013`, and `BRG-014`. The mobile lifecycle
   target repeats that behavior in `MCL-014`; both targets must be updated
   before changing code.
-- Worktree readiness was verified before planning:
+- The earlier planning worktree was verified before planning and has since
+  been removed; its task changes were merged into `develop`. Historical
+  readiness evidence:
   - root and mobile `npm ci` completed;
   - the pinned Ruby 3.4.10/Bundler 4.0.15 bundle and iOS Pods installed;
   - mobile TypeScript passed;
@@ -716,6 +776,27 @@ Python server's control WebSocket.
   Pro simulator spent ten minutes in `simctl uninstall`; use an uncontended
   simulator type for follow-up native runs and keep the focused development
   settings scenario small.
+
+### Saved bridge URL task reconciliation
+
+Execute the remaining saved-URL requirements through this follow-up plan while
+retaining their acceptance tracking in
+`tasks/20260628-cli-simplification-and-bridge-ux/040-frontend-saved-bridge-urls.md`.
+That task remains incomplete until its existing checklist has concrete
+evidence. Do not equate merging a plan with completing either implementation.
+
+| Earlier requirement group | Owning delivery in this follow-up |
+| --- | --- |
+| SDK `SavedBridgeUrl`, load/save functions, exports, and store tests | Separate SDK saved-URL store using `KeyValueStore`, with `{url, label?, lastUsedAt}` entries and round-trip/removal evidence. |
+| Saved URLs shown first; tap connects and lists servers | Normal mobile bridge picker invokes the production mode resolver and bridge adapter with the selected URL. |
+| Add New Bridge and automatic saving after successful connection | Manual-entry path upserts the endpoint after connect and server-list retrieval succeed; it does not wait for pairing or save a failed attempt. Successful paired-server connection also retains the endpoint for reuse. |
+| Remove saved bridge URL | Explicit URL-list removal affects only the endpoint entry and persists across relaunch. |
+| Mobile UI and SDK verification | Component and native picker tests plus a real SDK/bridge discovery test through the production frontend adapter; SDK default suite remains required. |
+
+Endpoint reuse and transport choice are independent. Saved entries store the
+configured URL, label, and last-use time, with no pairing credential or
+transport-mode preference. Selecting any saved URL uses HTTP unless the
+developer has explicitly set a global legacy override.
 
 ### Scope boundaries
 
@@ -731,6 +812,11 @@ Python server's control WebSocket.
   connection wizard; use a separately titled Home-menu window.
 - Do not expand this follow-up into the broader multi-runtime mobile
   connection-lifecycle implementation.
+- Do not duplicate the prerequisite's Home connection-section/navigation
+  work or restore Connections-tab entry points.
+- Do not begin desktop bridge implementation until the human mobile UX review
+  gate is satisfied. The later stage adds bridge support to desktop's existing
+  host and does not require the broader target lifecycle-controller migration.
 
 ## Follow-up execution plan — HTTP-only product bridge mode
 
@@ -741,38 +827,140 @@ small checkpoints. Preserve explicit legacy constructors throughout so every
 checkpoint can compare HTTP product behavior with WebSocket/hybrid diagnostic
 behavior.
 
+Delivery has three ordered stages: mobile implementation and automated
+verification, human mobile UX review, then desktop bridge implementation.
+All follow-up implementation starts after the declared Home-navigation
+prerequisite is complete and verified. Shared SDK changes needed by mobile
+belong to the first stage; their
+availability does not authorize starting desktop product work before review.
+
+Keep three persistence responsibilities separate: SDK saved bridge URLs for
+endpoint discovery/reuse, paired server connection records for identity and
+credentials, and mobile development preferences for app-wide diagnostics.
+`HomeScreen` opens the general settings window, `ConnectedRoot` owns modal
+presentation, and the app-level connection host consumes hydrated preferences
+and saved endpoints through shared helpers.
+
+Use a versioned `DevelopmentSettings` value and a shared preference
+provider/store with field-specific updates. `DevelopmentSettingsModal` renders
+named sections, beginning with a Bridge section. A transport change/reset
+updates only its preference and preserves other development settings. Future
+sections can add their own controls and preferences without replacing the
+window, storage key, or unrelated values; no generic plugin/schema framework
+or placeholder controls are required.
+
+### Stage 1 — Mobile implementation and automated verification
+
+Rebase the implementation baseline onto the completed Home-navigation task
+and use its app-owned wizard modal. Its navigation relocation is a
+prerequisite result, not work to repeat in this stage.
+
 1. Revise the bridge-connectivity and mobile connection-lifecycle
    specifications so HTTP is the product default, omitted modes resolve to
-   HTTP, legacy modes are development-only overrides, and the separately
-   approved default-switch gate is recorded as resolved by this follow-up.
+   HTTP, legacy modes are development-only overrides, and the new rollout
+   direction is distinguished from still-pending verification evidence.
 2. Change the shared SDK factory's omitted-mode behavior to HTTP while keeping
    all three `BridgeTransportMode` values and concrete implementations
    available to explicit callers. Keep the no-fallback rule unchanged.
-3. Introduce a small mobile development-preference module with a versioned
-   AsyncStorage key and an effective mode of HTTP when the setting is absent,
-   malformed, or reset. Store only an app-wide optional legacy override; do
-   not derive production behavior from a connection record's historical mode.
+3. Introduce general mobile development-preference state with a versioned
+   AsyncStorage key and an effective bridge mode of HTTP when the transport
+   setting is absent, malformed, or reset. The initial preference is an
+   app-wide optional legacy override; updates preserve other settings.
+   Do not derive production behavior from a connection record's historical mode.
 4. Centralize mobile bridge construction around
    `effective mode = development override ?? http`. New pairing records store
    the product mode, while existing record IDs, URLs, server IDs, names,
    pairing credentials, caches, and workspace ownership remain unchanged.
-5. Remove the three transport selectors and experimental copy from the normal
-   bridge wizard. Keep the existing bridge URL compatible with current saved
-   `ws`/`wss` values because the HTTP transport already derives its HTTP
-   origin.
-6. Add a dedicated `DevelopmentSettingsModal` presented by `ConnectedRoot`.
+5. Add/export the SDK `SavedBridgeUrl` type and
+   `loadSavedBridgeUrls`/`saveSavedBridgeUrls` functions using the earlier
+   task's independent `clc_saved_bridges_v1` key. Add store tests. Hydrate
+   before writes so initial empty state cannot overwrite stored endpoints.
+6. Make the bridge wizard inside the existing Home connection modal show
+   saved endpoints and Add New Bridge.
+   Tapping an endpoint connects and lists servers immediately. Manual entry
+   uses the same connection helper; upsert URLs and refresh `lastUsedAt`
+   after successful discovery and successful paired-server connection.
+   Provide URL-list removal without changing paired records. Remove the
+   transport selectors and experimental copy from this flow. Preserve
+   existing saved `ws`/`wss` URLs because the HTTP transport already derives
+   their HTTP origin.
+7. Add a general `DevelopmentSettingsModal` presented by `ConnectedRoot`.
    Add a stable `home-menu-development-settings` entry to `HomeScreen`; the
-   modal shows HTTP as “Product default” and WebSocket/hybrid as clearly
-   labeled legacy diagnostics, includes a reset action, and explains that a
-   selection applies to the next bridge open.
-7. Route new connection, saved open, repair, and later transport
-   reconstruction through the same effective-mode resolver. Foreground work
-   on an already-created transport continues through that instance, so a
-   preference change cannot switch or replay an active request.
-8. Replace the existing native mode-selector scenario with a production Home
+   Bridge section shows HTTP as “Product default” and WebSocket/hybrid as
+   clearly labeled legacy diagnostics, includes a transport-scoped reset
+   action, and explains that a selection applies to the next bridge open.
+8. Route saved-endpoint discovery, new connection, saved paired-server open,
+   repair, and later transport reconstruction through the same effective-mode
+   resolver. Foreground work on an already-created transport continues through
+   that instance, so a preference change cannot switch or replay an active request.
+9. Replace the existing native mode-selector scenario with a production Home
    menu → Development Settings scenario and retain lower-level SDK legacy-mode
-   coverage. Run the full affected verification matrix before updating
-   current user and maintainer documentation.
+   coverage. Add the Home → connection modal →
+   saved-first/add/remove/relaunch discovery scenario.
+   Run the affected verification matrix before updating current user and
+   maintainer documentation and both tasks' completion evidence.
+
+### Stage 2 — Human mobile UX review and desktop gate
+
+Provide a runnable mobile build and concise review steps starting on Home and
+opening its connection modal, then exercising the saved-first picker, manual
+addition, server discovery, pairing, modal cancellation, reopen after
+relaunch, independent URL removal, and Home → Development Settings. Include
+selecting and resetting a legacy override and checking that an open connection
+is left untouched.
+
+Record the reviewed build/revision, platform/device, feedback, any resulting
+fixes, and the user's confirmation that the mobile UX has been human-tested
+and is ready to carry into desktop. Rerun affected automated checks after
+fixes. Keep the human-verification requirement and desktop-start checklist
+item incomplete until confirmation arrives; a successful Detox run, elapsed
+time, or lack of feedback cannot satisfy the gate.
+
+### Stage 3 — Desktop bridge connectivity
+
+Start only after Stage 2. Carry the accepted endpoint/discovery/pairing UX into
+the existing macOS connection editor and Connections panel. Reuse the shared
+SDK saved-URL store, connection records, HTTP bridge adapter, and backend
+instead of duplicating the bridge protocol. Saved endpoints and credentials
+remain local to each application; this stage does not add cross-device sync.
+
+The connection editor owns discovery/pairing presentation and submits a
+completed bridge record through the existing native save/cancel boundary.
+`DesktopRoot` remains the authority for saved connections and open runtimes;
+coordinate saved-endpoint updates with it so separate native windows cannot
+overwrite stale storage. Cancellation must dispose of the editor's pending
+bridge transport and must not submit an incomplete paired record.
+
+1. Extend the desktop connection editor with a Bridge route containing the
+   accepted saved-first picker, Add New Bridge, discovery, server selection,
+   and pairing. Keep the existing manual editor available, including when
+   editing manual records; editing a bridge record must not convert it into
+   a manual connection.
+2. Extend desktop connection persistence/event handling to save paired bridge
+   records and endpoint changes independently. Preserve server IDs and
+   pairing credentials when reopening; apply the accepted endpoint-removal
+   semantics without deleting paired connections.
+3. Generalize open-runtime transport typing and construction in
+   `useOpenConnections` to support the shared HTTP bridge adapter alongside
+   `FetchTransport`. Connect/resume pairing before backend verification, and
+   dispose of bridge transports on close or unsuccessful open. Keep existing
+   several-open-runtime, focused-connection, and session-tab behavior.
+4. Integrate bridge records into production panel labels, Home/status
+   consumers, and the existing sessions/chat/event paths. Support the closed
+   bridge status reader through the HTTP adapter with saved credentials.
+   Apply the same HTTP capability error and no-fallback/no-replay rules.
+5. Add focused desktop component/persistence/runtime tests and a real bridge
+   integration through the production editor/host, public discovery/pairing,
+   saved reopen, and `RestAgentBackend` session/message/event path.
+6. Add focused macOS XCUITest for native editor discovery/pairing presentation,
+   save/cancel, and saved bridge reopen, with stable production selectors.
+   Use real-network integration separately from deterministic native
+   presentation checks; do not label a fake backend harness as network E2E.
+7. Update desktop package-user and hosting documentation and any affected
+   lifecycle target boundary to distinguish delivered bridge support from the
+   still-separate lifecycle-controller migration. Run desktop TypeScript,
+   focused then affected Jest/integration suites, native build/UI tests, and
+   manual-connection regression coverage.
 
 ### Risks and mitigations
 
@@ -784,6 +972,10 @@ behavior.
 - **Preference hydration races a saved connection open:** expose hydration
   state and prevent bridge construction until the setting has resolved to a
   valid value.
+- **A saved URL is confused with a paired server connection:** use separate
+  stores and verify that URL-list removal preserves saved server credentials.
+- **Adding future settings overwrites transport or unrelated preferences:**
+  update/reset fields independently within general development preferences.
 - **Changing a setting duplicates a write:** apply it only to newly
   constructed transports and retain the existing prohibition on fallback.
 - **Older bridge deployment cannot serve HTTP v1:** keep the capability error
@@ -794,6 +986,16 @@ behavior.
   broader Home test as separate regression coverage.
 - **Future connection-lifecycle work restores the old default:** update
   `MCL-014` and its technical compatibility section in the same change.
+- **Bridge tests or UI restore the removed Connections tab:** build on the
+  prerequisite's Home modal and update native entry points; preserve its
+  production navigation and cancellation regressions.
+- **Desktop repeats an unreviewed mobile interaction:** block desktop product
+  implementation on explicit human review, then carry accepted behavior and
+  feedback into the native desktop window.
+- **Desktop native windows race endpoint persistence:** retain one authoritative
+  host for updates and test save/cancel across the actual window event boundary.
+- **A bridge runtime is retained after desktop close/cancel:** add disposal
+  coverage while preserving multiple unrelated open connections.
 
 ### Implementation decisions and open questions
 
@@ -801,6 +1003,9 @@ behavior.
   behavior, not deleting the legacy implementations or protocol.
 - Decision: the development mode override is one app-wide local preference,
   not a per-connection property.
+- Decision: Development Settings is a general window and preference store,
+  with bridge transport as the first section. Transport reset is scoped to
+  that setting and preserves other values.
 - Decision: the Development Settings entry is visible in the Home menu in
   normal builds. This keeps emergency rollback and field diagnosis available;
   it is explicitly labeled development-only rather than hidden behind
@@ -815,8 +1020,24 @@ behavior.
   frontend use HTTP.
 - Decision: explicit SDK `mode: "websocket"` and `mode: "hybrid"` remain
   supported for development tools and tests. Omitted SDK mode becomes HTTP.
-- No unresolved requirement question remains. The visibility and app-wide
-  scope of Development Settings are highlighted for approval because they
+- Decision: implement the earlier saved-bridge-URL workflow in the same
+  follow-up delivery and keep its original requirements checklist as the
+  acceptance record. Saved endpoints, paired credentials, and development
+  settings stay separate.
+- Decision: desktop delivery follows human mobile UX confirmation. Mobile
+  Detox and desktop macOS XCUITest are separate native verification boundaries,
+  complemented by real bridge integration tests.
+- Decision: Home connection placement and modal ownership are supplied by
+  `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`.
+  This follow-up starts afterward and changes the bridge content/transport
+  within that host.
+- Earlier discussion proposed shorter bridge-address entry without requiring
+  `wss://` or the standard WebSocket endpoint path. This is not yet a decided
+  input contract: resolve the intended fixed part and default protocol/domain
+  rules before adding that behavior to requirements or implementation. Desktop
+  must reuse the resulting accepted input contract if it joins mobile scope.
+- The visibility and app-wide scope of Development Settings are highlighted
+  for approval because they
   materially define the diagnostic escape hatch.
 
 ### Documentation
@@ -830,40 +1051,88 @@ behavior.
 - Update the frontend SDK bridge user and implementation docs with the new
   omitted-mode behavior and development-only status of explicit legacy modes.
 - Update mobile bridge-hosting and Home documentation with the dedicated
-  Development Settings route, persistence scope, next-open semantics, and
-  migration behavior.
+  general Development Settings route, Bridge section, persistence scope,
+  next-open semantics, migration behavior, and saved/add/remove endpoint
+  workflow through the Home connection modal. Keep the prerequisite's
+  navigation documentation authoritative; remove obsolete tab-based
+  instructions rather than documenting a parallel wizard.
+- Document the SDK saved-URL type, store functions, and credential-independent
+  endpoint reuse with the owning connection documentation.
+- After human mobile review, update desktop package-user documentation with
+  bridge discovery/pairing and saved reopen, and developer documentation with
+  runtime/window ownership and native/integration verification. Preserve the
+  broader desktop lifecycle target's separate scope.
 - Update concise package README statements that currently call WebSocket the
   default or show the old normal-wizard selector. Do not expose task status or
   requirement IDs in user documentation.
 
 ### Task checklist
 
+- [ ] Confirm completion/evidence of
+  `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`
+  and use its delivered Home connection modal before starting implementation.
 - [ ] Update the bridge and mobile lifecycle target specifications first.
 - [ ] Change the SDK factory default to HTTP and retain explicit legacy modes.
-- [ ] Add versioned app-wide development transport preference persistence.
+- [ ] Add versioned general development preference persistence with
+  independent field updates and a transport-scoped reset.
 - [ ] Make saved-record reconstruction default every historical record shape
   to HTTP unless a development override is active.
 - [ ] Keep new records on HTTP without persisting the diagnostic override.
+- [ ] Add/export the saved bridge URL type/store and SDK persistence tests
+  required by the earlier saved-URL task.
+- [ ] Add the saved-first bridge picker, Add New Bridge, successful discovery
+  auto-save, and independent URL removal/persistence inside the Home modal.
 - [ ] Remove transport choices from the normal bridge connection wizard.
-- [ ] Add the dedicated Home-menu Development Settings modal and reset action.
-- [ ] Route new, saved, and repair transport construction through one
-  effective-mode resolver.
+- [ ] Add the general Home-menu Development Settings modal with its initial
+  Bridge section and transport-scoped reset.
+- [ ] Route saved-endpoint discovery, new, saved, and repair construction
+  through one effective-mode resolver.
 - [ ] Add SDK default/explicit-mode/no-fallback regression tests.
 - [ ] Add mobile preference parsing, hydration, persistence, migration, and
   reconstruction tests.
-- [ ] Add Home menu/modal component tests and normal-wizard tests.
+- [ ] Add Home menu/modal component tests and saved/add/remove wizard tests
+  through the Home connection modal, including cancellation, preference
+  hydration, and saved-endpoint hydration.
 - [ ] Replace the old selector Detox scenario with focused Home development
   settings and HTTP-only normal-wizard coverage on iOS and Android.
+- [ ] Verify saved URL selection through real discovery using the production
+  frontend bridge adapter, then update the earlier task's acceptance checklist.
 - [ ] Run the existing HTTP, WebSocket, hybrid, cluster, and bridge-restart
   regression suites appropriate to the unchanged protocol boundary.
 - [ ] Update current package documentation and live requirement evidence.
 - [ ] Run documentation preparation/build and focused link checks.
+- [ ] Provide a mobile review build and walkthrough, resolve feedback, and
+  record the user's human-testing confirmation.
+- [ ] Start the desktop stage only after that confirmation is recorded.
+- [ ] Add desktop bridge picker/discovery/pairing and authoritative saved
+  endpoint/paired-record persistence through native window events.
+- [ ] Support bridge open/reopen/close in desktop runtime and existing
+  sessions/chat/status consumers without regressing manual connections.
+- [ ] Add and run desktop component, real-bridge integration, and focused
+  macOS XCUITest coverage, then update desktop documentation/evidence.
 
 ### Requirement verification
 
-- **HTTP-only normal product flow:** component and native tests open the normal
-  bridge wizard, find no WebSocket/hybrid selector, pair/reopen using HTTP, and
-  prove no frontend WebSocket factory is invoked.
+- **Prerequisite and Home wizard integration:** record the completed navigation
+  task's revision and evidence. Component/Detox tests enter the production
+  connection modal from Home, exercise and cancel the bridge wizard, and prove
+  no removed Connections-tab path is required.
+- **HTTP-only normal product flow:** component and native tests enter the
+  Home connection modal and its saved-first bridge wizard, find no
+  WebSocket/hybrid selector, pair/reopen using HTTP, and prove no frontend
+  WebSocket factory is invoked.
+- **Saved bridge URLs:** SDK tests prove independent round-trip/removal
+  persistence and preserved labels/timestamps. Mobile component/native tests
+  add an endpoint, discover servers before pairing, relaunch, select the saved
+  entry without retyping, and remove it. Test that failed discovery does not
+  save an endpoint, successful discovery with no available servers still saves
+  it, repeated successful use upserts it, and removal leaves paired server
+  records/tokens intact. At least one mobile integration test
+  starts from Home and takes a saved URL from the modal's production picker
+  through its real connection handler, mode factory, and adapter to the
+  bridge's public discovery API;
+  a mocked server list or store-only test is not decisive evidence for this
+  connection.
 - **Development-only legacy modes:** Home menu/component/Detox tests open the
   dedicated modal, select each labeled legacy mode, reconstruct a later bridge
   transport with the same server/token, and reset to HTTP. SDK tests continue
@@ -874,7 +1143,9 @@ behavior.
   identity, pairing token, cache key, or workspace ownership changes.
 - **Preference lifecycle:** persistence tests cover first install, relaunch,
   reset, malformed storage, hydration-before-open, and app-wide use across
-  multiple bridge records.
+  multiple bridge records. A store/component fixture with a second independent
+  preference proves that changing/resetting bridge transport preserves it;
+  the fixture does not add an unsolicited product setting.
 - **No replay or active mutation:** tests start an HTTP request or retain an
   open transport, change the development preference, and prove the current
   instance is untouched and the override applies only after reconstruction.
@@ -885,10 +1156,23 @@ behavior.
   legacy/hybrid E2E, bridge restart/cluster coverage, mobile Jest/TypeScript,
   and focused iOS/Android Detox scenarios. Existing server-control WebSocket
   and backend protocol tests remain unchanged.
+- **Human review and sequencing:** retain the user's confirmation against the
+  reviewed mobile build/device and record addressed feedback. Desktop
+  implementation must not precede that evidence. This requirement remains
+  incomplete until human verification is confirmed.
+- **Desktop bridge capability:** after the gate, a real-bridge integration
+  test exercises the production desktop editor/host and SDK adapter through
+  discovery, normal pairing, persisted reopen, session/message retrieval,
+  sending, and event updates. It proves credential reuse and no frontend
+  WebSocket in normal mode; manual-connection tests prove preserved direct
+  operation. Separate component/native tests cover endpoint deletion without
+  paired-record deletion, native save/cancel, close/disposal, and independent
+  simultaneous runtimes. A direct SDK test or deterministic native harness
+  alone is not decisive evidence for desktop host connectivity.
 - **Documentation consistency:** specification and package pages agree on the
-  HTTP default, development-only legacy modes, migration, and next-open
-  behavior; stale “WebSocket default” and normal-selector claims are absent
-  from maintained sources.
+  HTTP default, development-only legacy modes, general settings window,
+  saved URL reuse, migration, and next-open behavior; stale “WebSocket
+  default” and normal-selector claims are absent from maintained sources.
 
 ### Additional implementation verification
 
@@ -900,6 +1184,14 @@ behavior.
 - `cd mobile/crystal-lattice-control-rn && npm run detox:build:ios`
 - focused development-settings Detox on an uncontended iOS simulator and
   `npm run detox:build:android` plus its Android scenario
+- Focused saved/add/remove/relaunch Detox scenarios on iOS and Android;
+  deterministic native tests supplement the real bridge integration tests.
+- After human mobile confirmation, from
+  `desktop/crystal-lattice-control-desktop-rn`: `npm run tsc`, focused Jest then
+  `npm test -- --runInBand`, focused `npm run test:integration`, and focused
+  `npm run test:macos-ui` coverage for the new bridge editor. Run macOS UI
+  automation sequentially with mobile simulator automation and preserve
+  pre-existing application/test processes per desktop native testing guidance.
 - `cd bridge-elixir && mix test`
 - focused Python bridge-client suites with the worktree first on `PYTHONPATH`
 - `python docs_site/scripts/prepare_mkdocs_site.py`

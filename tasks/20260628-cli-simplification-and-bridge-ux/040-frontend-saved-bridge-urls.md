@@ -24,14 +24,39 @@ Parent Task: tasks/20260628-cli-simplification-and-bridge-ux/000-main.md
 
 ---
 
+## Reconciliation with the HTTP bridge rollout
+
+The Draft follow-up plan in
+`tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
+now includes delivery of this task's existing requirements. Keep this checklist
+open until those requirements are implemented and verified; merging a plan does
+not complete the saved-URL workflow.
+
+Preserve the user-facing behavior described here: saved bridges are shown
+first, selecting one immediately connects and lists servers, Add New Bridge
+enables manual entry, successful bridge discovery saves the endpoint before
+server pairing, and Remove deletes only the saved URL.
+
+Saved bridge endpoints remain separate from paired server connection records.
+The HTTP rollout changes transport selection: normal discovery/pairing uses
+HTTP, and a global override in Home → Development Settings can explicitly
+select legacy WebSocket or hybrid for later connection construction. Saved URL
+entries do not contain that override or pairing credentials.
+
+The implementation guidance below is interpreted through that Draft plan:
+use the shared mode factory, hydrate saved URLs before writes, and verify the
+actual picker-to-discovery connection as well as storage and native UI.
+
+---
+
 ## Implementation notes
 
 ### Current bridge connection flow (`App.tsx`)
 
-The bridge wizard (`renderBridgeConnection()`, line ~580) currently:
+The bridge wizard (`renderBridgeConnection()`) currently:
 1. Shows a `TextInput` for the bridge URL.
 2. User types the URL and taps "Connect to Bridge".
-3. `connectToBridge()` (line ~470) creates a `BridgeTransport`, connects, and lists servers.
+3. `connectToBridge()` uses the shared bridge mode factory, connects, and lists servers.
 4. User selects a server, enters pairing code, and connects.
 
 There is no saved-bridge-URL concept. Every time the user wants to connect via bridge, they must retype the URL.
@@ -70,14 +95,18 @@ Reuse the existing `KeyValueStore` interface from `packages/frontend-sdk/src/sto
 ### Mobile app changes (`App.tsx`)
 
 1. Add state: `savedBridgeUrls: SavedBridgeUrl[]`, loaded on mount (same pattern as `connections`).
-2. Add `connectionsStore`-based persistence for saved bridges (same `useEffect` save pattern).
+2. Add `connectionsStore`-based persistence for saved bridges with a hydration
+   guard so initial empty state cannot overwrite saved endpoints.
 3. Modify `renderBridgeConnection()`:
    - When `!connectingBridgeTransport` (initial bridge screen):
      - If `savedBridgeUrls.length > 0`: show a list of saved bridges (URL + label, tap to connect).
      - Show "Add new bridge" button → reveals the URL `TextInput` + "Connect" button.
      - Each saved bridge has a trash icon to remove it.
    - When `connectingBridgeTransport` is set: show server list / pairing as before.
-4. In `connectToBridge()`: after successful connect, upsert the bridge URL into `savedBridgeUrls`.
+4. In the shared discovery handler: after successful connect and server-list
+   retrieval, upsert the bridge URL into `savedBridgeUrls`. This also applies
+   to an empty server list and does not require pairing. Retain the existing
+   requirement to save the URL after successful paired-server connection.
 5. Add `handleDeleteSavedBridge(url: string)` to remove a saved bridge.
 
 ### UI layout for saved bridges
@@ -111,5 +140,8 @@ Saved Bridges:
 - Frontend SDK: unit test `loadSavedBridgeUrls` / `saveSavedBridgeUrls` (same pattern as existing `store.test.ts`).
 - Test that saving and loading round-trips correctly.
 - Test that deleting a bridge URL removes it from the list.
-- Mobile app: the existing test infrastructure may not cover `App.tsx` integration; focus on SDK-level tests and manual verification.
+- Mobile app: component/native tests cover saved-first selection, manual add,
+  relaunch, and removal. Include one integration through the production picker,
+  connection handler, SDK mode factory, and bridge discovery API; mocked
+  discovery or store-only tests do not prove this flow.
 - Run: `npm --workspace @crystal-lattice/frontend-sdk test`
