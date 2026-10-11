@@ -120,6 +120,29 @@ Status: Approved (user directed execution start on October 10, 2026)
   protocol in the crystal-lattice environment (the eval kernel stays
   in the parent).
 
+- October 10, 2026 (worker design analysis): two viable shapes for
+  option (a), decided: **fork-based worker with a context proxy** in
+  `CrystalLatticeEnvironment.open` — the kernel contract
+  (`environment.open → program(context) → snapshot/finalize`) stays
+  unchanged; `open()` forks a child that owns the application and its
+  `os.environ` copy (overlay installs per-process, so sibling forks
+  with different roots coexist); the parent-side context becomes a
+  pipe-backed proxy forwarding the CrystalLatticeContext surface the
+  suite programs use (start, config updates, add_message, request
+  event stream, session/workspace access, services.record). Rejected:
+  full-case worker (running whole executors in the child) — it would
+  move cache/artifact/evidence ownership across the process boundary
+  and couple the framework to suite code; and spawn-based workers —
+  suite programs are closures and not picklable, and fork preserves
+  them without suite refactoring. Implementation order: (1) fork+pipe
+  skeleton in the crystal-lattice environment behind a constructor
+  flag (`isolated=True` default opt-in until verified), (2) proxy
+  surface with pickling of values/observations/snapshots and traceback
+  capture for worker crashes, (3) deterministic two-concurrent-runs
+  test with different roots, (4) flip the task-guidance harnesses to
+  `isolated=True`, re-run a mixed-agent slice without
+  `--max-concurrent`, (5) remove the cap requirement from docs.
+
 ### Implementation decisions and open questions
 
 - None beyond the open requirement question above; no implementation
