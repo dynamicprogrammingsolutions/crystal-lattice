@@ -54,6 +54,7 @@ interface HomeScreenProps {
     Record<string, Readonly<Record<string, SessionRequestStatus>>>
   >;
   onOpenGlobalSettings: () => void;
+  onOpenDevelopmentSettings?: () => void;
   onOpenEmbeddedSettings?: () => void;
   onNewConnection: () => void;
   onSelectSession: (connectionId: string, sessionId: string) => void;
@@ -304,6 +305,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   sessionsCache,
   statusesByConnection,
   onOpenGlobalSettings,
+  onOpenDevelopmentSettings,
   onOpenEmbeddedSettings,
   onNewConnection,
   onSelectSession,
@@ -574,6 +576,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
   const openGlobalSettingsFromMenu = useCallback(() => {
     openSettingsFromMenu(onOpenGlobalSettings);
   }, [onOpenGlobalSettings, openSettingsFromMenu]);
+  const openDevelopmentSettingsFromMenu = useCallback(() => {
+    if (onOpenDevelopmentSettings) openSettingsFromMenu(onOpenDevelopmentSettings);
+  }, [onOpenDevelopmentSettings, openSettingsFromMenu]);
   const openNewConnectionFromMenu = useCallback(() => {
     openSettingsFromMenu(onNewConnection);
   }, [onNewConnection, openSettingsFromMenu]);
@@ -928,6 +933,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({
                 onPress={openGlobalSettingsFromMenu}
               >Global Settings</Text>
             </TouchableOpacity>
+            {onOpenDevelopmentSettings ? (
+              <TouchableOpacity
+                testID="home-menu-development-settings"
+                style={styles.menuItem}
+                accessibilityRole="button"
+                accessibilityLabel="Development Settings"
+                accessibilityActions={[{ name: "activate", label: "Open Development Settings" }]}
+                onAccessibilityAction={(event) => {
+                  if (event.nativeEvent.actionName === "activate") openDevelopmentSettingsFromMenu();
+                }}
+                onPress={openDevelopmentSettingsFromMenu}
+              >
+                <Icon name="tool" size={18} color={theme.text} />
+                <Text style={styles.menuItemText} onPress={openDevelopmentSettingsFromMenu}>
+                  Development Settings
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             {onOpenEmbeddedSettings ? (
               <TouchableOpacity
                 testID="home-menu-embedded-settings"

@@ -11,8 +11,9 @@ Frontend bridge implementations satisfy one structural connection interface:
 - discovery, pairing request, and code submission;
 - the normal `Transport.request()` contract.
 
-The factory accepts `websocket`, `http`, or `hybrid`. Omission selects
-`websocket`.
+The factory accepts `websocket`, `http`, or `hybrid`. Omission selects `http`.
+HTTP is the product default. Explicit WebSocket and hybrid constructors remain
+available for development diagnostics, with their established behavior intact.
 
 ## WebSocket mode
 
@@ -82,14 +83,20 @@ transport family.
 
 A saved bridge connection contains:
 
-- bridge WebSocket URL;
+- configured bridge URL, including existing WebSocket-shaped URLs;
 - server ID and display name;
 - pairing credential, or `null` when repair is required;
 - optional transport mode.
 
-The mode remains optional for backward compatibility. A record without it is
-always interpreted as `websocket`; existing records are not migrated to HTTP
-or hybrid implicitly.
+The mode remains readable for storage/downgrade compatibility. Mobile uses
+HTTP for every saved record unless an app-wide development override is active,
+including records with historical WebSocket/hybrid modes. Server identity,
+pairing credentials, URLs, and cache ownership are retained. New mobile records
+persist HTTP even during a diagnostic override.
+
+Saved bridge endpoints are independent entries with a URL, optional label, and
+last-use timestamp. They contain no pairing credential or transport preference.
+Removing an endpoint does not delete paired server connections.
 
 Changing modes retains the same server ID and pairing credential. A mode
 change affects a newly constructed transport and does not retry an in-flight
@@ -97,13 +104,22 @@ request.
 
 ## Mobile lifecycle
 
-The mobile connection wizard labels HTTP and hybrid as experimental and keeps
-WebSocket selected by default. Successful pairing persists the explicit
-selection.
+The Home connection modal shows saved bridge endpoints first and offers Add
+New Bridge. Selecting an endpoint connects and lists servers immediately.
+Successful discovery saves the endpoint before pairing, including an empty
+server list. Failed discovery does not save it. Normal setup contains no
+transport selector.
+
+Home → Development Settings opens a general settings window whose Bridge
+section offers the HTTP product default and explicit legacy WebSocket/hybrid
+diagnostics. The override is separately persisted and app-wide. Changing or
+resetting it affects later transport construction, preserves other settings,
+and leaves an open transport and its requests untouched. Bridge construction
+waits for preference hydration.
 
 Reopening a saved bridge record:
 
-1. reconstructs its selected mode, defaulting an absent value to WebSocket;
+1. constructs HTTP unless an explicit development override is active;
 2. validates/resumes with the saved server ID and pairing credential;
 3. enters a repair flow if the credential is invalid, the server is absent, or
    the expected server mismatches;
@@ -115,6 +131,9 @@ transport class.
 
 ## Rollout rule
 
-The mode factory and persisted field are opt-in controls. The application-wide
-default remains WebSocket. Permanent default migration is outside the current
-baseline and requires the rollout evidence in `BRG-014`.
+The HTTP product-default follow-up is separately approved. Existing legacy
+implementations remain development controls and never provide automatic
+fallback. Mobile automated verification precedes human UX review; desktop
+bridge implementation starts only after that review is confirmed. Live rollout
+evidence remains recorded in `BRG-014`, without treating approval as completed
+verification.

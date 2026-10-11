@@ -65,7 +65,7 @@ class MainActivity : ReactActivity() {
   
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (hasFocus) {
+    if (hasFocus && !BuildConfig.IS_DETOX_E2E) {
       hideSystemUI()
     }
   }

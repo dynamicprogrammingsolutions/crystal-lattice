@@ -40,7 +40,7 @@ export interface BridgeConnectionTransportOptions {
 export function createBridgeConnectionTransport(
   options: BridgeConnectionTransportOptions,
 ): BridgeConnectionTransport {
-  const mode = options.mode ?? 'websocket';
+  const mode = options.mode ?? 'http';
   if (mode === 'http') {
     return new HttpBridgeTransport(options);
   }

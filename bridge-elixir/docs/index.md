@@ -27,5 +27,5 @@ A frontend can use:
 - hybrid mode, where only exact `GET /events` requests use the legacy
   frontend WebSocket path.
 
-WebSocket remains the compatibility default. HTTP and hybrid are explicit
+HTTP is the frontend product default. WebSocket and hybrid are explicit
 frontend choices.

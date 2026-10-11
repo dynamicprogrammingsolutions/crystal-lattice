@@ -20,25 +20,23 @@ function bridgeRecord(overrides: Partial<BridgeConnectionRecord> = {}): BridgeCo
   };
 }
 
-it('treats bridge records without a mode as WebSocket-only', () => {
-  expect(resolveBridgeTransportMode(bridgeRecord())).toBe('websocket');
-  expect(getConnectionAdditionalInfo(bridgeRecord())).toContain('transport: websocket');
+it('uses HTTP for historical records without a mode', () => {
+  expect(resolveBridgeTransportMode(bridgeRecord())).toBe('http');
+  expect(getConnectionAdditionalInfo(bridgeRecord())).toBe('serverId: server-1');
 });
 
 it.each(['websocket', 'http', 'hybrid'] as const)(
-  'shows an explicit %s bridge transport override',
+  'uses the HTTP product default for historical %s metadata',
   (transportMode) => {
-    expect(getConnectionAdditionalInfo(bridgeRecord({ transportMode }))).toContain(
-      `transport: ${transportMode}`,
-    );
+    expect(getConnectionAdditionalInfo(bridgeRecord({ transportMode }))).toBe('serverId: server-1');
   },
 );
 
 it.each([
-  [undefined, 'websocket'],
-  ['websocket', 'websocket'],
+  [undefined, 'http'],
+  ['websocket', 'http'],
   ['http', 'http'],
-  ['hybrid', 'hybrid'],
+  ['hybrid', 'http'],
 ] as const)(
   'reconstructs a saved %s bridge mode with the same server and pairing token',
   (transportMode, expectedMode) => {
@@ -53,5 +51,16 @@ it.each([
       serverId: 'server-1',
       pairingToken: 'saved-pairing-token',
     });
+  },
+);
+
+it.each(['websocket', 'hybrid'] as const)(
+  'applies an app-wide %s diagnostic override while preserving the saved token',
+  (mode) => {
+    const record = bridgeRecord({ transportMode: 'http' });
+    expect(getSavedBridgeTransportOptions(record, mode)).toEqual({
+      bridgeUrl: record.bridgeUrl, serverId: record.serverId, pairingToken: 'token', mode,
+    });
+    expect(record.transportMode).toBe('http');
   },
 );

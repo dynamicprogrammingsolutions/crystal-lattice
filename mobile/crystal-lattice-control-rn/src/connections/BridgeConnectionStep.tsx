@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+import Icon from "react-native-vector-icons/Feather";
+import { useTheme } from "../theme";
 import type {
   BridgeServer,
-  BridgeTransportMode,
+  SavedBridgeUrl,
 } from "@crystal-lattice/frontend-sdk";
 import {
   WizardButton,
@@ -13,16 +15,18 @@ import {
 
 interface BridgeConnectionStepProps {
   url: string;
-  mode: BridgeTransportMode;
+  savedBridges: readonly SavedBridgeUrl[];
   servers: readonly BridgeServer[];
   connected: boolean;
   selectedServer: BridgeServer | null;
   code: string;
   loading: boolean;
+  storageError?: string;
   onUrl: (value: string) => void;
-  onMode: (mode: BridgeTransportMode) => void;
   onCode: (value: string) => void;
   onConnect: () => void;
+  onSelectSaved: (url: string) => void;
+  onRemoveSaved: (url: string) => void;
   onTest: () => void;
   onPair: (server: BridgeServer) => void;
   onSubmit: () => void;
@@ -32,74 +36,71 @@ interface BridgeConnectionStepProps {
 
 export default function BridgeConnectionStep(props: BridgeConnectionStepProps) {
   const styles = useConnectionWizardStyles();
+  const theme = useTheme();
+  const [adding, setAdding] = useState(false);
   return (
     <WizardPage title="Bridge Connection" onCancel={props.onCancel}>
       {!props.connected ? (
         <>
-          <Text style={styles.infoText}>
-            For testing on a physical device, use your computer's IP address
-            (not localhost).
-          </Text>
-          <Text style={styles.infoText}>
-            Example: ws://192.168.1.100:4000/ws/websocket
-          </Text>
-          <WizardInput
-            testID="bridge-url-input"
-            placeholder="Bridge URL (e.g., ws://192.168.1.100:4000/ws/websocket)"
-            value={props.url}
-            onChangeText={props.onUrl}
-          />
-          <Text style={styles.bridgeModeLabel}>Transport (experimental)</Text>
-          <View style={styles.bridgeModeSelector}>
-            {(
-              [
-                ["websocket", "WebSocket"],
-                ["http", "HTTP"],
-                ["hybrid", "Hybrid"],
-              ] as const
-            ).map(([mode, label]) => (
+          <Text style={styles.sectionTitle}>Saved Bridges</Text>
+          {props.storageError ? <Text style={styles.infoText}>{props.storageError}</Text> : null}
+          {props.savedBridges.length === 0 ? (
+            <Text style={styles.infoText}>No saved bridges yet.</Text>
+          ) : null}
+          {props.savedBridges.map((bridge) => (
+            <View key={bridge.url} style={[styles.serviceItem, styles.savedBridgeRow]}>
               <TouchableOpacity
-                key={mode}
-                testID={`bridge-transport-mode-${mode}`}
+                testID={`saved-bridge-open-${bridge.url}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${label} bridge transport${
-                  props.mode === mode ? " selected" : ""
-                }`}
-                accessibilityState={{ selected: props.mode === mode }}
-                style={[
-                  styles.bridgeModeButton,
-                  props.mode === mode && styles.bridgeModeButtonSelected,
-                ]}
-                onPress={() => props.onMode(mode)}
+                accessibilityLabel={`Connect to ${bridge.label ?? bridge.url}`}
+                style={styles.savedBridgeMain}
+                onPress={() => props.onSelectSaved(bridge.url)}
                 disabled={props.loading}
               >
-                <Text
-                  style={[
-                    styles.bridgeModeButtonText,
-                    props.mode === mode && styles.bridgeModeButtonTextSelected,
-                  ]}
-                >
-                  {label}
-                </Text>
+                {bridge.label ? <Text style={styles.serviceName}>{bridge.label}</Text> : null}
+                <Text style={styles.serviceDetails}>{bridge.url}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.bridgeModeHint}>
-            WebSocket is the stable default. Hybrid keeps event polling on
-            WebSocket and sends all other requests over HTTP.
-          </Text>
+              <TouchableOpacity
+                testID={`saved-bridge-remove-${bridge.url}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${bridge.label ?? bridge.url}`}
+                style={styles.savedBridgeRemove}
+                onPress={() => props.onRemoveSaved(bridge.url)}
+                disabled={props.loading}
+              >
+                <Icon name="trash-2" size={20} color={theme.danger} />
+              </TouchableOpacity>
+            </View>
+          ))}
           <WizardButton
-            testID="bridge-connect-button"
-            label={props.loading ? "Connecting..." : "Connect to Bridge"}
-            onPress={props.onConnect}
+            testID="bridge-add-new"
+            label="Add New Bridge"
+            onPress={() => setAdding(true)}
             disabled={props.loading}
-          />
-          <WizardButton
-            label="Test Connectivity"
-            onPress={props.onTest}
-            disabled={props.loading || !props.url}
             secondary
           />
+          {adding ? (
+            <>
+              <WizardInput
+                testID="bridge-url-input"
+                placeholder="Bridge URL"
+                value={props.url}
+                onChangeText={props.onUrl}
+              />
+              <WizardButton
+                testID="bridge-connect-button"
+                label={props.loading ? "Connecting..." : "Connect to Bridge"}
+                onPress={props.onConnect}
+                disabled={props.loading || !props.url}
+              />
+              <WizardButton
+                label="Test Connectivity"
+                onPress={props.onTest}
+                disabled={props.loading || !props.url}
+                secondary
+              />
+            </>
+          ) : null}
         </>
       ) : null}
       {props.connected && !props.selectedServer ? (
@@ -110,6 +111,9 @@ export default function BridgeConnectionStep(props: BridgeConnectionStepProps) {
           {props.servers.map((server) => (
             <TouchableOpacity
               key={server.server_id}
+              testID={`bridge-server-${server.server_id}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Pair with ${server.display_name}`}
               style={styles.serviceItem}
               onPress={() => props.onPair(server)}
               disabled={props.loading}

@@ -12,8 +12,8 @@ control. Frontends can use:
 - hybrid mode, where only exact `GET /events` requests use the frontend
   WebSocket and all other operations use HTTP.
 
-WebSocket remains the default. HTTP and hybrid are explicit opt-ins, and HTTP
-failures do not fall back automatically.
+HTTP is the frontend product default. WebSocket and hybrid remain explicit
+development diagnostics, and HTTP failures do not fall back automatically.
 
 ## Quick start
 

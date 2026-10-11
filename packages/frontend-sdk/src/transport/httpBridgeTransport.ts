@@ -102,14 +102,22 @@ export class HttpBridgeTransport {
   }
 
   async connect(): Promise<void> {
-    await this.controlRequest<{ protocol_version?: number }>({
-      method: 'GET',
-      path: '/bridge/v1/capabilities',
-    }).then((data) => {
-      if (data?.protocol_version !== 1) {
+    let capability: { protocol_version?: number };
+    try {
+      capability = await this.controlRequest({
+        method: 'GET',
+        path: '/bridge/v1/capabilities',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('HTTP 404 ') || message.includes('HTTP 405 ')) {
         throw new Error('Bridge does not support HTTP transport protocol v1');
       }
-    });
+      throw error;
+    }
+    if (capability?.protocol_version !== 1) {
+      throw new Error('Bridge does not support HTTP transport protocol v1');
+    }
 
     if (this.pairingToken && this.serverId) {
       await this.resumePairing();

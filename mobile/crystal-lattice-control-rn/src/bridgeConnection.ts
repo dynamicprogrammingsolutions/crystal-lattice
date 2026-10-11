@@ -3,12 +3,13 @@ import type {
   BridgeTransportMode,
 } from '@crystal-lattice/frontend-sdk';
 
-export const DEFAULT_BRIDGE_TRANSPORT_MODE: BridgeTransportMode = 'websocket';
+export const DEFAULT_BRIDGE_TRANSPORT_MODE: BridgeTransportMode = 'http';
 
 export function resolveBridgeTransportMode(
-  record: Pick<BridgeConnectionRecord, 'transportMode'>,
+  _record: Pick<BridgeConnectionRecord, 'transportMode'>,
+  developmentMode: BridgeTransportMode = DEFAULT_BRIDGE_TRANSPORT_MODE,
 ): BridgeTransportMode {
-  return record.transportMode ?? DEFAULT_BRIDGE_TRANSPORT_MODE;
+  return developmentMode;
 }
 
 export function getSavedBridgeTransportOptions(
@@ -16,6 +17,7 @@ export function getSavedBridgeTransportOptions(
     BridgeConnectionRecord,
     'bridgeUrl' | 'serverId' | 'pairingToken' | 'transportMode'
   >,
+  developmentMode: BridgeTransportMode = DEFAULT_BRIDGE_TRANSPORT_MODE,
 ): {
   bridgeUrl: string;
   mode: BridgeTransportMode;
@@ -24,7 +26,7 @@ export function getSavedBridgeTransportOptions(
 } {
   return {
     bridgeUrl: record.bridgeUrl,
-    mode: resolveBridgeTransportMode(record),
+    mode: resolveBridgeTransportMode(record, developmentMode),
     serverId: record.serverId,
     pairingToken: record.pairingToken,
   };

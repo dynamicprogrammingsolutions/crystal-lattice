@@ -74,6 +74,9 @@ import {
 } from './src/connections/ConnectionWizardSteps';
 import BridgeConnectionStep from './src/connections/BridgeConnectionStep';
 import { useConnectionSetup } from './src/connections/useConnectionSetup';
+import { useSavedBridgeUrls } from './src/connections/useSavedBridgeUrls';
+import { useDevelopmentSettings } from './src/settings/useDevelopmentSettings';
+import { bridgeConnectionErrorMessage } from './src/connections/bridgeErrors';
 
 const connectionsStore: KeyValueStore = {
   get: (key) => AsyncStorage.getItem(key),
@@ -242,13 +245,14 @@ function App(): React.JSX.Element {
   const [manualPort, setManualPort] = useState('8080');
 
   const [bridgeUrl, setBridgeUrl] = useState('');
-  const [bridgeTransportMode, setBridgeTransportMode] =
-    useState<BridgeTransportMode>(DEFAULT_BRIDGE_TRANSPORT_MODE);
+  const developmentSettings = useDevelopmentSettings(connectionsStore);
+  const savedBridgeUrls = useSavedBridgeUrls(connectionsStore);
   const [bridgeServers, setBridgeServers] = useState<BridgeServer[]>([]);
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
   const [connectingBridgeTransport, setConnectingBridgeTransport] =
     useState<BridgeConnectionTransport | null>(null);
+  const repairingBridgeRecordRef = useRef<BridgeConnectionRecord | null>(null);
   const [cloudConnectionLink, setCloudConnectionLink] = useState('');
   const [embeddedProxyUrl, setEmbeddedProxyUrl] = useState(
     'http://127.0.0.1:3000/v1',
@@ -580,6 +584,7 @@ function App(): React.JSX.Element {
       setBridgeServers([]);
       setSelectedBridgeServer(null);
       setPairingCode('');
+      repairingBridgeRecordRef.current = null;
       setIsLoading(false);
     },
   });
@@ -589,6 +594,7 @@ function App(): React.JSX.Element {
       bridgeRecord: BridgeConnectionRecord,
       reasonCode: 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null,
     ) => {
+      if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return;
       connectionSetup.start();
       const ticket = connectionSetup.ticket();
       appendDebugNote({
@@ -603,21 +609,20 @@ function App(): React.JSX.Element {
 
       const bridge = createBridgeTransport({
         bridgeUrl: bridgeRecord.bridgeUrl,
-        mode: resolveBridgeTransportMode(bridgeRecord),
+        mode: resolveBridgeTransportMode(bridgeRecord, developmentSettings.mode),
         debug: true,
       });
       if (!connectionSetup.track(ticket, bridge)) return;
       await bridge.connect();
       const servers = await bridge.listServers();
       if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(bridgeRecord.bridgeUrl);
+      if (!connectionSetup.isCurrent(ticket)) return;
       const preferredServer =
         servers.find((server) => server.server_id === bridgeRecord.serverId) ?? null;
 
-      setTransport(null);
-      setBackend(null);
-      setSelectedConnectionId(null);
+      repairingBridgeRecordRef.current = bridgeRecord;
       setBridgeUrl(bridgeRecord.bridgeUrl);
-      setBridgeTransportMode(resolveBridgeTransportMode(bridgeRecord));
       setBridgeServers(servers);
       setConnectingBridgeTransport(bridge);
       setPairingCode('');
@@ -626,6 +631,7 @@ function App(): React.JSX.Element {
 
       if (preferredServer) {
         await bridge.requestPairing(preferredServer.server_id);
+        if (!connectionSetup.isCurrent(ticket)) return;
         setSelectedBridgeServer(preferredServer);
         Alert.alert(
           'Bridge Re-pair Required',
@@ -642,7 +648,8 @@ function App(): React.JSX.Element {
         'The saved bridge session could not be resumed. Select an available server and pair again.',
       );
     },
-    [appendDebugNote],
+    [appendDebugNote, developmentSettings.hydrated, developmentSettings.mode,
+      savedBridgeUrls.hydrated, savedBridgeUrls.remember],
   );
 
   const handleAppForeground = useCallback(async () => {
@@ -850,6 +857,7 @@ function App(): React.JSX.Element {
 
   const cancelConnectionWizard = () => {
     connectionSetup.cancel();
+    repairingBridgeRecordRef.current = null;
     setIsLoading(false);
     setConnectingBridgeTransport(null);
     if (isSearching) {
@@ -1035,30 +1043,32 @@ function App(): React.JSX.Element {
     }
   };
 
-  const connectToBridge = async () => {
-    if (!bridgeUrl) {
+  const connectToBridge = async (url = bridgeUrl) => {
+    if (!url) {
       Alert.alert('Error', 'Please enter bridge URL');
       return;
     }
 
-    if (!bridgeUrl.startsWith('ws://') && !bridgeUrl.startsWith('wss://')) {
+    if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
       Alert.alert('Invalid URL', 'Bridge URL must start with ws:// or wss://');
       return;
     }
 
     const ticket = connectionSetup.ticket();
+    if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return;
+    setBridgeUrl(url);
     setIsLoading(true);
     try {
       console.log('🚀 Starting bridge connection...');
       appendDebugNote({
         scope: 'app',
         title: 'Bridge connection started',
-        detail: bridgeUrl,
+        detail: url,
       });
       
       const bridge = createBridgeTransport({
-        bridgeUrl,
-        mode: bridgeTransportMode,
+        bridgeUrl: url,
+        mode: developmentSettings.mode,
         debug: true,
       });
       if (!connectionSetup.track(ticket, bridge)) return;
@@ -1066,10 +1076,11 @@ function App(): React.JSX.Element {
       if (!connectionSetup.isCurrent(ticket)) return;
       console.log('✅ Bridge connected, fetching servers...');
       
-      setConnectingBridgeTransport(bridge);
-      
       const servers = await bridge.listServers();
       if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(url);
+      if (!connectionSetup.isCurrent(ticket)) return;
+      setConnectingBridgeTransport(bridge);
       console.log(`📋 Found ${servers.length} servers:`, servers);
       setBridgeServers(servers);
       
@@ -1092,7 +1103,7 @@ function App(): React.JSX.Element {
       });
       Alert.alert(
         'Bridge Connection Error',
-        error.message,
+        bridgeConnectionErrorMessage(error),
         [{ text: 'OK' }]
       );
       setConnectingBridgeTransport(null);
@@ -1137,7 +1148,8 @@ function App(): React.JSX.Element {
         pairingCode
       );
 
-      const id = generateId();
+      const repaired = repairingBridgeRecordRef.current;
+      const id = repaired?.serverId === selectedBridgeServer.server_id ? repaired.id : generateId();
       const record: BridgeConnectionRecord = {
         id,
         kind: 'bridge',
@@ -1146,9 +1158,11 @@ function App(): React.JSX.Element {
         serverId: selectedBridgeServer.server_id,
         serverName: selectedBridgeServer.display_name,
         pairingToken: connectingBridgeTransport.getPairingToken(),
-        transportMode: bridgeTransportMode,
+        transportMode: DEFAULT_BRIDGE_TRANSPORT_MODE,
         lastUsedAt: Date.now(),
       };
+      if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(bridgeUrl);
       connectionSetup.complete(ticket, connectingBridgeTransport, record);
     } catch (error: any) {
       if (!connectionSetup.isCurrent(ticket)) return;
@@ -1294,7 +1308,7 @@ function App(): React.JSX.Element {
         console.log('✅ Bridge HTTP reachable:', data);
         Alert.alert(
           'Bridge Reachable',
-          `Bridge is running!\n\nStatus: ${data.status || 'ok'}\n\nYou can now try connecting via WebSocket.`,
+          `Bridge is running!\n\nStatus: ${data.status || 'ok'}\n\nYou can now connect to the bridge.`,
           [{ text: 'OK' }]
         );
       } else {
@@ -1314,11 +1328,19 @@ function App(): React.JSX.Element {
 
   const renderBridgeConnection = () => (
     <BridgeConnectionStep
-      url={bridgeUrl} mode={bridgeTransportMode} servers={bridgeServers}
+      url={bridgeUrl} savedBridges={savedBridgeUrls.bridges} servers={bridgeServers}
       connected={connectingBridgeTransport !== null} selectedServer={selectedBridgeServer}
-      code={pairingCode} loading={isLoading} onUrl={setBridgeUrl}
-      onMode={setBridgeTransportMode} onCode={setPairingCode}
-      onConnect={connectToBridge} onTest={testBridgeConnectivity}
+      code={pairingCode}
+      loading={isLoading || !developmentSettings.hydrated || !savedBridgeUrls.hydrated}
+      storageError={savedBridgeUrls.error?.message ?? developmentSettings.error?.message}
+      onUrl={setBridgeUrl} onCode={setPairingCode}
+      onConnect={() => { void connectToBridge(); }} onTest={testBridgeConnectivity}
+      onSelectSaved={(url) => { void connectToBridge(url); }}
+      onRemoveSaved={(url) => {
+        void savedBridgeUrls.remove(url).catch((error) => {
+          Alert.alert('Saved Bridge Error', error.message);
+        });
+      }}
       onPair={requestPairing} onSubmit={submitPairing}
       onCancelPairing={() => setSelectedBridgeServer(null)} onCancel={cancelConnectionWizard}
     />
@@ -1344,9 +1366,9 @@ function App(): React.JSX.Element {
     record: ConnectionRecord,
   ): Promise<boolean> => {
     setIsLoading(true);
+    let nextTransport: Transport | null = null;
+    let nextBackend: AgentBackend | null = null;
     try {
-      disconnectIfPossible(transport);
-
       appendDebugNote({
         scope: 'app',
         title: 'Connection selected',
@@ -1356,9 +1378,6 @@ function App(): React.JSX.Element {
           name: record.name,
         },
       });
-
-      let nextTransport: Transport | null = null;
-      let nextBackend: AgentBackend | null = null;
 
       if (record.kind === 'embedded') {
         const embedded = createEmbeddedRuntimeBackend();
@@ -1371,18 +1390,20 @@ function App(): React.JSX.Element {
         await httpTransport.request({ method: 'GET', path: '/api/data' });
         nextTransport = httpTransport;
       } else if (record.kind === 'bridge') {
+        if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return false;
         if (!record.pairingToken) {
           await openBridgeRepairFlow(record, null);
           return false;
         }
 
         const bridge = createBridgeTransport({
-          ...getSavedBridgeTransportOptions(record),
+          ...getSavedBridgeTransportOptions(record, developmentSettings.mode),
           debug: true,
         });
         try {
           await bridge.connect();
         } catch (error) {
+          bridge.disconnect();
           const reasonCode = getBridgeReconnectErrorCode(error);
           if (reasonCode) {
             if (reasonCode === 'invalid_pairing_token' || reasonCode === 'server_mismatch') {
@@ -1398,6 +1419,7 @@ function App(): React.JSX.Element {
           throw error;
         }
         nextTransport = bridge;
+        await savedBridgeUrls.remember(record.bridgeUrl);
       } else if (record.kind === 'cloud') {
         const cloud = createCloudTransport(record);
         await cloud.request({ method: 'GET', path: '/api/data' });
@@ -1409,6 +1431,7 @@ function App(): React.JSX.Element {
         setBackend(nextBackend ?? new RestAgentBackend({ transport: nextTransport }));
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
+        if (nextTransport !== transport) disconnectIfPossible(transport);
         appendDebugNote({
           scope: 'app',
           title: 'Connection activated',
@@ -1421,8 +1444,11 @@ function App(): React.JSX.Element {
       }
       return false;
     } catch (error: any) {
+      if (nextTransport !== transport) disconnectIfPossible(nextTransport);
       console.log('Failed to reconnect to saved connection', error);
-      Alert.alert('Connection Error', error?.message || 'Failed to reconnect');
+      Alert.alert('Connection Error', record.kind === 'bridge'
+        ? bridgeConnectionErrorMessage(error)
+        : error?.message || 'Failed to reconnect');
       return false;
     } finally {
       setIsLoading(false);
@@ -1441,7 +1467,9 @@ function App(): React.JSX.Element {
           >
           <PinnedActionsProvider>
           <HomeWorkspaceProvider>
-            {isAppLoading || !markdownDisplayPreferencesHydrated ? (
+            {isAppLoading || !markdownDisplayPreferencesHydrated ||
+              (!developmentSettings.hydrated && !developmentSettings.error) ||
+              (!savedBridgeUrls.hydrated && !savedBridgeUrls.error) ? (
               <AnimatedSplashScreen />
             ) : (
               <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -1451,6 +1479,7 @@ function App(): React.JSX.Element {
                 {(() => {
                   return (
                     <ConnectedRoot
+                      developmentSettings={developmentSettings}
                       backend={backend}
                       transport={transport}
                       onDisconnect={handleDisconnect}
