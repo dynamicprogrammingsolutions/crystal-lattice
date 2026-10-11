@@ -6,6 +6,9 @@ import {
   sessionActionsPreviewAsset,
   sessionActionsPreviewEnabled,
   readSessionActionsRecipe,
+  proofBatchPreviewEnabled,
+  proofBatchPreviewFor,
+  vibePreviewAsset,
 } from "../../scripts/visual-assets/session-actions-preview.mjs";
 
 const pagesDir = join(process.cwd(), "src", "content", "pages");
@@ -22,12 +25,20 @@ export function loadPage(name: string): PageDocument {
     ...parsed,
     sections: parsed.sections.map(section => section.type !== "featureShowcase" ? section : ({
       ...section,
-      items: section.items?.map(item => item.id !== "feature-plugins" ? item : ({
+      items: section.items?.map(item => item.id !== "feature-plugins"
+        && !(proofBatchPreviewEnabled && ["feature-transparency", "feature-vibe-anything"].includes(item.id)) ? item : ({
         ...item,
         media: {
           ...item.media,
-          assets: item.media?.assets?.map((asset, index) =>
-            index === 0 ? { ...asset, ...previewAsset } : asset),
+          assets: item.media?.assets?.map((asset, index) => {
+            if (item.id === "feature-plugins" && index === 0) return { ...asset, ...previewAsset };
+            if (item.id === "feature-vibe-anything" && index === 0) return { ...asset, ...vibePreviewAsset };
+            const next = proofBatchPreviewEnabled ? proofBatchPreviewFor(item.id, index, process.cwd()) : undefined;
+            return next ? {
+              ...asset, ...next.asset,
+              description: next.sampleData ? `${asset.description ?? ""} ${next.sampleNotice}`.trim() : asset.description,
+            } : asset;
+          }),
         },
       })),
     })),

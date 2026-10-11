@@ -918,6 +918,15 @@ RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
     if ([params[@"initialProps"] isKindOfClass:[NSDictionary class]]) {
       initialProps = (NSDictionary *)params[@"initialProps"];
     }
+    NSDictionary *captureEnvironment = [NSProcessInfo processInfo].environment;
+    NSString *captureAppearance = captureEnvironment[@"CLC_WEBSITE_VISUAL_THEME"];
+    BOOL captureWindow = [captureEnvironment[@"CLC_ENABLE_WEBSITE_VISUAL_HARNESS"] isEqualToString:@"1"]
+        && ([captureAppearance isEqualToString:@"light"] || [captureAppearance isEqualToString:@"dark"]);
+    if (captureWindow) {
+      NSMutableDictionary *captureProps = [initialProps mutableCopy];
+      captureProps[@"captureAppearance"] = captureAppearance;
+      initialProps = captureProps;
+    }
 
     NSView *rootView = nil;
     id appDelegate = NSApp.delegate;
@@ -946,6 +955,11 @@ RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
     if ([params[@"height"] respondsToSelector:@selector(doubleValue)]) {
       height = (CGFloat)[params[@"height"] doubleValue];
     }
+    if (captureWindow && [moduleName isEqualToString:@"ActionDisplayWindow"]
+        && [captureEnvironment[@"CLC_WEBSITE_VISUAL_REPORT_COMPACT"] isEqualToString:@"1"]) {
+      width = 360;
+      height = 850;
+    }
     NSRect frame = NSMakeRect(0, 0, width, height);
     NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
@@ -957,6 +971,10 @@ RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
       title = (NSString *)params[@"title"];
     }
     window.title = title ?: moduleName;
+    if (captureWindow) {
+      window.appearance = [NSAppearance appearanceNamed:[captureAppearance isEqualToString:@"dark"]
+          ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+    }
     window.accessibilityIdentifier = [NSString stringWithFormat:@"%@Window", windowKey];
     window.accessibilityLabel = windowKey;
     rootView.frame = frame;

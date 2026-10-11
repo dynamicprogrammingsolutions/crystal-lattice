@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { expect as jestExpect } from "@jest/globals";
 
 async function dismissAndroidImmersiveModeConfirmation(): Promise<void> {
   if (device.getPlatform() !== "android") {
@@ -35,6 +36,28 @@ async function persistWebsiteScreenshot(
   const directory = path.resolve(process.cwd(), "artifacts", "website-visual");
   fs.mkdirSync(directory, { recursive: true });
   fs.copyFileSync(source, path.join(directory, filename));
+}
+
+async function captureVibeGeometry(theme: "light" | "dark"): Promise<void> {
+  const targets = [
+    "website-visual-harness-ready", "messages-screen-header", "transcript-scroll-list",
+    "message-bubble-0", "message-bubble-1", "assistant-reasoning-content-2",
+  ];
+  const attributes: Record<string, unknown> = {};
+  for (const id of targets) {
+    attributes[id] = await element(by.id(id)).getAttributes();
+  }
+  const viewport = (attributes["transcript-scroll-list"] as Detox.IosElementAttributes).frame;
+  for (const id of ["message-bubble-0", "message-bubble-1", "assistant-reasoning-content-2"]) {
+    const frame = (attributes[id] as Detox.IosElementAttributes).frame;
+    jestExpect(frame.y).toBeGreaterThanOrEqual(viewport.y);
+    jestExpect(frame.y + frame.height).toBeLessThanOrEqual(viewport.y + viewport.height + 1);
+    jestExpect(frame.x).toBeGreaterThanOrEqual(viewport.x);
+    jestExpect(frame.x + frame.width).toBeLessThanOrEqual(viewport.x + viewport.width + 1);
+  }
+  const directory = path.resolve("artifacts/website-visual");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, `vibe-${theme}-geometry.json`), JSON.stringify(attributes, null, 2));
 }
 
 async function captureTheme(
@@ -107,6 +130,15 @@ async function captureTheme(
     await waitFor(element(by.id("assistant-reasoning-content-2")))
       .toExist()
       .withTimeout(30000);
+    try {
+      await element(by.id("transcript-scroll-to-top")).tap();
+    } catch {
+      // Short capture transcripts may already fit without an edge control.
+    }
+    await captureVibeGeometry(theme);
+    await waitFor(element(by.id("message-bubble-0"))).toBeVisible().withTimeout(10000);
+    await waitFor(element(by.text("[1] User"))).toBeVisible().withTimeout(10000);
+    await waitFor(element(by.id("assistant-reasoning-content-2"))).toBeVisible().withTimeout(10000);
   } else if (kind === "workspaces") {
     await waitFor(element(by.text("Launch strategy research")))
       .toBeVisible()

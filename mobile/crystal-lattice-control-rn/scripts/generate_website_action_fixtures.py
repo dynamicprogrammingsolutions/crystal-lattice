@@ -54,6 +54,91 @@ GENERIC_PROJECTS = {
     "Operations plan": {"name": "Operations plan"},
 }
 
+def prepare_report_runtime(root: Path) -> dict[str, Any]:
+    """Seed owned report inputs; production actions calculate their output."""
+    root.mkdir(parents=True, exist_ok=True)
+    auth = root / "auth"
+    auth.mkdir(exist_ok=True)
+    (root / "projects.json").write_text(
+        json.dumps({"projects": GENERIC_PROJECTS}), encoding="utf-8"
+    )
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    db_path = root / "costs.sqlite3"
+    records = [
+        ("OpenAI-api", "Research brief", 1.27, 4),
+        ("OpenAI-api", "Research brief", 0.63, 2),
+        ("OpenRouter", "Operations plan", 0.84, 1),
+        ("OpenRouter", "Operations plan", 0.42, 0),
+    ]
+    for index, (bucket, project, amount, days) in enumerate(records):
+        cost_store.record_request_usage(
+            db_path,
+            time=(now - timedelta(days=days)).isoformat(),
+            bucket=bucket,
+            session_id="research-brief" if project == "Research brief" else "operations-plan",
+            working_directory=project,
+            model="sample-model",
+            response_id=f"website-proof-{index}",
+            input_tokens=4200 + index * 600,
+            cached_tokens=1200,
+            output_tokens=350 + index * 50,
+            **({"actual_cost": amount} if index < 2 else {"estimated_cost": amount}),
+        )
+    journal = [{
+        "type": "usage_reset",
+        "timestamp": (now - timedelta(days=5)).isoformat(),
+        "source": "chatgpt_auth_app",
+    }]
+    for index, percent in enumerate((12, 24, 35)):
+        moment = now - timedelta(hours=2 - index)
+        journal.append({
+            "type": "request_usage",
+            "timestamp": moment.isoformat(),
+            "response_id": f"website-chatgpt-{index}",
+            "session_id": "research-brief",
+            "working_directory": "Research brief",
+            "model": "sample-model",
+            "input_tokens": 8400 + index * 1800,
+            "cached_tokens": 2400,
+            "cache_write_tokens": 0,
+            "output_tokens": 650 + index * 100,
+            "reasoning_tokens": 300 + index * 50,
+            "estimated_cost": (0.42, 0.63, 0.77)[index],
+            "rate_limits": {
+                "captured_at": moment.isoformat(),
+                "snapshots": [{
+                    "limit_id": "codex",
+                    "primary": {
+                        "used_percent": percent,
+                        "window_minutes": 300,
+                        "resets_at": int((now + timedelta(hours=3)).timestamp()),
+                    },
+                    "secondary": {
+                        "used_percent": 18 + index * 3,
+                        "window_minutes": 10080,
+                        "resets_at": int((now + timedelta(days=4)).timestamp()),
+                    },
+                }],
+            },
+        })
+    journal_path = auth / "chatgpt-usage-journal.ndjson"
+    journal_path.write_text(
+        "".join(json.dumps(record) + "\n" for record in journal), encoding="utf-8"
+    )
+    limits_path = auth / "chatgpt-rate-limits.json"
+    limits_path.write_text(json.dumps(journal[-1]["rate_limits"]), encoding="utf-8")
+    result = {
+        "captured_at": now.isoformat(),
+        "cost_total": sum(record[2] for record in records),
+        "cost_requests": len(records),
+        "chatgpt_estimated_cost": 1.82,
+        "chatgpt_requests": 3,
+        "chatgpt_input_tokens": 30600,
+        "journal": journal,
+    }
+    (root / "seed-contract.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return result
+
 
 def _response(
     *,
@@ -255,7 +340,11 @@ def build_fixture() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--prepare-runtime", type=Path)
     args = parser.parse_args()
+    if args.prepare_runtime is not None:
+        prepare_report_runtime(args.prepare_runtime.resolve())
+        return 0
 
     fixture = build_fixture()
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,11 @@
+{
+  "verified_at": "2026-10-08",
+  "model": "gpt-6-astra",
+  "source_commit": "d63a9b8344cfe58bc78bbe319b560378fc8756ef",
+  "source_commit_date": "2026-10-06T01:46:33Z",
+  "source_url": "https://github.com/openai/codex/blob/d63a9b8344cfe58bc78bbe319b560378fc8756ef/codex-rs/models-manager/models.json",
+  "source_field": "model_messages.instructions_template",
+  "selection": "First four paragraphs",
+  "license": "Apache-2.0",
+  "notice": "Published OpenAI Codex source excerpt; screenshot fixture only, not a product-default update."
+}

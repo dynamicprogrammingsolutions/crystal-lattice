@@ -24,8 +24,8 @@ for (const width of [1440, 1024, 768, 390, 320]) {
         .toContain(`/__preview/session-actions/${shape}${suffix}.webp`);
       await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
       await expect(image).toHaveAttribute("alt", /Edit title.*Generate title.*Summarize range/);
-      await expect(feature.locator("[data-image-card]")).toHaveCount(3);
-      await expect(feature.locator("[data-proof-placeholder]")).toHaveCount(2);
+      await expect(feature.locator("[data-image-card]")).toHaveCount(2);
+      await expect(feature.locator("[data-proof-placeholder]")).toHaveCount(1);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const frame = await card.locator("[data-proof-frame]").boundingBox();
       expect(frame.width / frame.height).toBeCloseTo(width > 760 ? 16 / 9 : 3 / 4, 2);

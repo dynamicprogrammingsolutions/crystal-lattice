@@ -23,19 +23,29 @@ const palette = (theme) => theme === "dark"
   : { background: "#f3f4f7", code: "#ffffff", text: "#172239", muted: "#64748b", border: "#c8d1df" };
 
 export function validateSessionActionsContract(contract, config) {
-  assert.deepEqual(contract.configExcerpt, { plugins: config.plugins });
-  assert.equal(contract.mappings.length, 3);
+  assert.ok(contract.mappings.length >= 3);
+  assert.deepEqual(contract.configExcerpt.plugins,
+    [...new Set(contract.mappings.map(row => `path:plugins/${row.package}`))]);
+  assert.ok(contract.configExcerpt.plugins.every(value => config.plugins.includes(value)));
   for (const mapping of contract.mappings) {
     assert.ok(config.plugins.includes(`path:plugins/${mapping.package}`));
-    const actual = contract.schema.find((entry) => entry.id === mapping.id);
+    const actual = contract.schema.find((entry) => entry.id === mapping.id
+      && entry.ui_type === (contract.uiType ?? "session_action"));
     assert.equal(actual?.plugin, mapping.plugin);
     assert.equal(actual?.label, mapping.label);
     assert.equal(actual?.action_id, mapping.actionId);
-    assert.equal(actual?.ui_type, "session_action");
+    assert.equal(actual?.ui_type, contract.uiType ?? "session_action");
   }
 }
 
 export function focusGeometry(geometry, layout) {
+  if (layout.focus.listRow) {
+    const row = geometry.listRow;
+    const x = row.x - geometry.window.x, y = row.y - geometry.window.y;
+    const zoom = layout.focus.width / row.width;
+    assert.ok(x >= 0 && y >= 0 && layout.focus.y + row.height * zoom + 4 <= layout.height);
+    return { x, y, width: row.width, height: row.height, zoom };
+  }
   const top = Math.min(...geometry.rows.map((row) => row.frame.y)) - geometry.popover.y - 8;
   const bottom = Math.max(...geometry.rows.map((row) => row.frame.y + row.frame.height)) - geometry.popover.y + 8;
   const left = layout.focus.labelOnly
@@ -59,17 +69,43 @@ export function stackedPopupGeometry(geometry, layout) {
   const headerHeight = layout.focus.headerHeight;
   const gapHeight = layout.focus.cropBreakHeight;
   assert.ok(headerHeight > 0 && headerHeight < bodyTop);
-  assert.ok(layout.focus.y + (headerHeight + gapHeight + bottom - bodyTop) * zoom <= layout.height);
+  const segments = [];
+  let displayHeight = headerHeight;
+  if (layout.focus.selectedRowsOnly) {
+    for (const row of [...geometry.rows].sort((a, b) => a.frame.y - b.frame.y)) {
+      const y = row.frame.y - geometry.popover.y;
+      const previous = segments.at(-1);
+      if (previous && y <= previous.y + previous.height + 1) {
+        previous.height = y + row.frame.height - previous.y;
+      } else {
+        displayHeight += gapHeight;
+        segments.push({ y, height: row.frame.height, displayY: displayHeight });
+      }
+      displayHeight = segments.at(-1).displayY + segments.at(-1).height;
+    }
+  } else {
+    displayHeight = headerHeight + gapHeight + bottom - bodyTop;
+  }
+  assert.ok(layout.focus.y + displayHeight * zoom <= layout.height,
+    `Popup excerpt ends at ${layout.focus.y + displayHeight * zoom}; canvas height is ${layout.height}.`);
   return {
     left, width, zoom, headerHeight, gapHeight, bodyTop, bottom,
+    segments,
     bodyHeight: bottom - bodyTop,
     omitted: { y: headerHeight, height: bodyTop - headerHeight },
     rows: geometry.rows.map((row, index) => ({
-      id: row.id, color: colors[index],
+      id: row.id, color: colors[row.colorIndex ?? index],
       x: row.frame.x - geometry.popover.x - 4,
       y: row.frame.y - geometry.popover.y + row.frame.height * 0.16,
       width: geometry.popover.width - 2 * (row.frame.x - geometry.popover.x - 4),
       height: row.frame.height * 0.68,
+      displayY: segments.length
+        ? (() => {
+          const y = row.frame.y - geometry.popover.y + row.frame.height * 0.16;
+          const segment = segments.find(part => y >= part.y && y <= part.y + part.height);
+          return segment.displayY + y - segment.y;
+        })()
+        : headerHeight + gapHeight + row.frame.y - geometry.popover.y + row.frame.height * 0.16 - bodyTop,
     })),
   };
 }
@@ -114,12 +150,20 @@ async function buildStackedPopup(context, popupPath, geometry, layout, theme, sc
   // instead of depicting a complete menu with the other entries removed.
   const gapHeight = Math.round(focus.gapHeight * scale);
   const sourceWidth = Math.round(focus.width * scale);
-  await context.run("magick", [
-    "(", isolated, "-crop", header, "+repage", ")",
+  const gap = [
     "(", "-size", `${sourceWidth}x${gapHeight}`, `xc:${palette(theme).background}`,
     "-fill", "none", "-stroke", palette(theme).muted, "-strokewidth", "1",
     "-draw", `path 'M 24,${gapHeight / 2} L ${sourceWidth / 2 - 8},${gapHeight / 2 - 3} L ${sourceWidth / 2},${gapHeight / 2 + 3} L ${sourceWidth / 2 + 8},${gapHeight / 2 - 3} L ${sourceWidth - 24},${gapHeight / 2}'`, ")",
-    "(", isolated, "-crop", body, "+repage", ")",
+  ];
+  const parts = focus.segments.length ? focus.segments.flatMap(part => [
+    ...gap,
+    "(", isolated, "-crop",
+    `${sourceWidth}x${Math.round(part.height * scale)}+${cropX}+${Math.round(part.y * scale)}`,
+    "+repage", ")",
+  ]) : [...gap, "(", isolated, "-crop", body, "+repage", ")"];
+  await context.run("magick", [
+    "(", isolated, "-crop", header, "+repage", ")",
+    ...parts,
     "-append", "-resize", `${layout.focus.width}x`, output,
   ], { stdio: "pipe" });
   return focus;
@@ -137,13 +181,13 @@ async function renderCode(browser, contract, layout, theme, output) {
   try {
     const tones = palette(theme);
     const rows = contract.configExcerpt.plugins.map((value, index) => {
-      const name = contract.mappings[index].package;
+      const name = value.replace(/^path:plugins\//, "");
       const quoted = JSON.stringify(value);
       const start = quoted.indexOf(name);
       assert.ok(start >= 0);
       const highlight = layout.code.highlightRows
         ? ` style="--marker:${markerColor(colors[index], theme === "dark" ? 0.3 : 0.22)}"` : "";
-      return `<span class="entry"${highlight}>  ${escapeHtml(quoted.slice(0, start))}<span class="value-tail"><span class="package" data-plugin="${name}" style="color:${layout.code.highlightRows ? tones.text : colors[index]}">${escapeHtml(name)}</span><span class="suffix">${escapeHtml(quoted.slice(start + name.length))}${index < 2 ? "," : ""}</span></span></span>`;
+      return `<span class="entry"${highlight}>  ${escapeHtml(quoted.slice(0, start))}<span class="value-tail"><span class="package" data-plugin="${name}" style="color:${layout.code.highlightRows ? tones.text : colors[index]}">${escapeHtml(name)}</span><span class="suffix">${escapeHtml(quoted.slice(start + name.length))}${index < contract.configExcerpt.plugins.length - 1 ? "," : ""}</span></span></span>`;
     });
     await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
       *{box-sizing:border-box}body{margin:0;background:transparent}
@@ -183,10 +227,12 @@ async function renderCode(browser, contract, layout, theme, output) {
   }
 }
 
-async function buildComposition(context) {
+export async function buildComposition(context, selectedRecipe = recipe) {
+  const recipe = selectedRecipe;
   const source = path.join(context.repositoryRoot, recipe.captureDirectory);
   const output = path.join(context.landingRoot, recipe.candidateDirectory);
-  const configPath = path.join(context.landingRoot, "visual_assets/runtime/session-actions/config.json");
+  const configPath = path.join(context.repositoryRoot,
+    recipe.configFile ?? "landing_page/visual_assets/runtime/session-actions/config.json");
   const contractPath = path.join(source, "contract.json");
   const contract = readJson(contractPath);
   validateSessionActionsContract(contract, readJson(configPath));
@@ -211,6 +257,11 @@ async function buildComposition(context) {
       const geometry = readJson(geometryPath);
       assert.deepEqual(geometry.rows.map((row) => ({ id: row.id, label: row.label })),
         contract.mappings.map((row) => ({ id: row.id, label: row.label })));
+      const declarations = contract.configExcerpt.plugins;
+      const colorIndex = mapping => declarations.indexOf(`path:plugins/${mapping.package}`);
+      geometry.rows = geometry.rows.map((row, index) => ({
+        ...row, colorIndex: colorIndex(contract.mappings[index]),
+      }));
       for (const file of [geometryPath, windowPath, popupPath]) {
         sourceHashes[path.relative(context.repositoryRoot, file)] = digest(file);
       }
@@ -238,19 +289,20 @@ async function buildComposition(context) {
         const filename = `${shape}${theme === "dark" ? "-dark" : ""}.webp`;
         const codePath = path.join(output, `${shape}-${theme}-code.png`);
         const anchors = await renderCode(browser, contract, layout, theme, codePath);
+        const anchorFor = mapping => anchors.find(anchor => anchor.package === mapping.package);
         if (layout.presentation === "stacked-highlights") {
           const popupOutput = path.join(output, `${shape}-${theme}-popup.png`);
           const excerpt = await buildStackedPopup(context, popupPath, geometry, layout, theme, popupScale, popupOutput);
           const correspondences = contract.mappings.map((mapping, index) => ({
-            package: mapping.package, actionId: mapping.id, color: colors[index],
-            configRow: anchors[index].row,
+            package: mapping.package, actionId: mapping.id, color: colors[colorIndex(mapping)],
+            configRow: anchorFor(mapping).row,
             configLabel: {
-              x: layout.code.x + anchors[index].label.x, y: layout.code.y + anchors[index].label.y,
-              width: anchors[index].label.width, height: anchors[index].label.height,
+              x: layout.code.x + anchorFor(mapping).label.x, y: layout.code.y + anchorFor(mapping).label.y,
+              width: anchorFor(mapping).label.width, height: anchorFor(mapping).label.height,
             },
             actionRow: {
               x: layout.focus.x + (excerpt.rows[index].x - excerpt.left) * excerpt.zoom,
-              y: layout.focus.y + (excerpt.headerHeight + excerpt.gapHeight + excerpt.rows[index].y - excerpt.bodyTop) * excerpt.zoom,
+              y: layout.focus.y + excerpt.rows[index].displayY * excerpt.zoom,
               width: excerpt.rows[index].width * excerpt.zoom,
               height: excerpt.rows[index].height * excerpt.zoom,
             },
@@ -273,28 +325,46 @@ async function buildComposition(context) {
           });
           continue;
         }
+        const targetGeometry = layout.focus.listRow
+          ? { ...geometry, popover: geometry.window, rows: geometry.controls }
+          : geometry;
         const focus = focusGeometry(geometry, layout);
         const focusPath = path.join(output, `${shape}-${theme}-focus.png`);
         const crop = `${Math.round(focus.width * popupScale)}x${Math.round(focus.height * popupScale)}+${Math.round(focus.x * popupScale)}+${Math.round(focus.y * popupScale)}`;
         await context.run("magick", [
-          popupPath, "-crop", crop, "+repage", "-resize", `${layout.focus.width}x`,
+          layout.focus.listRow ? windowPath : popupPath, "-crop", crop, "+repage", "-resize", `${layout.focus.width}x`,
           "-bordercolor", palette(theme).border, "-border", "2", focusPath,
         ], { stdio: "pipe" });
+        if (layout.presentation === "stacked-list") {
+          const markerPath = path.join(output, `${shape}-${theme}-row-markers.png`);
+          const size = await dimensions(context, focusPath);
+          const overlay = ["-size", `${size.width}x${size.height}`, "xc:none", "-stroke", "none"];
+          for (const [index, row] of geometry.controls.entries()) {
+            const x = (row.frame.x - geometry.window.x - focus.x) * focus.zoom + 2;
+            const y = (row.frame.y - geometry.window.y - focus.y) * focus.zoom + 2;
+            overlay.push("-fill", markerColor(colors[index], 0.3), "-draw",
+              `rectangle ${x - 3},${y} ${x + row.frame.width * focus.zoom + 3},${y + row.frame.height * focus.zoom}`);
+          }
+          overlay.push(markerPath);
+          await context.run("magick", overlay, { stdio: "pipe" });
+          await context.run("magick", [focusPath, markerPath, "-compose", theme === "dark" ? "Screen" : "Multiply", "-composite", focusPath], { stdio: "pipe" });
+        }
         const endpoints = contract.mappings.map((mapping, index) => ({
           package: mapping.package, actionId: mapping.id,
-          configRow: anchors[index].row,
+          configRow: anchorFor(mapping).row,
           configLabel: {
-            x: layout.code.x + anchors[index].label.x,
-            y: layout.code.y + anchors[index].label.y,
-            width: anchors[index].label.width, height: anchors[index].label.height,
+            x: layout.code.x + anchorFor(mapping).label.x,
+            y: layout.code.y + anchorFor(mapping).label.y,
+            width: anchorFor(mapping).label.width, height: anchorFor(mapping).label.height,
           },
-          from: { x: layout.code.x + anchors[index].x, y: layout.code.y + anchors[index].y },
+          from: { x: layout.code.x + anchorFor(mapping).x, y: layout.code.y + anchorFor(mapping).y },
           to: {
             x: layout.focus.x + 2 + Math.max(
-              geometry.rows[index].frame.x + 2 - geometry.popover.x - focus.x, 2,
+              targetGeometry.rows[index].frame.x + 2 - targetGeometry.popover.x - focus.x, 2,
             ) * focus.zoom,
-            y: layout.focus.y + 2 + (geometry.rows[index].frame.y + geometry.rows[index].frame.height / 2 - geometry.popover.y - focus.y) * focus.zoom,
+            y: layout.focus.y + 2 + (targetGeometry.rows[index].frame.y + targetGeometry.rows[index].frame.height / 2 - targetGeometry.popover.y - focus.y) * focus.zoom,
           },
+          color: colors[colorIndex(mapping)],
         }));
         const args = [
           "-size", `${layout.width}x${layout.height}`, `xc:${palette(theme).background}`,
@@ -303,16 +373,17 @@ async function buildComposition(context) {
           codePath, "-geometry", `+${layout.code.x}+${layout.code.y}`, "-composite",
           focusPath, "-geometry", `+${layout.focus.x}+${layout.focus.y}`, "-composite",
         ];
-        for (const [index, point] of endpoints.entries()) {
+        for (const point of endpoints) {
           for (const endpoint of [point.from, point.to]) {
             assert.ok(endpoint.x >= 0 && endpoint.x < layout.width && endpoint.y >= 0 && endpoint.y < layout.height);
           }
           const { from, to } = point;
+          if (layout.presentation === "stacked-list") continue;
           const gap = to.x - from.x;
           assert.ok(gap > 0, "Configuration and action columns overlap.");
-          args.push("-fill", "none", "-stroke", colors[index], "-strokewidth", shape === "wide" ? "5" : "4",
+          args.push("-fill", "none", "-stroke", point.color, "-strokewidth", shape === "wide" ? "5" : "4",
             "-draw", `path 'M ${from.x},${from.y} C ${from.x + gap * 0.45},${from.y} ${to.x - gap * 0.45},${to.y} ${to.x},${to.y}'`,
-            "-fill", colors[index], "-stroke", "none", "-draw", `circle ${to.x},${to.y} ${to.x + 6},${to.y}`);
+            "-fill", point.color, "-stroke", "none", "-draw", `circle ${to.x},${to.y} ${to.x + 6},${to.y}`);
         }
         const file = path.join(output, filename);
         args.push("-colorspace", "sRGB", "-strip", "-quality", "88", "-define", "webp:method=6", file);
@@ -320,12 +391,22 @@ async function buildComposition(context) {
         const metrics = await dimensions(context, file);
         assert.deepEqual(metrics, { width: layout.width, height: layout.height });
         assert.ok(fs.statSync(file).size <= recipe.maxBytes, `${filename} exceeds its byte budget.`);
-        if (shape === "wide") {
+        if (shape === "wide" && recipe.preserveWideHashes) {
           assert.equal(digest(file), recipe.preserveWideHashes[theme], "The reviewed Desktop composition changed.");
         }
         results.push({
           asset_id: recipe.id, variant: `${shape}-${theme}`, file: filename, ...metrics,
-          bytes: fs.statSync(file).size, sha256: digest(file), focus, endpoints,
+          bytes: fs.statSync(file).size, sha256: digest(file), focus,
+          endpoints: layout.presentation === "stacked-list" ? [] : endpoints,
+          correspondences: layout.presentation === "stacked-list" ? endpoints.map((row, index) => ({
+            ...row, actionRow: {
+              x: layout.focus.x + (geometry.controls[index].frame.x - geometry.window.x - focus.x) * focus.zoom,
+              y: layout.focus.y + (geometry.controls[index].frame.y - geometry.window.y - focus.y) * focus.zoom,
+              width: geometry.controls[index].frame.width * focus.zoom,
+              height: geometry.controls[index].frame.height * focus.zoom,
+            },
+          })) : undefined,
+          presentation: layout.presentation,
         });
       }
     }
@@ -334,7 +415,7 @@ async function buildComposition(context) {
   }
   fs.writeFileSync(path.join(output, "manifest.json"), JSON.stringify({
     reviewState: "candidate",
-    recipeSha256: digest(path.join(context.landingRoot, "visual_assets/session-actions-composition.json")),
+    recipeSha256: digest(path.join(context.landingRoot, recipe.recipeFile ?? "visual_assets/session-actions-composition.json")),
     configSha256: contract.configSha256,
     sourceHashes, results,
   }, null, 2));

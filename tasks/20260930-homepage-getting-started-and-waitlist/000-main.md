@@ -1,19 +1,21 @@
 # Redesign The Homepage And Add A Mobile Release Waitlist
 
-Restructure the Crystal Lattice homepage around a concise hero, six
-proof-backed product highlights, and a six-step getting-started journey. After
-the redesigned website is complete and reviewed locally, add a small AWS-backed
-email waitlist with SES confirmation and integrate its real form into the
-mobile-download step.
+Restructure the Crystal Lattice homepage around a concise hero, a
+screenshot-led UI walkthrough, the approved proof-backed product values, and
+a six-step getting-started journey. After the redesigned website is complete
+and reviewed locally, add a small AWS-backed email waitlist with SES
+confirmation and integrate its real form into the mobile-download step.
 
 ## Requirements checklist
 
-- [ ] The homepage primary sequence is: concise hero, six visual product
-      highlights, then a six-step getting-started section.
-- [ ] The six highlights include the five approved themes—one workspace for
-      model-family-oriented agents, replaceable plugin surfaces, transparent
-      and open-source operation, work from anywhere, and adaptability beyond
-      development—plus durable session workspaces.
+- [ ] The homepage primary sequence is: concise hero, an introductory
+      screenshot-led UI walkthrough, the remaining visual product highlights,
+      then a six-step getting-started section.
+- [ ] The walkthrough and highlights together preserve the six approved
+      themes—one workspace for model-family-oriented agents, replaceable
+      plugin surfaces, transparent and open-source operation, work from
+      anywhere, adaptability beyond development, and durable session
+      workspaces—without forcing every theme to remain a separate card.
 - [ ] Public copy clearly distinguishes Crystal Lattice configured-agent
       profiles and model-family-oriented defaults from official upstream
       applications such as Claude Code, Codex, Gemini, Kimi, or other products.
@@ -52,8 +54,13 @@ mobile-download step.
   owns approved public copy, the logo-led download layout, exact planned-visual
   descriptions, and the durable design-decision record.
 - `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
-  owns the real product improvements, screenshot-only presentation decisions,
-  reviewed fixtures, and final proof asset production.
+  owns the implemented product improvements, capture infrastructure, reviewed
+  fixtures, and accepted Plugin/Transparency/Vibe evidence produced before
+  the publishable-page restructuring.
+- `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
+  owns the UI-led product introduction, revised publishable information
+  architecture, remaining proof assets, Getting Started/mobile presentation,
+  release-content cut, and final local website acceptance.
 - `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
   owns the deployed waitlist service and then adds the actual working form to
   the reviewed website.
@@ -92,6 +99,7 @@ mobile-download step.
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
+- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
 
 ## Execution plan
@@ -110,10 +118,13 @@ Subtask `015` starts from that working structure and applies the selected copy,
 platform-logo download layout, and detailed placeholder descriptions. It also
 creates the durable decision record while preserving the selected alternatives.
 
-Subtask `018` then makes any approved backend/SDK/Desktop improvements needed
-for truthful proof, resolves whether screenshot-specific ordering/hiding uses
-real product controls or capture-only plugins, and produces reviewed visual
-assets.
+Subtask `018` makes the approved backend/SDK/Desktop improvements needed for
+truthful proof and records the accepted capture work completed before the
+publishable restructuring.
+
+Subtask `019` then uses those product/capture foundations to teach the product
+through its real UI, finish the remaining proof, revise Getting Started, and
+produce the reviewed local publish candidate.
 
 Subtask `020` then deploys the minimal AWS service, verifies confirmation and
 withdrawal behavior, and adds the actual form to the reviewed mobile-download
@@ -121,7 +132,7 @@ step. This keeps the public form contract driven by a real backend rather than
 a placeholder endpoint. The final integrated site is reviewed again before
 one protected production publication.
 
-The three-subtask structure also keeps personal-data handling separate from
+The staged subtask structure also keeps personal-data handling separate from
 general website content. Website components must not gain direct AWS
 credentials, administrative reads, or mailing-list export behavior. The
 backend owns validation, idempotency, storage, confirmation, suppression, and
@@ -194,8 +205,10 @@ repository files, or application logs.
       draft copy, placeholders, ordering, or layout as approved.
 - [ ] **AGENT:** Complete content/assets/layout subtask `015` after its
       decisions are approved.
-- [ ] **AGENT:** Complete visual/product-improvement subtask `018` after its
-      material product and capture-only decisions are approved.
+- [ ] **AGENT:** Reconcile the completed visual/product evidence in subtask
+      `018` and finish any explicitly retained implementation bookkeeping.
+- [ ] **AGENT:** Complete publishable UI-walkthrough subtask `019` through its
+      staged human-review checkpoints.
 - [ ] **HUMAN JUDGMENT:** Approve the finalized homepage copy, proof assets,
       ordering, and visual layout.
 - [ ] **AGENT:** Complete and verify the AWS service plus integrated form in
@@ -212,9 +225,10 @@ repository files, or application logs.
 
 ### Requirement verification
 
-- Homepage structure and highlight requirements: production-built HTML plus
-  content-contract and responsive browser tests must show the exact ordered
-  hero, six highlights, and getting-started section with all approved themes.
+- Homepage structure and product-value requirements: production-built HTML
+  plus content-contract and responsive browser tests must show the exact
+  ordered hero, UI walkthrough, remaining highlights, and Getting Started,
+  with all six approved themes represented in their selected locations.
 - Availability requirement: maintained content tests and live-link checks
   must prove current CLI/macOS links and non-interactive coming-soon states
   without implying unavailable Desktop or store releases exist.

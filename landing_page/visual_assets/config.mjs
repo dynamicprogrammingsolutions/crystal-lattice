@@ -19,6 +19,8 @@ import {
 import { detoxCapture } from "../scripts/visual-assets/producers/detox.mjs";
 import { commandCapture } from "../scripts/visual-assets/producers/command.mjs";
 import { sessionActionsComposition } from "../scripts/visual-assets/session-actions-composition.mjs";
+import { proofBatchAssets } from "../scripts/visual-assets/proof-batch-composition.mjs";
+import { vibeComposition } from "../scripts/visual-assets/vibe-composition.mjs";
 import {
   runSessionFixtureCatalogCommand,
   sessionFixtureAssetCommands,
@@ -474,6 +476,8 @@ export default defineVisualAssets({
 
   assets: [
     sessionActionsComposition,
+    ...proofBatchAssets,
+    vibeComposition,
     defineAsset({
       id: "mobile-workbench",
       metadata: {

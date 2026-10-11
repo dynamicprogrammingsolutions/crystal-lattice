@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 from pathlib import Path
 
 
@@ -44,3 +45,38 @@ def test_website_action_displays_are_real_sanitized_contracts() -> None:
     assert "/private/" not in encoded
     assert "api_key" not in encoded
     assert "secret" not in encoded
+
+
+def test_report_runtime_is_synthetic_and_preserves_numeric_token_counts(tmp_path: Path) -> None:
+    generator = Path(__file__).resolve().parents[1] / "scripts" / "generate_website_action_fixtures.py"
+    spec = importlib.util.spec_from_file_location("website_action_generator", generator)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    contract = module.prepare_report_runtime(tmp_path)
+    journal = [
+        json.loads(line)
+        for line in (tmp_path / "auth" / "chatgpt-usage-journal.ndjson").read_text().splitlines()
+    ]
+    assert journal[0]["type"] == "usage_reset"
+    requests = journal[1:]
+    assert sum(row["input_tokens"] for row in requests) == contract["chatgpt_input_tokens"]
+    assert sum(row["estimated_cost"] for row in requests) == contract["chatgpt_estimated_cost"]
+    assert all(isinstance(row["cached_tokens"], int) for row in requests)
+    assert (tmp_path / "costs.sqlite3").exists()
+    assert not (tmp_path / "auth" / "absent-credentials.json").exists()
+    forbidden = {"access_token", "refresh_token", "id_token", "api_key", "password", "private_key"}
+
+    def inspect(value: object) -> None:
+        if isinstance(value, dict):
+            assert not forbidden.intersection(value)
+            for item in value.values():
+                inspect(item)
+        elif isinstance(value, list):
+            for item in value:
+                inspect(item)
+        elif isinstance(value, str):
+            assert "/Users/" not in value and "/private/" not in value
+
+    inspect(contract)
+    inspect(json.loads((tmp_path / "auth" / "chatgpt-rate-limits.json").read_text()))

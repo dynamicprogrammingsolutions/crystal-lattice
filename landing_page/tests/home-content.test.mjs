@@ -100,25 +100,31 @@ test('detailed evidence stays inside its owning highlight without duplicate gall
   const highlights = home.sections.find(({ id }) => id === 'product-highlights');
   assert.deepEqual(
     highlights.items.map(({ media }) => media.assets?.length ?? 1),
-    [2, 1, 1, 2, 3, 3],
+    [2, 1, 1, 2, 2, 2],
   );
   assert.deepEqual(
     highlights.items[4].media.assets.map(({ label }) => label),
-    ['Session actions', 'Actions for each message', 'A session list that fits your work'],
+    ['Session actions', 'Actions for each message'],
   );
   assert.deepEqual(
     highlights.items[5].media.assets.map(({ label }) => label),
-    ['Inspect the instructions', 'See where costs go', 'Track ChatGPT usage'],
+    ['Inspect the instructions', 'Costs and ChatGPT usage'],
   );
+  for (const item of highlights.items) {
+    for (const image of item.media.assets) {
+      assert.match(image.description, /plugin-driven/i);
+      assert.match(image.description, /easy to|easily/i);
+    }
+  }
   assert.equal(
     home.sections.some(({ id }) =>
-      ['session-workbench', 'transparency-details', 'plugin-action-examples'].includes(id),
+      ['session-workbench', 'transparency-details', 'plugin-action-examples', 'everything-replaceable'].includes(id),
     ),
     false,
   );
   assert.doesNotMatch(
     JSON.stringify(home),
-    /See what goes into each session|Your plugins shape the controls|Inspect and restore session snapshots/,
+    /See what goes into each session|Your plugins shape the controls|Inspect and restore session snapshots|Serious users eventually disagree with the harness/,
   );
 });
 

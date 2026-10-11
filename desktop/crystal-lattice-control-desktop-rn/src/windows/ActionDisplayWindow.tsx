@@ -15,13 +15,20 @@ import {
   useActiveActionDisplayWindow,
 } from './actionDisplayWindowCoordinator';
 import { DesktopWindowManager } from './desktopWindowManager';
+import { buildDesktopCaptureTheme } from '../theme/buildDesktopTheme';
 
 const WINDOW_KEY = 'actionDisplay';
 
-export function ActionDisplayWindow(): React.JSX.Element {
+export function ActionDisplayWindow({
+  captureAppearance,
+}: { captureAppearance?: 'light' | 'dark' }): React.JSX.Element {
   const systemTheme = useDesktopTheme();
+  const theme = useMemo(
+    () => captureAppearance ? buildDesktopCaptureTheme(captureAppearance) : systemTheme,
+    [captureAppearance, systemTheme],
+  );
   return (
-    <ThemeProvider theme={systemTheme}>
+    <ThemeProvider theme={theme}>
       <ActionDisplayWindowInner />
     </ThemeProvider>
   );

@@ -2,6 +2,135 @@ import XCTest
 import AppKit
 
 final class SessionFiltersPopoverUITests: XCTestCase {
+  func testWebsiteProofBatch() throws {
+    let project = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let input = project.appendingPathComponent("artifacts/website-proof-batch/active-run.json")
+    let run = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: input)) as? [String: Any])
+    let bundleId = try XCTUnwrap(run["captureBundleId"] as? String)
+    XCTAssertEqual(bundleId, "com.dynamicprogrammingsolutions.crystallatticecontrol.website-capture")
+    for scene in try XCTUnwrap(run["scenes"] as? [[String: Any]]) {
+      for appearance in ["light", "dark"] {
+        try captureWebsiteProof(scene: scene, appearance: appearance, bundleId: bundleId)
+        if scene["reportAction"] != nil {
+          var compact = scene
+          compact["compact"] = true
+          try captureWebsiteProof(scene: compact, appearance: appearance, bundleId: bundleId)
+        }
+      }
+    }
+  }
+
+  private func captureWebsiteProof(scene: [String: Any], appearance: String, bundleId: String) throws {
+    XCTAssertTrue(NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty,
+                  "Existing capture instance is not owned by this run.")
+    let app = XCUIApplication(bundleIdentifier: bundleId)
+    app.launchEnvironment["CLC_ENABLE_WEBSITE_VISUAL_HARNESS"] = "1"
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_KIND"] = scene["kind"] as? String
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_THEME"] = appearance
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_BACKEND_URL"] = scene["baseUrl"] as? String
+    app.launchEnvironment["CLC_WEBSITE_VISUAL_SESSION_ID"] = scene["sessionId"] as? String
+    let compact = scene["compact"] as? Bool == true
+    if compact { app.launchEnvironment["CLC_WEBSITE_VISUAL_REPORT_COMPACT"] = "1" }
+    app.launchArguments = ["-clcWebsiteVisualTheme", appearance, "-AppleInterfaceStyle", appearance == "dark" ? "Dark" : "Light"]
+    addTeardownBlock { if app.state != .notRunning { app.terminate() } }
+    app.launch()
+    let window = app.windows["DesktopWebsiteVisualHarnessWindow"]
+    XCTAssertTrue(window.waitForExistence(timeout: 30), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: window)
+    let name = try XCTUnwrap(scene["name"] as? String)
+    let sessionId = try XCTUnwrap(scene["sessionId"] as? String)
+    let prefix = "\(name)-\(appearance)"
+    let suffix = compact ? "-compact" : ""
+    var controls: [[String: Any]] = []
+    let menu: XCUIElement
+    if name == "session-list" {
+      let row = element(window, "session-row-\(sessionId)")
+      XCTAssertTrue(row.waitForExistence(timeout: 30), app.debugDescription)
+      for (id, target) in [
+        ("toggle_session_pinned", "session-rich-header-\(sessionId)-header_trailing-toggle_session_pinned"),
+        ("toggle_session_archived", "session-rich-action-\(sessionId)-toggle_session_archived"),
+        ("set_session_status", "session-rich-action-\(sessionId)-set_session_status")
+      ] {
+        let control = element(row, target)
+        XCTAssertTrue(control.waitForExistence(timeout: 15), app.debugDescription)
+        controls.append(["id": id, "frame": websiteFrame(control.frame), "label": control.label])
+      }
+      menu = element(row, "session-actions-menu-\(sessionId)")
+    } else if name == "message-actions" {
+      let message = element(window, "transcript-message-1")
+      XCTAssertTrue(message.waitForExistence(timeout: 30), app.debugDescription)
+      menu = element(message, "message-actions-menu")
+    } else {
+      menu = element(window, "session-actions-menu")
+    }
+    XCTAssertTrue(menu.waitForExistence(timeout: 30), app.debugDescription)
+    if scene["reportAction"] != nil && !compact {
+      websiteAttach(window.screenshot(), name: "\(prefix)-conversation")
+    }
+    menu.click()
+    let popover = window.popovers.firstMatch
+    XCTAssertTrue(popover.waitForExistence(timeout: 15), app.debugDescription)
+    dismissDevelopmentWarningBanner(in: popover)
+    let detail: XCUIElement
+    var rows: [[String: Any]] = []
+    var geometry: [String: Any] = ["window": websiteFrame(window.frame), "controls": controls]
+    if let action = scene["reportAction"] as? [String: Any] {
+      let id = try XCTUnwrap(action["id"] as? String)
+      let trigger = element(popover, "actions-menu-action-\(id)")
+      XCTAssertTrue(trigger.waitForExistence(timeout: 15), app.debugDescription)
+      for _ in 0..<8 {
+        if trigger.isHittable { break }
+        popover.scrollViews.firstMatch.swipeUp()
+      }
+      XCTAssertTrue(trigger.isHittable, app.debugDescription)
+      trigger.click()
+      detail = app.windows["actionDisplayWindow"]
+      XCTAssertTrue(detail.waitForExistence(timeout: 30), app.debugDescription)
+      let response = try XCTUnwrap(scene["response"] as? [String: Any])
+      let result = try XCTUnwrap(response["result"] as? [String: Any])
+      let display = try XCTUnwrap(result["display"] as? [String: Any])
+      let title = try XCTUnwrap(display["title"] as? String)
+      XCTAssertTrue(detail.staticTexts.matching(NSPredicate(format: "value BEGINSWITH %@", String(title.prefix(16)))).firstMatch.waitForExistence(timeout: 15),
+                    app.debugDescription)
+      dismissDevelopmentWarningBanner(in: detail)
+      geometry["report"] = websiteFrame(detail.frame)
+      geometry["reportActionId"] = action["actionId"]
+      websiteAttach(detail.screenshot(), name: "\(prefix)-report\(suffix)")
+    } else {
+      for mapping in try XCTUnwrap(scene["mappings"] as? [[String: Any]]) {
+        let id = try XCTUnwrap(mapping["id"] as? String)
+        let label = try XCTUnwrap(mapping["label"] as? String)
+        let target = element(popover, "actions-menu-action-\(id)")
+        XCTAssertTrue(target.waitForExistence(timeout: 15), app.debugDescription)
+        waitForLabel(target, label)
+        rows.append(["id": id, "label": label, "frame": websiteFrame(target.frame)])
+      }
+      detail = popover
+      geometry["popover"] = websiteFrame(popover.frame)
+      geometry["rows"] = rows
+      if name == "session-list" {
+        geometry["listRow"] = websiteFrame(element(window, "session-row-\(sessionId)").frame)
+      }
+      websiteAttach(popover.screenshot(), name: "\(prefix)-popover")
+    }
+    websiteAttach(window.screenshot(), name: "\(prefix)-window\(suffix)")
+    let data = XCTAttachment(
+      data: try JSONSerialization.data(withJSONObject: geometry, options: [.prettyPrinted, .sortedKeys]),
+      uniformTypeIdentifier: "public.json")
+    data.name = "\(prefix)-geometry\(suffix)"
+    data.lifetime = .keepAlways
+    add(data)
+    app.terminate()
+  }
+
+  private func websiteAttach(_ screenshot: XCUIScreenshot, name: String) {
+    let attachment = XCTAttachment(screenshot: screenshot)
+    attachment.name = name
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
   func testWebsiteSessionActionsLight() throws {
     try captureWebsiteSessionActions(appearance: "light")
   }

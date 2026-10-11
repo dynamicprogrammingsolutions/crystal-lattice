@@ -21,6 +21,7 @@ import { ThemeProvider, darkTheme, lightTheme, type Theme } from "../theme";
 import codingPlanFixture from "./fixtures/websiteCodingPlanSession.json";
 import actionDisplayFixture from "./fixtures/websiteActionDisplays.json";
 import runtimeUiFixture from "./fixtures/websiteRuntimeUi.json";
+import vibeMessages from "./fixtures/websiteVibeMessages.json";
 
 const SESSION_SUMMARY = codingPlanFixture.session as SessionSummary;
 const SESSION_ID = SESSION_SUMMARY.session_id;
@@ -113,62 +114,7 @@ const FEATURE_PLUGINS = [
   },
 ];
 
-const VIBE_MESSAGES = [
-  {
-    index: 0,
-    message: {
-      role: "system",
-      content:
-        "You are a GLM-5.3 research and operations agent. Build cited recommendations from supplied files and current public sources.",
-      metadata: {},
-    },
-  },
-  {
-    index: 1,
-    message: {
-      role: "user",
-      content:
-        "Review the attached channel-performance data and launch notes. Verify the time-sensitive benchmarks against current public sources, compare the three launch approaches, and recommend a two-week validation plan with assumptions, risks, and evidence gaps.",
-      metadata: {},
-      multipartContent: [
-        {
-          type: "file",
-          content: {
-            filename: "channel-performance.csv",
-            mime_type: "text/csv",
-          },
-          metadata: {},
-        },
-        {
-          type: "file",
-          content: {
-            filename: "launch-notes.md",
-            mime_type: "text/markdown",
-          },
-          metadata: {},
-        },
-      ],
-    },
-  },
-  {
-    index: 2,
-    message: {
-      role: "assistant",
-      content: "",
-      metadata: {
-        reasoning:
-          "**Inspecting the attached performance table and launch notes**\n\nI’ll normalize the channel metrics, identify assumptions in each approach, and list the claims that depend on current external benchmarks. Then I’ll check recent public sources, compare the evidence on consistent criteria, and build a two-week validation sequence with explicit decision gates.",
-        openai_responses_reasoning: {
-          summary_text:
-            "**Inspecting the attached performance table and launch notes**\n\nI’ll normalize the channel metrics, identify assumptions in each approach, and list the claims that depend on current external benchmarks. Then I’ll check recent public sources, compare the evidence on consistent criteria, and build a two-week validation sequence with explicit decision gates.",
-          context: "all_turns",
-        },
-        has_tool_calls: false,
-        phase: "analysis",
-      },
-    },
-  },
-] as IndexedMessage[];
+const VIBE_MESSAGES = vibeMessages as IndexedMessage[];
 
 const VIBE_SESSION_SUMMARY: SessionSummary = {
   session_id: SESSION_ID,
@@ -299,7 +245,9 @@ function createHarnessBackend(kind: string): AgentBackend {
       cursorExpired: false,
     }),
     getSessionUiSchema: async () =>
-      kind === "compiled"
+      kind === "vibe"
+        ? []
+        : kind === "compiled"
         ? [COMPILED_ACTION_FIXTURE.ui_element]
         : kind === "usage" || kind === "cost"
         ? MESSAGE_FOOTER_ELEMENTS
@@ -670,7 +618,7 @@ export function MobileWebsiteVisualHarness({
                   onNavigateToSession={() => {}}
                   initialComposeText=""
                   initialScrollAnchor={null}
-                  initialRangeStartText="-50"
+                  initialRangeStartText={configuredKind === "vibe" ? "0" : "-50"}
                   initialRangeEndText=""
                   onSaveComposeText={() => {}}
                   onSaveScrollAnchor={() => {}}

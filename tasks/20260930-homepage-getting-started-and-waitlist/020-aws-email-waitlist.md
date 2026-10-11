@@ -4,7 +4,7 @@ Parent Task:
 `tasks/20260930-homepage-getting-started-and-waitlist/000-main.md`
 
 Depends On:
-`tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
+`tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
 
 Deploy a small AWS service that accepts mobile-release waitlist email
 submissions, stores minimal consent evidence safely, sends a confirmation

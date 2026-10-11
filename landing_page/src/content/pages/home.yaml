@@ -49,14 +49,14 @@ sections:
           status: "draft-review"
           assets:
             - label: "Codex"
-              description: "An agent configured with Apply Patch, Shell, and View Image tools."
+              description: "Plugin-driven instructions and tools: Apply Patch, Shell, and View Image. Easily tailor the setup to your use case."
               src: "/homepage-draft/agent-codex-light.webp"
               srcDark: "/homepage-draft/agent-codex-dark.webp"
               alt: "Compact Crystal Lattice Desktop agent picker with Codex selected and Apply Patch, Shell, View Image, and Read File defaults visible."
               width: 1400
               height: 980
             - label: "Claude"
-              description: "An agent configured with Read, Write, Edit, Glob, Grep, and Bash tools."
+              description: "Plugin-driven instructions and tools: Read, Write, Edit, Glob, Grep, and Bash. Easily tailor the setup to your use case."
               src: "/homepage-draft/agent-claude-light.webp"
               srcDark: "/homepage-draft/agent-claude-dark.webp"
               alt: "Compact Crystal Lattice Desktop agent picker with Claude selected and Read, Write, Edit, Glob, Grep, and Bash defaults visible."
@@ -74,7 +74,7 @@ sections:
           status: "placeholder-needed"
           assets:
             - label: "Desktop and mobile"
-              description: "Continue the same conversation on a different device."
+              description: "Continue the same conversation across devices. Plugin-driven agents and session controls are easy to adapt to your workflow."
               placeholder: >-
                 A Desktop window and a phone showing the same conversation:
                 matching session title, latest question, and answer.
@@ -90,10 +90,10 @@ sections:
           status: "draft-review"
           assets:
             - label: "Research and planning"
-              description: "A research workflow using the same session interface."
+              description: "Easily adapt plugin-driven instructions and tools for research, planning, or another use case."
               src: "/homepage-draft/vibe-light.webp"
               srcDark: "/homepage-draft/vibe-dark.webp"
-              alt: "An agent reviewing attached launch data and reasoning about research and validation work before using its tools."
+              alt: "A System message, a user request with launch-data attachments, and initial research-agent reasoning are visible together."
               width: 520
               height: 1131
       - id: session-workbench
@@ -109,13 +109,13 @@ sections:
           status: "placeholder-needed"
           assets:
             - label: "Organize your sessions"
-              description: "Titles, subtitles, pinning, and status keep ongoing work organized."
+              description: "Plugin-driven titles, subtitles, pinning, and status keep work organized. Easily adjust them to your use case."
               placeholder: >-
                 Desktop session list with descriptive titles, subtitles, and
                 status. A pin star sits at the top right; archive and status
                 controls remain visible beside the open action menu.
             - label: "Control the conversation"
-              description: "Fork a conversation or choose how to change its history."
+              description: "Plugin-driven conversation actions let you fork or change history. Easily keep, replace, or refine them for your workflow."
               placeholder: >-
                 A Desktop conversation with Message actions open, highlighting
                 Fork here, Delete from here, and OpenAI compaction up to here.
@@ -132,23 +132,17 @@ sections:
           status: "placeholder-needed"
           assets:
             - label: "Session actions"
-              description: "Choose the plugins that add actions to each session."
+              description: "These session actions are plugin-driven and easy to adjust to your use case."
               placeholder: >-
                 Plugin configuration on the left connects to the open Session
                 actions menu on the right: Edit title, Generate title, and
                 Summarize range. The conversation remains visible behind the menu.
             - label: "Actions for each message"
-              description: "Fork, summarize, or share a message using the plugins you choose."
+              description: "Fork, summarize, or share with plugin-driven actions. Easily tailor them to your use case."
               placeholder: >-
                 Configuration connects to the real Message actions menu.
                 Three plugin packages provide Fork here, Summarize messages
                 up to here, and sharing as both PDF and Markdown.
-            - label: "A session list that fits your work"
-              description: "Choose the plugins that add pinning, archiving, and status to your sessions."
-              placeholder: >-
-                Configuration for pin, archive, and status plugins connects to
-                their controls in a Desktop session list, with the action menu
-                open and the surrounding sessions visible.
       - id: feature-transparency
         layout: full-width
         title: "Transparency by design."
@@ -163,22 +157,20 @@ sections:
           status: "placeholder-needed"
           assets:
             - label: "Inspect the instructions"
-              description: "See the system message assembled for a session."
+              description: "See the beginning of the Codex default. These plugin-driven instructions are easy to adjust to your use case."
               placeholder: >-
-                The compiled system message in a Desktop window, showing the
-                instructions assembled for the agent's session.
-            - label: "See where costs go"
-              description: "Compare recorded costs by project and provider."
+                The compiled system-message window shows the beginning of
+                the current Codex default, including its introduction and
+                permission guidance.
+            - label: "Costs and ChatGPT usage"
+              description: "These reports are plugin-driven and easy to adapt to your use case: choose the buckets, time windows, and measures that matter."
               placeholder: >-
-                A Desktop cost report with short project and provider names,
-                several days of activity, and clearly readable sample totals
-                alongside the relevant provider usage metadata.
-            - label: "Track ChatGPT usage"
-              description: "See estimated usage and remaining limits for connected ChatGPT sessions."
-              placeholder: >-
-                A Desktop ChatGPT usage report showing estimated tokens and
-                cost, remaining limits, reset times, and usage history.
-                Sample data.
+                One focused illustrative report shows three days of daily
+                claude costs of $20–50 and zai costs of $2–10. ChatGPT usage
+                since reset shows a three-day interval, estimated total cost,
+                and percentage change within a seven-day window, assuming
+                about $550 corresponds to 100%. Screenshot currency uses two
+                decimal places. Sample data.
 
   - type: gettingStarted
     id: getting-started
@@ -440,7 +432,7 @@ sections:
         hidden behind a generic wrapper.
     items:
       - title: "Reasoning and verbosity"
-        description: "Expose model-specific controls when the provider supports them."
+        description: "Expose plugin-driven model controls when the provider supports them. Easily adjust which controls your use case needs."
         media:
           kind: "screenshot"
           src: "/provider-reasoning.webp"
@@ -449,7 +441,7 @@ sections:
           width: 1000
           height: 1315
       - title: "Usage and cost transparency"
-        description: "Surface token, cache, duration, and cost metadata when the provider supplies it."
+        description: "Surface plugin-driven token, cache, duration, and cost metadata. Easily adjust the information shown for your use case."
         media:
           kind: "screenshot"
           src: "/provider-usage-cost.webp"
@@ -457,115 +449,6 @@ sections:
           alt: "A completed coding-plan response with magnified input, estimated cached, completion, reasoning-token, and estimated-cost metadata."
           width: 940
           height: 1334
-
-  - type: featureCodeShowcase
-    id: everything-replaceable
-    eyebrow: "Everything is replaceable"
-    title: "Serious users eventually disagree with the harness."
-    body:
-      - >-
-        Crystal Lattice treats that as normal. Providers, provider extensions,
-        features, tools, application actions, session behavior, and UI elements
-        are all plugin surfaces.
-      - >-
-        The built-in plugins give you useful defaults. Your own plugins can
-        replace the parts your workflow disagrees with, and config can point at
-        those plugins without waiting for upstream approval.
-    note: "Code examples are illustrative placeholders, not final API."
-    cards:
-      - title: "Provider"
-        description: "Add native support for a model API."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            class MyProvider:
-                name = "my_provider"
-
-                def to_native_messages(self, messages, state, *, context=None):
-                    return convert_to_my_api(messages)
-
-                def stream_api(self, native_messages, state):
-                    yield from call_my_model(native_messages, state)
-      - title: "Provider extension"
-        description: "Surface provider metadata, reasoning, citations, or UI fields."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            class UsageFooter:
-                name = "usage_footer"
-
-                def finalize(self, final_messages, native_messages, state):
-                    return add_usage_metadata(final_messages, state)
-
-                def get_ui_elements(self, config, context=None):
-                    return [
-                        {"ui_type": "message_footer", "data": "metadata.total_cost"}
-                    ]
-      - title: "Feature"
-        description: "Transform context, request behavior, or final messages."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            class ProjectContext:
-                name = "project_context"
-
-                def to_native_messages(self, messages, native_messages, state):
-                    return inject_project_context(native_messages)
-      - title: "Tool"
-        description: "Expose Python, Node, Bash, or MCP-backed capabilities."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            class SearchTickets:
-                name = "search_tickets"
-
-                def get_tool_schemas(self, state):
-                    return [ticket_search_schema]
-
-                def execute_tool(self, tool_name, payload, state):
-                    return search_linear_or_jira(payload)
-      - title: "Application plugin"
-        description: "Add session-level workflow actions."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            class CreateReleaseNotes:
-                name = "release_notes"
-
-                def get_actions(self, state):
-                    return [
-                        {
-                            "id": "release_notes.create",
-                            "label": "Create release notes",
-                        }
-                    ]
-
-                def execute_action(self, app, action_id, params, context, state):
-                    return create_release_notes(app, params)
-      - title: "UI schema"
-        description: "Render settings and actions in app UIs without hardcoding them."
-        code:
-          language: "python"
-          value: |
-            # Placeholder example, not final API.
-            def get_ui_elements(self, config, context=None):
-                return [
-                    {
-                        "ui_type": "session_action",
-                        "label": "Sync down",
-                        "action_id": "cloud.sync_down",
-                    },
-                    {
-                        "type": "select",
-                        "key": "reasoning_effort",
-                        "label": "Reasoning effort",
-                    },
-                ]
 
   - type: promptBlock
     id: build-plugin

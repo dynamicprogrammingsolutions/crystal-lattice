@@ -56,7 +56,7 @@ async function capturePipelineArguments(pipeline) {
 }
 
 test("the current catalog defines commands and source-local lifecycle assets", () => {
-  assert.equal(catalog.assets.length, 9);
+  assert.equal(catalog.assets.length, 16);
   assert.deepEqual(catalog.commandNames, [
     "list",
     "inspect",
@@ -88,7 +88,8 @@ test("the current catalog defines commands and source-local lifecycle assets", (
   assert.equal(candidate.hasLifecycle("prepareSourcePromotion"), false);
 
   for (const asset of catalog.assets.filter(
-    (item) => !["coding-plan", "mobile-workbench", "homepage-session-actions"].includes(item.id),
+    (item) => !["coding-plan", "mobile-workbench"].includes(item.id)
+      && !item.id.startsWith("homepage-"),
   )) {
     assert.equal(asset.hasCommand("check"), false);
     assert.equal(asset.hasLifecycle("buildCandidate"), true);
@@ -164,7 +165,7 @@ test("check-style default selection includes the complete catalog", () => {
     defaultAll: true,
   });
 
-  assert.equal(selected.assets.length, 9);
+  assert.equal(selected.assets.length, 16);
 });
 
 test("mutating commands require an explicit selection or --all", () => {

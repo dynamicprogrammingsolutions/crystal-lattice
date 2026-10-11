@@ -2,6 +2,9 @@
 
 Application-level plugin for generating session titles (and descriptions).
 
+The session and session-list **Generate title** actions use the Feather `zap`
+icon, supported by both Desktop and mobile.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

@@ -93,8 +93,10 @@ Desktop keeps code left/UI right with connectors. The portrait derivative
 stacks full-width code above a magnified native popup excerpt. Its three code
 declarations and actual action rows use matching translucent marker bands;
 the popup's real header, close control, and edges identify its origin.
-A crop break marks omitted unrelated menu entries. Desktop bytes are
-preserved against the reviewed hashes in the recipe.
+A crop break marks omitted unrelated menu entries. The accepted pre-icon
+hashes remain in the recipe as a comparison baseline. Correcting the actual
+Generate title glyph requires native recapture and new derivative hashes;
+the layout and relationship treatment remain the accepted baseline.
 
 The manifest records source hashes, actual package/action mappings,
 configuration row/name bounds, native crop geometry, desktop connector
@@ -113,6 +115,90 @@ existing reviewed image lifecycle remains in force for approved assets.
 Use the explicit homepage preview described in the
 [content-system guide](development/content-system.md#responsive-proof-sources-and-local-candidates)
 to review it in context; there is no separate review-gallery page.
+
+### Complete plugin and transparency candidates
+
+The active October 8 transparency set contains
+`homepage-compiled-instructions` and `homepage-usage-overview`. The latter is one
+focused native report, reading three days of claude/zai costs and ChatGPT
+since-reset estimates/percentage change from a maintained capture-only plugin's
+JSON fixture. Its approximately $550 weekly equivalence is illustrative.
+Money uses two decimal places only in that fixture.
+
+`homepage-vibe-workflow` processes selected fresh iOS `vibe` captures. The
+native capture checks System → User → initial reasoning in one viewport and
+retains actual screen-coordinate geometry. The recipe crops the real transcript
+and header, removing the status bar/composer without rewriting any UI text.
+Both themes produce 1200 × 1600 candidates through `inspect`/`check`, overlaid
+only by the explicit homepage preview. Use `CLC_WEBSITE_VISUAL_KINDS=vibe` with
+the mobile package's existing capture test to select this scene.
+
+`visual_assets/proof-batch-recipes.mjs` owns the current Message actions,
+compiled-instructions, and combined-usage recipes, along with the retained
+session-list and separate financial alternatives. Run the Desktop
+[batch producer](../../desktop/crystal-lattice-control-desktop-rn/docs/development/website-visual-capture.md)
+from its package. Capture Vibe from the mobile package separately, then from
+`landing_page/` process the selected homepage candidates:
+
+```bash
+yarn visual-assets inspect homepage-session-actions homepage-message-actions homepage-compiled-instructions homepage-usage-overview homepage-vibe-workflow
+yarn visual-assets check homepage-session-actions homepage-message-actions homepage-compiled-instructions homepage-usage-overview homepage-vibe-workflow
+```
+
+The session-list candidate is retained for later consideration; the user
+removed it from the plugin highlight. The current homepage preview selects
+Session actions, Message actions, the two transparency images, and Vibe.
+`homepage-cost-report` and `homepage-chatgpt-usage` retain their older recipes
+and sources for comparison. The current Desktop producer does not refresh
+those separate financial scenes; their previous captures are not current
+verification of the new batch.
+
+Each Desktop candidate has four WebP derivatives with the same dimensions and
+240,000-byte budget as the first image; Vibe has two portrait derivatives.
+Their manifests retain native sources,
+actual report responses, hashes, crops, and correspondence geometry. Source
+fingerprints include the capture test, native harness, real plugin sources,
+backend adapter, and effective config. Candidate inspect/check requires an
+explicit selection; it does not accept or promote the images.
+
+Message actions use three declarations and four genuine rows; both export
+rows share the export package's color. A visible interruption marks unrelated
+rows omitted from the portrait enlargement. Session-list connections end at
+the actual pin star and archive/status bar controls. The phone uses the same
+marker colors on the enlarged real row and preserves list/menu context.
+
+Reports are native window pixels, not reconstructed HTML or painted text.
+The compiled Desktop image uses unobscured `*-conversation.png` context. The later
+`*-window.png` already contains the open report and must not be combined with
+another report-window enlargement. Each Desktop image therefore has one
+report excerpt, with its native title/chrome and useful content enlarged.
+The combined financial image contains only its focused native report.
+Scene-specific crop heights remove blank window canvas; a visible break marks
+the Desktop crop. Both current phone images use genuine narrow native windows,
+showing complete paragraphs or all three days and the full usage summary.
+The combined report's display Markdown is produced by the authorized fixture
+plugin; no screenshot labels or values are repainted.
+
+The retained older cost metadata enlargement has a matching outline and
+connection to its genuine conversation row. Those cost and usage
+portraits magnify bounded crops from wider native reports to preserve unwrapped
+numbers and complete history lines. Visible breaks mark separated excerpts
+and cropped table columns. Cost phones emphasize totals and daily totals;
+Desktop retains project/provider columns and a separate crop of real input,
+cached, and completion metadata. The original report payloads and full windows
+remain available for verification.
+The cost table is still the actual application's scrolling viewport excerpt;
+the bounded display caps its body at 420 pixels. It does not show the entire
+seven-day table or full report. Capturing a later scrolled portion is a retained
+option, rather than drawing missing rows or changing production UI for a photo.
+
+Financial examples use **Sample data** captions. The current combined example
+uses the JSON's stipulated weekly equivalence, with the assumption visible
+above the image. It is not a provider invoice or a pricing statement.
+In the retained separate-report alternative, the cost store includes
+recorded OpenAI costs and estimated OpenRouter costs; the usage report's token
+and cost totals remain explicitly estimated. These are independently labelled
+sample reports, not evidence of an account invoice.
 
 ### Reviewed image processing
 

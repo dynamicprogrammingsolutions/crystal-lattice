@@ -1,0 +1,31 @@
+{
+  "plugin_policy": { "base_dir": "${env:REPO_ROOT}" },
+  "plugins": [
+    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+    "path:plugins/feature-system-message",
+    "path:landing_page/visual_assets/runtime/proof-batch/fixture-plugin",
+    "path:plugins/session-title-app"
+  ],
+  "providers": {
+    "report-example": {
+      "provider": "echo_openai_like",
+      "model": "website-codex-proof",
+      "system_message_as_instructions": true,
+      "system_message": {
+        "template": "{{CODEX_DEFAULT_BEGINNING}}",
+        "variables": {
+          "CODEX_DEFAULT_BEGINNING": {
+            "files": ["${env:REPO_ROOT}/landing_page/visual_assets/runtime/proof-batch/codex-default-beginning.md"]
+          }
+        }
+      }
+    }
+  },
+  "agents": {
+    "workshop-planner": {
+      "provider": "report-example",
+      "display": { "title": "Workshop planner", "description": "Research, planning, and practical next steps.", "order": 10 }
+    }
+  },
+  "application": {}
+}

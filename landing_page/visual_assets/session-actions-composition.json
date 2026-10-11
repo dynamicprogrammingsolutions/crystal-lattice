@@ -4,7 +4,7 @@
   "candidateDirectory": "artifacts/visual-assets/homepage-session-actions",
   "previewPrefix": "/__preview/session-actions",
   "maxBytes": 240000,
-  "preserveWideHashes": {
+  "acceptedBeforeIconHashes": {
     "light": "0f085822fbc235080c31cf1f5f7fac74eab76c72c376c0a15a533d66328e0c35",
     "dark": "f8baab402c0cb95b04431da4ddcbbec3fc17a9e815c4059e9a5aa6f1206c2167"
   },

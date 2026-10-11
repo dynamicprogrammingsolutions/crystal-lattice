@@ -216,7 +216,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   if (enableAnyTestHarness) {
     NSWindow *window = (NSWindow *)self.window;
     if (enableWebsiteVisualHarness) {
-      BOOL sessionActions = [initialProps[@"websiteVisualKind"] isEqualToString:@"session-actions"];
+      BOOL sessionActions = [initialProps[@"websiteVisualKind"] isEqualToString:@"session-actions"]
+          || [initialProps[@"websiteVisualKind"] isEqualToString:@"session-list"];
       [window setContentSize:sessionActions ? NSMakeSize(1120, 760) : NSMakeSize(1280, 720)];
       NSString *captureTheme = [NSProcessInfo processInfo].environment[@"CLC_WEBSITE_VISUAL_THEME"];
       if ([captureTheme isEqualToString:@"light"] || [captureTheme isEqualToString:@"dark"]) {

@@ -150,6 +150,31 @@ Generate the required candidates through the catalog workflow documented in
 [Visual Asset Processing Pipelines](../visual-assets.md). The preview is for
 contextual review and is not final asset acceptance.
 
+The complete plugin/transparency batch uses the same page and renderer:
+
+```bash
+CRYSTAL_PROOF_BATCH_PREVIEW=1 yarn build
+CRYSTAL_PROOF_BATCH_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4182
+```
+
+This flag overlays two images in `feature-plugins`, two images in
+`feature-transparency`, and the Vibe workflow image. The session-list and former
+separate financial report candidates remain
+retained outside the homepage preview. Recipe-owned wide/portrait and light/dark derivatives
+are copied into the ignored site output. The combined financial report caption
+adds **Sample data** and its illustrative $550 weekly assumption. Candidates
+with missing derivatives or a changed capture configuration retain their
+authored placeholder instead of showing stale screenshots. Authored YAML and
+reviewed public assets remain the normal
+build's content source. There is no separate gallery.
+
+The page loader passes the landing package root explicitly to the candidate
+freshness check. During Astro's build, the module's bundled `import.meta.url`
+does not identify the maintained source directory; using that location would
+leave placeholders despite valid captures. Browser checks require the selected
+candidate images to load. Missing/stale candidates keep their authored
+placeholder.
+
 ## Current Section Types
 
 The current registry includes general product sections, richer proof and

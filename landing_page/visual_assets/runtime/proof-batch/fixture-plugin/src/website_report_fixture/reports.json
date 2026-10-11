@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "sample_notice": "Illustrative data. The weekly dollar equivalent is a screenshot assumption.",
+  "daily_costs": [
+    {"day": "Oct 6", "claude": "28.40", "zai": "3.20"},
+    {"day": "Oct 7", "claude": "43.25", "zai": "7.45"},
+    {"day": "Oct 8", "claude": "36.10", "zai": "5.60"}
+  ],
+  "chatgpt": {
+    "since_reset": "2026-10-05T05:00:00+00:00",
+    "captured_at": "2026-10-08T05:00:00+00:00",
+    "weekly_resets_at": "2026-10-12T05:00:00+00:00",
+    "period_label": "Oct 5–8 · 3 days into a 7-day window",
+    "illustrative_weekly_capacity_usd": "550.00",
+    "start_percent": 0,
+    "current_percent": 40,
+    "history": [
+      {"day": "Oct 6", "percent": 14},
+      {"day": "Oct 7", "percent": 29},
+      {"day": "Oct 8", "percent": 40}
+    ]
+  }
+}

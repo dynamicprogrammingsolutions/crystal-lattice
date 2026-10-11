@@ -61,7 +61,7 @@ for (const theme of ["light", "dark"]) {
         expect(imageTop).toBeGreaterThan(captionBottom);
       });
       await expect(page.locator("#feature-transparency .image-caption").nth(0))
-        .toContainText("See the system message assembled for a session.");
+        .toContainText("See the beginning of the Codex default.");
       const frames = await page.locator("[data-proof-frame]").evaluateAll((elements) => elements.map((element) => {
         const bounds = element.getBoundingClientRect();
         return {
@@ -117,28 +117,26 @@ test("chevrons and dots follow native scrolling, resizing, and navigation", asyn
   const next = plugins.getByRole("button", { name: "Next image", exact: true });
   await expect(previous).toBeDisabled();
   await expect(next).toBeEnabled();
-  await expect(dots).toHaveCount(3);
+  await expect(dots).toHaveCount(2);
   await expect(dots.nth(0)).toHaveAttribute("aria-current", "true");
   await next.click();
   await expect(dots.nth(1)).toHaveAttribute("aria-current", "true");
-  await dots.nth(2).click();
-  await expect(dots.nth(2)).toHaveAttribute("aria-current", "true");
   await expect(next).toBeDisabled();
   await expect(page.locator("#feature-transparency [data-image-index]").first())
     .toHaveAttribute("aria-current", "true");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(dots.nth(2)).toHaveAttribute("aria-current", "true");
-  await expect.poll(() => track.evaluate(scrollFraction)).toBeGreaterThan(1.9);
+  await expect(dots.nth(1)).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => track.evaluate(scrollFraction)).toBeGreaterThan(0.9);
   await track.focus();
   await track.press("ArrowLeft");
-  await expect(dots.nth(1)).toHaveAttribute("aria-current", "true");
+  await expect(dots.nth(0)).toHaveAttribute("aria-current", "true");
   await dots.nth(0).focus();
   await dots.nth(0).press("Enter");
   await expect(previous).toBeDisabled();
   await track.hover();
   await page.mouse.wheel(700, 0);
-  await expect(dots.nth(2)).toHaveAttribute("aria-current", "true");
+  await expect(dots.nth(1)).toHaveAttribute("aria-current", "true");
 
   const controlPositions = await plugins.evaluate((element) => {
     const selected = Number(element.querySelector('[data-image-index][aria-current="true"]').dataset.imageIndex);

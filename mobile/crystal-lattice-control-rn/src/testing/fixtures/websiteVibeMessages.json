@@ -1,0 +1,34 @@
+[
+  {
+    "index": 0,
+    "message": {
+      "role": "system",
+      "content": "You are a research agent. Use supplied files and current sources to produce a cited, practical plan.",
+      "metadata": {}
+    }
+  },
+  {
+    "index": 1,
+    "message": {
+      "role": "user",
+      "content": "Review both attachments, verify benchmarks, compare three launch approaches, and recommend a two-week validation plan.",
+      "metadata": {},
+      "multipartContent": [
+        {"type": "file", "content": {"filename": "channel-performance.csv", "mime_type": "text/csv"}, "metadata": {}},
+        {"type": "file", "content": {"filename": "launch-notes.md", "mime_type": "text/markdown"}, "metadata": {}}
+      ]
+    }
+  },
+  {
+    "index": 2,
+    "message": {
+      "role": "assistant",
+      "content": "",
+      "metadata": {
+        "reasoning": "**Checking the evidence**\n\nI’ll inspect both files and verify current benchmarks before comparing the launch options.",
+        "has_tool_calls": false,
+        "phase": "analysis"
+      }
+    }
+  }
+]

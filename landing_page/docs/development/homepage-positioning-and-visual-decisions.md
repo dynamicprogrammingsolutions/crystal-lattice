@@ -916,6 +916,272 @@ stored hashes. The website still uses the same frame, shared renderer, and
 content-only layout controls. This revision changes only the portrait
 composition and its annotation method.
 
+### Next proof batch — draft after first-image acceptance
+
+The October 6, 2026 request expands the next work from a single Message actions
+image to both remaining plugin images and all three transparency images.
+The first image's genuine Generate title icon also needs correction:
+`sparkles` is not in the Feather set used by either frontend; `zap` is the
+proposed supported replacement. The old accepted composition stays the visual
+baseline, with real recapture for the changed icon.
+
+Proposed visual coverage:
+
+| Image | Evidence and selected draft treatment |
+| --- | --- |
+| Actions for each message | Actual Fork/summarize/PDF/Markdown rows. One export declaration branches to two controls on Desktop; those rows share its marker color on phones. |
+| A session list that fits your work | Actual pin/archive/status controls, three descriptive sessions with real status and pinned state, and an open native row menu. Phone keeps an enlarged genuine row/control crop below the code so header/action-bar ownership remains understandable. |
+| Inspect the instructions | Actual compiled-system action and native text window, with a short readable template-derived result and conversation context. |
+| See where costs go | Real cost action over isolated sample SQLite records; readable totals, a project/day breakdown, and related provider metadata. |
+| Track ChatGPT usage | Real usage action over an isolated sample journal; estimated totals, remaining limits, resets, and a short history. |
+
+Native report windows and the production display router remain the UI source.
+The financial examples carry **Sample data**, and estimates retain their
+qualifiers. Desktop uses context plus magnified report detail; phones give the
+real window heading and selected readable excerpts more width. Cropped or
+separated details must remain visibly excerpts, with all original payloads
+and geometry retained. No invented report text, account login, paid model
+request, or pasted-over numbers are needed.
+
+Retained alternatives and rationale:
+
+- One image per review was useful while the first composition's phone layout
+  was unsettled. With that treatment accepted, the user prefers one combined
+  plugin/transparency review to reduce interruption.
+- A single wide report reused on phones needs fewer derivatives but makes
+  full tables and long text too small in a portrait frame. The proposal keeps
+  separate portrait compositions through the existing responsive renderer.
+- Popup-only list crops are compact but lose the star/action-bar ownership
+  being demonstrated. Preserve the genuine list row and enough menu context.
+- A generic fallback for every invalid icon or an icon-library migration is
+  broader than the requested defect. Correct the plugin-owned declarations
+  used by both frontends first.
+
+These are planned choices, not completed assets. The combined batch requires
+plan approval, then one contextual review of the finished local homepage.
+
+### October 7 batch implementation — contextual review pending
+
+The user approved the combined batch on October 7, 2026. All six candidates
+now appear in the actual local homepage under the existing two expanded
+highlights. This implements the approved direction; it does not record human
+acceptance of the new images.
+
+| Image | Implemented treatment and rationale |
+| --- | --- |
+| Session actions | Genuine `zap` icon from the fixed plugin; recaptured source with the accepted desktop connections and phone marker stack. Preserve the pre-icon files/hashes for comparison. |
+| Actions for each message | Three real declarations map to Fork, summarize, and both exports. Desktop branches from the export declaration; phone export rows share purple. Real popup chrome remains, with visible breaks for omitted entries. |
+| A session list that fits your work | Actual pin star, archive, and status controls in the production list, with real titles/subtitles and three distinct states. Desktop connects to controls; phone keeps list/menu context above an enlarged marked row. |
+| Inspect the instructions | Genuine native report and a complete narrow-window instruction excerpt on phones. The feature resolves `WORKSHOP_GOAL` from its configured template, rather than displaying substituted website text. |
+| See where costs go | Native project/provider report on desktop plus real input/cache/completion detail; phone emphasizes recorded totals and daily total columns. Cropped columns and separated excerpts have visible breaks. |
+| Track ChatGPT usage | Native report over a synthetic journal; phone crops retain estimated tokens/cost, both current limits/reset times, and both history lines. No reconstructed numbers or labels. |
+
+Retained implementation alternatives:
+
+- A 360px native report was captured for every report. It is useful for the
+  compiled instructions but wraps cost numbers/provider names and truncates
+  the visible usage history. Keep those original sources; the selected cost/
+  usage portraits magnify real wider-window crops instead.
+- Shrinking the entire cost table into a phone frame retains every column but
+  makes the numbers hard to read. The selected phone crop prioritizes totals
+  and daily totals; the desktop source retains project/provider columns.
+  A later alternative could use another real scrolled table excerpt if that
+  comparison becomes the stronger story.
+- Repainting shortened reports or replacing native popups with website HTML
+  would simplify spacing but lose the proof's source. Crop/zoom annotations
+  preserve the actual UI and expose the omitted parts.
+- The list overview supplies context; the enlarged real row supplies the
+  color correspondence. Removing the overview would give controls more space
+  but make the pin/header/action-bar ownership less clear.
+- The first image's layout remains the approved baseline. An icon-only product
+  correction changes actual source pixels/hashes, so the earlier files are
+  retained rather than claiming byte equality.
+
+Sample semantics are explicit: the cost total of $3.16 combines $1.90 of
+recorded OpenAI costs and $1.26 of estimated OpenRouter costs. The cost caption
+adds **Sample data. Totals combine recorded and estimated costs.** The
+ChatGPT sample shows three requests, 30,600 input tokens, $1.82 estimated
+cost, and limits/history from the same timestamped synthetic journal. Its
+caption retains **estimated** and **Sample data**.
+
+Capture uses supported `auth_mode: auto` with an unmistakably fake API key
+because explicit ChatGPT mode requires a saved login when creating a real
+provider session. The existing read-only usage action supports auto mode;
+all credential/journal paths are isolated and no credentials file or inference
+request is used. This is a capture-fixture adjustment, not a product-auth
+change or evidence that the sample represents a real account.
+
+The native producer exercises public HTTP, the production SDK and list/chat
+components, the display router, and real menus/windows. Composition manifests
+retain exact payloads, source hashes, geometry, and crops. The homepage flag
+`CRYSTAL_PROOF_BATCH_PREVIEW=1` applies only these six local candidates.
+Wide/portrait and light/dark files use the existing renderer. Reviewed public
+masters, normal homepage YAML, and publication remain separate.
+
+The final review should compare the two sections together on desktop and phone:
+whole action names, recognizable popup/window identity, correct colored
+relationships, list context versus detail, and meaningful report crops. Browser
+screenshots, OCR, and geometry are supporting evidence; human visual acceptance
+remains open. Other feature assets follow after this combined review.
+
+Verification retained with the candidates includes the successful native
+HTTP/SDK/window run, 11 focused page cases across the five widths/both themes,
+9 existing feature/theme regressions, and 60 section screenshots. Asset/source,
+generated-fixture/consumer, content, and both app type checks also pass.
+Screenshots live under `landing_page/artifacts/proof-batch-review/page/`;
+the local review is the actual homepage, not a separate review package.
+
+One raw-source finding is preserved for later investigation: the unobscured
+sample footer shows both cost-label variants despite its seeded API-key
+metadata. The selected enlargement uses genuine input/cache/completion fields;
+financial values are evidenced by the actual report. Do not treat this capture
+as verification of ordinary footer condition handling or silently change the
+product while revisiting the composition.
+
+### October 7 review correction — simpler plugin coverage
+
+The user selected only **Session actions** and **Actions for each message**
+for the plugin highlight; those two images provide enough coverage there.
+Remove **A session list that fits your work** from that carousel, retaining its
+native inputs and recipe as an unselected alternative. The separate workspace
+highlight still owns its previously planned session-list proof.
+
+The user also removed the entire **Serious users eventually disagree with the
+harness.** section (`everything-replaceable`). Its prior direction used the
+**Everything is replaceable** eyebrow, explained providers/extensions/features/
+tools/application actions/UI as plugin surfaces, and included six illustrative
+code cards. The retained upper plugin highlight now provides the Plugins
+navigation destination. This removal follows the user's explicit request;
+the code-card presentation remains historical rather than current guidance.
+
+The user flagged a visible problem in the Transparency compositions and asked
+for direct image inspection. Earlier source, native-window, browser, geometry,
+and OCR checks did not constitute visual verification. The report images remain
+unaccepted, and their exact visual defect is pending inspection rather than
+inferred from those automated checks. In this environment `view_image` requires
+a full filepath supplied by the user; capture screenshots alone do not satisfy
+that tool condition. Do not label image review complete until it is performed.
+
+### October 7 direct visual inspection and report correction
+
+The user supplied the full paths of the three desktop/light page screenshots.
+`view_image` inspection confirmed the defect: the context screenshot already
+contained its report window, and the composition placed another copy beside it.
+The compiled image magnified a mostly empty pane, the cost screenshot had a
+clipped viewport and detached metadata strip, and the usage image gave an empty
+date form prominent space. Automated source/size/OCR checks had passed without
+detecting that poor composition.
+
+Selected correction:
+
+- Use the genuine unobscured conversation capture as context.
+- Show one enlarged native report excerpt. Retain window identity, its Close
+  control, real text, and an explicit crop break; remove blank window canvas
+  and the unused usage form from the excerpt.
+- Connect the cost token/cache/completion enlargement to an outlined source
+  row so it reads as a magnification rather than an unrelated strip.
+- Keep section/card/frame layout and the existing phone derivatives. This is
+  a Desktop composition correction, not a product-window or report-data change.
+- Frame page review screenshots below the sticky header so the feature title
+  remains visible.
+
+The regenerated three desktop/light screenshots were inspected again with
+`view_image`: duplication and oversized blank panes are gone, report text is
+larger, and the metadata's origin is visible. The cost image remains a genuine
+scroll-viewport excerpt; a complete seven-day table would require another
+native scroll capture. That continuation option remains viable, without
+silently painting rows or altering the production 420px body cap.
+
+The prior recipes, report derivatives, manifests, and page screenshots are
+preserved under
+`landing_page/artifacts/proof-batch-review/before-report-correction/`.
+Retain the original two-report treatment as a rejected direction, not a future
+default. Prefer unobscured context plus a single useful report. A smaller
+context image, report-only image, or an additional real scrolled detail remain
+alternatives if the image needs further refinement.
+
+User-provided paths can be reused to inspect regenerated screenshots during
+this task; no repeated permission is needed. Direct image inspection is part
+of review, separate from browser/source checks and final human acceptance.
+Only the supplied desktop/light paths were visually inspected in this pass.
+
+### October 8 illustrative reporting and visible System message
+
+The user chose one focused image combining daily costs and ChatGPT usage,
+keeping the compiled-instructions image separate. The earlier two financial
+slides and their genuine scroll captures remain alternatives, not the selected
+delivery. The new display may be supplied by a capture-only fixture plugin;
+its data and two-decimal formatting do not change permanent production plugins.
+
+Selected sample:
+
+| Day | claude | zai |
+| --- | ---: | ---: |
+| Oct 6 | $28.40 | $3.20 |
+| Oct 7 | $43.25 | $7.45 |
+| Oct 8 | $36.10 | $5.60 |
+
+ChatGPT uses an illustrative seven-day capacity equivalent of approximately
+$550. Three days since reset move from 0% to 40%: +40 percentage points and
+$220.00 estimated usage. That equivalence is a user-stipulated screenshot
+assumption, not an OpenAI price or billing claim. All such captions keep sample
+wording and the assumption explicit.
+
+The compiled action reads the beginning of the public Codex default, checked
+October 8 and pinned to model-catalog revision
+`d63a9b8344cfe58bc78bbe319b560378fc8756ef`. Its provenance and excerpt are
+maintained under `visual_assets/runtime/proof-batch/`. The real feature still
+performs the compilation. This does not update product model defaults.
+
+The Vibe story retains a first System message, an attachment-based User request,
+and initial Assistant reasoning without tool calls. The prior source already
+contained System, but viewport/copy length hid it. Shorter illustrative copy,
+full-history capture, and normal navigation make the intended context visible.
+OpenAI-only controls are omitted from this Z.ai capture fixture.
+
+All homepage screenshot comments now identify the pictured plugin surfaces and
+their adaptability. Agent, instruction, action, status, and report wording is
+specific; it does not claim that every hard-coded client-shell element is a
+replaceable plugin.
+
+The tool now allows direct local `view_image` inspection without user-supplied
+paths. Use that routinely after generation; the October 7 path limitation is
+obsolete. Preserve failed and prior versions, and distinguish build/source/
+native/visual evidence. The Mac was subsequently unlocked and the selected
+Desktop capture passed through HTTP, the production SDK, and the native UI.
+The selected iOS capture also passed both themes with all three role frames
+contained in the transcript viewport.
+
+The current candidates are bound to the actual homepage preview. Direct
+`view_image` inspection covers both transparency images and Vibe at 1440px
+and 390px in both themes, plus the combined report at 320px. The combined
+report keeps all three daily rows, both named buckets, the three-day interval,
+$220.00, and 0% → 40% / +40 percentage points visible together. The Codex
+portrait preserves the complete selected paragraphs; its text is deliberately
+dense at phone size and still needs human judgment of legibility. Light-theme
+Vibe reasoning retains the application's subdued production color.
+
+Image inspection caught surplus blank native window area below the wide Codex
+text. Trimmed that native crop to 390 points and the combined report to 500,
+preserving window chrome and the visible crop marker. Portraits use genuine
+narrow windows, with complete text/data rather than repainted labels or
+duplicated panels. These are local composition choices within the approved
+frames, not a change to the section layout.
+
+Verification passed: the combined Desktop public/native producer, selected
+iOS native capture, 15 actual-page responsive cases, 25 asset-pipeline tests,
+8 content tests, 2 report/provenance tests, 4 mobile harness consumer tests,
+source/derivative checks, and normal/candidate builds. LAN delivery matches
+all 18 active candidate derivatives. The initial preview build retained
+placeholders because its freshness check derived paths from a bundled module;
+passing the package root from the actual page loader fixed that consumer.
+
+The pre-October-8 content/captures and the former separate financial recipes
+remain alternatives for later comparison. Human contextual acceptance,
+another commit, source promotion, and publication remain pending. Review at
+`http://192.168.8.10:4182/#feature-transparency` and
+`http://192.168.8.10:4182/#feature-vibe-anything`.
+
 ## Revision Procedure
 
 When a section does not work in context:

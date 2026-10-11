@@ -29,8 +29,12 @@ test("renders the approved homepage structure and disabled waitlist slot", async
   ).toHaveCount(6);
   await expect(
     page.locator("#product-highlights [data-proof-placeholder]"),
-  ).toHaveCount(9);
+  ).toHaveCount(7);
   await expect(page.locator("#product-highlights [data-proof-media]")).toHaveCount(3);
+  await expect(page.locator("#everything-replaceable")).toHaveCount(0);
+  await expect(page.locator("nav a[data-section='feature-plugins']")).toHaveAttribute(
+    "href", "/#feature-plugins",
+  );
   await expect(
     page.locator("#getting-started [data-getting-started-step]"),
   ).toHaveCount(6);

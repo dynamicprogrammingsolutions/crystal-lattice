@@ -111,8 +111,17 @@ def test_canonical_runtime_ui_fixture_is_deterministic_and_plugin_driven() -> No
         ("message_footer", "turn: {{data}}"),
         ("message_footer", "turn input: {{data}}"),
         ("message_footer", "turn output: {{data}}"),
-        ("status_bar", "Total: {{data}}"),
     ]
+    # The current usage extension supplies message footers; the generated
+    # fixture must not resurrect its former cumulative status-bar total.
+    assert not any(
+        item["ui_type"] == "status_bar"
+        for item in first["mobile_hero_ui_schema"]
+    )
+    assert session_actions["generate_title_from_view"]["icon"] == "zap"
+    assert message_actions["compact_native_history_through_message"]["label"] == (
+        "OpenAI compaction up to here"
+    )
     assert all(
         item.get("data") != "metadata.openai_responses_reasoning.context"
         for item in first["mobile_hero_ui_schema"]

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crystal-lattice-website-report-fixture"
+version = "0.1.0"
+description = "Capture-only illustrative report plugin for the Crystal Lattice website"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+website_report_fixture = ["reports.json"]
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]

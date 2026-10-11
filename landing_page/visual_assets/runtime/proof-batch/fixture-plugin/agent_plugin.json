@@ -1,0 +1,6 @@
+{
+  "module": "website_report_fixture",
+  "subdirectory": ".",
+  "entries": ["website_report_fixture.WebsiteReportFixturePlugin"],
+  "kinds": {"website_report_fixture.WebsiteReportFixturePlugin": "application"}
+}

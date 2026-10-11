@@ -40,6 +40,40 @@ test("focus geometry retains intervening real rows and rejects off-canvas magnif
   assert.throws(() => focusGeometry(geometry, { ...layout, height: 650 }));
 });
 
+test("one package can contribute two real message actions without inventing a fourth declaration", () => {
+  const mappings = [
+    { package: "session-actions-app", plugin: "session_actions", id: "fork", label: "Fork here", actionId: "fork_session_at" },
+    { package: "summarize-range-app", plugin: "summarize_range", id: "summarize", label: "Summarize messages up to here", actionId: "summarize_range" },
+    { package: "message-export-actions", plugin: "message_share_as_pdf", id: "pdf", label: "Share as PDF", actionId: "share_as_pdf" },
+    { package: "message-export-actions", plugin: "message_share_as_markdown", id: "markdown", label: "Share as Markdown", actionId: "share_as_markdown" },
+  ];
+  const configExcerpt = { plugins: [...new Set(mappings.map(row => `path:plugins/${row.package}`))] };
+  const contract = {
+    configExcerpt, mappings, uiType: "message_action",
+    schema: mappings.map(row => ({ id: row.id, plugin: row.plugin, label: row.label, action_id: row.actionId, ui_type: "message_action" })),
+  };
+  validateSessionActionsContract(contract, { plugins: [...configExcerpt.plugins, "path:plugins/session-title-app"] });
+  const wrongType = structuredClone(contract);
+  wrongType.schema[3].ui_type = "session_action";
+  assert.throws(() => validateSessionActionsContract(wrongType, { plugins: configExcerpt.plugins }));
+});
+
+test("selected popup excerpts mark omitted rows while preserving duplicate-package marker colors", () => {
+  const geometry = {
+    popover: { x: 0, y: 0, width: 346, height: 600 },
+    rows: [100, 144, 320, 364].map((y, index) => ({
+      id: `row-${index}`, colorIndex: Math.min(index, 2),
+      frame: { x: 25, y, width: 252, height: 44 },
+    })),
+  };
+  const layout = { height: 1600, focus: { y: 830, width: 880, headerHeight: 64, cropBreakHeight: 10, outlineInset: 12, selectedRowsOnly: true } };
+  const result = stackedPopupGeometry(geometry, layout);
+  assert.equal(result.segments.length, 2);
+  assert.equal(result.rows[2].color, result.rows[3].color);
+  assert.ok(result.rows[2].displayY < result.rows[2].y);
+  assert.ok(result.segments[1].displayY > result.segments[0].displayY + result.segments[0].height);
+});
+
 test("stacked popup keeps native chrome, marks omissions, and maps only the real action rows", () => {
   const geometry = {
     popover: { x: 1252, y: 198, width: 346, height: 479 },

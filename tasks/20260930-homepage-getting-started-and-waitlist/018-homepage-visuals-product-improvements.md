@@ -67,15 +67,24 @@ is explicitly decided.
       translucent row highlights, without connector lines.
       The primary Session actions image shows
       at least three plugins and three actions; additional requested examples
-      include Fork/share message actions and pin/archive/status list controls.
+      include Fork/share message actions. The plugin highlight contains only
+      Session actions and Actions for each message; retain the pin/archive/
+      status list candidate outside this highlight.
       Plugin names and action labels must remain visible at page size.
-- [ ] Highlight 3 uses the real **Show compiled system message** session action
-      and the real **Show cost report** action contract. It combines compiled
-      instructions, provider usage metadata, and deterministic synthetic cost
-      records using the established magnification/callout treatment without
-      implying uniform provider metadata or real company spending. Add the
-      real ChatGPT usage report, use readable sample amounts and short bucket
-      names, and keep usage estimates distinct from billed costs.
+- [x] The lower "Serious users eventually disagree with the harness." section
+      is removed. Plugins navigation points to the retained upper plugin
+      highlight.
+- [x] Transparency has two images: the compiled system-message action shows
+      the beginning of the current public Codex default, and one focused image
+      combines daily `claude`/`zai` bucket costs with ChatGPT usage since reset,
+      estimated total, and percentage change. Illustrative data covers roughly
+      three days: daily claude costs are $20–50 and zai costs $2–10.
+      ChatGPT assumes about $550 equals 100% of a seven-day window.
+      Capture-only fixture plugins may render data from fixture files and use
+      two decimal places without changing permanent production plugins.
+- [x] Comments above all homepage screenshots clearly identify the pictured
+      agents, instructions, controls, or reports as plugin-driven and easy to
+      adjust to a use case; do not imply every client-shell element is a plugin.
 - [ ] Highlight 4 is one reviewed composite image—not two independent images—
       with a recognizable Desktop frame and a phone frame. Both clients show
       the same title, subtitle/status/agent, latest prompt, and answer so
@@ -84,7 +93,7 @@ is explicitly decided.
       dark text is used on the light blue user bubble while dark-theme contrast
       remains light-on-dark across both maintained Markdown renderers, raw
       message text, and applicable attachment/message affordances.
-- [ ] Highlight 5 uses the selected GLM-5.3 through Z.ai capture state and
+- [x] Highlight 5 uses the selected GLM-5.3 through Z.ai capture state and
       shows the system message, a non-development user request, and expanded
       initial reasoning together. The request naturally requires file/web/tool
       work; the screenshot stops before tool calls and neither the prompt nor
@@ -111,6 +120,10 @@ is explicitly decided.
       both Desktop and mobile so complete action names remain visible.
       Desktop popup sizing accommodates these rows. Action IDs, dispatch, scope, provider eligibility,
       confirmations, and saved action preferences remain compatible.
+- [x] The Generate title actions use a supported icon on Desktop and mobile,
+      including session and session-list menus. Correct the visible `?`
+      without changing action IDs, labels, generation behavior, or saved
+      preferences.
 - [ ] Website copy and captions serve visitors. Remove capture objectives,
       technical fixture/provenance labels, the external GLM/Z.ai capture
       heading, and "default-pinned" terminology. Sample financial/usage values
@@ -165,25 +178,39 @@ not part of this instruction.
 Checkpoint 3 is implemented, verified, and accepted by the user on Desktop
 and phone. The first Session actions image is the approved baseline on the
 actual local homepage; remaining image slots retain their previous state.
-Review at `http://192.168.8.227:4182/#feature-plugins`.
-No new commit, push, source promotion, or publication has occurred.
+Review at `http://192.168.8.10:4182/#feature-plugins`.
+The accepted checkpoint and its reconciled prerequisites are committed on main
+as `e66fb1d0` (`Add reviewed plugin visual`). No push, source promotion, or
+publication occurred.
 The three migrated capture edits are cleared from develop; unrelated work
 there and the unrelated parent/waitlist edits on main remain separate.
 
-Latest review: the user accepts the Desktop composition and requests the
-mobile revision described above. This revision is authorized on main.
-Retain the accepted Desktop image bytes. Keep real popup chrome in the phone
-excerpt, use matching physical-marker-style colors on its real rows and the
-code declarations, and stop for review after updating the actual page.
-No new commit or publication is authorized.
+The user approved the stacked phone revision and then authorized the scoped
+checkpoint commit. Record human acceptance without claiming a `view_image`
+inspection, which was not performed.
 
-The user approved the stacked phone revision and asked for a next-step
-proposal. The current Desktop images remain byte-identical to their accepted
-versions. Record that human acceptance without claiming a `view_image`
-inspection, which was not performed. Checkpoint 4 below is **Draft**;
-new-image execution awaits approval of the next plan. The user subsequently
-authorized a scoped commit of the accepted checkpoint; the requested broader
-image batch and invalid-icon correction will be planned after that commit.
+Latest direction, October 8: retain the two-image plugin highlight and replace
+the separate cost/ChatGPT slides with one focused illustrative fixture report.
+Use the beginning of the current public Codex default in the compiled image,
+make plugin customization explicit in screenshot captions, and capture the
+Vibe illustration with first System, User, and initial reasoning visible.
+Execution of these requested changes is approved. Exact fixture amounts are
+agent-selected within the user's ranges and remain subject to contextual review.
+The Mac was unlocked and the native Desktop/mobile captures have passed.
+The revised candidates are implemented on the actual homepage preview;
+final contextual acceptance remains open.
+
+The user removed the session-list image from the plugin
+highlight and the lower "Serious users eventually disagree with the harness."
+section. The current batch has two plugin images and two transparency
+images. Direct inspection of the three supplied desktop/light Transparency
+screenshots identified the duplicate-report/blank-pane composition defect.
+That Desktop correction is implemented and was inspected again; final human
+acceptance remains pending. Include correction of the invalid Generate
+title icon and refresh its existing image without changing its accepted
+composition. This expanded batch is **Approved**. After approval, finish and
+verify the batch before one combined human review; do not stop for approval
+between individual images or for the specified bounded icon correction.
 
 The bounded reconciliation includes the agent-default preview (`ebb053ac`),
 pin/status defaults (`2bfaf03c`), user-message contrast (`4fab5568`), capture
@@ -209,10 +236,11 @@ Approved decisions:
    design, including other menus using that design.
 
 Review checkpoints: (1) website layout; (2) product popup/label fixes;
-(3) first three-plugin composition on the page; (4) remaining sources and
-page integration; (5) final asset acceptance. Stop at each important point so
-the user can review and authorize the next work and commits. The existing
-main-merge and publication boundaries still apply.
+(3) first three-plugin composition on the page; (4) the combined plugin/
+transparency image batch; (5) the remaining feature sources and final asset
+acceptance. The single-Message-image review proposal is superseded.
+Stop after the combined batch for contextual review and any new commit
+authorization. The existing main-merge and publication boundaries still apply.
 
 The latest layout feedback explicitly supersedes the earlier stacked,
 simultaneously visible picker-image decision. Ordinary horizontal image
@@ -241,15 +269,36 @@ within the approved design does not require repeated approval.
 
 ## Current repository and inspection findings
 
+Latest bounded inspection for the expanded batch:
+
+- Generate title declares `sparkles` for both `generate_title_from_view` and
+  `generate_title_from_list`. Both frontends render Feather icons; their
+  installed `Feather.json` lacks `sparkles` and includes `zap`. Recommend
+  `zap` as the small shared plugin-owned correction, with no icon-library
+  migration or global fallback redesign.
+- The actual list plugins expose `toggle_session_pinned`,
+  `toggle_session_archived`, and `set_session_status`. The pin belongs in the
+  header by default; archive/status belong in the action bar. The title
+  plugin supplies the real title/subtitle behavior.
+- Compiled instructions and cost already have generated actual-action
+  fixtures. The ChatGPT usage action reads a local usage journal and builds
+  its report without calling login or inference. Its provider/auth-mode gate
+  must still be respected in the isolated capture config.
+- The focused chat capture host mounts the production `ChatPane` but
+  currently lacks `DesktopGlobalDisplayLayer`. Report capture must add that
+  production router, so real action responses open real `ActionDisplayWindow`
+  windows. Rendering a manually invented report through a fake router is
+  unnecessary.
+
 - Website implementation, tests, task, and durable decision record are now
   maintained in the `main` worktree:
   `/Users/ferenci84/Dev/Mine/ai-agent-platform-main`.
   Product work remains on `develop` in
   `/Users/ferenci84/Dev/Mine/ai-agent-platform` until confirmed and used by
   the website. This task's pending website edits were backed up, reconciled
-  onto main, and removed from develop after hash checks. Product capture
-  harness changes remain on develop. Unrelated work is also present; do not
-  reset, stage, or rewrite it.
+  onto main, and removed from develop after hash checks. The reconciled
+  capture host and its prerequisites are committed on main as `e66fb1d0`.
+  Unrelated work is also present; do not reset, stage, or rewrite it.
 - Before the first restoration, `FeatureShowcase.astro` switched content to one
   full-width row per highlight when media exists. `FeatureVisual.astro`
   introduces tabs, live SVG connectors, and technical captions. These are
@@ -497,13 +546,17 @@ the accepted classifications used by this website task.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-This draft applies only to checkpoint 4, **the Message actions relationship
-image**, below. Prerequisite reconciliation, layout, popup, and the first
-Session actions visual are already accepted; this does not reopen them.
-Final source promotion, other product integrations, and publication retain
-their separate gates.
+This approved plan covers checkpoint 4, **the combined plugin and transparency proof
+batch**. The October 7–8 revisions select Session actions, Message actions,
+compiled Codex instructions, and one combined illustrative costs/ChatGPT
+image, plus the requested System/User/reasoning correction to the Vibe image.
+The first image's bounded icon correction and prerequisite reconciliation
+are implemented. Layout, popup behavior, and the first composition remain
+accepted. Capture/composition/preview work belongs on main.
+Other product integrations, final source promotion, and publication retain
+their separate gates. New implementation commits require a new instruction.
 
 ### Design
 
@@ -516,8 +569,8 @@ Incorporate all requested evidence into the owning feature:
 | Feature | Images in its own image area |
 | --- | --- |
 | One workspace for every model family | Codex picker; Claude picker |
-| Replace the parts you disagree with | Session actions relationship; Message actions relationship; Session list relationship |
-| Transparency by design | Compiled instructions; Cost report with relevant usage metadata; ChatGPT usage report |
+| Replace the parts you disagree with | Session actions relationship; Message actions relationship |
+| Transparency by design | Compiled Codex instructions; combined illustrative daily costs and ChatGPT usage |
 | Work from anywhere | One matching Desktop/phone composition |
 | Vibe code—or vibe anything | System message, non-development request, initial reasoning |
 | Sessions become workspaces | Desktop list with popup; Desktop message-action popup |
@@ -569,7 +622,7 @@ Keep the existing sequence and three rows:
 | 3 | Vibe code—or vibe anything | Sessions become workspaces |
 
 All feature image areas use the shared 3:4 frame. The plugin and transparency
-items each have three images in their own horizontally navigable area.
+items each have two selected images in their own horizontally navigable area.
 On phones, preserve the same reading order in one column.
 
 Approach: extend the existing showcase/media components with the common card
@@ -591,8 +644,8 @@ Proposed feature-group sequence, all before Getting Started:
    **Work from anywhere**.
 2. Two-column row: **Vibe code—or vibe anything** /
    **Sessions become workspaces**.
-3. Full-width **Replace the parts you disagree with**, with its three images.
-4. Full-width **Transparency by design**, with its three images.
+3. Full-width **Replace the parts you disagree with**, with its two images.
+4. Full-width **Transparency by design**, with its two images.
 5. Getting Started, followed by the unchanged existing deep dives.
 
 This explicitly changes the feature order: a short capability overview comes
@@ -696,9 +749,11 @@ only on line color.
 
 Keep the complete app screenshot as context on the right; a focus callout may
 enlarge its actual popup region without replacing the background with a
-fabricated menu. For narrow displays, the same code-left/UI-right relationship
-remains in the composed image. Stop for an approved placement adjustment if
-it cannot be legible there.
+fabricated menu. For narrow displays, use the accepted code-above-UI
+composition and matching marker highlights rather than Desktop connector
+lines. Preserve real popup chrome and owning list-row context where those
+controls are the targets. Bounded crop/spacing tuning stays inside the
+selected 3:4 frame.
 
 Candidate files stay under ignored artifacts and are staged only into an
 explicit local preview of the real website. Clean up the previous pass's
@@ -849,11 +904,11 @@ before broadening that scope or silently importing another product commit.
    ask before changing the established frame or the newly selected mobile
    stack/highlight concept.
 
-**Image-inspection tooling:** Playwright screenshots and geometry checks are
-agent work. The current `view_image` tool additionally requires full file
-paths supplied by the user. Use these stable review paths, request them at
-the review handoff if they have not been supplied, and do not call OCR or
-geometry checks a visual inspection:
+**Image-inspection tooling, updated October 8:** Playwright screenshots,
+geometry checks, and direct `view_image` inspection are agent work. The current
+tool permits locally discovered image paths; do not ask the user to supply
+them. Use stable review paths and inspect generated Desktop/mobile images
+in context. OCR/geometry alone are not visual inspection:
 
 - `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/plugin-session-actions-review/desktop.png`
 - `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/plugin-session-actions-review/mobile.png`
@@ -861,80 +916,200 @@ geometry checks a visual inspection:
 Other widths/themes remain alongside these two primary screenshots. No
 standalone review gallery/package is proposed. Human-only work is plan/
 integration approval, any OS permission that actually blocks native capture,
-providing the image paths needed by the tool, and final contextual visual
+and final contextual visual
 judgment. No account login, hosted-provider spending, deployment, or new
 public API is part of this checkpoint.
 
-### Next checkpoint: Message actions relationship image
+### Next batch: complete plugin and transparency visuals
 
-**Outcome:** replace only **Actions for each message**, the second image slot
-under **Replace the parts you disagree with**. Keep the approved Session
-actions image, its image-card copy, the overall layout, and all other slots
-unchanged. Use the existing caption:
-**Fork, summarize, or share a message using the plugins you choose.**
+**October 8 approved revision supersedes the earlier three-report delivery.**
+Use the real compiled-message action with the pinned public Codex beginning.
+Use a maintained capture-only application plugin reading a fixture JSON file
+for one combined cost/ChatGPT report. It travels through the public action API,
+production SDK/display router, and native report window. Its formatting is
+capture-only; no standard cost/ChatGPT plugin, store, pricing, or auth behavior
+changes. The old separate report sources remain retained alternatives.
 
-Three actual package declarations contribute four highlighted controls:
+Chosen fixture: claude daily amounts $28.40, $43.25, $36.10; zai $3.20, $7.45,
+$5.60. ChatGPT spans October 5–8, three days of a seven-day window:
+0% → 40%, +40 percentage points, and $220.00 estimated cost from the stipulated
+approximately $550 weekly equivalent. Caption this assumption and sample data.
+The public Codex model-catalog excerpt is pinned to commit
+`d63a9b8344cfe58bc78bbe319b560378fc8756ef`, verified October 8, 2026.
 
-| Package declaration | Native Message actions row | Stable element ID |
+Complete the revised fixture/caption work and fresh native captures, then
+compose and bind candidates to the actual page. Inspect Desktop/mobile and
+light/dark screenshots routinely with `view_image`; its current tool
+description allows agent-selected local paths. The former user-path restriction
+is obsolete. Source truth and native/public-boundary checks remain necessary.
+
+**AGENT:** shorten and maintain the Vibe message fixture without changing its
+research task; keep roles System → User → Assistant and initial reasoning.
+Use normal transcript navigation, the full capture history, and no irrelevant
+OpenAI controls on the Z.ai fixture. Assert actual native visibility and retain
+geometry; no permanent product behavior changes are planned.
+**HUMAN ACTION — COMPLETE:** the Mac was unlocked and the approved native
+macOS UI capture passed. No OS authentication change or substitute window was
+needed. Final page acceptance, commits, source promotion, and publication keep
+their existing review gates.
+
+**Outcome:** complete both expanded highlights together. Keep the two selected
+plugin images and the two transparency images, and correct the icon in the
+first image. Keep section order, frames, captions, navigation, and other
+feature/Getting Started content. Existing captions remain the starting copy;
+financial/usage images add the plain **Sample data** notice.
+
+**1. Session actions — icon refresh.** On develop, change only the Generate
+title plugin's two icon declarations from unsupported `sparkles` to supported
+Feather `zap`. Verify the session/list schema and consumers, then transfer
+only the bounded fix and its regression evidence to main for these captures.
+Batch-plan approval confirms that transfer for website use after verification.
+Keep the old accepted four derivatives and native inputs as the comparison
+baseline. Recapture and regenerate with the corrected genuine icon; retain
+the accepted geometry, text, colors, Desktop connections, and phone stack.
+New source/derivative hashes are expected because the icon actually changed.
+
+**2. Actions for each message.** Use three actual declarations and four rows:
+
+| Package | Actual row | Stable element ID |
 | --- | --- | --- |
 | `session-actions-app` | Fork here | `fork_session_at_message` |
 | `summarize-range-app` | Summarize messages up to here | `summarize_before_message` |
 | `message-export-actions` | Share as PDF | `message_share_as_pdf` |
 | `message-export-actions` | Share as Markdown | `message_share_as_markdown` |
 
-**Design:** reuse the accepted wide Desktop configuration-left/UI-right
-composition, with one export declaration branching to both export rows.
-Reuse the accepted portrait code-above-popup treatment. Both export rows
-share the declaration's marker color; the other two packages have their own
-colors. Retain genuine popup chrome and visibly mark any cropped-out entries.
-Keep full action names, including the longer summarization label.
+Open the production menu for a specific assistant reply in the short workshop
+conversation. Record its message index and public parameter bindings. Desktop
+connects each declaration to its row; the export declaration branches to both
+exports. Phone places readable code above the native popup excerpt and uses
+one marker color for both export rows. Keep complete action names and genuine
+popup chrome. The package also supplies Send to Kindle; any unrelated rows
+remain actual source content or are visibly cropped, and no export/history/
+delivery action is invoked.
 
-**Capture boundary:** load the actual packages in an isolated local backend,
-seed the existing short workshop conversation through the public API, and
-connect the production SDK and unchanged production chat/capture host.
-Open the real Message actions trigger inside the specific assistant
-transcript row, not the first identically named trigger in the window.
-Verify the public schema's plugin IDs, action IDs, message-index parameter
-bindings, and the four real native rows. Open the menu only; do not fork,
-summarize, delete, export files, or deliver messages.
+**3. Session-list relationship candidate — removed from this highlight.**
+The user selected the other two plugin images as sufficient on October 7.
+Keep its real native inputs and composition recipe as an unselected
+alternative, without copying it into the active homepage preview. This does
+not remove the separate workspace highlight's planned session-list evidence.
 
-The export package descriptor also registers Send to Kindle. Loading it is
-not permission to invoke it. Unrelated rows can remain in the actual source
-capture or be omitted through the same visibly marked excerpt treatment.
-Do not replace the package with a lookalike plugin for convenience.
+**4. Inspect the instructions.** Configure the report example with the pinned
+public Codex beginning through the ordinary file-backed system-message variable,
+and invoke **Show compiled system message** (`system_message`,
+`show_compiled_system_message`, owner `feature`) through the real session
+action. Capture the real Desktop `ActionDisplayWindow` containing the actual
+compiled text, with the conversation behind it. Verify it matches the pinned
+public excerpt after real compilation, rather than a replacement report.
 
-**Steps after approval:**
+Desktop retains the window/context plus a useful text magnification. Phone
+gives the native window heading and readable instruction excerpt the full
+width. Do not draw configuration links here. Preserve scrolling/window
+identity when excerpting longer text; the original payload remains retained.
 
-1. **AGENT:** preserve the approved four Session actions derivatives and their
-   hashes. Keep its existing capture inputs intact. Add a focused Message
-   actions config and capture test, reusing the existing production chat host.
-   No product change is planned; capture-test selection and isolated data
-   belong on main.
-2. **AGENT:** verify the three-package/four-row contract through public HTTP
-   and the production SDK, then capture the selected assistant message's
-   native popup with its owning conversation in light/dark. Record the
-   exact target message index and native geometry.
-3. **AGENT:** extend only the necessary recipe/helper support for one
-   declaration mapping to multiple rows. Produce separate wide/portrait
-   derivatives from those real sources. On Desktop, two same-color branches
-   reach PDF/Markdown; on phones, two same-color marker bands identify those
-   rows. Keep the approved first image unchanged.
-4. **AGENT:** put the candidate into the second slot of the actual main
-   homepage preview. Verify both themes at 1440, 1024, 768, 390, and 320px,
-   the longer action name, popup identity, correspondence, carousel clearance,
-   stable framing, and the first approved image's unchanged bytes. Use the
-   least expensive scoped native, HTTP/SDK, asset, and browser evidence.
-5. **HUMAN JUDGMENT — STOP:** review this second composition in context before
-   further image production, another implementation commit, or promotion.
-   If four readable rows do not fit the approved phone frame after bounded
-   crop/spacing tuning, show the real page evidence and ask before changing
-   the frame or truncating names.
+**October 7 visual correction:** Desktop uses the genuine unobscured
+conversation image and one enlarged report excerpt. The later owner-window
+capture already includes that report and would duplicate it. Trim blank window
+canvas and irrelevant forms through explicit crops, retain native identity,
+and link any metadata enlargement to its source row. The October 8 narrow
+capture replaces the phone candidate with complete Codex paragraphs.
+Agent `view_image` inspection now accepts any local image path; browser checks
+alone do not establish visual correctness.
 
-Main owns capture/composition, website, task, and decision-record changes.
-A discovered ordinary product fix belongs on develop and follows its review
-boundary. Keep existing first-image production source files unchanged where
-possible so adding capture-test coverage does not invalidate its provenance.
-Do not change schema IDs, popup behavior, or saved preferences for this image.
+**5. Combined costs and ChatGPT usage — current delivery.** Load the
+capture-only `website_report_fixture` application plugin, whose JSON file owns
+the selected three-day amounts and weekly assumption. Invoke its actual
+`show_illustrative_usage` action through HTTP/SDK and capture the unchanged
+display result in one native window. Desktop uses one focused report without
+conversation context; phone uses the narrow report so both bucket columns,
+all three days, and the complete usage summary are visible. Keep the real
+window identity and explicit sample/estimate caption. Two-decimal formatting
+belongs only to this plugin.
+
+**Retained alternative: separate cost report.** The following original
+production-report approach is preserved for later comparison, not current
+execution. Seed the real isolated SQLite cost store with
+meaningful synthetic request records across several recent days, short
+project names, and short valid provider bucket names. Invoke the actual
+`cost_tracking_app` / `show_cost_report` action through the production SDK and
+capture its native report window. Include the recorded total, a daily/project
+breakdown, and relevant recorded provider usage metadata from the same sample
+records. Keep reported costs and estimates distinguishable.
+
+Desktop shows the report and readable genuine report/metadata details. Phone
+keeps the report heading and emphasizes a total plus a compact real table
+excerpt; other genuine details can be shown as clearly separated
+magnifications inside the same image. Do not shrink an entire seven-day,
+multi-column report until unreadable or repaint numbers onto it. Captions
+say **Sample data**; the real report calculation supplies every total.
+
+**Retained alternative: separate ChatGPT usage report.** Extend the maintained generated report fixture
+with a sanitized journal using the actual format: request usage, rate-limit
+snapshots, and a reset marker. Configure a supported OpenAI Responses session
+with `auth_mode: chatgpt` and explicitly isolated paths for credentials,
+limits, and journal. No credentials or login are required for the local
+read-only report. Invoke the actual `chatgpt_auth` / `show_usage_report`
+action and capture its native `ActionDisplayWindow`.
+
+Show estimated token/cost totals, remaining usage percentages, reset times,
+and a short usage-percent history. Use internally consistent amounts and
+timestamps tied to one recorded capture reference time. Desktop includes
+the real report/context; phone uses the native heading and magnified totals/
+limits, with a readable genuine history excerpt. Retain **estimated** and
+**Sample data**; do not imply ChatGPT estimates are provider invoices.
+
+**Shared implementation and steps after approval:**
+
+1. **AGENT:** implement and verify the specified icon correction on develop;
+   record its exact patch and narrowly reconcile it onto main. Preserve the
+   old accepted visual baseline and unrelated work in both worktrees.
+2. **AGENT:** prepare isolated scene configs, sample sessions, the pinned
+   Codex file variable, and the capture-only combined report JSON.
+   Refresh related cached UI schemas
+   through their maintained generator rather than hand-editing fixture JSON.
+   Use explicit paths for all fixture inputs. The combined report requires
+   no personal cost store, account journal, credentials, login, or inference.
+   Keep the retained production-report alternative's sanitization intact.
+3. **AGENT:** extend the focused native capture host with production
+   `SessionsPanel` and `DesktopGlobalDisplayLayer` as needed. The production
+   display router must receive the real HTTP/SDK action result and open the
+   real native report window. Propagate deterministic capture-only themes
+   into separately mounted report windows. Add native selectors only where
+   a production target actually lacks them. Any ordinary production selector
+   change goes on develop with focused consumer verification, then transfers
+   narrowly to main under the batch's approved website-use boundary.
+4. **AGENT:** capture the five Desktop scenes in both themes using a fresh current
+   build, the existing isolated bundle ID, and sequential native automation.
+   Reuse builds and fixture setup across the batch where possible. Retain
+   window/popup images, report payloads, exact row/target geometry, source
+   hashes, and bounded cleanup of only task-owned processes/data.
+5. **AGENT:** extend the maintained composition recipes for one-to-many
+   message mappings, actual list-control targets, and native report crops.
+   Generate wide/portrait × light/dark candidates, using existing dimensions,
+   per-image byte budgets, and responsive source selection.
+6. **AGENT:** add the four selected Desktop candidates and corrected Vibe
+   candidate to an explicit preview of the actual main homepage. Replace only
+   the approved slots. Verify
+   carousel arrows/dots, complete names, source/row/report truth, both themes,
+   and page screenshots at 1440, 1024, 768, 390, and 320 CSS pixels.
+   Fix bounded crop, sample-value, and spacing issues across the batch.
+7. **AGENT:** run focused plugin, native, public HTTP/SDK, fixture, asset,
+   content, type, and browser checks. Preserve earlier variants and document
+   mappings, sample data, verified commands, remaining gaps, and the expected
+   icon-only change to the first composition in the durable decision record.
+8. **HUMAN JUDGMENT — ONE COMBINED REVIEW:** inspect both complete expanded
+   sections on the LAN page, including the first image's corrected icon,
+   phone readability, plugin relationships, the visible System role, and
+   financial/usage semantics.
+   Authorize any next implementation commit or source promotion separately.
+
+After approval, steps 1–7 proceed together. Routine icon selection, cropping,
+sample values, and capture infrastructure need no per-image approval.
+Stop earlier only for a concrete blocker needing a new material decision
+(for example a product/API redesign or an approved-frame change) or an actual
+OS permission/account action that the agent cannot complete. Show the actual
+evidence rather than substituting a mock or silently dropping an image.
+No new account setup, paid model call, delivery, production operation, push,
+or publication is part of this batch. Other feature assets follow later.
 
 ### Ordered execution
 
@@ -968,8 +1143,8 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
 6. **AGENT:** Generate the remaining relationship/menu/report/picker/continuity
    sources using real schemas and isolated sample data. Produce complete
    ImageMagick composites and light/dark derivatives.
-7. **AGENT:** Bind candidates to the local homepage and existing gallery
-   formats. Run browser checks and inspect screenshots with `view_image` at
+7. **AGENT:** Bind candidates to the actual local homepage.
+   Run browser checks and inspect screenshots with `view_image` at
    1440, 1024, 768, 390, and 320 CSS pixels, including both themes and scrolled
    viewport captures. Fix bounded legibility and spacing issues.
 8. **AGENT:** Run the relevant product regression, native, HTTP/SDK, content,
@@ -985,14 +1160,20 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
 
 ### Implementation decisions and open questions
 
-- **Checkpoint 4 recommendation — Draft:** Message actions is the next focused
-  image, using the now accepted Desktop and phone treatments. The export
-  package's two actual classes prove one package can contribute multiple
-  controls. No new material product decision is presently required.
-- **Checkpoint recommendation:** save the accepted work in a scoped commit
-  before extending the pipeline, if the user authorizes that commit.
-  Visual approval alone is not a commit instruction; no commit or source
-  promotion was performed when recording this next-step plan.
+- **Expanded batch — Approved October 7, 2026:** complete both plugin and transparency sections
+  together, with five new images and one bounded icon refresh. The former
+  one-Message-image review is superseded by the user's request for a bigger
+  chunk. One combined review follows verified page integration.
+- **Icon recommendation:** use Feather `zap` in the two Generate title UI
+  declarations. This fixes the actual shared source on develop. Approval of
+  this plan confirms its narrow main integration after verification for
+  website capture, avoiding a separate small integration pause.
+- **First-image exception:** the icon correction changes its real native
+  source and output hashes. Preserve the accepted composition and old files
+  for comparison; recapture the actual corrected glyph rather than paint a
+  replacement over the old screenshot or pretend hashes remain unchanged.
+- The accepted checkpoint is committed as `e66fb1d0`. New implementation
+  commits and publication require separate authorization.
 - **October 6 approved correction:** reconcile the three pending capture
   files together with the six named, already implemented source changes
   before extending the main harness. The previous popup-only integration
@@ -1047,11 +1228,14 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
 
 ### Documentation
 
-- For checkpoint 4, add its real package/action/message-index mappings,
-  source geometry, one-to-many correspondence support, and verified command
-  to the existing capture/processing guides. Append the new candidate and
-  later human decision to the existing durable design record; preserve the
-  first accepted visual and its alternatives.
+- For the expanded batch, update the existing capture/processing guides for
+  production list/display routing, report-window theming, real package/
+  action/message-index mappings, source geometry, one-to-many/list-target
+  correspondence, report generation, and verified commands. Update the
+  Generate title package guidance with the supported icon once implemented.
+  Keep runtime/capture fixtures generated from their maintained sources.
+  Append the batch candidates and later human choice to the existing durable
+  design record, retaining previous compositions and their rationale.
 - For checkpoint 3, update the existing Desktop capture guide with its
   selected-scene command, local backend lifetime, isolation, theme, window/
   popup capture, and safe cleanup. Update the landing visual-processing and
@@ -1117,10 +1301,26 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
       before further images, promotion, or another implementation commit.
 - [x] **HUMAN JUDGMENT:** Accept the current Desktop composition.
 - [x] **HUMAN JUDGMENT:** Review the revised stacked phone composition.
-- [ ] **HUMAN JUDGMENT:** Approve the focused Message actions image plan.
-- [ ] **AGENT:** Capture, compose, bind, and verify the Message actions image
-      while preserving the approved first image.
-- [ ] **HUMAN JUDGMENT:** Accept the Message actions candidate in context.
+- [x] **HUMAN JUDGMENT:** Authorize the accepted checkpoint commit.
+- [x] **AGENT:** Commit the accepted checkpoint and reconciled prerequisites
+      as `e66fb1d0`, excluding unrelated parent/waitlist edits.
+- [x] **HUMAN JUDGMENT:** Approve the combined plugin/transparency image plan.
+- [x] **AGENT:** Correct the Generate title icon on develop, verify it, and
+      narrowly transfer the confirmed correction to main for website use.
+- [x] **AGENT:** Generate real sample scenes/report inputs and refresh their
+      affected UI fixtures through maintained generators.
+- [x] **AGENT:** Capture and compose both remaining plugin images, all three
+      transparency images, and the first image's genuine icon refresh.
+- [x] **AGENT:** Bind the full batch to the actual local page and verify both
+      sections in both themes at the five review widths.
+- [x] **AGENT:** Apply the October 7–8 removals, combined illustrative report,
+      public Codex beginning, and visible Vibe System message; retain prior
+      variants and make plugin adaptation explicit in screenshot captions.
+- [x] **AGENT:** Recapture through the actual native consumers, bind the revised
+      candidates to the homepage, and inspect Desktop/phone screenshots in
+      both themes with `view_image`, with focused responsive verification.
+- [ ] **HUMAN JUDGMENT:** Accept the complete plugin/transparency batch in
+      context before another implementation commit or source promotion.
 - [ ] **AGENT:** Generate and compose remaining production visual sources.
 - [ ] **AGENT:** Bind local candidates, inspect responsive Playwright images
       with `view_image`, and complete focused verification.
@@ -1130,15 +1330,45 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
 
 ### Requirement verification
 
-- Checkpoint 4 ownership is this task. The decisive check loads the three
+- Expanded batch ownership is this task. The Message actions check loads the three
   actual packages in the backend, seeds the conversation through public
   endpoints, opens the chosen assistant message's production menu through
   `RestAgentBackend`, and checks/captures all four real rows and their public
   message-index bindings. The composition's recorded geometry connects one
   export declaration to both export controls. Page checks verify current
   source selection, popup identity, complete names, marked crop omissions,
-  same-color phone correspondence, and unchanged approved first-image bytes.
+  same-color phone correspondence, and retained first-image geometry/text
+  while its actual icon and source hashes are corrected.
   A mocked schema or replacement frontend menu is insufficient.
+- Icon: a focused plugin regression checks both public UI declarations;
+  actual HTTP/SDK schemas must carry a glyph present in the installed Feather
+  maps used by Desktop/mobile. Regenerate the runtime UI fixture from the
+  fixed source and exercise its existing consumer. Native recapture proves
+  the corrected Desktop glyph without altering the menu contract.
+- Session list: seed sessions through public endpoints/actions, fetch them
+  through the production SDK, render the real list, and check/capture
+  `toggle_session_pinned`, `toggle_session_archived`, and `set_session_status`
+  at their actual star/bar targets with the menu open. Assert real statuses,
+  pinned/unpinned states, title/subtitle, and default placements. A duplicate
+  fixture plugin or mocked list presentation is insufficient.
+- Reports: each decisive path starts with isolated real plugin inputs,
+  invokes the actual session action through public HTTP/production SDK,
+  passes its unchanged display payload through the production display
+  router, and opens/captures the real native `ActionDisplayWindow`.
+  Compiled text must match the feature's actual compilation of the pinned
+  public Codex beginning. The combined report must match the fixture's exact
+  amounts/ranges, three days within seven, stipulated $550 capacity, computed
+  $220.00 estimate, and +40 percentage points. The explicitly authorized
+  fixture plugin supplies this illustrative display; the native router and
+  window are genuine. Do not claim it is output from production cost/auth
+  plugins or evidence of actual billing. Estimate/sample labels remain visible.
+- Combined page: test the two-image plugin group and two-image transparency
+  group in their real positions, theme
+  switching, responsive source selection, independent swipe/arrow/dot state,
+  label/caption/frame positioning, complete target text clear of overlays,
+  and absence of page overflow. Capture all five widths in both themes.
+  Automated geometry is supporting evidence; final visual acceptance is the
+  one combined human review.
 - Checkpoint 3 ownership is this task. Its decisive source check starts the
   isolated backend with the three real plugins, seeds a session through the
   public API, connects production `RestAgentBackend` to production `ChatPane`,
@@ -1185,9 +1415,10 @@ Do not change schema IDs, popup behavior, or saved preferences for this image.
   captures verify production rendering; ImageMagick provenance and reviewed
   page screenshots verify every baked endpoint and name. A hard-coded frontend
   fixture alone does not prove that config contributes those actions.
-- Reports: isolated records/journal → real report actions → production
-  Desktop action display. Verify sums and estimation semantics from returned
-  data, then inspect readable tables/limits and plain sample-data captions.
+- Reports: isolated file variables/illustrative JSON → actual feature/fixture
+  actions → production Desktop action display. Verify values and estimation
+  semantics from returned data, then inspect readable tables/usage and plain
+  sample-data captions.
   Do not use hosted requests or personal credentials for this evidence.
 - Popup fix and label: plugin schema regression verifies new visible label,
   unchanged action IDs, confirm dialog, and existing provider gating; a public
@@ -1786,3 +2017,330 @@ Append new entries at the end of this section, keeping older entries first.
   current candidate derivatives successfully. No push or publication is
   authorized. The requested icon correction and larger image batch are
   subsequent work, not part of this accepted implementation snapshot.
+- 2026-10-06 checkpoint committed; larger batch planned: created main commit
+  `e66fb1d0` (`Add reviewed plugin visual`) for 121 scoped files, including
+  the reconciled prerequisites and accepted first visual implementation.
+  Left unrelated parent/waitlist changes uncommitted; no push occurred.
+  The user requests a broader next step rather than one image per review.
+  The new Draft covers both remaining plugin images, all three transparency
+  images, and correction/recapture of the first image's Generate title icon.
+  Confirmed `sparkles` is missing from the installed Feather map while
+  `zap` exists; the invalid declaration is shared by its session/list UI.
+  Confirmed genuine list action IDs, report action IDs, local journal report
+  execution without login/inference, and the need for the production display
+  router in the capture host. Proposed one combined review after the full
+  verified batch. No new product fix, image capture, fixture mutation, or
+  publication was performed while preparing this expanded plan.
+- 2026-10-07 expanded batch approved and execution started: the user explicitly
+  approves the combined plan. Execute the five new images and genuine icon
+  refresh together, with the specified develop-to-main integration and one
+  final contextual review. No new commit, push, or publication is authorized.
+- 2026-10-07 expanded batch source and composition implemented:
+  - Fixed the two Generate title `sparkles` declarations to Feather `zap` on
+    develop, with 10 passing plugin tests and checks against both installed
+    frontend glyph maps. Copied only the verified three-file patch to main;
+    the product copies match byte-for-byte. Website/capture/docs remain on main.
+    Preserved the prior first-image sources/derivatives under
+    `landing_page/artifacts/proof-batch-review/before-icon-correction/`.
+  - Captured all six scenes through isolated public HTTP backends, production
+    SDK/ChatPane/SessionsPanel/display routing, and genuine native menus and
+    report windows in both themes. Reports also have real narrow windows.
+    The final combined native test passed in 459 seconds with exit 0;
+    evidence is under `desktop/crystal-lattice-control-desktop-rn/artifacts/website-proof-batch/`
+    and `artifacts/proof-batch-final-native.log`.
+  - The message contract verifies four rows and actual message-index bindings;
+    the export package maps to two rows. The list contract verifies three
+    descriptive sessions, title/subtitle, pinned state, and actual statuses
+    and star/bar targets. No destructive, summarization, export, or model action
+    was executed to obtain a menu screenshot.
+  - Real report actions calculate the compiled template, cost SQLite records,
+    and synthetic reset/usage journal. Cost total is $3.16 over four requests:
+    $1.90 recorded OpenAI costs and $1.26 estimated OpenRouter costs.
+    ChatGPT sample estimates cover three requests, 30,600 input tokens,
+    $1.82, and 65% remaining in the current short window. Resets/history share
+    the producer's recorded UTC reference time. The compiled example proves
+    actual `{{WORKSHOP_GOAL}}` substitution.
+  - Capture-only adjustment: explicit `auth_mode: chatgpt` requires a saved
+    login when the real provider constructs a session. The read-only usage
+    action supports `auto`, so the fixture uses it with an unmistakably fake
+    API key and exclusively owned auth/store paths. No account login,
+    personal journal, credentials file, or inference request is used.
+  - Initial native attempts were incomplete: a locked OS prevented launch,
+    and a React view test ID was absent from native accessibility. The final
+    producer waits for the actual native window and report title, keeps
+    teardown registered before launch, and exports sources only after success.
+    Standard plugin loading needed a longer local startup allowance; no
+    custom provider path or weakened API assertion was introduced.
+  - Twenty-four candidates are composed with real native pixels. Desktop
+    relationships connect declarations to controls; phone stacks use matching
+    marker colors and visible menu-crop breaks. Phone reports preserve whole
+    instructions/numbers/history using explicit native excerpts. The cost
+    desktop also magnifies actual input/cache/completion metadata.
+  - Refreshed the canonical mobile-workbench UI fixture through its maintained
+    generator. Besides the requested icon/compaction label, current public
+    schemas carry ordering/rich controls and no longer emit the former
+    cumulative status-bar total. Updated the stale fixture test to the actual
+    provider contract; do not fabricate that removed field. The mobile menu
+    regression restores the real shared SessionActionsBar otherwise stubbed by
+    the suite and checks the generated `zap` glyph through its actual consumer.
+    Final page checks, documentation evidence, and combined human review follow.
+- 2026-10-07 expanded batch verification complete; stop for combined review:
+  - The explicit `CRYSTAL_PROOF_BATCH_PREVIEW=1` homepage presents all three
+    plugin images and all three transparency images. It retains the chosen
+    feature order, shared cards/frames, copy, and other sections. Sample
+    financial captions identify estimates and the combined recorded/estimated
+    cost total. All 24 derivatives are below 240 KB; current sizes range
+    from 48,496 to 125,548 bytes.
+  - Final evidence passed: the combined real HTTP/SDK/native batch; 11 focused
+    page tests at all five widths in both themes; 9 existing feature/navigation/
+    theme browser regressions against the candidate homepage; 8 normal-site
+    visual scenarios; 24 asset-pipeline tests; 8 content tests; 3 Python
+    action/runtime-fixture tests; 3 mobile capture-consumer component tests;
+    Desktop/mobile type checks; source fingerprints and whitespace. The
+    Generate title fix additionally has the earlier 10 develop plugin tests
+    and both frontend glyph-map checks. Normal and explicit-preview builds pass.
+  - The focused browser checks capture 60 actual-section PNGs under
+    `landing_page/artifacts/proof-batch-review/page/`, covering each of the six
+    selected images at every planned width/theme. They verify true responsive
+    source loading, image ratios, independent arrow/dot state, phone
+    correspondence without lines, full mapping bounds clear of navigation,
+    sample notices, and no page overflow. Existing regressions additionally
+    exercise pointer/keyboard/touch and active-theme request behavior.
+  - Initial browser attempts had a wrong neighbor-section selector and a
+    resize assertion before the initial selection settled. Corrected the
+    test selectors/waits; the unchanged production renderer passes. A normal
+    test-server attempt found an occupied port and was rerun on a free port,
+    leaving the existing server untouched. The mobile test's mock Icon string
+    comparison was made type-safe through its public component import; both
+    the actual consumer test and the full app type check now pass.
+  - Appended implemented choices, original alternatives, sample semantics,
+    source boundaries, and review questions to the durable decision record.
+    Updated the owning Desktop capture, landing processing, and content-system
+    guides. Refreshed fixtures via the generator; visual masters were not
+    promoted. The user's Release app is still running.
+  - **Observed follow-up, outside the selected crop:** the unobscured native
+    sample footer renders both `estimated cost` and `cost` labels with the
+    seeded API-key metadata. Retain the full source for later condition/
+    rendering investigation. This batch's magnified metadata detail uses the
+    genuine input/cache/completion fields; displayed financial claims come
+    from the real, reconciled report. No ordinary footer behavior was changed.
+  - LAN address changed since the earlier checkpoint. Verified HTTP 200 at
+    `http://192.168.8.10:4182/#feature-plugins` and
+    `http://192.168.8.10:4182/#feature-transparency`, including candidate image
+    delivery. The existing task-owned preview stays running for review.
+    Final browser logs/exits are
+    `landing_page/artifacts/proof-batch-review/browser-final.*` and
+    `browser-regression.*`.
+  - **HUMAN JUDGMENT — STOP:** review all three images in each section,
+    especially phone popup/window identity, colored list/control ownership,
+    report legibility, and sample/estimate wording. No account setup or
+    further permission action is required for this checkpoint. `view_image`
+    remains unavailable without user-supplied full file paths; OCR and geometry
+    are supporting evidence, not visual acceptance. Primary current paths:
+    `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/proof-batch-review/page/plugins-0-1440-light.png`,
+    `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/proof-batch-review/page/plugins-0-390-light.png`,
+    `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/proof-batch-review/page/transparency-0-1440-light.png`,
+    `/Users/ferenci84/Dev/Mine/ai-agent-platform-main/landing_page/artifacts/proof-batch-review/page/transparency-0-390-light.png`.
+    Slots `1` and `2` and all other width/theme captures are alongside these.
+    Human batch acceptance, further asset work, any next commit, visual
+    promotion, push, and publication remain pending. No new commit was made.
+- 2026-10-07 user review correction and removals:
+  - The user requests direct `view_image` inspection of the Transparency
+    compositions and flags an evident visual defect. Prior automated native/
+    source/browser/OCR evidence is not direct visual verification. Keep the
+    reports unaccepted, and identify the defect by image inspection before
+    selecting a composition correction.
+  - Removed **A session list that fits your work** from the plugin highlight.
+    The current carousel has only Session actions and Actions for each
+    message. Retained its native sources and recipe as an unselected candidate;
+    the local preview no longer stages it. The separate workspace highlight
+    still owns its previously planned list evidence.
+  - Removed the entire **Serious users eventually disagree with the harness.**
+    section from authored homepage content. Updated the Plugins link and its
+    active-section observer to `#feature-plugins`, avoiding a broken anchor.
+    Updated the approved requirement/plan boundary and appended the choices
+    to the durable record without rewriting historical implementation notes.
+  - Verification passed: 8 content tests, normal and candidate builds,
+    16 browser cases covering both themes/five widths, navigation, the new
+    two-image carousel, and absent removed content; 3 normal homepage
+    structure/accessibility cases; whitespace. Current screenshots are
+    refreshed under `landing_page/artifacts/proof-batch-review/page/`.
+    The existing LAN preview still serves `http://192.168.8.10:4182/`.
+  - Direct image inspection is blocked by the `functions.view_image`
+    description, which says **"only use if given a full filepath by the user"**.
+    The user requested the tool but has not supplied a full image filepath.
+    Complete the independent removals, then request the missing path(s).
+    No visual diagnosis, corrected report composition, commit, promotion,
+    publication, or human acceptance is claimed for this follow-up.
+- 2026-10-07 direct visual inspection and report composition correction:
+  - The user supplied all three Desktop/light screenshot paths. Opened them
+    with `functions.view_image` at original detail. Confirmed that the owner
+    capture already includes the report, which the old compositor painted
+    again. The duplicate panes, excessive white canvas, detached metadata,
+    and unused usage-date inputs were visually evident.
+  - Preserved the prior recipes, code, report derivatives/manifests, and
+    Desktop/phone page screenshots under
+    `landing_page/artifacts/proof-batch-review/before-report-correction/`.
+    Reused the genuine `*-conversation.png` native capture, showing one
+    report at greater scale with scene-specific crops and visible crop breaks.
+    The cost metadata now has an outlined origin and a connecting callout.
+    No native source, report payload, financial value, product behavior,
+    section layout, or phone derivative was changed.
+  - Regenerated the actual homepage screenshots at the supplied paths and
+    opened all three again with `view_image`. Duplication/large blank panes
+    are removed; native window identity, compiled text, totals, estimates,
+    limits, and history remain visible. Kept feature headings clear of the
+    sticky header in review captures.
+  - The cost table is an excerpt of the production scroll viewport, whose
+    body cap is 420px. The final day and further tables are outside that
+    viewport. Do not claim a full-table capture. A real later scroll capture
+    remains a possible follow-up; no missing row was drawn or API changed.
+  - Added a crop-boundary regression and browser provenance checks requiring
+    unobscured conversation context and exactly one primary report excerpt.
+    All six phone derivatives are byte-identical to the preserved baseline.
+    Source/derivative checks, 25 pipeline tests, 8 content tests, and the
+    initial revised Desktop page check passed. Full responsive verification
+    and final human review follow.
+    The supplied Desktop paths remain authorized for routine reinspection
+    after regeneration; mobile/dark visual inspection is not claimed.
+    No commit, source promotion, push, or publication occurred.
+- 2026-10-07 report correction verified; stop for human review:
+  - All 11 responsive page cases pass on the revised candidates: five widths
+    in both themes plus resize/selection checks. New provenance assertions
+    require unobscured context, one primary report excerpt, explicit crop
+    heights, and source-linked metadata. Review screenshots include the
+    feature title without sticky-navigation overlap.
+  - Selected source/derivative hashes, 25 pipeline tests, 8 content tests,
+    candidate build, whitespace, and actual LAN-delivered derivative hashes
+    pass. Corrected Desktop/light report files are 94,114, 119,640, and
+    102,556 bytes. No native recapture is needed because the saved genuine
+    conversation/report sources and production UI are unchanged.
+  - `view_image` was used for all three supplied original Desktop/light page
+    screenshots and all three regenerated screenshots. Agent visual review
+    confirms the composition correction at that viewport/theme; human
+    acceptance remains open. Other sizes/themes have browser evidence;
+    direct mobile/dark image inspection is not claimed.
+  - The two plugin images and removal of the lower harness section remain
+    in place. Review the actual page at
+    `http://192.168.8.10:4182/#feature-transparency`.
+    Updated the durable decision record and processing guide with the root
+    cause, rejected baseline, current treatment, cost-scroll limitation, and
+    the rule to inspect supplied stable paths after regeneration.
+    No commit, source promotion, push, or publication was made.
+- 2026-10-08 illustrative report and instruction/Vibe direction approved:
+  - The user requests one combined cost/ChatGPT image, the current Codex default
+    beginning, visible first System role in the Vibe image, and plugin-driven
+    customization wording above screenshots. Updated the required outcomes;
+    no new commit or publication is authorized.
+  - Added a capture-only report plugin and authoritative JSON fixture under
+    `landing_page/visual_assets/runtime/proof-batch/fixture-plugin/`. Its money
+    formatter uses two decimal places only there. Daily amounts and three-day
+    weekly assumptions follow the selected values above. Production cost and
+    ChatGPT plugins are unchanged.
+  - Checked the current public OpenAI Codex catalog and license, pinned its
+    gpt-6-astra beginning to the recorded commit, and verified the excerpt's
+    first four paragraphs byte-for-byte. The stock real compiled-message
+    action receives it through its ordinary file variable. No private/current
+    agent instructions or account data are used.
+  - The revised public HTTP/SDK preflight passed all menu/report contracts.
+    Its first attempt exposed a missing `session_id` declaration in the fixture
+    action; fixed that schema and parameter map rather than bypass validation.
+    Source/config hashes and output payloads remain retained by the producer.
+  - Prepared the combined report composition and two-slide transparency
+    binding. Revised all feature and provider screenshot captions to describe
+    plugin-driven adaptation. Normal build, 25 pipeline tests, 8 content tests,
+    2 illustrative fixture/provenance tests, and both app type checks pass.
+  - Vibe already had a System data row, but the old image hid it. Moved its
+    short transcript into a maintained JSON fixture, uses full history for
+    capture and omits inappropriate OpenAI settings from this Z.ai fixture.
+    Four mobile component tests pass. Fresh iOS builds succeed; native capture
+    visibility/scroll checks are being completed without weakening them.
+  - `view_image` now accepts any local image path. Used it directly on the
+    existing Vibe asset and failed simulator captures to assess actual layout.
+    Earlier user-path restrictions remain historical notes only.
+  - The Mac is locked, as verified through CoreGraphics session state.
+    Desktop native capture has not run; report figures are not yet regenerated
+    or visually accepted. Complete independent work, then report the actual
+    unlock action if it remains necessary. No commit/push/publication occurred.
+- 2026-10-08 Vibe capture complete and Desktop capture resumed:
+  - Shortened the fixture transcript further so all three roles fit together.
+    Native capture passed both themes. Actual screen-coordinate rectangles
+    verify full containment in the transcript viewport; System, User label,
+    and expanded reasoning also have native visibility checks. Detox's dark
+    full-container pixel matcher falsely flagged the User bubble despite
+    complete geometry and a visibly correct screenshot, so the check uses
+    full native bounds plus its actual visible label. No product behavior or
+    duplicate UI was introduced.
+  - Captured geometry is serialized sequentially; an initial parallel Detox
+    metadata read was rejected and fixed. Failed attempts were not counted as
+    successful sources. The successful selected capture is recorded in
+    `mobile/crystal-lattice-control-rn/artifacts/vibe-system-capture-5.*`.
+  - Added `homepage-vibe-workflow` with a native transcript/header crop and
+    two themed derivatives. Selected inspect/check pass, and direct
+    `view_image` inspection confirms the first System message, request with
+    attachments, and initial reasoning. Four actual-page Desktop/phone
+    browser cases also pass; direct image inspection is now routine.
+  - Candidate preview avoids stale report images when capture config changes
+    or a new derivative is missing. It shows the new captions/Vibe image and
+    explicit report placeholders until the native captures complete.
+  - The Mac was subsequently unlocked. Started the prepared full Desktop
+    capture without requesting repeated approval. Debug Desktop and fresh
+    iOS builds succeeded; both app type checks, fixture/component tests and
+    ordinary site build passed. Native report capture and final contextual
+    inspection are in progress. No commit or publication occurred.
+- 2026-10-08 revised illustrative batch verified; stop for contextual review:
+  - The combined Desktop producer passed all five scenes through public HTTP,
+    `RestAgentBackend`, production consumers, and native UI. The selected iOS
+    Vibe capture passed both themes. The final native source contracts and
+    geometry are retained; no replacement frontend report/menu was introduced.
+  - The homepage now has two plugin images and two transparency images.
+    Its single financial image contains Oct 6–8 daily claude amounts $28.40,
+    $43.25, $36.10 and zai $3.20, $7.45, $5.60; ChatGPT shows Oct 5–8,
+    three days of seven, $220.00 estimated total, 0% → 40%, and +40 percentage
+    points. The caption states the illustrative $550/100% assumption.
+    Two-decimal formatting is confined to the maintained fixture plugin.
+  - The real compiled-message action displays the first four paragraphs of
+    the pinned public Codex default. The Vibe image contains first System,
+    User with attachments, and initial expanded reasoning before tool calls.
+    All feature/provider screenshot comments explicitly state plugin-driven
+    adaptation; maintained production plugins/defaults are unchanged by this
+    fixture/caption revision.
+  - Opened native sources, generated derivatives, and actual Playwright page
+    PNGs directly with `view_image`. Final visual inspection covers each of
+    the two transparency images and Vibe at 1440/390 in light/dark, the
+    combined report at 320/light, and refreshed plugin examples. All financial
+    rows/measures are visible together. Codex portrait prose is dense at phone
+    size, and light Vibe reasoning retains the real subdued color; these
+    remain concrete human review considerations.
+  - Direct inspection caught unnecessary blank space in the wide Codex
+    window. Adjusted the genuine native crop to 390 points; the combined
+    report uses 500. The narrow Codex crop includes complete paragraphs, and
+    the financial portrait includes the complete table and summary. No labels
+    or values were drawn over the screenshot.
+  - An initial actual-page run found placeholders despite valid captures:
+    Astro bundles the module, so its default `import.meta.url` root was wrong.
+    Passed the landing root explicitly from the production page loader.
+    The failing browser boundary then passed. The earlier timed-out run and
+    its failures are not counted as successful verification.
+  - Final checks passed: 15 responsive browser cases (five widths/both themes
+    and independent resize state, plus four Vibe cases); 25 pipeline tests;
+    8 content tests; 2 fixture/provenance tests; 4 mobile consumer tests;
+    selected source/derivative checks; normal and candidate builds; whitespace.
+    Earlier fresh app builds/type checks and the successful native captures
+    remain the evidence for unchanged capture consumers.
+  - Current logs: `landing_page/artifacts/illustrative-review/browser-crop-final.*`,
+    `local-final.log`, and `*-build-final.log`;
+    `desktop/crystal-lattice-control-desktop-rn/artifacts/illustrative-desktop-capture.*`;
+    `mobile/crystal-lattice-control-rn/artifacts/vibe-system-capture-5.*`.
+    Actual-page screenshots are under
+    `landing_page/artifacts/proof-batch-review/page/` and
+    `landing_page/artifacts/illustrative-review/vibe-*.png`.
+  - LAN HTTP 200 and all 18 active derivative hashes match the candidates;
+    each file is 48,576–124,976 bytes, below the 240,000-byte limit. Review the
+    real page at `http://192.168.8.10:4182/#feature-transparency` and
+    `http://192.168.8.10:4182/#feature-vibe-anything`.
+  - Updated the active plan/requirements and durable decision/capture/content
+    guides, preserving earlier alternatives and chronological notes.
+    **HUMAN JUDGMENT — STOP:** review this version in context before the next
+    asset batch, commit, or source promotion. No further account setup or OS
+    action is needed. No new commit, push, promotion, or publication occurred.

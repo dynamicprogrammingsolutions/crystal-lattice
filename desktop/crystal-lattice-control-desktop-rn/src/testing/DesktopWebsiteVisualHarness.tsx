@@ -19,6 +19,8 @@ import {
 import { ChatPane } from '../chat/ChatPane';
 import { buildDesktopCaptureTheme } from '../theme/buildDesktopTheme';
 import { AgentPickerWindow } from '../windows/AgentPickerWindow';
+import { SessionsPanel } from '../panels/SessionsPanel';
+import { DesktopGlobalDisplayLayer } from '../ui/DesktopGlobalDisplayLayer';
 
 const SESSION_ID = 'website-visual-session';
 const CONNECTION_ID = 'website-visual';
@@ -260,10 +262,12 @@ function DesktopSessionActionsVisual({
   theme,
   backendUrl,
   sessionId,
+  showList = false,
 }: {
   theme: Theme;
   backendUrl: string;
   sessionId: string;
+  showList?: boolean;
 }): React.JSX.Element {
   const backend = useMemo(
     () => new RestAgentBackend({ transport: new FetchTransport({ baseUrl: backendUrl }) }),
@@ -281,9 +285,44 @@ function DesktopSessionActionsVisual({
   }, [backend, sessionId]);
   return (
     <ThemeProvider theme={theme}>
+      <DesktopGlobalDisplayLayer
+        openConnectionsById={{
+          'website-session-actions': {
+            status: 'open', baseUrl: backendUrl, backend,
+          } as any,
+        }}
+        connectionNameById={{ 'website-session-actions': 'Local workspace' }}
+      >
       <ApplicationPluginsProvider backend={backend} connectionId="website-session-actions">
         <View style={[styles.continuityRoot, { backgroundColor: theme.background }]}>
           {summary ? (
+            showList ? (
+              <View style={{ flex: 1, flexDirection: 'row' }}>
+                <View style={{ width: 490 }}>
+                  <SessionsPanel
+                    focusedConnectionId="website-session-actions"
+                    focusedConnectionName="Local workspace"
+                    connectionBaseUrl={backendUrl}
+                    connectionId="website-session-actions"
+                    backend={backend}
+                    cachedSessions={[]}
+                    cachedLastLoadedAt={null}
+                    isOnline
+                    activeTabConnectionId="website-session-actions"
+                    activeTabSessionId={sessionId}
+                    localActionsEnabled={false}
+                    onUpdateCache={() => {}}
+                    onOpenSessionTab={() => {}}
+                  />
+                </View>
+                <ChatPane
+                  isVisible isActive connectionId="website-session-actions"
+                  connectionName="Local workspace" sessionId={sessionId}
+                  sessionSummary={summary} title={summary.presentation?.title ?? 'Plan a community workshop'}
+                  backend={backend} cachedEntry={null} onUpdateCache={() => {}}
+                />
+              </View>
+            ) :
             <ChatPane
               isVisible
               isActive
@@ -291,7 +330,7 @@ function DesktopSessionActionsVisual({
               connectionName="Local workspace"
               sessionId={sessionId}
               sessionSummary={summary}
-              title="Plan a community workshop"
+              title={summary.presentation?.title ?? 'Plan a community workshop'}
               backend={backend}
               cachedEntry={null}
               onUpdateCache={() => {}}
@@ -301,6 +340,7 @@ function DesktopSessionActionsVisual({
           )}
         </View>
       </ApplicationPluginsProvider>
+      </DesktopGlobalDisplayLayer>
     </ThemeProvider>
   );
 }
@@ -325,12 +365,13 @@ export function DesktopWebsiteVisualHarness({
     () => createBackend(claude ? CLAUDE_TOOLS : CODEX_TOOLS),
     [claude],
   );
-  if (websiteVisualKind === 'session-actions') {
+  if (websiteVisualKind === 'session-actions' || websiteVisualKind === 'session-list') {
     return (
       <DesktopSessionActionsVisual
         theme={theme}
         backendUrl={websiteVisualBackendUrl}
         sessionId={websiteVisualSessionId}
+        showList={websiteVisualKind === 'session-list'}
       />
     );
   }
