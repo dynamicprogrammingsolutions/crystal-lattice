@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "shell-tool-settings"
+version = "0.1.0"
+description = "Feature plugin exposing shell_tool_mode as a session-settable setting"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "agent-core>=0.3.0",
+    "pytest>=7.0.0",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["shell_tool_settings*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

@@ -295,6 +295,8 @@ def test_shell_array_tool_with_standard_model(tmp_path):
         "working_directory": str(tmp_path),
         "allowed_paths": [str(tmp_path)],
         "project_temp_dir": str(tmp_path / ".temp"),
+        # Legacy tool: auto mode selects unified exec for every model.
+        "shell_tool_mode": "shell",
         # Use seed for deterministic model behavior
         "request_options": {"seed": 42},
     }

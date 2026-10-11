@@ -72,10 +72,10 @@ class ShellCommandTool(BaseCodexShellTool):
         """Determine if this tool should be enabled based on shell_tool_mode config.
 
         Selection logic:
-        - shell_tool_mode == "shell_command": Always enabled (legacy opt-in)
-        - any other mode, including "auto" (default): Disabled. Under "auto"
-          the shell-command family (codex-variant tag) now selects the
-          unified exec tools (exec_command + write_stdin) instead.
+        - shell_tool_mode == "shell_command": Always enabled (legacy opt-in;
+          historical upstream tool, removed upstream 2026-08-20)
+        - any other mode, including "auto" (default): Disabled. ``auto``
+          selects the unified exec tools for every model.
         """
         mode = config.get("shell_tool_mode", "auto")
 

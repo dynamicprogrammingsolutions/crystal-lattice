@@ -31,7 +31,7 @@ unified exec.
 - [ ] Windows support for the unified exec tools is planned and tracked
   (native shell resolution, ConPTY, Windows schema variant)
   (owner: `tasks/20261008-codex-tool-parity-refresh/030-windows-unified-exec-support.md`).
-- [ ] An opt-in settings plugin (separate project, not in the default
+- [x] An opt-in settings plugin (separate project, not in the default
   config) exposes `shell_tool_mode` as a per-session setting, enabling the
   legacy `shell_command` for individual sessions without a restart; with
   model-based selection dropped (`auto` = unified exec for every model)
@@ -42,7 +42,7 @@ unified exec.
 - [x] [010-sync-view-image-apply-patch-descriptions.md](tasks/20261008-codex-tool-parity-refresh/010-sync-view-image-apply-patch-descriptions.md) — completed 2026-10-08; unit tests, full plugin suite, and both hosted-API view_image runs passed.
 - [x] [020-unified-exec-shell-tools.md](tasks/20261008-codex-tool-parity-refresh/020-unified-exec-shell-tools.md) — completed 2026-10-10; unified exec implemented and verified (full plugin suite, key-gated selection suites, hosted-API round-trip on gpt-6-luna); see its Completion Notes.
 - [ ] [030-windows-unified-exec-support.md](tasks/20261008-codex-tool-parity-refresh/030-windows-unified-exec-support.md) — Windows port of the unified exec tools (ConPTY, Windows shell resolution, schema variant); planning only, `Status: Draft`; depends on 020.
-- [ ] [040-shell-command-session-selector.md](tasks/20261008-codex-tool-parity-refresh/040-shell-command-session-selector.md) — opt-in settings plugin exposing `shell_tool_mode` as a per-session setting plus dropping model-based selection; plan approved 2026-10-10 (drop model-based `auto`); execution pending; depends on 020.
+- [x] [040-shell-command-session-selector.md](tasks/20261008-codex-tool-parity-refresh/040-shell-command-session-selector.md) — completed 2026-10-10; `shell-tool-settings` plugin shipped, model-based selection dropped (`auto` = unified exec for every model); see its Completion Notes.
 
 ## Supporting details
 

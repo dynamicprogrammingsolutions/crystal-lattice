@@ -1,0 +1,10 @@
+{
+  "module": "shell_tool_settings",
+  "subdirectory": ".",
+  "entries": [
+    "shell_tool_settings.shell_tool_settings_feature.ShellToolSettingsFeature"
+  ],
+  "kinds": {
+    "shell_tool_settings.shell_tool_settings_feature.ShellToolSettingsFeature": "features"
+  }
+}

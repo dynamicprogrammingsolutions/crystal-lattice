@@ -163,11 +163,26 @@ No open questions remain for this subtask.
 ### Task checklist
 
 - [x] Resolve D1; mark plan Approved.
-- [ ] Drop model-based selection in the shell tools' `is_enabled`.
-- [ ] Plugin project + feature + UI element.
-- [ ] Tests (selection matrix, UI schema, override flow, /set handling).
-- [ ] Documentation.
-- [ ] Verification runs.
+- [x] Drop model-based selection in the shell tools' `is_enabled`.
+- [x] Plugin project + feature + UI element.
+- [x] Tests (selection matrix, UI schema, override flow, /set handling).
+- [x] Documentation.
+- [x] Verification runs.
+
+## Implementation Notes
+
+- 2026-10-10: executed as planned. The plugin is behavior-free — only the
+  `select` UI element; the codex-tools `is_enabled` rework carries the
+  selection semantics (`auto`/`exec_command` → unified exec for every
+  model; `shell_command`/`shell` explicit-mode only; no tag consultation).
+- The shell array hosted-API test (`test_shell_array_tool_with_standard_model`)
+  now needs the explicit `shell_tool_mode: "shell"` (auto no longer enables
+  the array tool); the legacy and shell_command API tests already carried
+  explicit modes/force-enabling.
+- Pyright: the new feature shows the same pre-existing
+  `reportIncompatibleMethodOverride` errors as the sibling
+  `codex_variant_feature.py` (4 errors, identical class) — codebase-wide
+  pattern, not introduced by this change.
 
 ### Requirement verification
 
@@ -192,3 +207,49 @@ No open questions remain for this subtask.
 - Manual smoke of the mobile session-settings chips against a local server
   (if a device/simulator is unavailable, verify via the schema/API layer
   and report as not run).
+
+## Completion Notes
+
+Completed 2026-10-10.
+
+**Outcome:** model-based shell tool selection is removed and
+`shell_tool_mode` is exposed as a per-session setting through a new opt-in
+plugin.
+
+- Selection (`codex-tools`): `auto`/missing/`exec_command` →
+  `exec_command` + `write_stdin` for every model (upstream parity);
+  `shell_command` and `shell` are explicit-mode only; no tool consults the
+  `codex-variant` tag anymore. `CodexVariantFeature` keeps emitting the
+  tag (informational); its docstring was updated.
+- New plugin `plugins/shell-tool-settings`: one behavior-free
+  `ShellToolSettingsFeature` contributing a `select` UI element
+  (`shell_tool_mode`, default `auto`, options auto/exec_command/
+  shell_command/shell with `{value, label}` shape accepted by both the
+  terminal `/set` matcher and the mobile settings chips). Not referenced
+  by the default config — the setting only exists for agents that load
+  the plugin.
+- Session revert flow verified end to end at the
+  `resolve_request_config` + `_resolve_plugins_for_config` boundary:
+  a session override flips the active shell tools from the next request
+  on; removing it restores the agent default; agent-level setting acts as
+  the default and a session override wins over it.
+
+**Requirement evidence:** 13 tests in
+`plugins/shell-tool-settings/tests/test_shell_tool_settings_feature.py`
+(element shape/options/default, schema present-with/absent-without the
+plugin, override flow incl. reset and agent-default precedence,
+model-agnostic default for gpt-6/gpt-5/gemini); updated codex-tools
+selection suites (auto-without-tag → unified exec, array tool
+explicit-mode-only, matrix tests).
+
+**Verification:** full codex-tools suite 238 passed / 40 key-gated skips
+(exit 0); key-gated suites with `OPENROUTER_API_KEY`: 37 passed (one
+stale assertion in `test_force_enabled_enables_legacy_tool` found and
+fixed, then the file plus the hosted-API file re-run: 32 passed, including
+the real-API `exec_command` round-trip on `openai/gpt-6-luna` and the
+array tool with its new explicit mode); ruff clean; the new plugin shows
+only the same pre-existing pyright override-pattern errors as sibling
+feature plugins.
+
+**Not run / deferred:** mobile session-settings chip smoke on a device
+(schema/API layer verified instead); Windows (030).

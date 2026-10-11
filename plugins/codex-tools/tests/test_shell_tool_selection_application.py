@@ -179,8 +179,8 @@ def test_exec_command_mode_forces_unified_exec_via_config(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.openrouter
-def test_non_codex_model_enables_shell_via_config(tmp_path):
-    """Test that plain gpt-5 stays on shell (array-based)."""
+def test_non_codex_model_enables_unified_exec_via_config(tmp_path):
+    """Test that plain gpt-5 also gets unified exec (model-agnostic default)."""
     if not OPENROUTER_API_KEY:
         pytest.skip("OPENROUTER_API_KEY not set")
 
@@ -210,8 +210,10 @@ def test_non_codex_model_enables_shell_via_config(tmp_path):
     tags = _get_tags(core, agent_config)
 
     assert "codex-variant" not in tags, "codex-variant tag should not be emitted for gpt-5"
-    assert "shell" in tool_names, "shell should be enabled for gpt-5"
-    assert "shell_command" not in tool_names, "shell_command should be disabled for gpt-5"
+    assert "exec_command" in tool_names, "exec_command should be enabled for gpt-5"
+    assert "write_stdin" in tool_names, "write_stdin should be enabled for gpt-5"
+    assert "shell" not in tool_names, "shell should be disabled in auto mode"
+    assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode"
 
 
 @pytest.mark.integration
@@ -407,9 +409,10 @@ def test_multiple_agents_different_selections_via_config(tmp_path):
     assert "shell_command" not in codex_tools
     assert "shell" not in codex_tools
 
-    # Standard agent should have shell
+    # Standard agent should also have unified exec (model-agnostic default)
     standard_core, standard_config, _ = app.create_session("standard-agent")
     standard_tools = _get_tool_names(standard_core, standard_config)
-    assert "shell" in standard_tools
+    assert "shell" not in standard_tools
     assert "shell_command" not in standard_tools
-    assert "exec_command" not in standard_tools
+    assert "exec_command" in standard_tools
+    assert "write_stdin" in standard_tools

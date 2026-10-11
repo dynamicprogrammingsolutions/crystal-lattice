@@ -66,8 +66,9 @@ class TestShellToolSelection:
         assert ShellTool.name == "shell_legacy"
         assert ShellTool.default_enabled is False
 
-    def test_auto_mode_without_codex_variant_enables_shell(self):
-        """In auto mode without codex-variant tag, shell (array) should be enabled."""
+    def test_auto_mode_without_codex_variant_enables_unified_exec(self):
+        """In auto mode without codex-variant tag, unified exec should be
+        enabled (model-agnostic default; no model-based selection)."""
         core = AgentCore()
         core.register_provider(MockProvider)
         _register_all_shell_tools(core)
@@ -77,10 +78,10 @@ class TestShellToolSelection:
         provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
         tool_names = [t.name for t in tools]
 
-        assert "shell" in tool_names, "shell should be enabled in auto mode without codex-variant"
-        assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode without codex-variant"
-        assert "exec_command" not in tool_names, "exec_command should be disabled without codex-variant"
-        assert "write_stdin" not in tool_names, "write_stdin should be disabled without codex-variant"
+        assert "shell" not in tool_names, "shell should be disabled in auto mode"
+        assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode"
+        assert "exec_command" in tool_names, "exec_command should be enabled in auto mode without codex-variant"
+        assert "write_stdin" in tool_names, "write_stdin should be enabled in auto mode without codex-variant"
 
     def test_auto_mode_with_codex_variant_enables_unified_exec(self):
         """In auto mode with codex-variant tag, unified exec should be enabled."""
@@ -302,10 +303,11 @@ class TestShellToolIsEnabled:
     """Tests for shell tool is_enabled method directly."""
 
     def test_shell_array_is_enabled_auto_without_codex(self):
-        """Shell array is_enabled returns True in auto mode without codex-variant."""
+        """Shell array is_enabled returns False in auto mode (unified exec is
+        the model-agnostic default)."""
         tool = ShellArrayTool()
         result = tool.is_enabled({"shell_tool_mode": "auto"}, [], [], {})
-        assert result is True
+        assert result is False
 
     def test_shell_array_is_enabled_auto_with_codex(self):
         """Shell array is_enabled returns False in auto mode with codex-variant."""
@@ -363,13 +365,13 @@ class TestShellToolIsEnabled:
         assert result is False
 
     def test_unified_exec_is_enabled_matrix(self):
-        """Unified exec is_enabled across the mode matrix."""
+        """Unified exec is_enabled across the mode matrix (model-agnostic)."""
         for tool in (ExecCommandTool(), WriteStdinTool()):
             assert tool.is_enabled({"shell_tool_mode": "exec_command"}, [], [], {}) is True
             assert tool.is_enabled({"shell_tool_mode": "auto"}, ["codex-variant"], [], {}) is True
             assert tool.is_enabled({}, ["codex-variant"], [], {}) is True
-            assert tool.is_enabled({"shell_tool_mode": "auto"}, [], [], {}) is False
-            assert tool.is_enabled({}, [], [], {}) is False
+            assert tool.is_enabled({"shell_tool_mode": "auto"}, [], [], {}) is True
+            assert tool.is_enabled({}, [], [], {}) is True
             assert tool.is_enabled({"shell_tool_mode": "shell"}, [], [], {}) is False
             assert tool.is_enabled({"shell_tool_mode": "shell_command"}, [], [], {}) is False
 
@@ -378,7 +380,7 @@ class TestAllShellToolsTogether:
     """Tests for all shell tools registered together."""
 
     def test_all_tools_registered_auto_without_codex(self):
-        """With all tools registered, auto mode without codex should enable shell only."""
+        """With all tools registered, auto mode without codex should enable unified exec only."""
         core = AgentCore()
         core.register_provider(MockProvider)
         _register_all_shell_tools(core)
@@ -389,10 +391,10 @@ class TestAllShellToolsTogether:
         provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
         tool_names = [t.name for t in tools]
 
-        assert "shell" in tool_names
+        assert "shell" not in tool_names
         assert "shell_command" not in tool_names
-        assert "exec_command" not in tool_names
-        assert "write_stdin" not in tool_names
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
         assert "shell_legacy" not in tool_names
 
     def test_all_tools_registered_auto_with_codex(self):

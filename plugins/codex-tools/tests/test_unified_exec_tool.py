@@ -708,10 +708,12 @@ class TestSelection:
         )
         assert tool.is_enabled({}, ["codex-variant"], [], {}) is True
 
-    def test_auto_mode_disabled_without_tag(self):
+    def test_auto_mode_enabled_without_tag(self):
+        """Unified exec is the model-agnostic default: ``auto`` enables it
+        regardless of tags (no model-based selection)."""
         tool = ExecCommandTool()
-        assert tool.is_enabled({"shell_tool_mode": "auto"}, [], [], {}) is False
-        assert tool.is_enabled({}, [], [], {}) is False
+        assert tool.is_enabled({"shell_tool_mode": "auto"}, [], [], {}) is True
+        assert tool.is_enabled({}, [], [], {}) is True
 
     def test_shell_and_shell_command_modes_disable_unified_exec(self):
         tool = ExecCommandTool()
@@ -727,11 +729,11 @@ class TestSelection:
         assert ExecCommandTool().get_tags({}, []) == ["shell:exec"]
         assert WriteStdinTool().get_tags({}, []) == ["shell:exec"]
 
-    def test_shell_command_tool_no_longer_auto_enables(self):
+    def test_shell_command_tool_is_explicit_mode_only(self):
         from codex_tools.shell_command_tool import ShellCommandTool
 
         tool = ShellCommandTool()
-        # auto mode: previously enabled with codex-variant; now unified exec
+        # auto mode (with or without the codex-variant tag) never enables it
         assert (
             tool.is_enabled(
                 {"shell_tool_mode": "auto"}, ["codex-variant"], [], {}
@@ -739,25 +741,21 @@ class TestSelection:
             is False
         )
         assert tool.is_enabled({}, ["codex-variant"], [], {}) is False
+        assert tool.is_enabled({}, [], [], {}) is False
         # explicit mode still forces it on
         assert (
             tool.is_enabled({"shell_tool_mode": "shell_command"}, [], [], {})
             is True
         )
-        assert (
-            tool.is_enabled({"shell_tool_mode": "shell_command"}, [], [], {})
-            is True
-        )
 
-    def test_shell_array_tool_modes(self):
+    def test_shell_array_tool_is_explicit_mode_only(self):
         from codex_tools.shell_tool import ShellArrayTool
 
         tool = ShellArrayTool()
         assert tool.is_enabled({"shell_tool_mode": "shell"}, [], [], {}) is True
-        assert tool.is_enabled({}, [], [], {}) is True  # auto, no tag
-        assert (
-            tool.is_enabled({}, ["codex-variant"], [], {}) is False
-        )  # auto with tag
+        # auto never enables the array tool any more, tagged or not
+        assert tool.is_enabled({}, [], [], {}) is False
+        assert tool.is_enabled({}, ["codex-variant"], [], {}) is False
         assert (
             tool.is_enabled({"shell_tool_mode": "shell_command"}, [], [], {})
             is False

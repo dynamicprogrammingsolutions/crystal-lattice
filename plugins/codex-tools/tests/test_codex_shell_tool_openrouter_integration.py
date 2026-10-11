@@ -59,12 +59,13 @@ def test_codex_variant_feature_with_standard_model(tmp_path):
     _, _, _, tools, tags = core._resolve_plugins_for_config(config)
     assert "codex-variant" not in tags, "codex-variant tag should not be emitted for non-codex model"
 
-    # Verify shell is enabled and the other shell tools are disabled
+    # Verify unified exec is enabled (model-agnostic default) and legacy
+    # shell tools are disabled
     tool_names = [t.name for t in tools]
-    assert "shell" in tool_names, "shell should be enabled for non-codex model"
-    assert "shell_command" not in tool_names, "shell_command should be disabled for non-codex model"
-    assert "exec_command" not in tool_names, "exec_command should be disabled for non-codex model"
-    assert "write_stdin" not in tool_names, "write_stdin should be disabled for non-codex model"
+    assert "shell" not in tool_names, "shell should be disabled in auto mode"
+    assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode"
+    assert "exec_command" in tool_names, "exec_command should be enabled for non-codex model"
+    assert "write_stdin" in tool_names, "write_stdin should be enabled for non-codex model"
 
 
 @pytest.mark.integration

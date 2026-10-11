@@ -457,17 +457,12 @@ class _UnifiedExecToolBase(BaseCodexShellTool):
 
     # -- selection -----------------------------------------------------------
 
-    def _is_unified_exec_enabled(
-        self,
-        config: Dict[str, Any],
-        tags: List[str],
-    ) -> bool:
+    def _is_unified_exec_enabled(self, config: Dict[str, Any]) -> bool:
+        """Unified exec is the default surface: enabled under ``auto``
+        (the default, for every model) and the explicit
+        ``exec_command`` mode."""
         mode = config.get("shell_tool_mode", "auto")
-        if mode == "exec_command":
-            return True
-        if mode == "auto":
-            return "codex-variant" in tags
-        return False
+        return mode in ("auto", "exec_command")
 
 
 class ExecCommandTool(_UnifiedExecToolBase):
@@ -475,9 +470,9 @@ class ExecCommandTool(_UnifiedExecToolBase):
 
     Tool name: exec_command
 
-    Selected for the shell-command model family (gpt-5.1+, gpt-6.x, codex
-    variants) via ``shell_tool_mode: "auto"`` and for any agent via the
-    explicit ``shell_tool_mode: "exec_command"``.
+    The default shell surface: enabled under ``shell_tool_mode: "auto"``
+    (the default, for every model — matching current upstream Codex) and
+    the explicit ``shell_tool_mode: "exec_command"``.
     """
 
     name: str = "exec_command"
@@ -496,9 +491,9 @@ class ExecCommandTool(_UnifiedExecToolBase):
         models: List[Dict[str, Any]],
         context: Dict[str, Any],
     ) -> bool:
-        """Enable under ``exec_command`` mode; under ``auto`` for the
-        shell-command family (codex-variant tag)."""
-        return self._is_unified_exec_enabled(config, tags)
+        """Enable under ``auto`` (default, all models) and ``exec_command``
+        modes."""
+        return self._is_unified_exec_enabled(config)
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schema matching Codex CLI exec_command."""
@@ -747,7 +742,7 @@ class WriteStdinTool(_UnifiedExecToolBase):
         context: Dict[str, Any],
     ) -> bool:
         """Enabled together with exec_command."""
-        return self._is_unified_exec_enabled(config, tags)
+        return self._is_unified_exec_enabled(config)
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schema matching Codex CLI write_stdin."""

@@ -22,8 +22,8 @@ with its exit code or a `session_id` for a still-running process.
   reject them with the upstream error text. Idle sessions are reaped after
   `unified_exec_session_ttl_seconds` (default 900) and concurrent sessions
   are capped at `unified_exec_max_sessions` (default 8).
-- **Models**: Shell-command GPT family (`gpt-5.1+`, `gpt-6.x`, codex
-  variants, Sol/Terra/Luna/Astra) via `auto`; any agent via
+- **Models**: Every model — the default surface under `auto` (matching
+  current upstream Codex); also explicit via
   `shell_tool_mode: "exec_command"`
 - **Platform divergence**: Upstream approval parameters
   (`sandbox_permissions`, `justification`, `prefix_rule`,
@@ -40,10 +40,9 @@ Execute shell commands using array-style arguments passed directly to execvp.
 - **Parameters**: `command` (array, required), `workdir` (string), `timeout_ms` (number)
 - **Command format**: Array of strings (e.g., `["bash", "-lc", "echo hello"]`)
 - **Execution**: Direct execvp (no shell wrapper)
-- **Models**: Baseline GPT-5 shell family (`gpt-5`, `gpt-5-mini`)
-- **Selection**: Auto-selected when `codex-variant` tag is absent; forced via
-  `shell_tool_mode: "shell"`. Historical upstream tool (removed upstream
-  2026-05-13).
+- **Models**: Any (legacy tool; historically the baseline GPT-5 family)
+- **Selection**: Explicit `shell_tool_mode: "shell"` only. Historical
+  upstream tool (removed upstream 2026-05-13).
 
 ### Shell Command (String-based)
 Execute shell scripts using the user's default shell.
@@ -103,7 +102,9 @@ Emits the `codex-variant` tag when the model belongs to the shell-command family
 - **Plugin name**: `codex_variant`
 - **Tag emitted**: `codex-variant` (for `*-codex` models and `gpt-5.4` and
   later plain, minified, Sol, Terra, Luna, and Astra GPT models)
-- **Purpose**: Enables automatic shell tool selection based on model type
+- **Purpose**: Informational tag for plugins and tooling that consume it.
+  It no longer drives shell tool selection — the shell surface is
+  model-agnostic (see below).
 
 ### CodexSkillsFeature
 Discovers explicit skill roots, renders the upstream Codex available-skills
@@ -117,32 +118,39 @@ developer block, and supports manual skill activation by mention.
 
 ## Shell Tool Selection
 
-Tools are automatically selected based on:
+Selection is **model-agnostic**: there is no model-based routing, and the
+default (`auto`) gives every model the unified exec surface — matching
+current upstream Codex CLI. The `shell_tool_mode` config key is the single
+knob:
 
 | Condition | Tool Enabled |
 |-----------|-------------|
-| `gpt-5` and `gpt-5-mini` (auto mode) | `shell` |
-| `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named GPT-5.6/GPT-6 variants, and later GPT families (auto mode) | `exec_command` + `write_stdin` |
-| `shell_tool_mode: "shell"` | `shell` (forced) |
-| `shell_tool_mode: "shell_command"` | `shell_command` (forced) |
-| `shell_tool_mode: "exec_command"` | `exec_command` + `write_stdin` (forced) |
+| `shell_tool_mode: "auto"` (default) or `"exec_command"` | `exec_command` + `write_stdin` — for every model |
+| `shell_tool_mode: "shell"` | `shell` (legacy opt-in) |
+| `shell_tool_mode: "shell_command"` | `shell_command` (legacy opt-in) |
+| any other value | no shell tool |
 
 ### Selection Logic
 
 ```
-shell_tool_mode = "auto" (default)
-├── codex-variant tag present -> exec_command + write_stdin enabled
-└── codex-variant tag absent -> shell enabled
+shell_tool_mode = "auto" (default) or "exec_command"
+└── exec_command + write_stdin enabled (every model)
 
 shell_tool_mode = "shell"
 └── shell forced on, other shell tools forced off
 
 shell_tool_mode = "shell_command"
 └── shell_command forced on, other shell tools forced off
-
-shell_tool_mode = "exec_command"
-└── exec_command + write_stdin forced on, other shell tools forced off
 ```
+
+### Per-session switching
+
+`shell_tool_mode` can also be set per session as a session override (taking
+effect on the next request in that session, no restart) — e.g. to revert an
+existing session to the legacy `shell_command` tool. The opt-in
+`plugins/shell-tool-settings` plugin exposes the key in the session
+settings UI (terminal `/set shell_tool_mode <mode>` and the mobile/desktop
+settings); see its README.
 
 ## Configuration
 
@@ -209,15 +217,19 @@ shell_tool_mode = "exec_command"
 
 ## Codex-Specific Behavior Notes
 
-1. **Two shell tool variants**: Array-based (`shell`) and string-based (`shell_command`)
-2. **Automatic selection**: Based on `codex-variant` tag from model-family detection
-3. **Model detection**: `CodexVariantFeature` keeps `gpt-5` and `gpt-5-mini`
-   on `shell`, and routes `gpt-5.1`, `gpt-5.2`, `*-codex`, `gpt-5.4`, named
-   GPT-5.6/GPT-6 variants, and later GPT families to `shell_command`
+1. **Shell tool variants**: Unified exec (`exec_command` + `write_stdin`,
+   the default), string-based (`shell_command`), and array-based (`shell`)
+2. **Model-agnostic selection**: `shell_tool_mode` is the single knob;
+   `auto` (the default) gives every model the unified exec surface,
+   matching current upstream Codex
+3. **Model detection**: `CodexVariantFeature` still emits the
+   `codex-variant` tag for shell-command-family models, but the tag is
+   informational only and no longer drives shell tool selection
 4. **Workdir semantics**: Missing or empty `workdir` falls back to the effective turn cwd, and relative `workdir` values are resolved against that cwd before execution
 5. **Apply patch fallback**: If `apply_patch` is disabled with `disabled_plugins`, shell tools can still route `apply_patch` heredocs internally when `intercept_apply_patch` is enabled
 6. **Legacy tool**: Disabled by default, enable via `enabled_plugins`
-7. **Config override**: `shell_tool_mode` forces specific tool regardless of model
+7. **Session override**: `shell_tool_mode` can be set per session (see
+   Per-session switching above, and the `shell-tool-settings` plugin)
 8. **Skills developer block**: Uses the upstream Codex wording for the available-skills instructions section
 9. **Skills activation**: Explicit mentions such as `$skillname` inject the selected `SKILL.md` into the request as a synthetic user message
 

@@ -78,8 +78,9 @@ class TestShellToolSelectionWithOpenRouter:
         assert "write_stdin" in tool_names, "write_stdin should be enabled for codex model"
         assert "shell_legacy" not in tool_names, "shell_legacy should be disabled by default"
 
-    def test_non_codex_model_enables_shell_auto_mode(self):
-        """Non-codex model should enable shell (array) in auto mode."""
+    def test_non_codex_model_enables_unified_exec_auto_mode(self):
+        """Non-codex model should also get unified exec in auto mode
+        (model-agnostic default; no model-based selection)."""
         core = self._create_core_with_plugins()
         config = self._make_config(model="openai/gpt-5")
 
@@ -87,10 +88,10 @@ class TestShellToolSelectionWithOpenRouter:
         tool_names = [t.name for t in tools]
 
         assert "codex-variant" not in tags, "codex-variant tag should not be emitted for non-codex model"
-        assert "shell" in tool_names, "shell should be enabled for non-codex model"
-        assert "shell_command" not in tool_names, "shell_command should be disabled for non-codex model"
-        assert "exec_command" not in tool_names, "exec_command should be disabled for non-codex model"
-        assert "write_stdin" not in tool_names, "write_stdin should be disabled for non-codex model"
+        assert "shell" not in tool_names, "shell should be disabled in auto mode"
+        assert "shell_command" not in tool_names, "shell_command should be disabled in auto mode"
+        assert "exec_command" in tool_names, "exec_command should be enabled for non-codex model"
+        assert "write_stdin" in tool_names, "write_stdin should be enabled for non-codex model"
 
     @pytest.mark.parametrize("model", ["openai/gpt-5.1", "openai/gpt-5.2", "openai/gpt-5.4"])
     def test_shell_command_family_plain_models_enable_unified_exec(self, model):
@@ -224,11 +225,11 @@ class TestShellToolSelectionWithOpenRouter:
         provider, exts, feats, tools, tags = core._resolve_plugins_for_config(config)
         tool_names = [t.name for t in tools]
 
-        assert "shell" in tool_names, "shell should be enabled for non-codex model"
+        assert "exec_command" in tool_names, "auto mode should enable unified exec"
         assert "shell_legacy" in tool_names, "force_enabled should enable legacy tool"
 
-    def test_gemini_model_enables_shell(self):
-        """Non-codex model (gemini) should enable shell."""
+    def test_gemini_model_enables_unified_exec(self):
+        """Non-codex model (gemini) should also get unified exec."""
         core = self._create_core_with_plugins()
         config = self._make_config(model="google/gemini-2.5-flash")
 
@@ -236,10 +237,10 @@ class TestShellToolSelectionWithOpenRouter:
         tool_names = [t.name for t in tools]
 
         assert "codex-variant" not in tags
-        assert "shell" in tool_names
+        assert "shell" not in tool_names
         assert "shell_command" not in tool_names
-        assert "exec_command" not in tool_names
-        assert "write_stdin" not in tool_names
+        assert "exec_command" in tool_names
+        assert "write_stdin" in tool_names
 
 
 class TestCodexVariantFeature:
