@@ -1,9 +1,62 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agent_core.types import ToolPlugin
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
+
+
+class ModelCatalogProvider(EchoOpenAILikeProvider):
+    name = "model_catalog_fixture"
+    version = "0.1.0"
+
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        print("Model catalog discovery diagnostic")
+        return config.get("fixture_models", [])
+
+    def call_api(self, *args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Model discovery must not send an inference request")
+
+    def stream_api(self, *args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Model discovery must not send an inference request")
+
+
+def write_model_catalog_config(path: Path) -> Path:
+    """Shared SDK/CLI fixture with agent-specific model lists and rich metadata."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    config = {
+        "plugins": ["headless_runtime_plugins.ModelCatalogProvider"],
+        "providers": {
+            "catalog": {
+                "provider": "model_catalog_fixture",
+                "model": "default-model",
+                "api_key": "must-not-appear-in-model-output",
+            }
+        },
+        "agents": {
+            "alpha": {
+                "provider": "catalog",
+                "fixture_models": [
+                    {
+                        "id": "model-z",
+                        "name": "Model Z",
+                        "description": "Fast\tmodel\nfor reviews",
+                        "capabilities": {"reasoning": True},
+                    },
+                    {"id": "model-a"},
+                ],
+            },
+            "beta": {
+                "provider": "catalog",
+                "fixture_models": [{"id": "beta-model", "name": "Beta"}],
+            },
+            "empty": {"provider": "catalog", "fixture_models": []},
+        },
+    }
+    path.write_text(json.dumps(config), encoding="utf-8")
+    return path
 
 
 class DateSessionFilterAppPlugin:

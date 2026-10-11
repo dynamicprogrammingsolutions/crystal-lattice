@@ -393,6 +393,8 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
                 enabled.count(f"Active session root: `{full_sessions.resolve()}`") == 1
             )
             assert "from agent_terminal_app import open_runtime" in enabled
+            assert 'models --agent "<agent-id>" --format json' in enabled
+            assert 'runtime.list_models(agent_id="<agent-id>")' in enabled
             assert "Task Files and Subtasks" not in enabled
             assert "must-not-appear" not in enabled
     finally:
@@ -425,5 +427,7 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
             assert "# Crystal Lattice Access (CLI and Python SDK)" not in enabled
             assert enabled.count("# Delegating work through Crystal Lattice") == 1
             assert "from agent_terminal_app import open_runtime" not in enabled
+            assert 'models --agent "<agent-id>" --format json' in enabled
+            assert "runtime.list_models" not in enabled
     finally:
         cli_app.close()

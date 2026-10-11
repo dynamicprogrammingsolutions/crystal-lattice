@@ -1553,6 +1553,20 @@ class AgentCore:
 
     # Model and tag result normalization is handled by plugin adapters.
 
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Discover models through the configured provider, extensions, and features.
+
+        Uses the same normalized descriptors and model-discovery cache as the
+        UI and request pipeline. Each descriptor contains a non-empty ``id``;
+        plugin-defined order and additional metadata are preserved. Plugins
+        may perform catalog I/O, but this method does not send an inference
+        request or create a session.
+        """
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        provider = self._select_provider_for_config(config)
+        return self._get_models_for_config(provider, config)
+
     def _get_models_for_config(
         self,
         provider: ProviderWrapper,

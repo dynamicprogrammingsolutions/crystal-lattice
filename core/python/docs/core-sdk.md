@@ -69,6 +69,27 @@ core = AgentCore()
 
 ### Methods
 
+#### get_models
+
+```python
+get_models(config: Dict[str, Any]) -> List[Dict[str, Any]]
+```
+
+Discover models through the configured provider and registered extension and
+feature hooks, using the same normalization and cache as the UI and request
+pipeline. Descriptors contain a non-empty `id`; plugin-defined order and
+additional metadata are preserved. Plugins may fetch a catalog internally,
+but this method does not create a session or send an inference request.
+
+```python
+models = core.get_models({"provider": "configured-provider", "model": "default-model"})
+for model in models:
+    print(model["id"], model.get("name", ""))
+```
+
+For discovery through a configured Crystal Lattice agent, use the
+[local runtime's `list_models`](../../../application/python/docs/headless-agent-runs.md#discover-available-models).
+
 #### register_provider
 
 ```python

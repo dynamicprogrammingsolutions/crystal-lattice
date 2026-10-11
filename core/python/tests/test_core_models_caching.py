@@ -31,6 +31,34 @@ class ModelTransformFeature:
         return [{**model, "feature": "transformed"} for model in models]
 
 
+class ModelTransformExtension:
+    name = "model_transform_extension"
+    version = "1.0.0"
+
+    def get_models(self, config, models):
+        return [{**model, "extension": "contributed"} for model in models]
+
+
+def test_public_get_models_preserves_plugin_contributions_and_cache():
+    core = AgentCore()
+    core.register_provider(MockProvider, extensions=[ModelTransformExtension])
+    core.register_feature(ModelTransformFeature)
+    MockProvider.get_models_call_count = 0
+    config = {"provider": "mock_provider", "model": "public-model"}
+    models = core.get_models(config)
+    assert models == [
+        {
+            "id": "public-model",
+            "extension": "contributed",
+            "feature": "transformed",
+        }
+    ]
+    assert core.get_models(config) == models
+    assert MockProvider.get_models_call_count == 1
+    assert core.get_models({**config, "model": "other-model"})[0]["id"] == "other-model"
+    assert MockProvider.get_models_call_count == 2
+
+
 def test_get_models_caching():
     core = AgentCore()
     MockProvider.get_models_call_count = 0

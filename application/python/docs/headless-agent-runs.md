@@ -56,6 +56,60 @@ crystal-lattice \
   agents
 ```
 
+## Discover available models
+
+Select a configured agent to discover models through its provider, extensions,
+and features:
+
+```bash
+crystal-lattice models --agent codex-openai --format json
+```
+
+JSON preserves complete plugin-provided descriptors and their order:
+
+```json
+{
+  "agent_id": "codex-openai",
+  "models": [
+    {
+      "id": "gpt-6-luna",
+      "name": "GPT-6-Luna",
+      "description": "Fast and affordable model for easier tasks."
+    }
+  ]
+}
+```
+
+Each descriptor has a non-empty `id`. `name`, `description`, and additional
+metadata depend on the plugins. The example shows one possible catalog entry;
+the command returns the selected agent's discovered catalog.
+
+The default text format prints tab-separated ID, name, and description, with
+one model per line and empty columns for absent display fields. Tabs and
+newlines inside fields become spaces. For example:
+
+```bash
+crystal-lattice models --agent codex-openai | grep -i luna
+```
+
+Python callers use the same discovery path:
+
+```python
+from agent_terminal_app import open_runtime
+
+with open_runtime() as runtime:
+    models = runtime.list_models(agent_id="codex-openai")
+    for model in models:
+        print(model["id"], model.get("description", ""))
+```
+
+Discovery uses the agent's effective configured defaults and the existing
+model cache. Plugins may fetch catalogs internally. The call does not create
+a session or send an inference request. An empty tuple in Python, or
+`"models": []` in JSON, follows the existing plugin contract when no models
+are returned; it does not prove that the provider cannot run a manually
+specified model.
+
 ## Python first run
 
 The public local API is provided by the `crystal-lattice-cli` distribution's

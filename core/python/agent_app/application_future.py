@@ -3051,6 +3051,27 @@ class AgentApplication:
         descriptors.sort(key=lambda item: (item[0], item[1], item[2]["id"]))
         return [descriptor for _order, _index, descriptor in descriptors]
 
+    def list_agent_models(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Discover models using a configured agent's effective plugin setup.
+
+        Preserves the provider/extension/feature discovery contract and shared
+        application cache without creating a session or sending an inference
+        request.
+        """
+        if not isinstance(agent_id, str) or not agent_id:
+            raise ValueError("agent_id must be a non-empty string")
+        if agent_id not in self._agent_base_configs:
+            raise KeyError(f"Unknown agent_id {agent_id!r}")
+        base_config = self._get_agent_base_config(agent_id)
+        plugin_runtime = self._get_agent_plugin_runtime(agent_id)
+        effective_config = resolve_request_config(base_config, None)
+        core = self._build_core_with_enabled_ids(
+            self._agent_plugin_ids.get(agent_id),
+            selected_provider_config=effective_config,
+            plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
+        )
+        return core.get_models(effective_config)
+
     def describe_agent_run(self, agent_id: str) -> Dict[str, Any]:
         """Return safe effective defaults and configurable fields for one agent."""
 

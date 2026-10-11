@@ -1,8 +1,9 @@
 """Credential-free evidence from the production provider and session store.
 
 The observers forward every call and streamed event to/from the real implementation.
-Only bounded user prompts, instruction fingerprints, final answer text, model names,
-and session-write identities are recorded; credentials and reasoning are omitted.
+Only bounded user prompts, instruction fingerprints, final answer text, model
+descriptors, and session-write identities are recorded; credentials and reasoning
+are omitted.
 """
 
 from __future__ import annotations
@@ -65,6 +66,9 @@ class _ResponsesCreateObserver:
             instructions_length=len(instructions),
             instructions_start=instructions[:200],
             has_parent_guidance=PARENT_GUIDANCE in instructions,
+            has_model_discovery_guidance=(
+                "models --agent" in instructions and "runtime.list_models" in instructions
+            ),
         )
         return self._target.create(**kwargs)
 
@@ -94,6 +98,7 @@ class _ClientObserver:
 
 def install_observers() -> None:
     from agent_app.sessions import FilesystemSessionStore
+    from agent_terminal_app.local_runtime import LocalAgentRuntime
     from openai_responses_plugins.openai_responses_provider import (
         OpenAIResponsesProvider,
     )
@@ -104,6 +109,24 @@ def install_observers() -> None:
     stream_api = OpenAIResponsesProvider.stream_api
     save_session = FilesystemSessionStore.save
     create_snapshot = FilesystemSessionStore.create_snapshot
+    list_models = LocalAgentRuntime.list_models
+
+    @functools.wraps(list_models)
+    def observed_models(self: Any, agent_id: str) -> Any:
+        models = list_models(self, agent_id)
+        _record(
+            "model_discovery",
+            agent_id=agent_id,
+            models=[
+                {
+                    key: model[key]
+                    for key in ("id", "name", "description")
+                    if key in model
+                }
+                for model in models
+            ],
+        )
+        return models
 
     @functools.wraps(create_client)
     def observed_client(self: Any, *args: Any, **kwargs: Any) -> Any:
@@ -167,6 +190,7 @@ def install_observers() -> None:
     OpenAIResponsesProvider.stream_api = observed_stream
     FilesystemSessionStore.save = observed_save
     FilesystemSessionStore.create_snapshot = observed_snapshot
+    LocalAgentRuntime.list_models = observed_models
 
 
 class DelegationEvidenceAppPlugin:

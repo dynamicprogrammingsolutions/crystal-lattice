@@ -6,8 +6,12 @@ requirements are implemented and verified.
 
 ## Ownership
 
+`core/python/agent_core` owns the public configured-model discovery wrapper
+over the existing plugin hooks, descriptor normalization, and cache.
+
 `core/python/agent_app` owns:
 
+- model discovery through a selected agent's effective configuration;
 - atomic synchronous message admission and request execution;
 - raw public event observation during coordinated execution;
 - request outcome classification;
@@ -106,6 +110,23 @@ The ID result is deterministic. Detailed descriptors add display metadata,
 provider route/plugin identity, safe effective model/reasoning values, and the
 flattened plugin config schema. Discovery does not inspect provider
 credentials or make an API request.
+
+### Model discovery
+
+```python
+runtime.list_models(agent_id: str) -> tuple[Mapping[str, Any], ...]
+```
+
+The application resolves the selected agent's effective configured defaults
+and enabled plugin catalog, builds a core sharing the application model cache,
+and calls public `AgentCore.get_models(config)`. This delegates to the existing
+provider, extension, and feature discovery pipeline.
+
+Every descriptor retains a non-empty `id` and all additional plugin metadata,
+in plugin-defined order. The convenience method does not create or save a
+session or send an inference request. Catalog discovery retains existing
+plugin I/O, failure, empty-result, and cache behavior; it does not introduce
+an offline mode or another catalog source.
 
 ### Running a task
 
@@ -371,7 +392,8 @@ cursor.
 ## CLI contract
 
 The existing top-level parser retains global runtime flags before its command
-name. Built-in commands reserve `agents`, `run`, and `history`.
+name. Built-in commands reserve `agents`, `models`, `run`, and `history`,
+alongside the session-query commands defined in their owning specification.
 
 ### `agents`
 
@@ -387,6 +409,22 @@ Text prints one agent ID per line. JSON prints:
 
 With `--details`, JSON also includes `agent_descriptors`; text emits
 tab-separated ID, provider route, model, and reasoning effort.
+
+### `models`
+
+```text
+crystal-lattice [global options] models --agent ID [--format text|json]
+```
+
+The agent selector is required. The command delegates to
+`runtime.list_models(agent_id)`. JSON prints one document containing
+`agent_id` and the complete `models` array. Default text prints tab-separated
+ID, name, and description with one model per line. Missing display fields
+produce empty columns; embedded tabs and newlines become spaces.
+
+Initialization, plugin diagnostics, and logs go to stderr. Empty catalogs
+are successful empty results under the existing plugin contract. Invalid or
+unknown agent selectors use the existing usage-error behavior.
 
 ### `run`
 
@@ -583,7 +621,7 @@ prior compiled prompt after surrounding trailing whitespace is stripped.
 The full bounded section:
 
 - identifies the authoritative CLI command;
-- shows agent discovery, initial run, follow-up, and compact-history forms;
+- shows agent and model discovery, initial run, follow-up, and compact-history forms;
 - identifies the general interpreter and `agent_terminal_app` import;
 - provides a complete `open_runtime(config_path=..., session_root=...)`
   example;
@@ -706,6 +744,24 @@ Set `CHATGPT_CREDENTIALS` to select another saved login; otherwise the test uses
 `~/.crystal/auth/chatgpt-auth.json`. The review fixture, isolated config, parent
 session, bounded delegation evidence, and stderr log live under pytest's
 temporary directory.
+
+A separate model-discovery scenario gives the same real `gpt-5.6-luna`
+parent a short request to discover the available models and identify Luna
+models. The prompt contains no command or SDK recipe. A forwarding observer
+on `LocalAgentRuntime.list_models` records the discovered public model fields,
+proving that a production tool used the advertised CLI or SDK surface. The
+final answer must contain the discovered Luna IDs, and enumeration must not
+create additional sessions.
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENAI_MODEL_DISCOVERY_E2E=1 \
+PYTHONPATH="$PWD/core/python:$PWD/application/python" \
+pytest application/python/tests/test_crystal_lattice_access_openai_api.py::test_luna_parent_discovers_models_from_access_guidance \
+  -m "integration and api and openai" -q -s
+```
+
+It uses the same saved-login prerequisite and explicit-gate failure behavior
+as the review scenario.
 
 ### Native installation and model-mediated acceptance
 
