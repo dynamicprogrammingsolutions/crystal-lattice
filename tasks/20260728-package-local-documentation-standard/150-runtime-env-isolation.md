@@ -143,6 +143,40 @@ Status: Approved (user directed execution start on October 10, 2026)
   `isolated=True`, re-run a mixed-agent slice without
   `--max-concurrent`, (5) remove the cap requirement from docs.
 
+- October 11, 2026 (implementation landed, commit `7ae24039`):
+  kernel extension — environments may expose `isolated_execute`
+  (detected via getattr; `IsolatedExecutionOutcome` in
+  `agent_eval.environment`) running the whole open → program →
+  snapshot → finalize lifecycle in a forked worker
+  (`crystal_lattice/isolated.py`); evidence is drained from the
+  worker journal and merged into the parent's; snapshots cross as
+  bytes via serialize/deserialize; worker failures arrive as
+  phase-labeled RunErrors, worker death as `IsolatedWorkerDied`
+  captured under `environment.isolated_execute`. Worker hygiene:
+  fresh journal/services (no inherited locks), inherited fd close
+  except the report pipe, pre-fork `gc.collect()` (SQLite
+  descriptors), SIGINT ignored, logging disabled,
+  `RuntimeEnvOverlay._managed` cleared in-child, `os._exit` (no
+  parent atexit). Three fork-safety hazards found and fixed on
+  macOS: (1) SQLite `os_signpost` crash in forked children once the
+  PARENT ever opened sqlite — evaluation configs now set
+  `application.cached_background_session_list.persistent_cache_enabled:
+  false` (the session-list cache is the runtime's only SQLite user;
+  no evaluation program lists sessions; one-time env-fingerprint
+  cache rotation); (2) ObjC `+initialize` fork abort under
+  concurrent sibling threads — the task-guidance runner re-execs
+  itself once with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`
+  (libobjc reads it only at process start); (3) `--max-concurrent`
+  removed from the live-slice invocation. Task-guidance harnesses
+  flipped to `isolated=True`. Deterministic tests:
+  `tests/test_isolated_crystal_runtime.py` (full kernel path with
+  cache replay + evidence merge + artifacts; two concurrent
+  isolated siblings with different config roots whose INLINE
+  control raises the overlay conflict; worker failure capture).
+  Live verification `d-iso-tg01-r4` (uncapped, mixed-agent,
+  planning + from-plan, tg01) in flight — first cases green
+  including a cross-model continuation in a worker.
+
 ### Implementation decisions and open questions
 
 - None beyond the open requirement question above; no implementation
@@ -156,9 +190,9 @@ Status: Approved (user directed execution start on October 10, 2026)
 
 ### Task checklist
 
-- [ ] Inventory overlay-key consumers across the runtime and plugins
-- [ ] Present isolation options; user decides the approach
-- [ ] Implement chosen isolation approach
+- [x] Inventory overlay-key consumers across the runtime and plugins
+- [x] Present isolation options; user decides the approach
+- [x] Implement chosen isolation approach
 - [ ] Concurrent mixed-agent verification run
 - [ ] Update concurrency guidance and related docs
 
