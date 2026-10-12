@@ -112,6 +112,11 @@ keyboard avoidance on Android's fullscreen activity. Dragging the transcript als
 dismisses the keyboard. The normal composer keeps its bounded input height
 when editing long messages.
 
+The inline iOS keyboard offset uses the measured chat viewport position in the
+window, including the app's top safe area and navigation padding. The device's
+top safe-area inset supplies the initial offset before measurement. A zero
+offset inside the app's safe-area wrapper underestimates keyboard overlap.
+
 While the keyboard is visible, the inline composer uses a compact input and
 keeps its actions in the overflow menu. Edit context shares that toolbar row.
 Hiding the keyboard restores the pinned controls and ordinary attachment
@@ -157,5 +162,7 @@ npx detox test -c android.emu.e2e e2e/chatOperations.e2e.test.ts --cleanup
 The suite uses the largest current typography preset, actual transcript
 gestures, keyboard controls, and native frame measurements. It verifies that
 the transcript retains at least 30% of the usable chat height and that status
-and recovery stay above it. Continuous production polling requires explicit
-bounded UI readiness checks with Detox synchronization disabled.
+and recovery stay above it. Its connected harness includes the app's top
+safe-area wrapper, and iOS checks that both the input and the complete composer
+remain above the visible native keyboard. Continuous production polling requires
+explicit bounded UI readiness checks with Detox synchronization disabled.

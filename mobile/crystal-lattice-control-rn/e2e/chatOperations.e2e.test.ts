@@ -171,13 +171,28 @@ async function openSession() {
     .withTimeout(15_000);
 }
 
-async function hideKeyboard() {
-  if (device.getPlatform() === "android") {
-    await element(by.id("message-composer-input")).tap();
+async function focusComposer() {
+  try {
+    await detoxExpect(element(by.id("composer-dismiss-keyboard"))).toBeVisible();
+    return;
+  } catch {
+    await waitForStableFrame("message-composer-input");
   }
-  await waitFor(element(by.id("composer-dismiss-keyboard")))
-    .toBeVisible()
-    .withTimeout(10_000);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await element(by.id("message-composer-input")).tap({ x: 12, y: 20 });
+    try {
+      await waitFor(element(by.id("composer-dismiss-keyboard")))
+        .toBeVisible()
+        .withTimeout(5000);
+      return;
+    } catch (error) {
+      if (attempt === 1) throw error;
+    }
+  }
+}
+
+async function hideKeyboard() {
+  await focusComposer();
   await waitForStableFrame("composer-dismiss-keyboard");
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await element(by.id("composer-dismiss-keyboard")).tap();
@@ -201,10 +216,7 @@ async function replaceComposerText(text: string) {
   await waitForStableFrame("message-composer-input");
   const existing: any = await input.getAttributes();
   if (existing.text || existing.value) await input.clearText();
-  await input.tap({ x: 12, y: 20 });
-  await waitFor(element(by.id("composer-dismiss-keyboard")))
-    .toBeVisible()
-    .withTimeout(10_000);
+  await focusComposer();
   await waitForStableFrame("composer-dismiss-keyboard");
   await input.typeText(text);
 }
@@ -241,12 +253,33 @@ async function assertGeometry(withStatus = false) {
   }
 }
 
+async function assertComposerAboveKeyboard() {
+  if (device.getPlatform() === "ios") {
+    const keyboard = element(by.type("UIInputSetHostView"));
+    await waitFor(keyboard).toExist().withTimeout(10_000);
+    const attributes: any = await keyboard.getAttributes();
+    const keyboardHost = (attributes.elements ?? [attributes]).find(
+      (entry: any) => entry.className === "UIInputSetHostView" && entry.visible
+    );
+    if (!keyboardHost) {
+      throw new Error(`No visible keyboard host: ${JSON.stringify(attributes)}`);
+    }
+    const keyboardFrame = frame(keyboardHost);
+    const composer = frame(
+      await element(by.id("chat-composer")).getAttributes()
+    );
+    const input = frame(
+      await element(by.id("message-composer-input")).getAttributes()
+    );
+    jestExpect(input.y + input.height).toBeLessThanOrEqual(keyboardFrame.y + 1);
+    jestExpect(composer.y + composer.height).toBeLessThanOrEqual(keyboardFrame.y + 1);
+  }
+}
+
 async function assertScrollAndHideKeyboard(withStatus = false) {
-  await element(by.id("message-composer-input")).tap();
-  await waitFor(element(by.id("composer-dismiss-keyboard")))
-    .toBeVisible()
-    .withTimeout(10_000);
+  await focusComposer();
   await assertGeometry(withStatus);
+  await assertComposerAboveKeyboard();
   await hideKeyboard();
   await assertScroll(withStatus);
 }
@@ -304,6 +337,33 @@ describe("chat operations through production UI and HTTP", () => {
   afterAll(async () => {
     await proxy?.stop();
     await started?.server.stop();
+  });
+
+  it("keeps ordinary and edit composers above the software keyboard", async () => {
+    await openSession();
+    await focusComposer();
+    await assertGeometry();
+    await assertComposerAboveKeyboard();
+    await device.takeScreenshot("ordinary-composer-above-keyboard");
+    await hideKeyboard();
+    await waitFor(element(by.id("transcript-scroll-to-top")))
+      .toBeVisible()
+      .withTimeout(10_000);
+    await element(by.id("transcript-scroll-to-top")).tap();
+    await waitFor(element(by.id("transcript-message-0")))
+      .toBeVisible()
+      .withTimeout(15_000);
+    await element(
+      by.id("message-action-modify").withAncestor(by.id("transcript-message-0"))
+    ).tap();
+    await waitFor(element(by.id("composer-edit-label")))
+      .toHaveText("Editing message [0]")
+      .withTimeout(10_000);
+    await focusComposer();
+    await assertGeometry();
+    await assertComposerAboveKeyboard();
+    await device.takeScreenshot("edit-composer-above-keyboard");
+    await hideKeyboard();
   });
 
   it("shows request progress, permits scrolling, and clears progress after tab return", async () => {

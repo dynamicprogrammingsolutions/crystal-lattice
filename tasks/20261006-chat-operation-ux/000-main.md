@@ -273,3 +273,42 @@ Available iOS native trace evidence and merge-time logs are retained at
 `artifacts/chat-operation-ux-20261011/` in the main checkout (ignored).
 The original `/tmp` logs and generated macOS result had already been removed
 before this merge request; their verified outcomes remain in Completion Notes.
+
+### October 12, 2026: iOS composer keyboard overlap
+
+The user's device screenshot exposed a regression in the inline composer:
+the task replaced the old 64-point keyboard offset with zero while the
+production screen remained inside the app's top safe-area wrapper and the
+connected navigation's top padding. React Native compared the parent-local
+layout with screen-coordinate keyboard bounds and underestimated overlap.
+The original Chat native harness omitted the app's `SafeAreaView`, hiding
+this difference.
+
+The correction measures the chat viewport's position in the window and uses
+that origin as the iOS keyboard offset, with the device's top safe-area
+inset before measurement. Android retains its existing height avoidance and
+zero offset. The native harness now includes the same top/left/right safe-area
+wrapper as the app. Native checks compare the complete composer and input
+against the visible iOS keyboard host, alongside the existing 30% transcript
+height requirement.
+
+Verification: four new component regression cases cover top insets of 0,
+44, and 59 points plus navigation padding and preserve the Android offset.
+The original implementation failed the nonzero-inset cases before correction.
+The focused mobile component run passes 16 tests, TypeScript passes, and an
+isolated iOS release build passes. The dedicated Detox keyboard regression
+passes for ordinary composition and message editing, including real keyboard
+dismissal and native viewport geometry (1 selected test; the three existing
+workflows were deliberately excluded from that focused invocation).
+
+The broader iOS rerun is not counted as successful: the edit/save workflow
+passed, while ordinary request startup exceeded its timeout and send recovery
+remained present at an immediate post-cancel assertion. Earlier retries also
+exposed the simulator's software-keyboard setting and system text-selection
+menu intercepting toolbar taps. The focused test uses actual production
+controls and native measurements. The simulator's hardware-keyboard preference
+was restored to its original absent value after verification.
+
+Logs are retained under `artifacts/composer-keyboard-20261012/` (ignored).
+On October 12, 2026, the user authorized committing the correction. It preserves
+the task's approved requirements and the immutable Completion Notes.

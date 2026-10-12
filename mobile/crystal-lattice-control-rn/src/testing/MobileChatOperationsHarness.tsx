@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StyleSheet } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import {
   FetchTransport,
   RestAgentBackend,
@@ -65,7 +65,11 @@ export function MobileChatOperationsHarness(props: {
         <ThemeProvider theme={theme}>
           <PinnedActionsProvider>
             <HomeWorkspaceProvider>
-              <View testID="chat-operations-root" style={styles.root}>
+              <SafeAreaView
+                testID="chat-operations-root"
+                style={styles.root}
+                edges={["top", "left", "right"]}
+              >
                 <ConnectedRoot
                   backend={backend}
                   transport={transport}
@@ -150,7 +154,7 @@ export function MobileChatOperationsHarness(props: {
                   debugTimeline={[]}
                   onAppendDebugTimelineEntry={noop}
                 />
-              </View>
+              </SafeAreaView>
             </HomeWorkspaceProvider>
           </PinnedActionsProvider>
         </ThemeProvider>

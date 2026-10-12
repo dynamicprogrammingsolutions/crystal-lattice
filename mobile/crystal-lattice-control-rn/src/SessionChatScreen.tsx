@@ -25,6 +25,7 @@ import {
 } from "react-native";
 import type { FlatList as FlatListType } from "react-native";
 import Icon from "react-native-vector-icons/Feather";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Clipboard from "@react-native-clipboard/clipboard";
 import type {
@@ -952,6 +953,16 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const chatViewportRef = useRef<View | null>(null);
+  const [chatWindowTop, setChatWindowTop] = useState<number | null>(null);
+  const measureKeyboardOffset = useCallback(() => {
+    if (Platform.OS === "ios") {
+      chatViewportRef.current?.measureInWindow((_x, y) => {
+        setChatWindowTop(y);
+      });
+    }
+  }, []);
   const {
     state: workspaceState,
     update: updateWorkspace,
@@ -4987,9 +4998,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     <KeyboardAvoidingView
       style={styles.keyboardAvoiding}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={
+        Platform.OS === "ios" ? (chatWindowTop ?? insets.top) : 0
+      }
     >
-      <View style={styles.container}>
+      <View
+        ref={chatViewportRef}
+        testID="chat-screen-viewport"
+        style={styles.container}
+        onLayout={measureKeyboardOffset}
+        collapsable={false}
+      >
         <View style={styles.headerContainer} testID="messages-screen-header">
           <View style={styles.headerRow}>
             <View style={styles.headerNavigation}>
