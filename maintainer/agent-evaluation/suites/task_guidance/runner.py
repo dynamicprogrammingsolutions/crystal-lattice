@@ -399,6 +399,10 @@ class TaskGuidanceHarness:
         )
         environment = WorkspaceAwareEnvironment.from_config(
             agent_config,
+            # One forked runtime process per run: sibling cases with
+            # different workspace roots execute concurrently without
+            # process-global environment overlay collisions.
+            isolated=True,
             environment={
                 "CONFIG_DIR": str(runtime_config),
                 "CHATGPT_TEST_STATE_DIR": str(

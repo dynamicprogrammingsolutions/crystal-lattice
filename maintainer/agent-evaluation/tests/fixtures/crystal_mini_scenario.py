@@ -293,6 +293,14 @@ def write_mini_config(config_path: Path, *, agents: Sequence[str]) -> None:
         agents_config[name] = agent_config
     config = {
         "plugin_cache_dir": str(MINI_PLUGIN_CACHE),
+        # The evaluation runtime never lists sessions, and the derived
+        # session-list cache is the runtime's only SQLite user; keeping
+        # it off keeps forked isolated workers free of SQLite state.
+        "application": {
+            "cached_background_session_list": {
+                "persistent_cache_enabled": False,
+            }
+        },
         "providers": providers,
         "plugins": plugins,
         "agents": agents_config,

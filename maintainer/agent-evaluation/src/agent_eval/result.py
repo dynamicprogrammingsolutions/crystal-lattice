@@ -22,6 +22,27 @@ class RunError:
     traceback_artifact: str | None = None
 
 
+def capture_error_record(
+    writer: ArtifactWriter,
+    *,
+    phase: str,
+    type: str,
+    message: str,
+    traceback: str,
+) -> RunError:
+    """Persist a formatted failure and return its :class:`RunError` record."""
+
+    safe_phase = phase.replace(".", "-").replace("/", "-")
+    relative = f"raw/errors/{safe_phase}.txt"
+    writer.write_text(relative, traceback)
+    return RunError(
+        phase=phase,
+        type=type,
+        message=message,
+        traceback_artifact=relative,
+    )
+
+
 class RunFailedError(RuntimeError):
     """Raised by :meth:`Run.raise_for_error`."""
 

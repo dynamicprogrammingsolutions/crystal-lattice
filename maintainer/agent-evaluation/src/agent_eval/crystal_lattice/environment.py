@@ -16,7 +16,8 @@ from typing import Callable, Iterator, Mapping
 from agent_app import AgentApplication, InMemoryApplicationNotificationStore
 from agent_core import AgentCore
 
-from agent_eval.services import RunServices
+from agent_eval.environment import IsolatedExecutionOutcome
+from agent_eval.services import ArtifactWriter, RunServices
 
 from .context import CrystalLatticeContext
 from .requests import RequestDriver, application_request_driver
@@ -45,6 +46,7 @@ class CrystalLatticeEnvironment:
         default_agent: str | None = None,
         request_driver: RequestDriver | None = None,
         snapshotter: CrystalSnapshotter = application_session_snapshot,
+        isolated: bool = False,
     ) -> None:
         self.config_path = config_path.expanduser().resolve()
         self.env_overrides = dict(env_overrides or {})
@@ -54,6 +56,13 @@ class CrystalLatticeEnvironment:
         self.default_agent = default_agent
         self.request_driver = request_driver or application_request_driver()
         self.snapshotter = snapshotter
+        self.isolated = isolated
+        if isolated:
+            # Optional kernel extension: presence of this attribute makes
+            # the evaluation kernel execute the whole run lifecycle in a
+            # forked worker whose process-global environment is private
+            # to this run (see ``crystal_lattice.isolated``).
+            self.isolated_execute = self._isolated_execute
 
     @classmethod
     def from_config(
@@ -67,6 +76,7 @@ class CrystalLatticeEnvironment:
         default_agent: str | None = None,
         request_driver: RequestDriver | None = None,
         snapshotter: CrystalSnapshotter = application_session_snapshot,
+        isolated: bool = False,
     ) -> "CrystalLatticeEnvironment":
         return cls(
             config_path=Path(config_path),
@@ -77,6 +87,7 @@ class CrystalLatticeEnvironment:
             default_agent=default_agent,
             request_driver=request_driver,
             snapshotter=snapshotter,
+            isolated=isolated,
         )
 
     def fingerprint(self) -> object:
@@ -156,6 +167,28 @@ class CrystalLatticeEnvironment:
         finally:
             application.close()
             shutil.rmtree(runtime_root, ignore_errors=True)
+
+    def _isolated_execute(
+        self,
+        *,
+        services: RunServices,
+        workspace: Path | None,
+        parent_snapshot: object | None,
+        program: Callable[[CrystalLatticeContext], object],
+        writer: "ArtifactWriter",
+    ) -> "IsolatedExecutionOutcome":
+        """Run the whole lifecycle in a forked worker (see :mod:`.isolated`)."""
+
+        from .isolated import run_isolated
+
+        return run_isolated(
+            self,
+            services=services,
+            workspace=workspace,
+            parent_snapshot=parent_snapshot,
+            program=program,
+            writer=writer,
+        )
 
     def _rebind_restored_agent(self, session: Session) -> Session:
         """Continue a foreign-agent session under this environment's agent.

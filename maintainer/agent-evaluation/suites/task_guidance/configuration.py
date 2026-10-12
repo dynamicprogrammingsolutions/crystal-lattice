@@ -238,6 +238,13 @@ def agent_config_file(
     config["plugin_cache_dir"] = str(
         artifact_root / "plugin-cache" / agent_name / version
     )
+    # Runs execute in forked workers (process isolation); the derived
+    # session-list cache is the runtime's only SQLite user and SQLite
+    # state must never cross a fork boundary, so evaluation configs
+    # keep it off (no evaluation program lists sessions).
+    config.setdefault("application", {}).setdefault(
+        "cached_background_session_list", {}
+    )["persistent_cache_enabled"] = False
     suffix = "" if thinking == "default" else f"-{thinking}"
     target = artifact_root / "agent-config" / f"{agent_name}-{version}{suffix}.json"
     rendered = json.dumps(config, indent=2, sort_keys=True) + "\n"

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -310,7 +311,28 @@ def _parse_set(raw: str | None) -> set[str] | None:
     return {item.strip() for item in raw.split(",") if item.strip()}
 
 
+def _ensure_fork_safe_objective_c() -> None:
+    """Re-exec once with the ObjC fork guard disabled on macOS.
+
+    Cases execute in forked workers while sibling threads may be inside
+    an Objective-C ``+initialize`` (the runtime stack touches
+    Foundation); libobjc reads this switch at process start and aborts
+    forked children without it. Setting it in ``os.environ`` after
+    startup is too late, so the process re-execs itself immediately.
+    """
+
+    if sys.platform != "darwin":
+        return
+    if os.environ.get("OBJC_DISABLE_INITIALIZE_FORK_SAFETY") == "YES":
+        return
+    environment = dict(os.environ)
+    environment["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+    argv = [sys.executable, "-m", "suites.task_guidance.run", *sys.argv[1:]]
+    os.execve(sys.executable, argv, environment)
+
+
 def main(argv: list[str] | None = None) -> int:
+    _ensure_fork_safe_objective_c()
     parser = argparse.ArgumentParser(
         prog="python -m suites.task_guidance.run",
         description=__doc__,

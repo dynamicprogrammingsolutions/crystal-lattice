@@ -13,7 +13,7 @@ from typing import Callable, Generic, TypeVar, cast
 from .artifacts import write_run_artifacts
 from .cache import CacheStore, pickle_bytes, stable_hash
 from .environment import RunEnvironment
-from .result import Run, RunError
+from .result import Run, RunError, capture_error_record
 from .services import (
     ArtifactWriter,
     EvidenceJournal,
@@ -432,40 +432,65 @@ class AgentEval(Generic[ContextT]):
         snapshot: object | None = None
         environment_observation: object = {}
         error: RunError | None = None
-        try:
-            with environment.open(
-                services=services,
-                workspace=prepared_workspace.path,
-                parent_snapshot=parent_snapshot,
-            ) as opened_context:
-                context = opened_context
-                try:
-                    value = program(context)
-                except BaseException as exc:
-                    error = _capture_error(writer, "program", exc)
+        isolated_executor = getattr(environment, "isolated_execute", None)
+        if callable(isolated_executor):
+            # The environment owns the whole lifecycle in a worker it
+            # controls (process isolation for per-run global state) and
+            # reports the same value/snapshot/observation/error contract.
+            try:
+                outcome = isolated_executor(
+                    services=services,
+                    workspace=prepared_workspace.path,
+                    parent_snapshot=parent_snapshot,
+                    program=program,
+                    writer=writer,
+                )
+            except BaseException as exc:
+                error = _capture_error(
+                    writer,
+                    "environment.isolated_execute",
+                    exc,
+                )
+            else:
+                value = outcome.value
+                snapshot = outcome.snapshot
+                environment_observation = outcome.observation
+                error = outcome.error
+        else:
+            try:
+                with environment.open(
+                    services=services,
+                    workspace=prepared_workspace.path,
+                    parent_snapshot=parent_snapshot,
+                ) as opened_context:
+                    context = opened_context
+                    try:
+                        value = program(context)
+                    except BaseException as exc:
+                        error = _capture_error(writer, "program", exc)
 
-                try:
-                    snapshot = environment.snapshot(context)
-                except BaseException as exc:
-                    if error is None:
-                        error = _capture_error(
-                            writer,
-                            "environment.snapshot",
-                            exc,
-                        )
+                    try:
+                        snapshot = environment.snapshot(context)
+                    except BaseException as exc:
+                        if error is None:
+                            error = _capture_error(
+                                writer,
+                                "environment.snapshot",
+                                exc,
+                            )
 
-                try:
-                    environment_observation = environment.finalize(context)
-                except BaseException as exc:
-                    if error is None:
-                        error = _capture_error(
-                            writer,
-                            "environment.finalize",
-                            exc,
-                        )
-        except BaseException as exc:
-            if error is None:
-                error = _capture_error(writer, "environment.open_or_close", exc)
+                    try:
+                        environment_observation = environment.finalize(context)
+                    except BaseException as exc:
+                        if error is None:
+                            error = _capture_error(
+                                writer,
+                                "environment.finalize",
+                                exc,
+                            )
+            except BaseException as exc:
+                if error is None:
+                    error = _capture_error(writer, "environment.open_or_close", exc)
 
         snapshot_sha256 = None
         if snapshot is not None:
@@ -678,17 +703,14 @@ def _capture_error(
     phase: str,
     exc: BaseException,
 ) -> RunError:
-    safe_phase = phase.replace(".", "-").replace("/", "-")
-    relative = f"raw/errors/{safe_phase}.txt"
-    writer.write_text(
-        relative,
-        "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
-    )
-    return RunError(
+    return capture_error_record(
+        writer,
         phase=phase,
         type=type(exc).__name__,
         message=str(exc),
-        traceback_artifact=relative,
+        traceback="".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        ),
     )
 
 
