@@ -21,18 +21,44 @@ examples before the waitlist integration task begins.
       to install or configure it. The introduction explains the product
       through visible UI concepts rather than startup commands or runtime
       architecture.
-- [ ] The walkthrough covers, in a coherent teaching order: the overall
-      session workspace; agent-profile selection; the session list and
-      session-level actions; message details and footers; message-level
-      actions; and connections.
-- [ ] Each walkthrough stage first explains the ordinary role of the UI area,
+- [ ] The walkthrough follows the approved bottom-up teaching order:
+      Composer; Messages; Session actions; Session settings; and Workspace.
+      It starts from the AI-chat interaction visitors already understand and
+      expands from the next request to one message, the whole session, and
+      finally many sessions.
+- [ ] Each walkthrough chapter first explains the ordinary role of the UI area,
       then introduces the relevant Crystal Lattice distinction. It does not
-      assume familiarity with coding-agent products, provider terminology,
-      plugins, session history operations, or connection architecture.
-- [ ] The overview makes clear that Crystal Lattice organizes agent work into
-      durable sessions, while the agent-profile stage explains that a profile
-      can change the provider route, instructions, tools, features, and UI
-      behavior rather than only selecting a model name.
+      assume familiarity with coding-agent architecture, provider terminology,
+      plugins, session history operations, or connection architecture beyond
+      ordinary AI chat.
+- [ ] The Composer stage uses a contextual conversation view and explains
+      provider/request controls around the composer, including model,
+      reasoning effort, web search, append/resend, immediate cancellation, and
+      soft cancellation. Exact cancellation and resend semantics are verified
+      through product tests before becoming public claims.
+- [ ] The Messages stage distinguishes response metadata from actions at one
+      point in history. It introduces genuine message footers and actions such
+      as modify, fork, delete, and export; optional plugin examples such as
+      **Send to Kindle** may demonstrate extensibility. OpenAI compaction may
+      remain visible without forcing its model-specific explanation into the
+      introduction.
+- [ ] The Session actions stage explains controls that affect the whole task
+      and clearly distinguishes them from message-scoped actions. The
+      introductory proof focuses on a useful subset such as switch agent,
+      settings, plugins, snapshots, title, status, and range operations rather
+      than presenting the full power-user catalog without hierarchy.
+- [ ] The Session settings stage explains that each session carries its own
+      agent setup. It covers agent/profile selection, provider-specific
+      options, per-session plugin enable/disable, and tools contributed by
+      enabled plugins. It explains that a Crystal Lattice profile can change
+      provider route, instructions, tools, features, and UI behavior rather
+      than only selecting a model name.
+- [ ] The Workspace stage explains the standard session list, search/filter,
+      titles/subtitles, pinning, status, open/preview behavior, recent/update
+      state, and visible request status across open sessions. The
+      application-owned local Watchlist may be evaluated as an optional second
+      proof after the standard list is understood and must not be described as
+      a server pin or plugin-provided view.
 - [ ] Public wording distinguishes Crystal Lattice Codex-, Claude-, Gemini-,
       Qwen-, Kimi-, Grok-, and related profiles from official upstream
       applications, accounts, and sessions.
@@ -42,10 +68,15 @@ examples before the waitlist integration task begins.
       areas. Screenshots remain real product UI; composition may crop,
       highlight, or magnify source regions without inventing controls or
       values.
-- [ ] Walkthrough navigation exposes descriptive labels such as Overview,
-      Agent, Sessions, Details, Actions, and Connections. It is responsive,
-      keyboard accessible, swipe/scroll compatible, reduced-motion aware,
-      and understandable without relying on unlabeled dots or autoplay.
+- [ ] Walkthrough navigation exposes descriptive labels such as Compose,
+      Messages, Session actions, Session settings, and Workspace. It is
+      responsive, keyboard accessible, swipe/scroll compatible,
+      reduced-motion aware, and understandable without relying on unlabeled
+      dots or autoplay.
+- [ ] The walkthrough uses a candidate-first process: create and explain more
+      genuine UI candidates than the final homepage will necessarily retain,
+      bind them to the actual local page for responsive visual review, and
+      select or defer them only at explicit human checkpoints.
 - [ ] The former separate **One workspace for every model family** and
       **Sessions become workspaces** compact highlights are incorporated into
       the walkthrough without losing their approved values or durable
@@ -53,9 +84,15 @@ examples before the waitlist integration task begins.
       as compact end-user highlights, followed by the full-width Plugins and
       Transparency deep dives.
 - [ ] The walkthrough explains UI roles without duplicating the later deep
-      dives: it identifies what session/message controls and metadata do;
-      Plugins later explains how configuration contributes replaceable UI;
-      Transparency later demonstrates inspectable instructions and reporting.
+      dives: it identifies what composer/message/session/workspace controls
+      and metadata do; Plugins later explains how configuration contributes
+      replaceable UI; Transparency later demonstrates the authored system
+      message with placeholders, its compiled result, and configurable
+      reporting.
+- [ ] Public copy accurately distinguishes the application-owned shell and
+      extension surfaces from plugin contributions. It may use the VS Code
+      extension-model analogy, but it does not claim that every visible UI
+      element is itself a plugin.
 - [ ] **Work from anywhere** uses one truthful Desktop/phone composition with
       matching session identity, status, agent, latest prompt, and answer.
       Mobile availability is identified as public, tester-only, invite-only,
@@ -80,6 +117,11 @@ examples before the waitlist integration task begins.
       pictured area proves, avoid repetitive templated phrases, retain
       provider/sample/availability qualifications, and contain no fixture,
       checkpoint, provenance, or task language.
+- [ ] Public screenshots contain no invalid or fallback `?` icons, private or
+      mixed-language task data, unnecessary raw identifiers, debug-focused
+      timestamps, or other capture artifacts that make the proof look
+      unfinished. Any genuine product change required to produce the accepted
+      UI is approved and implemented on `develop` before reconciliation.
 - [ ] The publish candidate contains no **Planned visual** panels, review
       status labels, disabled fake waitlist form, internal implementation
       notes, knowingly unverified SDK examples, or public instructions saying
@@ -107,10 +149,14 @@ examples before the waitlist integration task begins.
 
 ## Human decisions and actions required
 
-- **HUMAN JUDGMENT — WALKTHROUGH STORYBOARD:** Review the six-stage teaching
-  sequence, stage titles, proposed explanations, distinctive claims, and the
-  role of each screenshot before component implementation and new capture
-  production.
+- **HUMAN JUDGMENT — CANDIDATE STORYBOARD:** Review the five bottom-up
+  chapters, candidate screenshots, chapter titles, proposed explanations,
+  distinctive claims, and proposed destination of each candidate before
+  component implementation and new capture production.
+- **HUMAN JUDGMENT — CANDIDATE SELECTION:** Review the expanded candidate set
+  on the actual responsive page and decide what remains in the introductory
+  walkthrough, what moves to Plugins/Transparency/another deep dive, and what
+  is deferred to documentation or a later page.
 - **HUMAN JUDGMENT — UI WALKTHROUGH IN CONTEXT:** Review the implemented
   walkthrough on the actual responsive page, including navigation,
   legibility, copy, highlighted regions, and its transition into the
@@ -157,9 +203,23 @@ examples before the waitlist integration task begins.
   and a Python SDK example. Some public copy still admits that product polish
   or API verification is pending, which cannot remain in a release candidate.
 - The actual Desktop captures already demonstrate the required UI areas:
-  session list, active conversation, session actions, message actions, and
-  response metadata. A Desktop Connections panel exists and has a maintained
-  harness but needs a selected website capture state.
+  active composer controls, session list, active conversation, session
+  actions, message actions, response metadata, open-session tabs, and a
+  application-owned local Watchlist. Session settings and the final selected
+  connection/mobile states still need reviewed website capture states.
+- The supplied Composer actions image is a strong opening candidate, but its
+  public source should show an active request so immediate and soft
+  cancellation are available and should retain enough conversation context to
+  look like the complete product rather than an isolated menu.
+- The supplied Message actions image demonstrates both normal history
+  controls and workflow-specific plugin actions. The full Session actions menu
+  is too broad for an unstructured introductory image and currently exposes a
+  fallback `?` icon for **Collapse compacted messages**; a public candidate
+  needs a genuine correction and a focused composition.
+- The supplied session-list and Watchlist views are useful candidate sources,
+  but final public fixtures need concise sanitized English titles and must
+  avoid making raw UUIDs, debug timestamps, or unrelated internal work the
+  visual focus.
 - The current landing-page asset system supports responsive light/dark
   candidates, source fingerprints, native geometry, explicit preview
   overlays, and direct visual inspection. Candidate artifacts stay outside
@@ -171,55 +231,485 @@ examples before the waitlist integration task begins.
 - Subtask `020` owns the AWS email service, real form, consent/privacy
   behavior, production deployment, and final integrated publication.
 
+## H1 candidate storyboard
+
+### Verified behavior and ownership constraints
+
+- **Cancellation:** hard cancel signals both provider work and cooperative
+  foreground-tool cancellation. Soft cancel interrupts provider work but does
+  not signal the active foreground tool; that tool may finish and persist its
+  result before the loop stops, and later tool phases do not begin. Public copy
+  should say "signals" rather than promise that an uncooperative process stops
+  instantly.
+- **Resend:** Resend is available only while no request is active. It sends a
+  new request from the current session history without appending another user
+  message. Do not publish "resend at any time."
+- **Composer ownership:** Append, Append as, Resend, Cancel, and Soft cancel
+  are application-owned Composer actions. Model, reasoning effort, web search,
+  and similar compact controls are ordinary session config elements placed at
+  the composer by the selected provider/extension/feature UI schema.
+- **Message ownership:** Modify, Toggle markdown, and Copy message are
+  application-owned message actions. Fork/Delete come from
+  `session-actions-app`; Summarize/compaction/export actions come from their
+  owning plugins. Message footers are plugin/provider UI-schema elements that
+  read values from that message's metadata.
+- **Session ownership:** Reload, Message limit, Switch agent, Settings,
+  Plugins, and Snapshots are application-owned Session actions. Plugin actions
+  are merged into the same extension surface and may be pinned beside the
+  built-ins.
+- **Agent and settings boundary:** Switch Agent opens a separate agent picker.
+  Session settings is a separate per-session override window. Session plugins
+  is another separate window that enables/disables providers, extensions,
+  features, and tools for that session and can reset to agent defaults.
+- **Agent-profile proof:** the production picker uses ordered descriptors with
+  title/description and a safe provider/extension/feature/tool preview. It
+  does not expose private plugin configuration values.
+- **System-message proof:** the authored system message can remain a template
+  with placeholders in stored session/config state. **Show compiled system
+  message** is a non-mutating action that resolves the effective
+  developer/system message without sending a model request.
+- **Workspace state:** the standard Sessions panel supports application-
+  plugin-provided title/subtitle/meta, session-list actions and filters.
+  Request status is a lightweight current-runtime estimate with Idle, Not
+  started, In progress, Completed, and Interrupted states; it is not durable
+  request history.
+- **Watchlist boundary:** Watchlist membership/order and local notes are
+  application-owned per-device state. They are distinct from server-side
+  pinned state and must not be described as a plugin-provided view.
+- **Connections:** Desktop stores named connection records with focused/open/
+  closed/error state. Mobile currently exposes Manual Address, Automatic
+  Discovery, Bridge Service, and Cloud Agent Link. The homepage's simplified
+  local discovery → address/port → bridge explanation is a visitor grouping,
+  not a verbatim reproduction of every current method label.
+- **Known visual defect:** OpenAI native compaction declares icon `rows-3` for
+  **Collapse compacted messages**; Feather does not provide that icon, which
+  explains the visible `?`. Correct it on `develop` before any public image
+  containing that row.
+- **Known presentation issue:** current Sessions/Home views deliberately show
+  raw session IDs and technical metadata. If the selected public composition
+  cannot truthfully avoid making those details visually dominant, changing or
+  hiding them is a material product decision for a later checkpoint.
+
+### Persistent introduction
+
+Working title:
+
+> **Familiar chat. More control at every level.**
+
+Working body:
+
+> Crystal Lattice starts with the AI chat interface you already know. Composer
+> controls steer the next request, message actions operate from a point in
+> history, session controls configure the whole task, and workspace views
+> organize many sessions. The application provides stable extension surfaces,
+> while plugins can contribute actions, settings, reports, and specialized
+> controls.
+
+Recommendation: retain this direction for candidate production. It establishes
+the familiar category first and introduces the VS Code-like shell/extension
+relationship without saying every visible element is a plugin.
+
+### Chapter 1 — Compose
+
+Working title:
+
+> **Steer the next request.**
+
+Working explanation:
+
+> Start with the familiar composer. The selected profile can expose its model,
+> reasoning, and web-search controls beside it. Append or resend when
+> appropriate; cancel signals the provider and active tool to stop, while soft
+> cancel lets a running tool finish and save its result before the loop stops.
+
+Candidate **C01 — Active Composer actions**
+
+- **Source:** production `ChatPane`, real Composer actions surface, and real
+  provider/extension config controls.
+- **Desktop composition:** retain the active conversation and session header;
+  focus the bottom composer, pinned model/reasoning/search controls, and the
+  genuine Composer actions popup. Capture an active request so both
+  cancellation choices are enabled.
+- **Phone composition:** retain one message above the composer, then place a
+  readable popup excerpt below/over the composer while preserving its popup
+  identity.
+- **What it proves:** Crystal Lattice begins with a familiar chat surface;
+  request lifecycle controls are immediately available; provider-specific
+  controls can be placed at the composer.
+- **Qualification:** built-in lifecycle actions and plugin/provider config
+  controls share the surface but have different owners.
+- **Prerequisites:** deterministic active-request fixture; selected model name
+  must be maintained/sanitized and not imply official upstream-app identity.
+- **Proposed destination:** default introductory walkthrough image.
+
+### Chapter 2 — Messages
+
+Working title:
+
+> **Act from any message.**
+
+Working explanation:
+
+> Each response remains a point you can inspect and act from. Message footers
+> keep provider-supplied usage or timing metadata with the response. Built-in
+> actions cover editing, Markdown, and copying; plugins can add forking,
+> deletion, summarization, compaction, sharing, or a workflow-specific action
+> such as Send to Kindle.
+
+Candidate **C02 — Message footer**
+
+- **Source:** production message bubble plus genuine `message_footer`
+  UI-schema elements.
+- **Desktop composition:** show one useful assistant response with the footer
+  readable in context; magnify only the real footer when necessary.
+- **Phone composition:** show a shorter response and the complete footer below
+  it, avoiding a floating strip detached from its message.
+- **What it proves:** metadata is associated with the exact response and is
+  selected by active provider/plugins.
+- **Qualification:** metadata varies by provider and configuration; estimates
+  are not invoices.
+- **Proposed destination:** Messages chapter candidate; also useful as a
+  Transparency supporting candidate.
+
+Candidate **C03 — Message actions**
+
+- **Source:** production Message actions menu combining built-in and genuine
+  plugin rows.
+- **Desktop composition:** preserve the selected assistant message and popup
+  pointer; focus Modify, Copy, Fork here, Delete/Delete from here, one export,
+  and Send to Kindle. OpenAI compaction may remain visible but is not called
+  out in introductory copy.
+- **Phone composition:** stack a recognizable message excerpt above the real
+  popup and use only crop/magnification/omission markers already supported by
+  the composition pipeline.
+- **What it proves:** action scope begins at one message; the same surface can
+  accept ordinary history controls and optional workflow actions.
+- **Qualification:** Send to Kindle/export/compaction rows appear only when
+  their plugins and required configuration are available.
+- **Proposed destination:** primary or second Messages chapter image; the
+  config-to-row version remains in Plugins.
+
+### Chapter 3 — Session actions
+
+Working title:
+
+> **Control the whole session.**
+
+Working explanation:
+
+> Session actions affect the task as a whole. Switch the agent, open settings
+> or plugins, inspect snapshots, edit the title or status, and pin the controls
+> you use most. Additional plugins can contribute reports, history operations,
+> exports, and other task-level actions.
+
+Candidate **C04 — Focused Session actions**
+
+- **Source:** production Session actions popup and header toolbar.
+- **Desktop composition:** retain the session title/header and popup identity,
+  but focus a coherent introductory subset: Switch agent, Settings, Plugins,
+  Snapshots, title, status, and one range action. Preserve genuine omitted-row
+  markers rather than fabricating a shorter menu.
+- **Phone composition:** use the same focused subset in the mobile action
+  surface with one-line wrap support.
+- **What it proves:** session scope is distinct from message scope; built-ins
+  and plugin actions share a pinnable surface.
+- **Prerequisites:** fix the unsupported `rows-3` icon before using any image
+  in which that row is visible; validate every selected row's owner.
+- **Proposed destination:** introductory Session actions chapter. The full
+  power-user menu belongs in documentation or a later deep dive.
+
+### Chapter 4 — Session configuration
+
+Working title:
+
+> **Configure this session.**
+
+Working explanation:
+
+> An agent profile supplies the starting provider, instructions, tools, and
+> features. Switch Agent changes that baseline. Session settings override
+> provider-specific choices for this task, while Session plugins can enable,
+> disable, or reset the providers, extensions, features, and tools used here.
+
+Candidate **C05 — Agent picker**
+
+- **Source:** production two-pane `AgentPickerWindow`.
+- **Desktop composition:** use the approved smaller window; retain the ordered
+  Crystal Lattice profile list and selected title/description, with the
+  selected profile's safe tool/plugin preview readable on the right.
+- **Phone composition:** use a deliberate compact composition rather than
+  shrinking the entire landscape window; list above and selected details below
+  is acceptable when sourced from the real UI.
+- **What it proves:** profiles are named/ordered Crystal Lattice
+  configurations and differ in more than model family.
+- **Qualification:** label profiles as Codex-oriented, Claude-oriented, and so
+  on; do not imply official upstream application sessions/accounts.
+- **Proposed destination:** Session configuration chapter candidate.
+
+Candidate **C06 — Provider-specific Session settings**
+
+- **Source:** production `SessionSettingsWindow` backed by session config
+  overrides.
+- **Desktop composition:** show a focused set such as auth mode, model or
+  processing tier/flex, reasoning, and another provider-specific option, with
+  reset/default behavior visible where useful.
+- **Phone composition:** use the production modal and keep only enough rows to
+  explain per-session overrides without presenting the entire schema.
+- **What it proves:** the active provider/plugins define ordinary settings,
+  and selected values can be overridden for one session.
+- **Qualification:** available settings depend on the profile/provider.
+- **Prerequisites:** deterministic fixture with truthful enabled/disabled and
+  default/overridden state.
+- **Proposed destination:** Session configuration chapter candidate; detailed
+  provider matrices remain documentation.
+
+Candidate **C07 — Session plugins and tools**
+
+- **Source:** production `SessionPluginsWindow`/modal and genuine
+  `SessionPluginEntry` categories.
+- **Desktop composition:** prioritize Providers, Extensions, Features, and
+  Tools; show clear enabled/disabled state and one session override while
+  retaining Reset to defaults.
+- **Phone composition:** show the same categories in the production modal with
+  the highlighted tools visible without artificial duplicate rows.
+- **What it proves:** a session can override the enabled plugin set and reset
+  to the agent baseline.
+- **Qualification:** the application owns the window; plugin entries and their
+  state come from the backend. Toggling providers/tools may materially change
+  session behavior.
+- **Proposed destination:** Session configuration chapter candidate and
+  possible Plugins deep-dive support.
+
+### Chapter 5 — Workspace
+
+Working title:
+
+> **Keep many sessions moving.**
+
+Working explanation:
+
+> Search and filter sessions, preview or open them, and see the title, status,
+> pin, and current request state that help you return to the right task.
+> Desktop and mobile also keep a local Watchlist and recent-session view across
+> saved connections.
+
+Candidate **C10 — Standard session list and filters**
+
+- **Source:** production `SessionsPanel`, application-plugin-provided
+  presentation fields/actions/filters, and real request-status indicator.
+- **Desktop composition:** show concise sanitized titles/subtitles, mixed
+  To do/In progress/Done values, pinned/unpinned state, search, one active
+  filter, and Open/Preview controls. Keep one selected row tied to the active
+  conversation.
+- **Phone composition:** show two or three rows with the same information
+  hierarchy and a visible filter affordance.
+- **What it proves:** sessions are organized work items rather than anonymous
+  transcripts; filters and controls are extensible surfaces.
+- **Qualification:** title/status/pin may be supplied by their application
+  plugins; request status is a transient runtime estimate.
+- **Prerequisites:** resolve whether raw IDs/technical timestamps can be
+  de-emphasized truthfully through product presentation or composition.
+- **Proposed destination:** primary Workspace chapter image.
+
+Candidate **C11 — Open-session request status**
+
+- **Source:** production session-tab strip and shared
+  `SessionRequestStatusIndicator`.
+- **Composition:** use the tab strip as an inset attached to C10 or C12, not a
+  standalone hero image. Show at least one In progress and one Completed state
+  and keep titles legible enough to connect status to work.
+- **What it proves:** current work remains visible while moving between open
+  sessions.
+- **Qualification:** status is lightweight/transient and may be unavailable
+  for an offline or unsupported connection.
+- **Proposed destination:** supporting inset in Workspace.
+
+Candidate **C12 — Local Watchlist and Recent Sessions**
+
+- **Source:** production Home view and per-device Watchlist/Recent state.
+- **Desktop composition:** use four concise sanitized Watchlist cards followed
+  by enough Recent Sessions context to show the relationship. Request status,
+  local note, connection, and relative time may appear where legible.
+- **Phone composition:** use the production two-column Watchlist and a short
+  recent timeline.
+- **What it proves:** users can maintain a local attention list and recent
+  history across saved connections.
+- **Qualification:** Watchlist membership/order and notes are local to the
+  device; Watchlist is not server pinning and is not currently plugin-owned.
+- **Prerequisites:** sanitize titles/content and decide whether public proof
+  needs a product option to de-emphasize session IDs.
+- **Proposed destination:** optional second Workspace image or later
+  multi-session deep dive, selected at H2.
+
+### Deep-dive and setup candidates
+
+Candidate **C08 — Authored System message with placeholders**
+
+- **Source:** real stored/configured System message rendered as the first
+  System-role message.
+- **Composition:** show a concise understandable template with visible
+  placeholders and enough conversation context to establish that it is part
+  of the session.
+- **What it proves:** authored instructions remain visible and editable in
+  their template form.
+- **Proposed destination:** Transparency, not the introductory walkthrough.
+
+Candidate **C09 — Compiled System message**
+
+- **Source:** real non-mutating **Show compiled system message** action/display
+  using the beginning of the maintained Codex default selected for website
+  proof.
+- **Composition:** pair with C08 when possible; preserve real action/display
+  chrome.
+- **What it proves:** visitors can inspect the effective instructions after
+  placeholders/defaults are resolved without making a model request.
+- **Proposed destination:** Transparency.
+
+Candidate **C13 — Connections and mobile connection methods**
+
+- **Source:** production Desktop Connections panel and production mobile
+  connection-method UI.
+- **Composition:** Desktop proof focuses saved/focused/open state; mobile proof
+  groups local discovery, address/port, and bridge for visitor explanation
+  while retaining truthful current labels where shown.
+- **What it proves:** clients select where a Crystal Lattice workspace is
+  running.
+- **Qualification:** public/tester/invite bridge and mobile availability must
+  come from maintained release state.
+- **Proposed destination:** Getting Started steps 4 and 6, not the top
+  walkthrough.
+
+Candidate **C14 — Matching Desktop/mobile session**
+
+- **Source:** production Desktop and mobile consumers over one deterministic
+  fixture.
+- **Composition:** same title, subtitle, status, agent, latest prompt, and
+  answer on both devices.
+- **What it proves:** continuity of one runtime session across clients.
+- **Qualification:** clearly state current mobile distribution status.
+- **Proposed destination:** **Work from anywhere**.
+
+### H1 recommendation for candidate production
+
+Approve production of all fourteen candidates, but use these as the initial
+placement hypotheses:
+
+| Chapter/section | Primary candidate | Alternatives to compare at H2 |
+| --- | --- | --- |
+| Compose | C01 | None unless the popup is too dense |
+| Messages | C03 with C02 visible in context | Separate C02/C03 slides |
+| Session actions | C04 | Move the full menu to documentation |
+| Session configuration | C05 | Add C06 and/or C07 as second/third images |
+| Workspace | C10 with C11 inset | C12 as second image or later deep dive |
+| Transparency | C08 + C09 | Keep existing usage/cost report as another image |
+| Getting Started | C13 | Separate Desktop/mobile connection images |
+| Work from anywhere | C14 | None |
+
+H1 does not choose the final image count. H2 makes that decision after the
+candidates appear in the actual responsive page.
+
+### Product/capture prerequisites for H2
+
+1. Add a deterministic active-request capture state for C01.
+2. Correct the unsupported `rows-3` icon on `develop` if C04 can expose it.
+3. Add sanitized unified session fixtures used by conversation, tabs, list,
+   Watchlist, connection, and cross-device candidates.
+4. Decide during candidate production whether raw session IDs need an approved
+   product presentation change; do not fabricate their removal.
+5. Add deterministic provider-specific Session settings and per-session plugin
+   states for C06/C07.
+6. Add the authored-placeholder source paired with the maintained compiled
+   Codex proof for C08/C09.
+7. Add deterministic mixed request states for C10–C12.
+8. Keep candidate artifacts outside `public/` until H2 selection.
+
 ## Execution plan
 
 Status: Approved
 
 The first public version will teach the product through its UI before asking
 the visitor to install it. The walkthrough is a single full-width section
-after the hero. A persistent introductory title/body establishes the product
-category; labeled stages then move through one coherent product fixture.
+after the hero. It starts from the AI chat interaction visitors already know
+and expands bottom-up through the control scopes around it.
 
 The working section direction is:
 
-> **A workspace for agent sessions.**
+> **Familiar chat. More control at every level.**
 >
-> Crystal Lattice organizes agent work into sessions. Choose how an agent
-> works, keep each task in its own session, inspect what happened, and act on
-> the whole session or an individual message. Desktop and mobile clients
-> expose the same underlying sessions.
+> Crystal Lattice starts with the AI chat interface you already know. Composer
+> controls steer the next request, message actions operate from a point in
+> history, session controls configure the whole task, and workspace views
+> organize many sessions. The application provides stable extension surfaces,
+> while plugins can contribute actions, settings, reports, and specialized
+> views.
 
 This wording is a review baseline, not pre-approved final public copy. The
 storyboard checkpoint owns final phrasing.
 
 The walkthrough uses a split presentation on desktop: explanation on one side
 and the product image on the other. Phones stack explanation above the image.
-The stage controls remain visible and named. The section does not autoplay.
+The chapter controls remain visible and named. The section does not autoplay.
 The current feature-image component may be extended when it can preserve its
 existing consumers cleanly; a dedicated walkthrough component is acceptable
 if the teaching layout and accessibility needs would otherwise distort the
 ordinary image strips.
 
-### Walkthrough stages
+### Bottom-up walkthrough chapters
 
-| Stage | Visitor question | UI proof | Distinction introduced |
+| Chapter | Visitor question | Candidate proof | Distinction introduced |
 | --- | --- | --- | --- |
-| **Overview** | What am I looking at? | Clean Desktop view with session list, selected session, conversation, and composer | A task lives in a durable session with workflow state, not only a transcript |
-| **Agent** | How is the agent chosen? | Real agent picker with the family-oriented profile list and selected profile details | A profile can change provider route, instructions, tools, features, and controls, not only the model name |
-| **Sessions** | How is work organized and controlled? | Real session list with titles/subtitles, statuses, pins, selected row, and Session actions | Session actions affect the whole task; application plugins can contribute or replace these controls |
-| **Details** | What can I learn about a response? | User/assistant content with a readable genuine message footer and relevant reasoning/tool state | Metadata such as token/cache/duration/cost remains attached to the response when the provider supplies it |
-| **Actions** | What can I do from one message? | Real Message actions popup at a specific assistant message | Modify, fork, summarize, export, delete, or compact from an exact point in history; this scope differs from session actions |
-| **Connections** | Where do these sessions come from? | Real Desktop Connections panel with a focused local record and current status | A connection selects where the workspace is running; connections are not sessions |
+| **Compose** | How do I steer the next request? | Active conversation with the composer, provider controls, and Composer actions | Immediate/soft cancellation, resend/append, model, reasoning, and search controls live around a familiar composer; the extension surface can receive provider/plugin contributions |
+| **Messages** | What can I inspect or do from one response? | Genuine message footer plus Message actions at one assistant message | Metadata stays attached to the response; actions such as fork/delete/export operate from an exact point and optional plugins can add workflows such as Send to Kindle |
+| **Session actions** | What affects the whole task? | Session header with a focused genuine subset of Session actions | Session actions have whole-task scope and remain distinct from message actions; plugins may contribute or replace entries |
+| **Session settings** | How is this session's agent configured? | Agent/provider settings and per-session Plugins/Tools views | A profile is more than a model selector, and each session can carry its own provider options, plugins, and tools |
+| **Workspace** | How do I organize and monitor many tasks? | Standard session list/filter/status view, open-session status inset, and optional local Watchlist candidate | Sessions have titles, states, pins, filters, and visible request progress; Desktop and mobile also maintain a local per-device Watchlist and recent-session workspace |
 
-The Overview stage is self-sufficient: a visitor who does not advance the
-walkthrough still understands the product category and primary UI. Later
-stages deepen understanding rather than supplying a missing prerequisite.
+The Compose chapter is the default and must be self-sufficient enough that a
+visitor who does not advance still recognizes a complete AI-agent product.
+Its image retains conversation context around the magnified composer controls.
+The later chapters deepen the hierarchy rather than supplying a missing
+category explanation.
 
-All walkthrough slides use one deterministic fixture. The Overview is clean.
-Subsequent images preserve application context while outlining, dimming, or
-magnifying the current area. Configuration-to-control connector lines remain
-exclusive to the later Plugins proof. The walkthrough teaches visible roles,
-not plugin internals.
+All candidates use one deterministic fixture. Screens retain application
+context while outlining, dimming, or magnifying the current area. Avoid three
+consecutive full-height popups: alternate contextual conversation, focused
+menu callouts, settings windows, and workspace views. Configuration-to-control
+connector lines remain exclusive to the later Plugins proof.
+
+Connections are not a primary introductory chapter in this bottom-up version.
+The tour may briefly state that the focused connection determines which
+workspace's sessions are shown. Getting Started owns the full explanation of
+local discovery, address/port, and bridge access.
+
+### Candidate pool and selection
+
+Produce enough truthful candidate sources to compare the teaching sequence
+before reducing the public page:
+
+1. active conversation with Composer actions;
+2. message footer with provider-supplied metadata;
+3. Message actions with fork/delete/export and one optional workflow action;
+4. focused Session actions;
+5. agent picker with ordered profiles and safe plugin/tool preview;
+6. Session settings with provider-specific options;
+7. Session plugins with per-session Plugins and Tools;
+8. authored System message with placeholders;
+9. compiled System message;
+10. standard session list with search/filter/status;
+11. open-session tabs with live request indicators;
+12. local Watchlist and Recent Sessions;
+13. Connections panel or mobile connection method view;
+14. matching Desktop/mobile session.
+
+Candidate production does not pre-approve all fourteen for the homepage. Bind
+the viable candidates temporarily to the actual local page, inspect them at
+desktop and phone widths, then classify each as:
+
+- introductory walkthrough;
+- Plugins/Transparency/another feature deep dive;
+- Getting Started;
+- documentation or later-page material;
+- rejected after contextual review.
 
 ### Resulting homepage sequence
 
@@ -235,8 +725,8 @@ not plugin internals.
 
 The former model-family and durable-session compact items are not simply
 deleted. Their value, copy alternatives, captures, and proof requirements are
-incorporated into the Agent, Overview, and Sessions stages and retained in the
-durable decision record.
+incorporated into Session settings and Workspace, with related candidates
+retained in the durable decision record.
 
 ### Remaining feature and Getting Started work
 
@@ -247,10 +737,22 @@ reasoning image. Review its final caption in the new page rhythm.
 same session fixture. It proves continuity rather than connection setup. The
 caption states current public/tester/invite availability.
 
-**Plugins** and **Transparency** retain their accepted proof concepts. Rewrite
-their image comments to explain what each image proves instead of repeating
-generic “plugin-driven and easy to adjust” wording. Keep sample/provider
+**Plugins** and **Transparency** retain their accepted proof concepts. Plugins
+may deepen the Composer/Message/Session extension surfaces by showing how
+configuration contributes actual controls. Transparency owns the deeper
+System-message story: authored placeholders in the visible System role
+message, the real **Show compiled system message** result, provider-supplied
+message metadata, and the reviewed illustrative usage/cost report. Rewrite
+comments to explain what each image proves instead of repeating generic
+“plugin-driven and easy to adjust” wording. Keep sample/provider
 qualifications and reviewed assets.
+
+The standard session list is the primary Workspace proof. Evaluate the local
+per-device Watchlist as an optional second Workspace image or later
+multi-session deep dive only after the standard navigation model is
+understandable. It does not replace or modify the separate server-side pinned
+state. An open-session tab strip is an inset for request/status visibility
+rather than a standalone section.
 
 Getting Started retains all six steps. The first four are the currently usable
 CLI/Desktop path. Steps 5–6 form a clear Mobile access group:
@@ -294,35 +796,45 @@ fulfilled by the walkthrough or feature proof. At minimum:
 
 1. Preserve the current page, assets, screenshots, tests, and approved decision
    state as the comparison baseline.
-2. Prepare the six-stage storyboard with exact visitor question, draft copy,
-   source UI state, differentiating statement, desktop composition, phone
-   composition, and capture/product dependencies.
-3. Stop at the storyboard checkpoint for human judgment.
-4. Implement the approved information architecture and accessible walkthrough
-   behavior with local candidate states.
+2. Verify public behavior claims for Composer cancellation/resend, message
+   footers, action scope, provider options, session plugins, request status,
+   and connection state. Record any product defect, invalid icon, debug-first
+   presentation, or capture limitation before designing around it.
+3. Prepare the five-chapter storyboard and fourteen-item candidate pool with
+   exact visitor question, draft copy, source UI state, differentiating
+   statement, proposed destination, desktop composition, phone composition,
+   and capture/product dependencies.
+4. Stop at the candidate-storyboard checkpoint for human judgment.
 5. Produce or refresh genuine Desktop/mobile sources through the maintained
    public/native capture boundaries. Put genuine product improvements on
    `develop`, verify them there, and reconcile only confirmed website-used
    changes onto `main`.
-6. Compose responsive walkthrough assets and the remaining Work from anywhere,
-   Desktop connection, and mobile connection proofs.
-7. Bind candidates to the actual page and inspect every slide and section with
-   Playwright plus direct `view_image` review.
-8. Stop at the walkthrough-in-context checkpoint.
-9. Refine remaining feature order, captions, availability, compatibility, and
-   proof based on the accepted walkthrough.
-10. Revise Getting Started, the Mobile access grouping, local/LAN security
+6. Compose the candidate walkthrough, deep-dive, Workspace/Watchlist,
+   Work-from-anywhere, Desktop-connection, and mobile-connection assets.
+7. Bind the viable candidates temporarily to the actual local homepage and
+   inspect every candidate in context with Playwright plus direct
+   `view_image` review.
+8. Stop at the candidate-selection checkpoint. Record which candidates belong
+   in the introduction, deep dives, Getting Started, documentation, or later
+   revisions.
+9. Implement the selected responsive accessible walkthrough and revised
+   homepage information architecture. Apply final visitor copy and
+   compositions only for the accepted candidates.
+10. Stop at the walkthrough-in-context checkpoint.
+11. Refine remaining feature order, captions, availability, compatibility,
+    and proof based on the accepted walkthrough.
+12. Revise Getting Started, the Mobile access grouping, local/LAN security
     language, and current release states.
-11. Stop at the Getting Started/mobile checkpoint.
-12. Apply the lower-page release cut and verify all retained examples and
+13. Stop at the Getting Started/mobile checkpoint.
+14. Apply the lower-page release cut and verify all retained examples and
     links.
-13. Stop at the release-cut checkpoint.
-14. Complete responsive, accessibility, source-freshness, content, download,
+15. Stop at the release-cut checkpoint.
+16. Complete responsive, accessibility, source-freshness, content, download,
     security-copy, and full-page verification.
-15. Stop at the final publish-ready checkpoint.
-16. After human acceptance, promote only approved visual sources and update
+17. Stop at the final publish-ready checkpoint.
+18. After human acceptance, promote only approved visual sources and update
     maintained public bindings. Do not push or publish.
-17. Hand the approved local website to subtask `020` for the real waitlist,
+19. Hand the approved local website to subtask `020` for the real waitlist,
     privacy integration, final integrated review, and explicitly approved
     production publication.
 
@@ -331,8 +843,13 @@ fulfilled by the walkthrough or feature proof. At minimum:
 - **Decision:** the introductory walkthrough teaches the product UI; it does
   not replace Getting Started or begin with commands, ports, project
   directories, server binding, or installation architecture.
-- **Decision:** the walkthrough order is Overview → Agent → Sessions →
-  Details → Actions → Connections.
+- **Decision:** the walkthrough uses a bottom-up scope hierarchy: Compose →
+  Messages → Session actions → Session settings → Workspace.
+- **Decision:** the first visual begins with a complete familiar conversation
+  and composer context, not an isolated menu or runtime/startup explanation.
+- **Decision:** Connections is briefly named as the source of the focused
+  workspace but receives its full local-discovery/address/bridge explanation
+  in Getting Started.
 - **Decision:** the walkthrough explains ordinary UI role before
   differentiation and introduces plugin/provider terminology only after the
   visible behavior is understandable.
@@ -340,13 +857,28 @@ fulfilled by the walkthrough or feature proof. At minimum:
   walkthrough instead of remaining separate compact advertisements.
 - **Decision:** the same fixture and visual coordinate system carry the
   visitor through the walkthrough.
-- **Decision:** labeled stage controls are required; dots may remain only as a
+- **Decision:** labeled chapter controls are required; dots may remain only as a
   secondary position indicator.
 - **Decision:** Session actions and Message actions retain distinct scopes in
   the explanation.
+- **Decision:** the introductory Session actions proof presents a focused
+  genuine subset; the exhaustive menu and model-specific history operations
+  belong in a deep dive or documentation.
+- **Decision:** Session settings is a first-class introductory chapter and
+  covers agent/profile, provider options, per-session plugins, and tools.
 - **Decision:** message footers explain provider-supplied transparency at the
   response level; the later Transparency section continues to own compiled
-  instructions and custom reporting.
+  instructions, authored placeholders, and custom reporting.
+- **Decision:** the standard session list is introduced before the optional
+  local per-device Watchlist; Watchlist membership is distinct from
+  server-side pinned state, and request status may use the open-session tab
+  strip as a supporting inset.
+- **Decision:** build and review a larger candidate pool on the actual page
+  before selecting the final introduction. Candidate production does not
+  imply public inclusion.
+- **Decision:** use the VS Code analogy only to explain the relationship
+  between an application-owned shell/extension surfaces and plugin
+  contributions; do not claim every visible element is a plugin.
 - **Decision:** mobile remains in the six-step workflow, with tester/invite/
   coming-soon state explicit and its connection methods grouped separately.
 - **Decision:** local discovery precedes address/port and bridge in the mobile
@@ -357,18 +889,20 @@ fulfilled by the walkthrough or feature proof. At minimum:
   advanced material, but it may not contain visible placeholders, internal
   planning language, or knowingly unverified examples.
 - **Open human judgment at storyboard checkpoint:** exact section title,
-  stage titles, final public descriptions, and whether any two neighboring
-  stages should share one visual without losing the requested UI-area
-  explanations.
+  chapter titles, final public descriptions, and the proposed destination of
+  every candidate.
+- **Open human judgment at candidate-selection checkpoint:** which candidates
+  remain in the top walkthrough, move to Plugins/Transparency/another deep
+  dive, move to Getting Started, or are deferred to documentation/later work.
 - **Open human judgment at release-cut checkpoint:** which verified lower-page
   advanced sections remain on the first homepage versus moving to
   documentation or later revisions.
 
 ### Documentation
 
-- Append the approved UI-teaching sequence, role-before-difference theory,
-  stage alternatives, final copy, visual mappings, release cuts, and rationale
-  to
+- Append the approved bottom-up UI-teaching sequence,
+  role-before-difference theory, chapter/candidate alternatives, final copy,
+  candidate classifications, visual mappings, release cuts, and rationale to
   `landing_page/docs/development/homepage-positioning-and-visual-decisions.md`.
 - Update `landing_page/docs/development/content-system.md` for the walkthrough
   content contract, labeled navigation, responsive behavior, candidate
@@ -386,28 +920,37 @@ fulfilled by the walkthrough or feature proof. At minimum:
 
 - [x] **HUMAN JUDGMENT:** Approve the UI-led walkthrough direction and the
       overall publishable-page plan.
-- [ ] **AGENT:** Prepare the detailed six-stage storyboard and preserve the
-      current baseline.
+- [x] **HUMAN JUDGMENT:** Approve the bottom-up Compose → Messages → Session
+      actions → Session settings → Workspace direction and candidate-first
+      selection process.
+- [x] **AGENT:** Preserve the current baseline and verify the exact public
+      behavior/ownership claims represented by the candidates.
+- [x] **AGENT:** Prepare the detailed five-chapter storyboard and expanded
+      candidate pool.
 - [ ] **HUMAN JUDGMENT — CHECKPOINT 1:** Approve the storyboard, exact teaching
-      order, proposed claims, and visual responsibilities.
-- [ ] **AGENT:** Implement the responsive accessible walkthrough shell and
+      order, proposed claims, candidate responsibilities, and proposed
+      destinations.
+- [ ] **AGENT:** Capture and compose the viable candidates through real product
+      boundaries and bind them temporarily to the actual local homepage.
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 2:** Select the candidates for the
+      introduction, deep dives, Getting Started, documentation, and later
+      work after responsive in-page review.
+- [ ] **AGENT:** Implement the selected responsive accessible walkthrough and
       revised homepage information architecture.
-- [ ] **AGENT:** Capture and compose the approved walkthrough and remaining
-      feature sources through real product boundaries.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 2:** Review the complete walkthrough in
-      page context at desktop and phone widths.
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 3:** Review the complete selected
+      walkthrough in page context at desktop and phone widths.
 - [ ] **AGENT:** Finalize remaining feature order, captions, proof, and
       availability distinctions.
 - [ ] **AGENT:** Implement and verify the six-step Getting Started and grouped
       Mobile access treatment.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 3:** Review Getting Started, mobile
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 4:** Review Getting Started, mobile
       availability, connection concepts, and trusted-network language.
 - [ ] **AGENT:** Apply the verified lower-page release cut and advanced-user
       routes.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 4:** Approve retained, moved, and deferred
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 5:** Approve retained, moved, and deferred
       advanced content.
 - [ ] **AGENT:** Complete all release-candidate verification and documentation.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 5:** Approve the complete local
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 6:** Approve the complete local
       publish-ready website and candidate source promotion.
 - [ ] **AGENT:** Promote approved sources and hand the local website to
       subtask `020`; do not push or publish.
@@ -416,17 +959,23 @@ fulfilled by the walkthrough or feature proof. At minimum:
 
 - Visitor-understanding boundary: moderated human review starts at the hero
   with no prior product explanation. The reviewer must correctly identify the
-  product as an agent-session workspace and explain agent profiles, sessions,
-  session actions, message footers/actions, and connections after the
-  walkthrough without using Getting Started.
-- Walkthrough UI boundary: each stage uses source-fingerprinted production
+  product as an extensible agent-session workspace and explain composer
+  controls, message footers/actions, session actions/settings, agent profiles,
+  and workspace/session organization after the walkthrough without using
+  Getting Started.
+- Walkthrough UI boundary: each selected chapter uses source-fingerprinted production
   components/native captures with one consistent fixture. Inspection maps
   every described control/metadata field to the genuine source; a duplicate
   mock menu or repainted data panel is insufficient.
-- Differentiation boundary: copy inspection verifies that each stage explains
+- Candidate-selection boundary: the actual responsive homepage temporarily
+  renders every viable candidate. Human review records its final destination
+  and confirms that rejected/deferred candidates are removed from the public
+  sequence rather than remaining as hidden or unfinished content.
+- Differentiation boundary: copy inspection verifies that each chapter explains
   role first, distinction second, distinguishes Crystal Lattice profiles from
-  official upstream products, and does not imply uniform provider metadata.
-- Navigation/accessibility boundary: browser tests cover descriptive stage
+  official upstream products, distinguishes shell/extension surfaces from
+  plugin contributions, and does not imply uniform provider metadata.
+- Navigation/accessibility boundary: browser tests cover descriptive chapter
   controls, arrow keys, pointer, swipe/scroll, focus, current-state
   announcement, reduced motion, resize persistence, theme switching, and
   no-autoplay behavior.
@@ -467,3 +1016,44 @@ fulfilled by the walkthrough or feature proof. At minimum:
   manifests, browser bundles, or public files.
 - Preserve unrelated worktree changes and stage only this task's files in each
   approved commit.
+
+## Implementation Notes
+
+- 2026-10-11: Execution began at H1 only. No capture production, walkthrough
+  component implementation, public asset promotion, product mutation, push,
+  or publication occurred.
+- 2026-10-11: Source inspection verified the bottom-up control boundaries:
+  application-owned Composer actions coexist with plugin/provider rich config;
+  built-in Message/Session actions coexist with genuine plugin actions;
+  Session settings, Switch Agent, and Session plugins are separate production
+  surfaces.
+- 2026-10-11: Soft-cancel behavior is verified by source and five focused core
+  tests: provider work is interrupted, an active foreground tool is allowed to
+  finish and persist its result, later tool phases do not begin, and hard
+  cancel can escalate the tool interruption.
+- 2026-10-11: Resend is disabled while a request is active and re-runs the
+  current session without appending another user message. Public copy must not
+  say "resend at any time."
+- 2026-10-11: Corrected the planning assumption that Watchlist is
+  plugin-provided. Current Desktop/mobile Watchlist membership/order and local
+  notes are per-device application state and remain distinct from server-side
+  pinned state.
+- 2026-10-11: Identified the fallback `?` source:
+  `openai_responses_native_compaction_extension.py` declares unsupported
+  Feather icon `rows-3` for **Collapse compacted messages**.
+- 2026-10-11: Added the complete fourteen-candidate H1 storyboard, exact
+  working copy, source/composition boundaries, qualifications, proposed
+  destinations, and H2 prerequisites.
+- 2026-10-11: Focused verification passed: 5 core soft-cancel tests; 16
+  frontend SDK chat/session-plugin/status tests; 34 system-message feature
+  tests; 14 Desktop rich-session/settings/sessions tests; 21 mobile
+  rich-session/settings/list-action tests; 10 shared action/status tests; and
+  the focused session-actions UI-element test.
+- 2026-10-11: The full session-actions plugin suite is not a passing
+  verification boundary: 10 tests passed and 2 unrelated copy/delete-session
+  tests failed. The message-export suite did not collect because optional
+  `xhtml2pdf` is not installed. H1 relies on inspected genuine UI definitions
+  for those rows and does not misreport either suite as passing.
+- 2026-10-11: The `develop` worktree contains unrelated active work. H1 kept it
+  read-only and found no uncommitted differences in the audited Composer,
+  Session settings/plugins, native compaction, or mobile chat source files.

@@ -46,6 +46,10 @@ confirmation and integrate its real form into the mobile-download step.
 
 ## Workstreams and ownership
 
+- `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
+  is the coordination umbrella. It tracks the approved order, H1–H9 human
+  gates, current completion, and handoff across the implementation subtasks
+  without owning their product requirements.
 - `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
   owns only the structural prototype: page order, component shells,
   placeholders, draft-content hooks, a responsive baseline, and a local
@@ -96,6 +100,7 @@ confirmation and integrate its real form into the mobile-download step.
 
 ## Subtasks
 
+- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
