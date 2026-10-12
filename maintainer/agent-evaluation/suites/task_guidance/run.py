@@ -176,10 +176,10 @@ def _assessment_stage_for(stage: str) -> str:
 def parse_max_concurrent(raw: str | None) -> int | None:
     """Optional process-wide case concurrency cap (``--max-concurrent``).
 
-    The runtime environment overlay allows one live workspace root per
-    process, so cases whose workspaces differ cannot truly run in
-    parallel; ``--max-concurrent 1`` serializes every case and is the
-    safe setting until the overlay supports multiple roots.
+    Cases execute in forked workers with process-private runtime
+    environments, so sibling cases with different workspaces run in
+    parallel by default; this cap remains available to serialize
+    everything for debugging.
     """
 
     if raw is None:

@@ -21,19 +21,19 @@ current workaround is the runner's `--max-concurrent 1` cap.
 
 ## Requirements checklist
 
-- [ ] The framework must not install values into the global process
+- [x] The framework must not install values into the global process
   environment in a way that can collide between sibling runs in one
   process: either runs are cleanly separated (for example one runtime
   process per run) or the framework uses a non-global mechanism and
   nothing needed at runtime is only reachable through `os.environ`.
-- [ ] Plugins and core code must not depend on global environment
+- [x] Plugins and core code must not depend on global environment
   variables for per-run values; whatever mechanism replaces the overlay
   must deliver per-run values to plugins without process-global state.
-- [ ] Two sibling evaluation cases with different workspaces must be
+- [x] Two sibling evaluation cases with different workspaces must be
   able to run concurrently in one process (or one runtime process each)
   without overlay conflicts; verified by a real concurrent run, not
   only unit-level assertions.
-- [ ] Matrix-wide evaluation runs no longer require
+- [x] Matrix-wide evaluation runs no longer require
   `--max-concurrent 1`; the two-agent default concurrency works.
 
 ## Open requirement questions
@@ -177,6 +177,25 @@ Status: Approved (user directed execution start on October 10, 2026)
   planning + from-plan, tg01) in flight — first cases green
   including a cross-model continuation in a worker.
 
+- October 11, 2026 (verification complete): live uncapped mixed-agent
+  slice `d-iso-tg01-r4` — `--stages
+  planning-session,task-creation-from-plan --scenarios
+  tg01-eleventy-archive-handoff`, default two-agent parallelism, NO
+  `--max-concurrent` — finished **11 cases: 11 ok**, zero overlay
+  conflicts. Run-start evidence shows genuine cross-agent overlap
+  (glm from-plan child at 10:58:24 while gpt planning-unguided at
+  10:58:27; same-second glm+gpt from-plan starts at 11:04:22,
+  11:14:09, 11:25:40) — precisely the pattern that failed
+  `d-trial-tg01-r3`. Cross-model continuations (glm children from
+  gpt planning) pass inside workers. Failed attempts en route:
+  r1/r2 aborted with the ObjC fork guard before the re-exec fix; r3
+  died to a re-exec argv bug (relative import without `-m`).
+  `parse_max_concurrent` docstring updated: the cap is now optional
+  debugging tooling, not a safety requirement. Full framework suite:
+  183 passed (incl. 3 new isolated tests), 3 pre-existing
+  cleanup-fallout failures unchanged (doc-standard preflight ×2,
+  requirement-quality frozen datasets).
+
 ### Implementation decisions and open questions
 
 - None beyond the open requirement question above; no implementation
@@ -193,8 +212,8 @@ Status: Approved (user directed execution start on October 10, 2026)
 - [x] Inventory overlay-key consumers across the runtime and plugins
 - [x] Present isolation options; user decides the approach
 - [x] Implement chosen isolation approach
-- [ ] Concurrent mixed-agent verification run
-- [ ] Update concurrency guidance and related docs
+- [x] Concurrent mixed-agent verification run
+- [x] Update concurrency guidance and related docs
 
 ### Requirement verification
 
