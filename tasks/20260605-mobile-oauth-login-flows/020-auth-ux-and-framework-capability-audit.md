@@ -1,6 +1,9 @@
 # Auth UX And Framework Capability Audit
 Define the desired login-type selection UX and determine whether the existing framework can already express it or needs extension work.
 
+SUPERSEDED BY:
+`tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+
 ## Requirements checklist
 
 - [ ] Audit whether existing `session_action.dialog` primitives can support chip-style login-type selection with a single confirm button.

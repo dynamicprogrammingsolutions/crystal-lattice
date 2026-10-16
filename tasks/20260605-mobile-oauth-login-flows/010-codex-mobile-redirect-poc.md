@@ -1,6 +1,9 @@
 # Codex Mobile Redirect POC
 Prove whether OpenAI/Codex accepts a mobile redirect URI and whether the app can capture enough information to resume the flow through an action call.
 
+SUPERSEDED BY:
+`tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+
 ## Requirements checklist
 
 - [ ] Verify whether the OpenAI/Codex OAuth client accepts a redirect URI such as `myapp://oauth/callback`.

@@ -1,6 +1,9 @@
 # Complete Codex Browser Login Flow
 Turn the Codex proof of concept into a production-ready browser-login path that works end to end with login-type selection, redirect completion, and existing credential persistence.
 
+SUPERSEDED BY:
+`tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+
 ## Requirements checklist
 
 - [ ] Add the full Codex browser-login action flow, including start and completion steps.
