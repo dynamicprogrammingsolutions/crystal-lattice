@@ -10,6 +10,12 @@ import {
   proofBatchPreviewFor,
   vibePreviewAsset,
 } from "../../scripts/visual-assets/session-actions-preview.mjs";
+import {
+  applyWalkthroughCandidatePreview,
+} from "../../scripts/visual-assets/walkthrough-candidate-preview.mjs";
+import {
+  applyWalkthroughFinalPreview,
+} from "../../scripts/visual-assets/walkthrough-final-preview.mjs";
 
 const pagesDir = join(process.cwd(), "src", "content", "pages");
 
@@ -21,7 +27,7 @@ export function loadPage(name: string): PageDocument {
   }
   if (!sessionActionsPreviewEnabled || name !== "home") return parsed;
   const previewAsset = sessionActionsPreviewAsset(readSessionActionsRecipe(process.cwd()));
-  return {
+  const previewPage = {
     ...parsed,
     sections: parsed.sections.map(section => section.type !== "featureShowcase" ? section : ({
       ...section,
@@ -43,6 +49,9 @@ export function loadPage(name: string): PageDocument {
       })),
     })),
   };
+  return applyWalkthroughFinalPreview(
+    applyWalkthroughCandidatePreview(previewPage),
+  );
 }
 
 function isPageDocument(value: unknown): value is PageDocument {

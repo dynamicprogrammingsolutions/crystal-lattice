@@ -114,6 +114,28 @@ explicit candidate-to-reviewed-source lifecycle for generated captures.
 `yarn test:visual:headed` runs the same visual contracts with visible browser
 windows.
 
+The local H2 walkthrough candidate page is intentionally opt-in:
+
+```bash
+CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn build
+CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4182
+```
+
+It uses ignored candidate files and does not update public assets or normal
+homepage content.
+
+The selected H3 walkthrough is a separate opt-in preview:
+
+```bash
+node scripts/visual-assets/walkthrough-final-composition.mjs
+CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn build
+CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
+```
+
+This mode renders the labeled five-chapter walkthrough and copies only its
+ignored responsive review assets into the ignored preview build. Do not enable
+the H2 candidate and H3 final flags together.
+
 The homepage structural prototype keeps draft feature copy and missing proof
 explicit through review-status metadata and placeholder panels. Those states
 exist for local contextual review only; copy, proof, ordering, and visual

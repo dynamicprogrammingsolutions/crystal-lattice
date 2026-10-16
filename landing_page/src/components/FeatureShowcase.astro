@@ -26,6 +26,12 @@ const gridClass =
   border={!isEditorial}
   spacing={isEditorial ? "flush-top" : "normal"}
 >
+  {isEditorial && (section.title || body.length > 0) && (
+    <div class="mb-12 max-w-[860px]">
+      {section.title && <h2 class="text-[clamp(2rem,4vw,3.4rem)] font-bold leading-[1.02] tracking-[-0.04em] text-fg">{section.title}</h2>}
+      {body.map((paragraph) => <p class="mt-5 text-[1.05rem] leading-relaxed text-fg-3">{paragraph}</p>)}
+    </div>
+  )}
   {!isEditorial && (
     <div class="mb-11 max-w-[720px]">
       {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}

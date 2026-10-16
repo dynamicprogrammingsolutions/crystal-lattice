@@ -3,6 +3,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { proofBatchRecipes } from "../../visual_assets/proof-batch-recipes.mjs";
 import { vibePreviewAsset } from "./vibe-composition.mjs";
+import {
+  walkthroughCandidatePreviewEnabled,
+  walkthroughCandidateSourceCopies,
+} from "./walkthrough-candidate-preview.mjs";
+import {
+  walkthroughFinalPreviewEnabled,
+  walkthroughFinalSourceCopies,
+} from "./walkthrough-final-preview.mjs";
 import { createHash } from "node:crypto";
 export { vibePreviewAsset };
 
@@ -11,7 +19,10 @@ export { vibePreviewAsset };
 export const proofBatchPreviewRecipes = proofBatchRecipes.filter(
   recipe => !["homepage-session-list", "homepage-cost-report", "homepage-chatgpt-usage"].includes(recipe.id),
 );
-export const proofBatchPreviewEnabled = process.env.CRYSTAL_PROOF_BATCH_PREVIEW === "1";
+export const proofBatchPreviewEnabled =
+  process.env.CRYSTAL_PROOF_BATCH_PREVIEW === "1"
+  || walkthroughCandidatePreviewEnabled
+  || walkthroughFinalPreviewEnabled;
 export function proofRecipeReady(recipe, landingRoot = fileURLToPath(new URL("../../", import.meta.url))) {
   const directory = path.join(landingRoot, recipe.candidateDirectory);
   const manifestFile = path.join(directory, "manifest.json");
@@ -30,7 +41,8 @@ export function readSessionActionsRecipe(landingRoot = fileURLToPath(new URL("..
   ));
 }
 export const sessionActionsPreviewEnabled =
-  process.env.CRYSTAL_SESSION_ACTIONS_PREVIEW === "1" || proofBatchPreviewEnabled;
+  process.env.CRYSTAL_SESSION_ACTIONS_PREVIEW === "1"
+  || proofBatchPreviewEnabled;
 
 export function proofBatchPreviewAsset(recipe) {
   return {
@@ -99,6 +111,44 @@ export function sessionActionsPreviewIntegration() {
             for (const shape of ["wide", "compact"]) for (const suffix of ["", "-dark"]) {
               const name = `${shape}${suffix}.webp`;
               fs.copyFileSync(path.join(root, recipe.candidateDirectory, name), path.join(destination, name));
+            }
+          }
+          if (walkthroughCandidatePreviewEnabled) {
+            const candidateDestination = path.join(
+              fileURLToPath(dir),
+              "__preview/walkthrough",
+            );
+            fs.mkdirSync(candidateDestination, { recursive: true });
+            for (const candidate of walkthroughCandidateSourceCopies) {
+              const source = path.join(root, candidate.source);
+              if (!fs.existsSync(source)) {
+                throw new Error(
+                  `Missing walkthrough candidate source: ${candidate.source}`,
+                );
+              }
+              fs.copyFileSync(
+                source,
+                path.join(candidateDestination, candidate.destination),
+              );
+            }
+          }
+          if (walkthroughFinalPreviewEnabled) {
+            const finalDestination = path.join(
+              fileURLToPath(dir),
+              "__preview/walkthrough-final",
+            );
+            fs.mkdirSync(finalDestination, { recursive: true });
+            for (const asset of walkthroughFinalSourceCopies) {
+              const source = path.join(root, asset.source);
+              if (!fs.existsSync(source)) {
+                throw new Error(
+                  `Missing final walkthrough source: ${asset.source}`,
+                );
+              }
+              fs.copyFileSync(
+                source,
+                path.join(finalDestination, asset.destination),
+              );
             }
           }
         }

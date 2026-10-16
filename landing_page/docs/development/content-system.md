@@ -175,6 +175,53 @@ leave placeholders despite valid captures. Browser checks require the selected
 candidate images to load. Missing/stale candidates keep their authored
 placeholder.
 
+The H2 UI-walkthrough selection page uses another explicit local-only build:
+
+```bash
+CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn build
+CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4182
+```
+
+This mode inserts the five candidate chapters after the hero, removes the
+model-family and session-workspace compact duplicates, and places candidate
+System-message, cross-device, and connection proof in their proposed
+Transparency, Work from anywhere, and Getting Started destinations. It copies
+only ignored candidate files into the ignored preview output. Normal authored
+content, reviewed public sources, and `public/` remain unchanged.
+
+The source map and candidate-only copy contract live in
+`scripts/visual-assets/walkthrough-candidate-preview.mjs`. Missing candidate
+files fail the explicit preview build instead of silently rendering a stale or
+planning placeholder. Responsive Playwright review is gated by the same
+environment variable and writes screenshots under
+`artifacts/walkthrough-candidate-review/`.
+
+The selected H3 implementation uses the dedicated `productWalkthrough`
+section and a separate final-preview flag:
+
+```bash
+node scripts/visual-assets/walkthrough-final-composition.mjs
+CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn build
+CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
+```
+
+`productWalkthrough` owns a concise introduction and five labeled chapters:
+Compose, Messages, Session actions, Session settings, and Workspace. Each
+chapter separates the ordinary UI role from the Crystal Lattice distinction,
+uses one wide/compact light/dark image set, and supplies a visitor-facing
+caption and alt text. The component exposes a labeled tab list, keyboard
+navigation, previous/next buttons, horizontal swipe over the visual, no
+autoplay, a reduced-motion-safe presentation, and sequential panels when
+JavaScript is unavailable.
+
+The final preview removes the superseded model-family and session-workspace
+compact highlights but leaves later feature and Getting Started changes to
+their owning checkpoint. H2 and H3 flags are mutually exclusive. The final
+source map lives in
+`scripts/visual-assets/walkthrough-final-preview.mjs`; missing composed sources
+fail the explicit build. Responsive browser evidence is written under
+`artifacts/walkthrough-final-review/`.
+
 ## Current Section Types
 
 The current registry includes general product sections, richer proof and
@@ -187,6 +234,7 @@ include:
 - ordered getting-started workflows;
 - action guides;
 - feature/code showcases;
+- labeled product walkthroughs;
 - screenshot galleries;
 - prompt and code examples;
 - mobile hero, feature, connection, and download sections;

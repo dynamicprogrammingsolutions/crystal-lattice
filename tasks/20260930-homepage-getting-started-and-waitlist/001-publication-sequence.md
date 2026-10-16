@@ -56,7 +56,7 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | H1 storyboard prepared | Human checkpoint H1: approve candidate storyboard |
+| Publishable homepage | `019` | H3 implemented and verified | Human checkpoint H3: approve the walkthrough in context |
 | Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H6 homepage approval and handoff |
 
 ## Execution plan
@@ -258,10 +258,10 @@ Agent work after approval:
 - [x] Complete content/assets/layout baseline `015`.
 - [x] Reconcile completed/deferred `018` ownership with `019`.
 - [x] **AGENT:** Prepare H1 candidate storyboard.
-- [ ] **HUMAN JUDGMENT — H1:** Approve candidate storyboard.
-- [ ] **AGENT:** Produce and bind the H2 candidate set on the actual page.
-- [ ] **HUMAN JUDGMENT — H2:** Select candidate destinations.
-- [ ] **AGENT:** Implement the selected walkthrough.
+- [x] **HUMAN JUDGMENT — H1:** Approve candidate storyboard.
+- [x] **AGENT:** Produce and bind the H2 candidate set on the actual page.
+- [x] **HUMAN JUDGMENT — H2:** Select candidate destinations.
+- [x] **AGENT:** Implement the selected walkthrough.
 - [ ] **HUMAN JUDGMENT — H3:** Approve the walkthrough in context.
 - [ ] **AGENT:** Complete features, Getting Started, and Mobile access.
 - [ ] **HUMAN JUDGMENT — H4:** Approve features and setup flow.
@@ -320,3 +320,21 @@ Agent work after approval:
   Plugin, Transparency, popup, icon, and capture-pipeline work. `019` owns all
   new candidate production, selection, page restructuring, remaining feature
   proof, and local publish-ready acceptance.
+- 2026-10-13: The user approved the H1 storyboard. H2 then produced the
+  fourteen-candidate pool through real product/capture boundaries, bound the
+  candidates to an opt-in version of the actual homepage, and verified normal
+  public builds remain unchanged.
+- 2026-10-13: H2 agent work is complete and paused at the required human
+  candidate-selection checkpoint. Responsive light/dark Playwright review
+  covers 1440, 1024, 768, 390, and 320 CSS pixels; every carousel candidate
+  also has focused 1440- and 390-pixel captures for visual judgment.
+- 2026-10-13: The user approved the H2 content and teaching order, with the
+  explicit condition that every selected image receive an individual
+  phone-legibility treatment and that Getting Started retain all required
+  code, download, and image evidence. H3 may begin, but must stop at its human
+  walkthrough-in-context checkpoint before H4.
+- 2026-10-13: H3 is agent-complete. The selected five-chapter walkthrough,
+  responsive wide/compact compositions, interaction/accessibility behavior,
+  normal-build isolation, and responsive light/dark browser matrix are
+  implemented and verified. Execution is paused at the required H3 human
+  walkthrough-in-context checkpoint.

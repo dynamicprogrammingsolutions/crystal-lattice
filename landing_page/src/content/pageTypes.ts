@@ -173,6 +173,31 @@ export type FeatureShowcaseSection = SectionBase<"featureShowcase"> & {
   visual?: MediaPlaceholder;
 };
 
+export type ProductWalkthroughChapter = {
+  id: string;
+  label: string;
+  title: string;
+  role: string;
+  distinction: string;
+  caption: string;
+  image: {
+    src: string;
+    srcDark?: string;
+    srcCompact?: string;
+    srcCompactDark?: string;
+    alt: string;
+    width: number;
+    height: number;
+    widthCompact?: number;
+    heightCompact?: number;
+  };
+};
+
+export type ProductWalkthroughSection = SectionBase<"productWalkthrough"> & {
+  intro: string;
+  chapters: ProductWalkthroughChapter[];
+};
+
 export type GettingStartedPlatform = {
   id: string;
   label: string;
@@ -329,6 +354,7 @@ export type PageSection =
   | ActionGuideSection
   | FeatureMatrixSection
   | FeatureShowcaseSection
+  | ProductWalkthroughSection
   | GettingStartedSection
   | FeatureCodeShowcaseSection
   | ScreenshotGallerySection

@@ -1,6 +1,7 @@
 ---
 import InstallationChooser from "./InstallationChooser.astro";
 import PlatformLogo from "./PlatformLogo.astro";
+import ProofImage from "./ProofImage.astro";
 import SectionShell from "./SectionShell.astro";
 import ShellCommand from "./ShellCommand.astro";
 import { loadDesktopRelease } from "../content/loadDesktopRelease";
@@ -130,18 +131,35 @@ function methodsFor(step: GettingStartedStep) {
                   ))}
                 </div>
                 {step.media && (
-                  <div
-                    class="flex min-h-[210px] items-center justify-center rounded-xl bg-canvas text-center"
-                    data-proof-placeholder
-                    aria-label={step.media.desktop ?? step.media.status ?? "Visual placeholder"}
-                  >
-                    <span class="font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-fg-5">
-                      Planned visual
-                    </span>
-                    <p class="mt-3 max-w-[620px] px-6 text-sm leading-relaxed text-fg-4">
-                      {step.media.desktop ?? step.media.status ?? "Visual description pending."}
-                    </p>
-                  </div>
+                  step.media.src ? (
+                    <div class="max-w-[760px]">
+                      <ProofImage
+                        asset={{
+                          src: step.media.src,
+                          srcDark: step.media.srcDark,
+                          alt: step.media.alt,
+                          width: step.media.width,
+                          height: step.media.height,
+                        }}
+                        alt={step.media.alt ?? step.title}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      class="flex min-h-[210px] items-center justify-center rounded-xl bg-canvas text-center"
+                      data-proof-placeholder
+                      aria-label={step.media.desktop ?? step.media.status ?? "Visual placeholder"}
+                    >
+                      <div>
+                        <span class="font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-fg-5">
+                          Planned visual
+                        </span>
+                        <p class="mt-3 max-w-[620px] px-6 text-sm leading-relaxed text-fg-4">
+                          {step.media.desktop ?? step.media.status ?? "Visual description pending."}
+                        </p>
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
             )}

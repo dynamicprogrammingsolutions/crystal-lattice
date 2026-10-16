@@ -927,15 +927,15 @@ fulfilled by the walkthrough or feature proof. At minimum:
       behavior/ownership claims represented by the candidates.
 - [x] **AGENT:** Prepare the detailed five-chapter storyboard and expanded
       candidate pool.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 1:** Approve the storyboard, exact teaching
+- [x] **HUMAN JUDGMENT — CHECKPOINT 1:** Approve the storyboard, exact teaching
       order, proposed claims, candidate responsibilities, and proposed
       destinations.
-- [ ] **AGENT:** Capture and compose the viable candidates through real product
+- [x] **AGENT:** Capture and compose the viable candidates through real product
       boundaries and bind them temporarily to the actual local homepage.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 2:** Select the candidates for the
+- [x] **HUMAN JUDGMENT — CHECKPOINT 2:** Select the candidates for the
       introduction, deep dives, Getting Started, documentation, and later
       work after responsive in-page review.
-- [ ] **AGENT:** Implement the selected responsive accessible walkthrough and
+- [x] **AGENT:** Implement the selected responsive accessible walkthrough and
       revised homepage information architecture.
 - [ ] **HUMAN JUDGMENT — CHECKPOINT 3:** Review the complete selected
       walkthrough in page context at desktop and phone widths.
@@ -1057,3 +1057,134 @@ fulfilled by the walkthrough or feature proof. At minimum:
 - 2026-10-11: The `develop` worktree contains unrelated active work. H1 kept it
   read-only and found no uncommitted differences in the audited Composer,
   Session settings/plugins, native compaction, or mobile chat source files.
+- 2026-10-13: The user approved H1 and authorized H2. The candidate process
+  remained opt-in through `CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1`; normal
+  content tests and the normal production build continue to render the
+  existing public page without the candidate walkthrough or review assets.
+- 2026-10-13: Product/capture prerequisites were implemented but remain
+  uncommitted on `develop` alongside pre-existing unrelated work. The OpenAI
+  compaction action now uses valid stateful Feather icons
+  (`minimize-2`/`maximize-2`), and the maintained mobile website harness adds
+  genuine production states for an active composer, authored System template,
+  request-status session list, local Watchlist/Home view, and connection
+  methods. No `develop` changes have been reconciled to `main` or committed.
+- 2026-10-13: The final selective Detox capture completed successfully in
+  light and dark themes. Focused verification passed: mobile TypeScript;
+  6 mobile harness tests; 28 OpenAI native-compaction tests; the generated
+  runtime-UI fixture test; 25 landing visual-asset tests; 8 normal homepage
+  content/download tests; normal Astro build; and repository diff checks.
+- 2026-10-13: The actual homepage now has an opt-in H2 review binding for all
+  fourteen candidates. C01–C07 and C10–C12 appear in the five walkthrough
+  chapters; C08–C09 remain in Transparency; C13 appears in the mobile
+  connection step; and C14 appears in Work from anywhere. Candidate files
+  remain ignored review artifacts outside `public/`, and a missing source
+  deliberately fails the preview build.
+- 2026-10-13: Candidate-page Playwright verification passed 15 tests. It
+  covers 1440, 1024, 768, 390, and 320 CSS pixels in light/dark themes, no
+  horizontal overflow, ten walkthrough cards, removal of the two superseded
+  compact highlights in preview mode, independent image-strip navigation,
+  and focused in-page screenshots of every multi-image candidate at 1440 and
+  390 pixels.
+- 2026-10-13: Visual review found that C03 is the strongest current
+  message-action explanation, especially in its purpose-built phone
+  composition. C09 and the plugin-driven costs/ChatGPT report remain strong
+  Transparency candidates. C06 and C07 accurately show provider and plugin
+  ownership but are small at phone page size, so their introductory role
+  remains a human selection rather than an implementation assumption.
+- 2026-10-13: C01 and C04 preserve genuine popup identity but leave excessive
+  empty canvas on desktop and make row text small on phone; C04 also remains
+  broader than the planned focused introductory subset. C02 proves genuine
+  response metadata, but its text is too small in the current phone frame.
+  C05 is clear on desktop and effectively unreadable on phone without a
+  responsive crop or alternate composition.
+- 2026-10-13: Workspace candidates expose unresolved publication issues.
+  C10 has an iOS safe-area collision between the clock and workspace title.
+  C11 places durable plugin status beside transient request status in a way
+  that can look contradictory without stronger labeling. C12 repeats the
+  safe-area collision and is information-dense; the local Watchlist remains
+  optional supporting proof rather than a default recommendation.
+- 2026-10-13: C13 is a clean production connection-method capture, but the
+  actual UI orders Manual Address before Automatic Discovery while the
+  approved visitor explanation starts with discovery. The current Getting
+  Started layout also retains command-heavy mobile connection text and needs
+  H4 restructuring. C14 truthfully shows one session across Desktop/mobile,
+  but the current composition has too much empty canvas and is too small on
+  phone.
+- 2026-10-13: H2 agent work is complete. Execution is paused at Human
+  Checkpoint 2 so candidate destinations and the required responsive
+  compositions can be selected before the final walkthrough component is
+  implemented.
+- 2026-10-13: The user approved the H2 content and order and accepted the
+  selected direction subject to image-specific responsive treatment. Candidate
+  IDs such as C01/C05, candidate/review labels, provenance language, and review
+  statuses are internal-only and must be absent from final public copy and
+  accessibility text.
+- 2026-10-13: Mobile readability is a per-asset acceptance condition, not a
+  single global scaling rule. Each selected proof must use the smallest
+  truthful intervention that keeps its important text readable at rendered
+  phone width: a tighter crop, a smaller Desktop capture window, a shorter
+  phone/device viewport, a responsive alternate composition, a focused inset,
+  or a genuine magnifier treatment like the accepted usage/cost proof.
+- 2026-10-13: H3 will implement the five-chapter selected walkthrough and
+  prepare the responsive proof variants. The current expanded stacked
+  candidate page is not the final component. H3 stops at Checkpoint 3 for
+  desktop/phone review before features and Getting Started are finalized in
+  H4.
+- 2026-10-13: Getting Started media ownership is now explicit. Step 1 uses the
+  maintained interactive CLI installation chooser; Step 2 uses the workspace
+  startup command; Step 3 uses real platform/download controls and the
+  maintained macOS release link; Step 4 still requires a compact real Desktop
+  connection-editor proof with port `9000` and a recognizable connected
+  outcome; Step 5 uses Apple/Android availability controls and later receives
+  the real waitlist form from subtask `020`; Step 6 uses the genuine mobile
+  connection-method UI with responsive treatment and discovery → address/port
+  fallback → bridge visitor explanation. No step may retain a planned-visual
+  placeholder in the publish candidate.
+- 2026-10-13: H3 adds a dedicated `productWalkthrough` section rather than
+  retaining the expanded H2 feature-card stack. It presents one active chapter
+  at a time in the approved Compose → Messages → Session actions → Session
+  settings → Workspace order, with visible chapter names, keyboard
+  Arrow/Home/End navigation, labeled previous/next controls, visual swipe,
+  no autoplay, reduced-motion-safe behavior, and sequential no-JavaScript
+  fallback.
+- 2026-10-13: Desktop uses a stable two-column copy/image stage. Mobile shows
+  the chapter title and ordinary role first, then the responsive image, then
+  the Crystal Lattice distinction. The horizontally scrollable named chapter
+  controls do not trap vertical scrolling. Direct section navigation reserves
+  space for the sticky site header.
+- 2026-10-13: The final capture fixture is coherent. Compose, Messages,
+  Session actions, and provider/plugin settings use the same Starlette/Codex
+  session. The Workspace list begins with the same titled task and uses a
+  descriptive `starlette-compatibility` slug rather than a raw UUID. Durable
+  task status and transient request state are aligned and labeled separately.
+- 2026-10-13: The maintained mobile capture harness now includes the terminal
+  Starlette Message actions state and aligned Workspace state. TypeScript and
+  7 focused harness tests pass; selective native light/dark Detox captures for
+  Message actions and Workspace pass through the production UI.
+- 2026-10-13: `walkthrough-final-composition.mjs` creates independently
+  composed light/dark wide (1800 × 1013) and compact (1000 × 1250) assets.
+  Compose, Messages, and Session actions use genuine popup/context
+  magnification; Session settings combines the agent-profile source with
+  focused provider/plugin controls; Workspace crops out the simulator
+  safe-area collision and enlarges readable rows. Public compositions contain
+  no candidate IDs, review language, or raw session UUIDs.
+- 2026-10-13: Final in-page inspection opened every chapter at 1440, 1024,
+  768, 390, and 320 CSS pixels in light and dark themes. The compact
+  compositions keep the relevant controls readable at rendered phone size;
+  the first visual appears before the distinction paragraph on phone. The H3
+  page is about 12,988 pixels tall at 1440 and 17,895 pixels at 390, compared
+  with the expanded H2 review page's roughly 17,622 and 21,285 pixels.
+- 2026-10-13: Verification passed: 12 final-walkthrough Playwright tests,
+  15 retained H2-candidate Playwright tests, 8 normal homepage content tests,
+  25 landing visual-asset tests, normal and explicit-preview Astro builds,
+  mobile TypeScript, 7 mobile harness tests, 28 native-compaction tests, the
+  generated runtime-UI fixture test, selective native captures, and diff
+  checks.
+- 2026-10-13: H3 remains opt-in through
+  `CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1`; its review assets remain ignored and
+  outside `public/`. Normal homepage content/build output is unchanged. No
+  source promotion, commit, push, deployment, or publication occurred.
+- 2026-10-13: H3 agent work is complete and execution is paused at Human
+  Checkpoint 3. H4 must not begin until the user approves the walkthrough's
+  clarity, legibility, navigation, responsive behavior, and transition into
+  the remaining feature sections.
