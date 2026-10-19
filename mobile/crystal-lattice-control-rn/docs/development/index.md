@@ -1,5 +1,10 @@
 # Mobile development
 
+## Release
+
+- [Cross-package release quick reference](../../../../docs/development/releases.md)
+- [iOS TestFlight with Fastlane](../../README.md#testflight-with-fastlane)
+
 ## Connectivity and navigation
 
 - [Bridge connection integration](bridge-connection-integration.md) — pairing,

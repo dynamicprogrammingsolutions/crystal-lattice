@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 REPO_RUN_SCRIPT = ROOT / "scripts" / "repo_run.py"
 PACKAGE_JSON = ROOT / "package.json"
 TASKS_JSON = ROOT / ".vscode" / "tasks.json"
+RELEASES_DOC = ROOT / "docs" / "development" / "releases.md"
 
 REPO_RUN_PREFIX = "python scripts/repo_run.py "
 
@@ -377,3 +378,41 @@ def test_vscode_tasks_reference_valid_scripts():
     dev_server_tasks = [task for task in tasks if task["script"] == "server:dev"]
     assert len(dev_server_tasks) == 1
     assert dev_server_tasks[0]["label"] == "Server: Dev"
+
+
+def test_vscode_tasks_cover_release_entry_points():
+    tasks = json.loads(TASKS_JSON.read_text(encoding="utf-8"))["tasks"]
+    task_scripts = {task["script"] for task in tasks}
+
+    expected_release_scripts = {
+        "release:cli:version:bump-patch",
+        "release:cli:plan",
+        "release:cli:gate",
+        "release:cli",
+        "release:cli:smoke",
+        "desktop:macos:release:verify",
+        "desktop:macos:release:build",
+        "desktop:macos:build",
+        "desktop:macos:release:candidate:start",
+        "desktop:macos:release:publish:start",
+        "desktop:macos:release:watch",
+        "mobile:ios:release:verify",
+        "mobile:ios:release:build",
+        "mobile:ios:release:testflight",
+        "mobile:ios:testflight:build:start",
+        "mobile:ios:testflight:start",
+        "mobile:ios:testflight:watch",
+    }
+
+    assert expected_release_scripts <= task_scripts
+
+
+def test_release_quick_reference_lists_vscode_release_tasks():
+    tasks = json.loads(TASKS_JSON.read_text(encoding="utf-8"))["tasks"]
+    release_tasks = [task for task in tasks if task["label"].startswith("Release:")]
+    release_docs = RELEASES_DOC.read_text(encoding="utf-8")
+
+    assert release_tasks
+    for task in release_tasks:
+        assert f"`{task['label']}`" in release_docs
+        assert f"npm run {task['script']}" in release_docs

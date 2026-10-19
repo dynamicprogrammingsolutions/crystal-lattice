@@ -33,6 +33,8 @@ harnesses.
   structure, file roles, writing, requirements, testing, and verification.
 - [Crystal Lattice documentation conventions](development/crystal-lattice-documentation.md):
   package paths, plugin guidance, tasks, publication, and migration.
+- [Release quick reference](development/releases.md): CLI, desktop, and mobile
+  release commands and matching VS Code tasks.
 - [AgentCore API](packages/core-python/reference/core.md): core session, message, request,
   streaming, and tool orchestration APIs.
 - [Core SDK guide](packages/core-python/core-sdk.md): hand-written guide to

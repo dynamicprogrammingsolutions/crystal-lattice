@@ -1,5 +1,6 @@
 # Application runtime development
 
+- [Cross-package release quick reference](../../../../docs/development/releases.md)
 - [CLI distribution implementation and verification](cli-distribution.md)
 - [CLI distribution verification specification](specifications/cli-distribution/index.md)
 - [Local headless agent runs specification](specifications/headless-agent-runs/index.md)

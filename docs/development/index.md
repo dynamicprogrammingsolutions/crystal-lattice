@@ -13,6 +13,11 @@ developer documentation remains with its package.
   apply the guide to package paths, plugins, tasks, publication, and migration
   in this repository.
 
+## Repository operations
+
+- [Release quick reference](releases.md): CLI, desktop, and mobile release
+  commands, publication sequences, and matching VS Code tasks.
+
 ## Cross-package specifications
 
 - [Notifications](specifications/notifications/index.md)

@@ -1,5 +1,10 @@
 # Desktop development
 
+## Release
+
+- [Cross-package release quick reference](../../../../docs/development/releases.md)
+- [macOS direct-download release](macos-release.md)
+
 ## Application surfaces
 
 - [Frontend hosting](frontend-hosting.md)
@@ -19,5 +24,4 @@
 - [Human-time telemetry](human-time-telemetry.md)
 - [Native UI testing](native-ui-testing.md)
 - [Website visual capture](website-visual-capture.md)
-- [macOS direct-download release](macos-release.md)
 - [Connection lifecycle specification](specifications/connection-lifecycle/index.md)

@@ -208,6 +208,7 @@ nav:
     - Tool Host Protocol: reference/tool-host-protocol.md
   - Development:
     - Start Here: development/index.md
+    - Release Quick Reference: development/releases.md
     - Standards:
       - Reusable Standards: development/standards/index.md
       - Documentation Structure: development/standards/documentation.md

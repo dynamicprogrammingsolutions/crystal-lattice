@@ -129,6 +129,184 @@
       "group": "build"
     },
     {
+      "label": "Release: CLI: Bump Patch Version",
+      "type": "npm",
+      "script": "release:cli:version:bump-patch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: CLI: Plan",
+      "type": "npm",
+      "script": "release:cli:plan",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: CLI: Gate",
+      "type": "npm",
+      "script": "release:cli:gate",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: CLI: Publish",
+      "type": "npm",
+      "script": "release:cli",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: CLI: Smoke Test",
+      "type": "npm",
+      "script": "release:cli:smoke",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Desktop: Verify Locally",
+      "type": "npm",
+      "script": "desktop:macos:release:verify",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Desktop: Build Unsigned Universal Archive",
+      "type": "npm",
+      "script": "desktop:macos:release:build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: Desktop: Build Signed and Notarized DMG Locally",
+      "type": "npm",
+      "script": "desktop:macos:build",
+      "options": {
+        "env": {
+          "MACOS_BUILD_NUMBER": "${input:macosBuildNumber}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: Desktop: Start GitHub Candidate Build",
+      "type": "npm",
+      "script": "desktop:macos:release:candidate:start",
+      "options": {
+        "env": {
+          "MACOS_BUILD_NUMBER": "${input:macosBuildNumber}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Desktop: Publish GitHub Candidate",
+      "type": "npm",
+      "script": "desktop:macos:release:publish:start",
+      "options": {
+        "env": {
+          "DESKTOP_CANDIDATE_RUN_ID": "${input:desktopCandidateRunId}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Desktop: Watch Latest GitHub Run",
+      "type": "npm",
+      "script": "desktop:macos:release:watch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Verify Locally",
+      "type": "npm",
+      "script": "mobile:ios:release:verify",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Build Signed IPA Locally",
+      "type": "npm",
+      "script": "mobile:ios:release:build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Upload to TestFlight Locally",
+      "type": "npm",
+      "script": "mobile:ios:release:testflight",
+      "options": {
+        "env": {
+          "TESTFLIGHT_CHANGELOG": "${input:testflightChangelog}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Start GitHub Build Only",
+      "type": "npm",
+      "script": "mobile:ios:testflight:build:start",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Start GitHub TestFlight Upload",
+      "type": "npm",
+      "script": "mobile:ios:testflight:start",
+      "options": {
+        "env": {
+          "TESTFLIGHT_CHANGELOG": "${input:testflightChangelog}"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Release: Mobile iOS: Watch Latest GitHub Run",
+      "type": "npm",
+      "script": "mobile:ios:testflight:watch",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "Server: Dev",
       "type": "npm",
       "script": "server:dev",
@@ -138,6 +316,23 @@
         "panel": "dedicated"
       },
       "group": "build"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "macosBuildNumber",
+      "type": "promptString",
+      "description": "Optional positive macOS build number; leave empty for the workflow/default resolver"
+    },
+    {
+      "id": "desktopCandidateRunId",
+      "type": "promptString",
+      "description": "Successful desktop candidate workflow run ID to publish"
+    },
+    {
+      "id": "testflightChangelog",
+      "type": "promptString",
+      "description": "Optional TestFlight What to Test text"
     }
   ]
 }
