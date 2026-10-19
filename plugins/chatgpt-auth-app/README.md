@@ -2,6 +2,32 @@
 
 Minimal application plugin implementing a device-code login flow for ChatGPT-style auth.
 
+## Terminal commands
+
+The plugin contributes one complete foreground login operation:
+
+```bash
+crystal-lattice auth login codex
+```
+
+In an applicable OpenAI Responses terminal session, the same action is
+available as:
+
+```text
+/login codex
+```
+
+The current flow is device-code only and therefore has no method argument. It
+prints the verification URL and code, waits while the plugin-owned worker
+polls, renders progress/status changes, and returns only at authentication,
+failure, cancellation, or expiry. Ctrl-C requests cancellation for that exact
+attempt; a stale worker cannot replace a newer attempt or credentials.
+
+Logout remains a separate action intent and is not contributed as a command
+by this package. Mobile, desktop, and other frontends can continue invoking
+the independent `login_start`, `check_status`, `cancel_login`, and `logout`
+actions.
+
 ## Actions
 
 The plugin exposes session actions for OpenAI Responses sessions with

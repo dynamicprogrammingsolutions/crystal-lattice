@@ -204,6 +204,21 @@ Message append and request admission are one operation. If the session already
 has an active request in this application process, the follow-up is rejected
 and its proposed message is not appended.
 
+## Resend after a recoverable failure
+
+Retry the current persisted history without appending another user message:
+
+```bash
+crystal-lattice run --session SESSION_ID --resend
+```
+
+Python callers use `runtime.resend(session_id)`. Resend is intended for
+recoverable provider failures or a tool-loop limit after completed tool
+results have already been saved. It starts a new request from the exact
+persisted conversation; it does not duplicate the last user prompt. Resend is
+available only for persisted sessions and cannot be combined with `--agent`,
+another prompt source, or `--ephemeral`.
+
 ## Non-retained runs
 
 Use an ephemeral run when one answer is needed and no child session should

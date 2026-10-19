@@ -457,6 +457,84 @@ def get_ui_elements(self, config, tags, models):
 
 Fields are the same as `message_footer`.
 
+### Command elements (`cli_command` and `slash_command`)
+
+Application actions are callable procedures. They are not exposed as commands
+merely because they appear in `get_actions()`. A plugin exposes a procedure to
+a command frontend by returning an applicable action-backed UI element:
+
+```python
+{
+    "ui_type": "cli_command",
+    "id": "codex_login_cli",
+    "label": "Sign in to Codex",
+    "description": "Sign in to Codex with the device-code flow.",
+    "path": ["auth", "login", "codex"],
+    "aliases": [],
+    "scope": "application",
+    "action_id": "login_start",
+    "dialog": {"kind": "none"},
+}
+```
+
+`cli_command` and `slash_command` are independent element types. They may bind
+the same action but have different token paths, aliases, applicability, and
+scope. A terminal slash path omits the leading `/`; for example
+`["login", "codex"]` is entered as `/login codex`.
+
+Command fields:
+
+| Field | Meaning |
+|---|---|
+| `path` | Required non-empty token array. Tokens contain no whitespace and no leading `/`. |
+| `aliases` | Optional array of complete alternative token paths. |
+| `scope` | `application` or `session`. Session commands are discovered from the active session's effective UI schema. |
+| `action_id` / `action_owner` | Existing action procedure to invoke. |
+| `fixed_params` / `param_map` | Ordinary action mapping; fixed values are applied before mapped values. |
+| `dialog` | Ordinary `none`, `confirm`, or ordered `form` contract. |
+| `condition` | Contextual applicability condition. |
+| `disabled` / `disabled_reason` | Keep the command visible but non-executable, with a user-facing reason. |
+| `foreground` | Optional statically validated start/status/cancel workflow described below. |
+
+Canonical paths and aliases must be unique within their frontend namespace,
+including built-in routes. A collision has no winner: catalog construction
+fails with every conflicting owner in deterministic order. A malformed command
+or unknown action binding also fails before any action executes.
+
+`ApplicationPlugin.get_commands()` remains a compatibility source for
+top-level CLI commands. Legacy declarations are adapted to `cli_command`
+internally and never become slash commands or `/action` entries.
+
+#### Foreground command workflows
+
+A command that starts provider-owned asynchronous work may declare:
+
+```python
+"foreground": {
+    "attempt_id_path": "auth_status.login_id",
+    "state_path": "auth_status.state",
+    "pending_states": ["pending"],
+    "success_states": ["authenticated"],
+    "failure_states": ["failed"],
+    "cancelled_states": ["canceled"],
+    "expired_states": ["expired"],
+    "poll_interval_seconds": 0.5,
+    "status": {"action_id": "check_status", "attempt_param": "login_id"},
+    "cancel": {"action_id": "cancel_login", "attempt_param": "login_id"},
+}
+```
+
+Start, status, and cancel remain ordinary actions. The terminal owns bounded
+waiting, rendering, and interruption only; the plugin owns protocol exchange,
+attempt state, callback listeners, credentials, and cleanup. All referenced
+actions and state metadata are validated before start.
+
+Browser flows may additionally declare
+`"browser": {"auto_open_local": true}`. The URL is always printed. A local
+interactive terminal may best-effort open the first `open_url` follow-up;
+`--no-open` disables opening. Noninteractive, SSH/remote, headless, and
+device-code flows do not auto-open.
+
 ### Session actions (`ui_type == "session_action"`)
 
 Session-scoped actions displayed in session menus or toolbars. Used by application plugins to expose actions like "Compact range", "Export session", etc.

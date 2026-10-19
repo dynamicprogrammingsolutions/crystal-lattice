@@ -454,6 +454,82 @@ class LocalAgentRuntime:
             error=error,
         )
 
+    def resend(
+        self,
+        session_id: str,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+        stream: bool = True,
+        timeout: float | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> AgentRunResult:
+        """Retry a persisted session request without appending a user message."""
+
+        self._require_open()
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        if timeout is not None and (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(float(timeout))
+            or float(timeout) <= 0
+        ):
+            raise ValueError("timeout must be a finite positive number")
+
+        session = self._application.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        raw_agent_id = (
+            session.metadata.get("agent_id")
+            if isinstance(session.metadata, dict)
+            else None
+        )
+        if not isinstance(raw_agent_id, str) or not raw_agent_id:
+            raise ValueError(f"Session {session_id!r} has no configured agent identity")
+
+        active_request_id: str | None = None
+
+        def observe(event: Dict[str, Any]) -> None:
+            nonlocal active_request_id
+            request_id = event.get("request_id")
+            if isinstance(request_id, str) and request_id:
+                active_request_id = request_id
+            if on_progress is None:
+                return
+            for progress in normalize_run_progress(event):
+                on_progress(progress)
+
+        try:
+            result = self._application.run_session_request(
+                session_id,
+                dict(overrides) if overrides is not None else None,
+                stream=stream,
+                on_event=observe,
+                timeout=timeout,
+            )
+        except KeyboardInterrupt:
+            if active_request_id is not None:
+                self._application.cancel_request(active_request_id)
+            raise
+
+        output_text = "\n".join(
+            message.get("content", "")
+            for message in result.final_messages
+            if message.get("role") == "assistant"
+            and isinstance(message.get("content"), str)
+            and message.get("content")
+        )
+        return AgentRunResult(
+            status=result.status,
+            session_id=result.session_id,
+            request_id=result.request_id,
+            agent_id=raw_agent_id,
+            persistence="persisted",
+            output_text=output_text,
+            final_messages=tuple(result.final_messages),
+            error=self._convert_error(result.error),
+        )
+
     @staticmethod
     def _convert_error(error: SessionRequestError | None) -> RunError | None:
         if error is None:

@@ -151,6 +151,35 @@ def test_open_runtime_runs_and_follows_up_with_bounded_progress(
     assert all(len(item.message) <= 240 for item in progress)
 
 
+def test_runtime_resend_does_not_append_another_user_message(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / ".crystal" / "config.json")
+
+    with open_runtime(
+        config_path=config,
+        session_root=tmp_path / "sessions",
+    ) as runtime:
+        first = runtime.run("first task", agent_id="alpha")
+        resent = runtime.resend(first.session_id)
+
+        assert resent.status == "succeeded"
+        assert resent.session_id == first.session_id
+        assert resent.agent_id == "alpha"
+        assert resent.output_text == "SYS= | USER=first task"
+
+        stored = runtime.application.load_session_record(first.session_id)
+        assert stored is not None
+        assert [message.role for message in stored.messages] == [
+            "user",
+            "assistant",
+            "assistant",
+        ]
+        assert [
+            message.content for message in stored.messages if message.role == "user"
+        ] == ["first task"]
+
+
 def test_runtime_describes_agents_and_runs_without_persisting_session(
     tmp_path: Path,
 ) -> None:

@@ -57,11 +57,70 @@ persisted.
 | `/fork` | Fork the session at a message index |
 | `/plugins` | Inspect or change per-session plugin enablement |
 | `/set` | Set a session configuration override |
+| `/action` | List or run applicable action-backed UI elements |
 | `/tool-output` | Show or select live tool-output presentation |
 | `/exit`, `/quit` | Exit the terminal |
 
 Argument completion is available for commands that expose known modes,
 sessions, agents, plugins, or configuration choices.
+
+Application plugins may also contribute slash commands. They appear in
+`/help` and completion only when their `slash_command` UI element is applicable
+to the active session. Top-level `cli_command` elements use independent token
+paths, so one action may be exposed as both `crystal-lattice auth login codex`
+and `/login codex`. Legacy `get_commands()` contributions remain top-level
+only.
+
+## Running action UI elements
+
+`/action` exposes applicable action-oriented UI elements, not every procedure
+returned by a plugin:
+
+```text
+/action
+/action [--scope application|session|session-list] [--plugin PLUGIN] ELEMENT_ID [NAME=VALUE ...]
+/action --message INDEX
+/action --message INDEX [--plugin PLUGIN] ELEMENT_ID [NAME=VALUE ...]
+/action --ref REFERENCE
+```
+
+The unqualified element id is accepted when unique. Listings print the exact
+qualified invocation for enabled entries and retain disabled entries with
+their reason. Application, session, active-session-list, and message elements
+receive their corresponding context. `--message` uses the same zero-based,
+negative-index-normalizing behavior as `/list`.
+
+Form inputs follow plugin declaration order. Inline `name=value` text is a
+prefill and takes precedence over context `prefill_from`, which takes
+precedence over a default. Unknown fields fail before prompting. Enter accepts
+a displayed initial value; Enter skips an optional unset field; `:skip`
+explicitly skips an optional default/prefill; `submit_empty` submits an empty
+string. Required fields reprompt after invalid or empty input. Confirm
+cancellation, Escape, or Ctrl-C returns without action invocation.
+
+Integer, number, boolean, select/dropdown, multiline, secret, and password
+inputs use type-appropriate prompts. Secret/password values cannot be supplied
+inline, are never prefilled, and are not printed in help, command echoes, or
+ordinary diagnostics.
+
+Action displays and notifications register valid `run_action` follow-ups and
+print an exact reference such as `/action --ref result-1`. A direct reference
+retains its source form/dialog context until its display is superseded,
+removed by non-preserving execution, invalidated by application replacement,
+or the terminal exits. Notification references are reread from authoritative
+notification state before execution.
+
+## Automatic notifications
+
+Pending application notifications and pending notifications for the active
+session render automatically. The terminal hydrates authoritative state at
+startup, application replacement, event reconnect/cursor recovery, and session
+switch. Identical revisions render once; newer revisions supersede older
+content and follow-ups. Notifications for inactive sessions are ignored.
+
+There is no notification-list or manual-refresh command. The terminal does not
+aggregate other sessions, change focus, set badges, play sounds, or implement
+a notification center.
 
 ## Requests and progress
 
@@ -173,8 +232,8 @@ tasks:
 The mobile and desktop frontends expose the same task toggle through the
 active conversation's **Session settings**. They also expose a **Show compiled
 system message** session action that displays the effective message without
-sending a model request or changing the session. The interactive terminal does
-not currently provide a generic session-action browser.
+sending a model request or changing the session. The interactive terminal
+exposes that action, when applicable, through `/action`.
 
 ## Listing and editing messages
 

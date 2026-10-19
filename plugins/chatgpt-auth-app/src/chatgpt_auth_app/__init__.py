@@ -25,6 +25,7 @@ _DEFAULT_LOGIN_TIMEOUT_SECONDS = 900
 _DEFAULT_POLL_INTERVAL_SECONDS = 5
 _DEFAULT_ISSUER = "https://auth.openai.com"
 _DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+_CANCEL_JOIN_TIMEOUT_SECONDS = 1.0
 _DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH = "auth/chatgpt-auth.json"
 _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH = "auth/chatgpt-rate-limits.json"
@@ -264,9 +265,34 @@ class ChatGPTAuthAppPlugin:
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = (state, models)
+        command_elements = [
+            {
+                "ui_type": "cli_command",
+                "id": "codex_login_cli",
+                "label": "Sign in to Codex",
+                "description": "Sign in to Codex with the device-code flow.",
+                "path": ["auth", "login", "codex"],
+                "scope": "application",
+                "action_id": "login_start",
+                "dialog": {"kind": "none"},
+                "foreground": self._login_foreground_contract(),
+            }
+        ]
         if not self._should_show_session_actions(config, tags):
-            return []
+            return command_elements
         return [
+            *command_elements,
+            {
+                "ui_type": "slash_command",
+                "id": "codex_login_slash",
+                "label": "Sign in to Codex",
+                "description": "Sign in to Codex with the device-code flow.",
+                "path": ["login", "codex"],
+                "scope": "session",
+                "action_id": "login_start",
+                "dialog": {"kind": "none"},
+                "foreground": self._login_foreground_contract(),
+            },
             {
                 "ui_type": "session_action",
                 "id": "chatgpt_auth_login_start",
@@ -341,6 +367,27 @@ class ChatGPTAuthAppPlugin:
                 "dialog": {"kind": "none"},
             },
         ]
+
+    @staticmethod
+    def _login_foreground_contract() -> Dict[str, Any]:
+        return {
+            "attempt_id_path": "auth_status.login_id",
+            "state_path": "auth_status.state",
+            "pending_states": ["pending"],
+            "success_states": ["authenticated"],
+            "failure_states": ["failed"],
+            "cancelled_states": ["canceled"],
+            "expired_states": ["expired"],
+            "poll_interval_seconds": 0.5,
+            "status": {
+                "action_id": "check_status",
+                "attempt_param": "login_id",
+            },
+            "cancel": {
+                "action_id": "cancel_login",
+                "attempt_param": "login_id",
+            },
+        }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
         application_cfg = app_config.get("application")
@@ -460,7 +507,9 @@ class ChatGPTAuthAppPlugin:
                 "id": "check_status",
                 "label": "Show ChatGPT login status",
                 "description": "Return the current login status.",
-                "inputs": {},
+                "inputs": {
+                    "login_id": {"type": "string", "required": False},
+                },
             },
             {
                 "id": "show_account_status",
@@ -512,7 +561,9 @@ class ChatGPTAuthAppPlugin:
                 "id": "cancel_login",
                 "label": "Cancel ChatGPT login",
                 "description": "Cancel the active background login poller.",
-                "inputs": {},
+                "inputs": {
+                    "login_id": {"type": "string", "required": False},
+                },
             },
             {
                 "id": "logout",
@@ -530,11 +581,18 @@ class ChatGPTAuthAppPlugin:
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
-        _ = (params, context)
+        _ = context
         if action_id == "login_start":
             return self._start_login(app, state)
         if action_id == "check_status":
-            auth_status = self._current_status(state)
+            auth_status = self._current_status(
+                state,
+                login_id=(
+                    params.get("login_id")
+                    if isinstance(params.get("login_id"), str)
+                    else None
+                ),
+            )
             return {
                 "display": self._status_display_payload(
                     auth_status, action="check_status"
@@ -548,7 +606,15 @@ class ChatGPTAuthAppPlugin:
         if action_id == "reset_usage_tracking":
             return self._reset_usage_tracking(app, state, params)
         if action_id == "cancel_login":
-            auth_status = self._cancel_login(app, state)
+            auth_status = self._cancel_login(
+                app,
+                state,
+                login_id=(
+                    params.get("login_id")
+                    if isinstance(params.get("login_id"), str)
+                    else None
+                ),
+            )
             return {
                 "display": self._status_display_payload(
                     auth_status, action="cancel_login"
@@ -938,6 +1004,49 @@ class ChatGPTAuthAppPlugin:
                 "auth_status": auth_status,
             }
 
+    def _update_current_attempt(
+        self,
+        state: Dict[str, Any],
+        attempt: Dict[str, Any],
+        *,
+        attempt_state: str,
+        error: Optional[str] = None,
+        credentials: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Commit one worker result only when ``attempt`` still owns state."""
+
+        with self._lock:
+            if state.get("active_attempt") is not attempt:
+                return None
+            if (
+                attempt_state == "authenticated"
+                and (
+                    attempt.get("state") != "pending"
+                    or (
+                        isinstance(attempt.get("cancel_event"), threading.Event)
+                        and attempt["cancel_event"].is_set()
+                    )
+                )
+            ):
+                return None
+            if (
+                attempt_state == "canceled"
+                and attempt.get("state") != "pending"
+            ):
+                return None
+            if credentials is not None:
+                _write_json_atomic(self._credentials_path(state), credentials)
+            attempt["state"] = attempt_state
+            attempt["error"] = error
+            if credentials is not None:
+                attempt["account_email"] = credentials.get("account_email")
+                attempt["plan_type"] = credentials.get("plan_type")
+                status = self._credentials_status(credentials)
+            else:
+                status = self._attempt_status(attempt)
+            state["last_status"] = status
+            return dict(status)
+
     def _poll_for_completion(
         self, app: Any, state: Dict[str, Any], attempt: Dict[str, Any]
     ) -> None:
@@ -969,19 +1078,25 @@ class ChatGPTAuthAppPlugin:
 
         while True:
             if cancel_event.wait(timeout=poll_interval):
-                with self._lock:
-                    attempt["state"] = "canceled"
-                    state["last_status"] = self._attempt_status(attempt)
-                self._publish_auth_event(app, state["last_status"])
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="canceled",
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
             expires_at = _parse_iso8601(attempt.get("expires_at"))
             if expires_at is not None and _utcnow() >= expires_at:
-                with self._lock:
-                    attempt["state"] = "failed"
-                    attempt["error"] = "device_code_expired"
-                    state["last_status"] = self._attempt_status(attempt)
-                self._publish_auth_event(app, state["last_status"])
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="expired",
+                    error="device_code_expired",
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
             if protocol == "codex_deviceauth":
@@ -1013,11 +1128,14 @@ class ChatGPTAuthAppPlugin:
                     ),
                 )
             except Exception as exc:
-                with self._lock:
-                    attempt["state"] = "failed"
-                    attempt["error"] = str(exc)
-                    state["last_status"] = self._attempt_status(attempt)
-                self._publish_auth_event(app, state["last_status"])
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="failed",
+                    error=str(exc),
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
             error_code = (
@@ -1055,11 +1173,14 @@ class ChatGPTAuthAppPlugin:
                         ),
                     )
                 except Exception as exc:
-                    with self._lock:
-                        attempt["state"] = "failed"
-                        attempt["error"] = str(exc)
-                        state["last_status"] = self._attempt_status(attempt)
-                    self._publish_auth_event(app, state["last_status"])
+                    status = self._update_current_attempt(
+                        state,
+                        attempt,
+                        attempt_state="failed",
+                        error=str(exc),
+                    )
+                    if status is not None:
+                        self._publish_auth_event(app, status)
                     return
                 credentials = self._normalized_credentials(exchanged, login_id=login_id)
                 credentials["id_token"] = exchanged.get("id_token")
@@ -1073,14 +1194,14 @@ class ChatGPTAuthAppPlugin:
                 credentials["issuer"] = issuer
                 credentials["client_id"] = client_id
                 credentials["credentials_path"] = str(self._credentials_path(state))
-                credentials_path = self._credentials_path(state)
-                _write_json_atomic(credentials_path, credentials)
-                with self._lock:
-                    attempt["state"] = "authenticated"
-                    attempt["account_email"] = credentials.get("account_email")
-                    attempt["plan_type"] = credentials.get("plan_type")
-                    state["last_status"] = self._credentials_status(credentials)
-                self._publish_auth_event(app, state["last_status"])
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="authenticated",
+                    credentials=credentials,
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
             if status_code < 400 and isinstance(
@@ -1092,14 +1213,14 @@ class ChatGPTAuthAppPlugin:
                 credentials["issuer"] = issuer
                 credentials["client_id"] = client_id
                 credentials["credentials_path"] = str(self._credentials_path(state))
-                credentials_path = self._credentials_path(state)
-                _write_json_atomic(credentials_path, credentials)
-                with self._lock:
-                    attempt["state"] = "authenticated"
-                    attempt["account_email"] = credentials.get("account_email")
-                    attempt["plan_type"] = credentials.get("plan_type")
-                    state["last_status"] = self._credentials_status(credentials)
-                self._publish_auth_event(app, state["last_status"])
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="authenticated",
+                    credentials=credentials,
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
             error_detail = (
@@ -1108,14 +1229,17 @@ class ChatGPTAuthAppPlugin:
                 else error_code
             )
             if error_code in _TERMINAL_TOKEN_ERRORS or status_code >= 400:
-                with self._lock:
-                    attempt["state"] = "failed"
-                    attempt["error"] = (
+                status = self._update_current_attempt(
+                    state,
+                    attempt,
+                    attempt_state="failed",
+                    error=(
                         error_detail
                         or f"token polling failed with status {status_code}"
-                    )
-                    state["last_status"] = self._attempt_status(attempt)
-                self._publish_auth_event(app, state["last_status"])
+                    ),
+                )
+                if status is not None:
+                    self._publish_auth_event(app, status)
                 return
 
     def _exchange_authorization_code(
@@ -1241,9 +1365,23 @@ class ChatGPTAuthAppPlugin:
             "error": attempt.get("error"),
         }
 
-    def _current_status(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _current_status(
+        self,
+        state: Dict[str, Any],
+        *,
+        login_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         with self._lock:
             active_attempt = state.get("active_attempt")
+            if login_id is not None:
+                if (
+                    not isinstance(active_attempt, dict)
+                    or active_attempt.get("login_id") != login_id
+                ):
+                    raise ValueError(
+                        f"login attempt {login_id!r} is no longer active"
+                    )
+                return self._attempt_status(active_attempt)
             if (
                 isinstance(active_attempt, dict)
                 and active_attempt.get("state") == "pending"
@@ -1758,9 +1896,23 @@ class ChatGPTAuthAppPlugin:
             "reset_appended": appended,
         }
 
-    def _cancel_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _cancel_login(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        *,
+        login_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        worker: Optional[threading.Thread] = None
         with self._lock:
             active_attempt = state.get("active_attempt")
+            if login_id is not None and (
+                not isinstance(active_attempt, dict)
+                or active_attempt.get("login_id") != login_id
+            ):
+                raise ValueError(
+                    f"login attempt {login_id!r} is no longer active"
+                )
             if (
                 not isinstance(active_attempt, dict)
                 or active_attempt.get("state") != "pending"
@@ -1770,9 +1922,18 @@ class ChatGPTAuthAppPlugin:
             cancel_event = active_attempt.get("cancel_event")
             if isinstance(cancel_event, threading.Event):
                 cancel_event.set()
+            candidate_worker = active_attempt.get("worker")
+            if isinstance(candidate_worker, threading.Thread):
+                worker = candidate_worker
             active_attempt["state"] = "canceled"
             status = self._attempt_status(active_attempt)
             state["last_status"] = status
+        if (
+            worker is not None
+            and worker is not threading.current_thread()
+            and worker.is_alive()
+        ):
+            worker.join(timeout=_CANCEL_JOIN_TIMEOUT_SECONDS)
         self._publish_auth_event(app, status)
         return status
 

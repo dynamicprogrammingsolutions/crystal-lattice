@@ -181,3 +181,42 @@ When adding a feature, aim to:
   - `application/python/agent_terminal_app/terminal.py`
 
 By following these guidelines and mirroring the existing patterns, you can add new features—such as additional history operations, new slash commands, or custom workflows—without breaking the separation between core logic, application logic, and UI.
+
+## Dynamic commands, action references, and notifications
+
+Dynamic command discovery is generation-scoped:
+
+- `AgentApplication` normalizes `cli_command` and `slash_command` UI elements,
+  validates their action bindings and foreground metadata, and reports route
+  collisions before execution.
+- `TerminalApplication` resolves the current session's slash elements and
+  applicable `/action` elements. Application replacement invalidates command
+  and direct-result reference state.
+- `terminal.py` merges dynamic slash elements with immutable built-ins only
+  for help, completion, and dispatch. It never installs plugin handlers into
+  the module-global decorator registry.
+
+Action invocation remains `execute_action_with_metadata(...)`. The terminal
+façade owns context mapping, element applicability, command references, and
+notification revision state; prompt callbacks own
+text/select/multiline/secret interaction. Top-level and interactive commands,
+direct results, and notifications use the shared action-result renderer.
+
+Direct display `run_action` entries are stored as terminal-local synthetic
+action elements without retaining an old `AgentApplication`. Notification
+references additionally store scope, notification identity, revision, and
+follow-up id. They reread authoritative notification state before invocation.
+
+Ordinary terminal event polling is session-filtered, but application
+notification events are global. The terminal therefore maintains a separate
+global notification cursor. On startup, application replacement, cursor
+recovery, or session switch it:
+
+1. captures the latest global event cursor;
+2. hydrates active application and current-session notification snapshots;
+3. resumes global polling from the captured cursor;
+4. merges observations by scoped identity and revision.
+
+This ordering lets snapshot/event races converge without duplicate rendering.
+Inactive-session notification events are intentionally discarded; switching
+sessions hydrates the newly active session instead.

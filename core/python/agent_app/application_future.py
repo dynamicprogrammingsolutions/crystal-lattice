@@ -34,6 +34,12 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
+from .command_ui import (
+    CommandCatalogError,
+    build_command_catalog,
+    legacy_command_element,
+)
+from .utils.ui_condition import evaluate_condition
 from .application_notifications import (
     ApplicationNotificationMutation,
     ApplicationNotificationStore,
@@ -3509,9 +3515,9 @@ class AgentApplication:
     def get_application_commands(self) -> List[Dict[str, Any]]:
         """Return flattened command bindings from application plugins.
 
-        Each returned command dictionary includes a ``"plugin"`` field naming
-        the contributing plugin. Commands are frontend-facing bindings onto
-        existing application actions rather than a second executable surface.
+        This is the compatibility-only ``get_commands`` surface. New command
+        contributions use action-backed ``cli_command`` or ``slash_command``
+        UI elements. Legacy declarations are never promoted to slash commands.
         """
 
         commands: List[Dict[str, Any]] = []
@@ -3526,6 +3532,133 @@ class AgentApplication:
                     command["plugin"] = plugin_id
                     commands.append(command)
         return commands
+
+    def _validate_command_action_bindings(
+        self,
+        catalog: List[Dict[str, Any]],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        for element in catalog:
+            action_owner = (
+                element.get("action_owner")
+                if isinstance(element.get("action_owner"), str)
+                else None
+            )
+            try:
+                self.validate_action_binding(
+                    element["plugin"],
+                    element["action_id"],
+                    action_owner=action_owner,
+                    context=context,
+                )
+            except Exception as exc:
+                raise CommandCatalogError(
+                    "command element references unavailable action "
+                    f"{element['plugin']}.{element['action_id']}: {exc}"
+                ) from exc
+            foreground = element.get("foreground")
+            if isinstance(foreground, Mapping):
+                for step_name in ("status", "cancel"):
+                    step = foreground[step_name]
+                    step_plugin = step.get("plugin") or element["plugin"]
+                    step_action_id = step.get("action_id")
+                    step_owner = (
+                        step.get("action_owner")
+                        if isinstance(step.get("action_owner"), str)
+                        else action_owner
+                    )
+                    try:
+                        if not isinstance(step_plugin, str) or not isinstance(
+                            step_action_id,
+                            str,
+                        ):
+                            raise ValueError("plugin and action_id must be strings")
+                        self.validate_action_binding(
+                            step_plugin,
+                            step_action_id,
+                            action_owner=step_owner,
+                            context=context,
+                        )
+                    except Exception as exc:
+                        raise CommandCatalogError(
+                            f"command foreground {step_name} references unknown "
+                            f"action {step_plugin}.{step_action_id}"
+                        ) from exc
+        return catalog
+
+    def get_application_command_ui_elements(
+        self,
+        ui_type: str,
+        *,
+        reserved_paths: Sequence[Sequence[str]] = (),
+    ) -> List[Dict[str, Any]]:
+        """Return validated global command UI elements for one frontend.
+
+        ``cli_command`` includes compatibility adapters for legacy
+        ``get_commands`` declarations. ``slash_command`` is sourced only from
+        UI schema and therefore never receives a legacy command implicitly.
+        """
+
+        command_context = {"ui_context": ui_type}
+        elements = self.get_application_ui_schema(context=command_context)
+        command_elements: List[Dict[str, Any]] = [
+            element
+            for element in elements
+            if isinstance(element, dict)
+            and element.get("ui_type") == ui_type
+            and evaluate_condition(element.get("condition"), command_context)
+        ]
+        if ui_type == "cli_command":
+            for position, command in enumerate(self.get_application_commands()):
+                plugin = command.get("plugin")
+                if not isinstance(plugin, str) or not plugin:
+                    raise CommandCatalogError(
+                        "legacy command is missing its contributing plugin"
+                    )
+                command_elements.append(
+                    legacy_command_element(
+                        command,
+                        plugin=plugin,
+                        position=position,
+                    )
+                )
+        return self._validate_command_action_bindings(
+            build_command_catalog(
+                command_elements,
+                ui_type=ui_type,
+                reserved_paths=reserved_paths,
+            )
+        )
+
+    def get_session_command_ui_elements_for_session(
+        self,
+        core: AgentCore,
+        base_config: Dict[str, Any],
+        session: Session,
+        ui_type: str,
+        *,
+        reserved_paths: Sequence[Sequence[str]] = (),
+    ) -> List[Dict[str, Any]]:
+        """Return applicable command UI elements for an active session."""
+
+        elements = self.get_session_application_ui_schema_for_session(
+            core,
+            base_config,
+            session,
+        )
+        return self._validate_command_action_bindings(
+            build_command_catalog(
+                [
+                    element
+                    for element in elements
+                    if element.get("ui_type") == ui_type
+                ],
+                ui_type=ui_type,
+                reserved_paths=reserved_paths,
+            ),
+            context={"session_id": session.session_id},
+        )
 
     # Internal helpers for action validation ---------------------------------
 
@@ -3748,6 +3881,59 @@ class AgentApplication:
             action_owner="application",
         )
         return candidate.plugin_id
+
+    def validate_action_binding(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Resolve an action binding without validating inputs or executing it."""
+
+        candidate = self._resolve_action_candidate(
+            plugin_id,
+            action_id,
+            {},
+            action_owner=action_owner,
+            context=context,
+        )
+        if candidate.action_owner == "application":
+            definition = self._find_application_action_definition(
+                candidate.plugin_id,
+                candidate.action_id,
+            )
+            if definition is None:
+                raise self._ApplicationActionResolutionError(
+                    "unknown_action",
+                    (
+                        "Unknown application action "
+                        f"{candidate.plugin_id}.{candidate.action_id}"
+                    ),
+                    self._candidate_to_details(candidate),
+                )
+        else:
+            session_id = self._action_session_id({}, context)
+            if session_id is None or not any(
+                item.plugin_id == candidate.plugin_id
+                and item.action_id == candidate.action_id
+                and item.action_owner == candidate.action_owner
+                for item in self._session_action_candidates(
+                    session_id,
+                    candidate.action_id,
+                    action_owner=candidate.action_owner,
+                )
+            ):
+                raise self._ApplicationActionResolutionError(
+                    "unknown_action",
+                    (
+                        "Unknown session action "
+                        f"{candidate.plugin_id}.{candidate.action_id}"
+                    ),
+                    self._candidate_to_details(candidate),
+                )
+        return self._candidate_to_details(candidate)
 
     @staticmethod
     def _action_param_type_matches(value: Any, expected_type: str) -> bool:

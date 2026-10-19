@@ -279,6 +279,22 @@ values allow the host to remove the source when execution starts. Dialog
 submission uses the same action runner, parameter mapping, and session-scoped
 endpoint selection as ordinary actions.
 
+In the interactive terminal, each valid direct `run_action` follow-up is
+registered when its display is rendered. The terminal prints the exact
+invocation, such as:
+
+```text
+/action --ref result-1
+```
+
+The reference preserves the source context, embedded `$form` values,
+follow-up `$dialog` values, fixed/mapped parameters, action owner, and
+`preserve_display`. It remains valid until the source `display_id` is
+superseded, a non-preserving follow-up starts, the application generation
+changes, or the terminal exits. A reference is never an alternate execution
+API; invocation still resolves and validates the registered action through the
+ordinary application dispatcher.
+
 The neutral `plugins/dummy-action-display-form-app` demonstration package
 contributes **Show follow-up dialog**, which returns a result with **Enter
 value**. Submit its generic form to see the echoed value in the next result.

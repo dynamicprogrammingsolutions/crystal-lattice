@@ -5,6 +5,7 @@ import json
 import ssl
 import threading
 import time
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -19,6 +20,9 @@ from chatgpt_auth_app import ChatGPTAuthAppPlugin, _verified_ssl_context
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+APPLICATION_PY = REPO_ROOT / "application" / "python"
+if str(APPLICATION_PY) not in sys.path:
+    sys.path.insert(0, str(APPLICATION_PY))
 
 
 def test_verified_ssl_context_requires_certificate_validation() -> None:
@@ -414,6 +418,36 @@ def test_login_start_polls_in_background_and_persists_credentials(
         server.server_close()
 
 
+def test_codex_cli_command_runs_complete_foreground_device_flow(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    from agent_terminal_app.__main__ import _run_standalone_command_element
+
+    server, _state = _start_fake_server(succeed_after_polls=0)
+    try:
+        app = _build_app(tmp_path, port=server.server_address[1])
+        command = next(
+            element
+            for element in app.get_application_command_ui_elements("cli_command")
+            if element["path"] == ["auth", "login", "codex"]
+        )
+
+        _run_standalone_command_element(app, command, {})
+
+        output = capfd.readouterr().out
+        assert "ABCD-EFGH" in output
+        assert "/verify" in output
+        assert "login is active" in output.lower()
+        saved = json.loads(
+            (tmp_path / "auth" / "chatgpt-auth.json").read_text(encoding="utf-8")
+        )
+        assert saved["access_token"] == "chatgpt-access-token"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(
     tmp_path: Path,
 ) -> None:
@@ -426,6 +460,8 @@ def test_cancel_login_stops_pending_flow_and_keeps_credentials_absent(
         canceled = app.execute_application_action("chatgpt_auth", "cancel_login", {})
         assert canceled["auth_status"]["state"] == "canceled"
         assert canceled["display"]["variant"] == "warning"
+        attempt = app._app_plugins["chatgpt_auth"].state["active_attempt"]
+        assert not attempt["worker"].is_alive()
 
         time.sleep(0.2)
         status = app.execute_application_action("chatgpt_auth", "check_status", {})[
@@ -498,15 +534,24 @@ def test_session_ui_elements_are_gated_by_provider_and_auth_mode(
         config={"provider": "openai_responses", "auth_mode": "api"},
         tags=["provider:openai_responses"],
     )
-    assert hidden_for_api == []
+    assert [
+        (element["ui_type"], element["path"])
+        for element in hidden_for_api
+    ] == [("cli_command", ["auth", "login", "codex"])]
 
     hidden_for_other_provider = app.get_application_ui_schema(
         config={"provider": "echo_openai_like", "auth_mode": "chatgpt"},
         tags=["provider:echo_openai_like"],
     )
-    assert hidden_for_other_provider == []
+    assert [
+        (element["ui_type"], element["path"])
+        for element in hidden_for_other_provider
+    ] == [("cli_command", ["auth", "login", "codex"])]
 
-    assert app.get_application_ui_schema() == []
+    assert [
+        (element["ui_type"], element["path"])
+        for element in app.get_application_ui_schema()
+    ] == [("cli_command", ["auth", "login", "codex"])]
 
 
 def test_show_account_status_reads_saved_rate_limits(tmp_path: Path) -> None:
@@ -975,3 +1020,75 @@ def test_usage_report_actions_gated_to_chatgpt_sessions(tmp_path: Path) -> None:
     )
     assert reset["display"]["variant"] == "warning"
     assert not _journal_path(tmp_path).exists()
+
+
+def test_codex_command_elements_bind_device_flow_without_method_or_logout() -> None:
+    plugin = ChatGPTAuthAppPlugin()
+    state = plugin.init({})
+
+    global_elements = plugin.get_ui_elements(state, {}, [], [])
+    assert [
+        (element["ui_type"], element["path"], element["action_id"])
+        for element in global_elements
+    ] == [("cli_command", ["auth", "login", "codex"], "login_start")]
+
+    session_elements = plugin.get_ui_elements(
+        state,
+        {"provider": "openai_responses", "auth_mode": "auto"},
+        ["provider:openai_responses"],
+        [],
+    )
+    command_paths = {
+        element["ui_type"]: element["path"]
+        for element in session_elements
+        if element["ui_type"] in {"cli_command", "slash_command"}
+    }
+    assert command_paths == {
+        "cli_command": ["auth", "login", "codex"],
+        "slash_command": ["login", "codex"],
+    }
+    for element in session_elements:
+        if element.get("ui_type") not in {"cli_command", "slash_command"}:
+            continue
+        assert element.get("dialog") == {"kind": "none"}
+        assert "method" not in element
+        assert "logout" not in element["path"]
+
+
+def test_stale_attempt_cannot_commit_credentials(tmp_path: Path) -> None:
+    plugin = ChatGPTAuthAppPlugin()
+    state = plugin.init(
+        {
+            "application": {
+                "chatgpt_auth": {
+                    "credentials_path": str(tmp_path / "auth.json"),
+                }
+            }
+        }
+    )
+    old_attempt = {
+        "login_id": "old",
+        "state": "pending",
+        "cancel_event": threading.Event(),
+    }
+    new_attempt = {
+        "login_id": "new",
+        "state": "pending",
+        "cancel_event": threading.Event(),
+    }
+    state["active_attempt"] = new_attempt
+
+    committed = plugin._update_current_attempt(
+        state,
+        old_attempt,
+        attempt_state="authenticated",
+        credentials={
+            "login_id": "old",
+            "access_token": "stale-token",
+            "credentials_path": str(tmp_path / "auth.json"),
+        },
+    )
+
+    assert committed is None
+    assert state["active_attempt"] is new_attempt
+    assert not (tmp_path / "auth.json").exists()

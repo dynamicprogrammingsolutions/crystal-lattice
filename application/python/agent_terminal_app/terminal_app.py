@@ -7,8 +7,14 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from agent_app.application_owner import AgentApplicationOwner
 from agent_app.application_future import AgentApplication
+from agent_app.command_ui import match_command_path
 from agent_app.config import resolve_request_config
+from agent_app.notifications import (
+    is_active_notification,
+    notification_revision_token,
+)
 from agent_app.request_execution import SessionRequestStart
+from agent_app.utils.ui_condition import evaluate_condition
 from agent_core import Session
 
 from .session_query import parse_multi_select_csv
@@ -68,6 +74,19 @@ class TerminalApplication:
         self._last_event_id: str | None = None
         self._ui_schema_cache_key: Tuple[int, str] | None = None
         self._ui_schema_cache: List[Dict[str, object]] | None = None
+        self._application_generation = 1
+        self._action_references: Dict[str, Dict[str, Any]] = {}
+        self._notification_reference_ids: Dict[
+            Tuple[str, str, str, str], str
+        ] = {}
+        self._direct_display_references: Dict[str, set[str]] = {}
+        self._direct_reference_displays: Dict[str, str] = {}
+        self._next_action_reference = 1
+        self._notification_event_id: str | None = None
+        self._notification_hydration_required = True
+        self._notification_versions: Dict[
+            Tuple[str, str | None, str], int | str
+        ] = {}
 
     # ------------------------------------------------------------------
     # Accessors
@@ -87,6 +106,14 @@ class TerminalApplication:
         """Switch to a replacement application and invalidate runtime caches."""
 
         self._app = application
+        self._application_generation += 1
+        self._action_references = {}
+        self._notification_reference_ids = {}
+        self._direct_display_references = {}
+        self._direct_reference_displays = {}
+        self._notification_versions = {}
+        self._notification_event_id = None
+        self._notification_hydration_required = True
         self._core = None
         self._base_config = None
         if self._session is not None:
@@ -217,6 +244,7 @@ class TerminalApplication:
         self._core = core
         self._base_config = base_config
         self._last_event_id = None
+        self._notification_hydration_required = True
         return session
 
     def list_sessions_metadata(
@@ -373,6 +401,7 @@ class TerminalApplication:
             )
         except Exception:  # pragma: no cover - defensive
             self._last_event_id = None
+        self._notification_hydration_required = True
         return session
 
     # ------------------------------------------------------------------
@@ -1139,6 +1168,900 @@ class TerminalApplication:
             )
             if isinstance(el, dict)
         ]
+
+    # ------------------------------------------------------------------
+    # Action-backed command and /action surfaces
+    # ------------------------------------------------------------------
+
+    def slash_command_elements(
+        self,
+        *,
+        reserved_names: List[str] | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Return applicable, collision-checked slash command UI elements."""
+
+        core, base_config, session = self.require_session()
+        elements = self._app.get_session_command_ui_elements_for_session(
+            core,
+            base_config,
+            session,
+            "slash_command",
+            reserved_paths=[(name,) for name in (reserved_names or [])],
+        )
+        session_context = session.to_dict()
+        return [
+            element
+            for element in elements
+            if evaluate_condition(element.get("condition"), session_context)
+        ]
+
+    def match_slash_command(
+        self,
+        tokens: List[str],
+        *,
+        reserved_names: List[str] | None = None,
+    ) -> Tuple[Dict[str, Any] | None, List[str]]:
+        return match_command_path(
+            self.slash_command_elements(reserved_names=reserved_names),
+            tokens,
+        )
+
+    def _active_session_context(
+        self,
+        *,
+        message_index: int | None = None,
+    ) -> Dict[str, Any]:
+        core, base_config, session = self.require_session()
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        config = resolve_request_config(base_config, overrides)
+        try:
+            summary = self._app.get_session_summary(session.session_id)
+        except Exception:
+            summary = session.to_dict()
+        context: Dict[str, Any] = {
+            "session_id": session.session_id,
+            "session": session.to_dict(),
+            "session_summary": summary,
+            "base_config": base_config,
+            "config": config,
+            "application_generation": self._application_generation,
+        }
+        if message_index is not None:
+            canonical_index, message = self.show_message(message_index)
+            context["message_index"] = canonical_index
+            context["message"] = message.to_dict()
+        _ = core
+        return context
+
+    def action_context(
+        self,
+        *,
+        message_index: int | None = None,
+    ) -> Dict[str, Any]:
+        """Return the current immutable-by-convention terminal action context."""
+
+        return self._active_session_context(message_index=message_index)
+
+    @staticmethod
+    def _element_scope(element: Mapping[str, Any]) -> str:
+        ui_type = element.get("ui_type")
+        if ui_type == "application_action":
+            return "application"
+        if ui_type == "session_list_action":
+            return "session-list"
+        if ui_type == "message_action":
+            return "message"
+        return str(element.get("scope") or "session")
+
+    @staticmethod
+    def _validate_action_ui_element(element: Mapping[str, Any]) -> None:
+        identity = f"{element.get('plugin')}.{element.get('id')}"
+        fixed = element.get("fixed_params")
+        if fixed is not None and not isinstance(fixed, Mapping):
+            raise TerminalUserError(f"{identity}.fixed_params must be a mapping")
+        mappings = element.get("param_map")
+        if mappings is not None:
+            prefixes = (
+                "$session.",
+                "$message.",
+                "$dialog.",
+                "$form.",
+                "$context.",
+            )
+            if not isinstance(mappings, Mapping) or any(
+                not isinstance(name, str)
+                or not name
+                or not isinstance(source, str)
+                or not source.startswith(prefixes)
+                for name, source in mappings.items()
+            ):
+                raise TerminalUserError(
+                    f"{identity}.param_map contains an invalid mapping"
+                )
+        dialog = element.get("dialog")
+        if dialog is not None:
+            if not isinstance(dialog, Mapping) or dialog.get("kind") not in {
+                "none",
+                "confirm",
+                "form",
+            }:
+                raise TerminalUserError(
+                    f"{identity}.dialog must be none, confirm, or form"
+                )
+            inputs = dialog.get("inputs")
+            if dialog.get("kind") == "form" and (
+                inputs is not None
+                and (
+                    not isinstance(inputs, list)
+                    or any(
+                        not isinstance(field, Mapping)
+                        or not isinstance(field.get("name"), str)
+                        or not field.get("name")
+                        for field in inputs
+                    )
+                )
+            ):
+                raise TerminalUserError(
+                    f"{identity}.dialog.inputs contains an invalid field"
+                )
+
+    def action_elements(
+        self,
+        *,
+        message_index: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Return applicable action-oriented UI elements for ``/action``."""
+
+        context = self._active_session_context(message_index=message_index)
+        session = context["session"]
+        summary = context["session_summary"]
+        message = context.get("message")
+
+        application_elements = self._app.get_application_ui_schema(
+            context={"ui_context": "application"},
+        )
+        session_elements: List[Dict[str, Any]] = [
+            dict(element) for element in self.session_application_ui_elements()
+        ]
+        session_elements.extend(
+            dict(element) for element in self._ui_schema_for_current_effective_config()
+        )
+
+        wanted = {"message_action"} if message_index is not None else {
+            "application_action",
+            "session_action",
+            "session_list_action",
+        }
+        candidates: List[Dict[str, Any]] = []
+        if message_index is None:
+            candidates.extend(
+                dict(element)
+                for element in application_elements
+                if isinstance(element, dict)
+                and element.get("ui_type")
+                in {"application_action", "session_list_action"}
+            )
+        candidates.extend(
+            element
+            for element in session_elements
+            if element.get("ui_type") in wanted
+        )
+
+        deduplicated: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        declaration_order: Dict[Tuple[str, str, str], int] = {}
+        for position, element in enumerate(candidates):
+            ui_type = element.get("ui_type")
+            plugin = element.get("plugin")
+            element_id = element.get("id")
+            action_id = element.get("action_id")
+            label = element.get("label")
+            if (
+                not isinstance(ui_type, str)
+                or not ui_type
+                or not isinstance(plugin, str)
+                or not plugin
+                or not isinstance(element_id, str)
+                or not element_id
+                or not isinstance(action_id, str)
+                or not action_id
+                or not isinstance(label, str)
+                or not label
+            ):
+                continue
+            self._validate_action_ui_element(element)
+            root: Any
+            if ui_type == "message_action":
+                root = {"index": context.get("message_index"), **(message or {})}
+            elif ui_type == "session_list_action":
+                root = summary
+            elif ui_type == "session_action":
+                root = session
+            else:
+                root = context
+            if not evaluate_condition(element.get("condition"), root):
+                continue
+            key = (ui_type, plugin, element_id)
+            if key not in declaration_order:
+                declaration_order[key] = position
+            deduplicated[key] = {
+                **element,
+                "scope": self._element_scope(element),
+            }
+
+        def _sort_key(element: Dict[str, Any]) -> Tuple[int, float, int]:
+            order = element.get("order")
+            order_value = (
+                float(order)
+                if isinstance(order, (int, float))
+                and not isinstance(order, bool)
+                and float(order) == float(order)
+                else None
+            )
+            ordered = isinstance(order_value, float)
+            key = (
+                str(element.get("ui_type")),
+                str(element.get("plugin")),
+                str(element.get("id")),
+            )
+            return (
+                0 if ordered else 1,
+                order_value if ordered else 0.0,
+                declaration_order.get(key, 0),
+            )
+
+        return sorted(deduplicated.values(), key=_sort_key)
+
+    def resolve_action_element(
+        self,
+        element_id: str,
+        *,
+        plugin: str | None = None,
+        scope: str | None = None,
+        message_index: int | None = None,
+    ) -> Dict[str, Any]:
+        matches = [
+            element
+            for element in self.action_elements(message_index=message_index)
+            if element.get("id") == element_id
+            and (plugin is None or element.get("plugin") == plugin)
+            and (scope is None or element.get("scope") == scope)
+        ]
+        if not matches:
+            raise TerminalUserError(
+                f"no applicable action element matches {element_id!r}"
+            )
+        if len(matches) > 1:
+            choices = ", ".join(
+                f"{item['scope']}:{item['plugin']}:{item['id']}"
+                for item in matches
+            )
+            raise TerminalUserError(
+                f"ambiguous action element {element_id!r}; choose one of {choices}"
+            )
+        element = matches[0]
+        if element.get("disabled") is True:
+            reason = element.get("disabled_reason") or element.get("description")
+            suffix = f": {reason}" if isinstance(reason, str) and reason else ""
+            raise TerminalUserError(f"action {element_id!r} is disabled{suffix}")
+        return element
+
+    @staticmethod
+    def _resolve_mapping_path(root: Any, path: str) -> Tuple[bool, Any]:
+        current = root
+        for part in [piece for piece in path.split(".") if piece]:
+            if not isinstance(current, Mapping) or part not in current:
+                return False, None
+            current = current[part]
+        return True, current
+
+    def _mapped_action_inputs(
+        self,
+        element: Mapping[str, Any],
+        context: Mapping[str, Any],
+        *,
+        dialog_values: Mapping[str, Any] | None = None,
+        form_values: Mapping[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        fixed = element.get("fixed_params")
+        inputs: Dict[str, Any] = dict(fixed) if isinstance(fixed, Mapping) else {}
+        mappings = element.get("param_map")
+        if not isinstance(mappings, Mapping):
+            return inputs
+        raw_message = context.get("message")
+        message_values = dict(raw_message) if isinstance(raw_message, Mapping) else {}
+        roots: Dict[str, Any] = {
+            "session": (
+                context.get("session_summary")
+                if element.get("ui_type") == "session_list_action"
+                else context.get("session")
+            ),
+            "message": (
+                {
+                    "index": context.get("message_index"),
+                    **message_values,
+                }
+            ),
+            "dialog": dialog_values or {},
+            "form": form_values or {},
+            "context": context,
+        }
+        for name, source in mappings.items():
+            if not isinstance(name, str) or not isinstance(source, str):
+                continue
+            if not source.startswith("$") or "." not in source:
+                continue
+            prefix, _, path = source[1:].partition(".")
+            if prefix not in roots:
+                continue
+            found, value = self._resolve_mapping_path(roots[prefix], path)
+            if found:
+                inputs[name] = value
+        return inputs
+
+    def execute_ui_element(
+        self,
+        element: Mapping[str, Any],
+        *,
+        context: Mapping[str, Any] | None = None,
+        dialog_values: Mapping[str, Any] | None = None,
+        form_values: Mapping[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """Map and execute one preflighted action-backed UI element."""
+
+        if element.get("disabled") is True:
+            reason = element.get("disabled_reason") or element.get("description")
+            suffix = f": {reason}" if isinstance(reason, str) and reason else ""
+            raise TerminalUserError(f"action is disabled{suffix}")
+        effective_context = dict(context or self._active_session_context())
+        if (
+            element.get("ui_type") == "application_action"
+            or (
+                element.get("ui_type") in {"cli_command", "slash_command"}
+                and element.get("scope") == "application"
+            )
+        ):
+            effective_context = {
+                "application_generation": effective_context.get(
+                    "application_generation",
+                    self._application_generation,
+                )
+            }
+        if (
+            effective_context.get("application_generation")
+            not in {None, self._application_generation}
+        ):
+            raise TerminalUserError(
+                "action reference belongs to a replaced application"
+            )
+        plugin = element.get("plugin")
+        action_id = element.get("action_id")
+        if not isinstance(plugin, str) or not plugin:
+            raise TerminalUserError("action element is missing plugin")
+        if not isinstance(action_id, str) or not action_id:
+            raise TerminalUserError("action element is missing action_id")
+        params = self._mapped_action_inputs(
+            element,
+            effective_context,
+            dialog_values=dialog_values,
+            form_values=form_values,
+        )
+        executed = self._app.execute_action_with_metadata(
+            plugin,
+            action_id,
+            params,
+            action_owner=(
+                element.get("action_owner")
+                if isinstance(element.get("action_owner"), str)
+                else None
+            ),
+            context=effective_context,
+        )
+        session_id = effective_context.get("session_id")
+        if isinstance(session_id, str) and self._session is not None:
+            loaded = self._app.load_session(session_id)
+            if loaded is not None and session_id == self._session.session_id:
+                self._core, self._base_config, self._session = loaded
+                self._ui_schema_cache_key = None
+                self._ui_schema_cache = None
+        return executed.result
+
+    def execute_action_element(
+        self,
+        element_id: str,
+        *,
+        plugin: str | None = None,
+        scope: str | None = None,
+        message_index: int | None = None,
+        dialog_values: Mapping[str, Any] | None = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        element = self.resolve_action_element(
+            element_id,
+            plugin=plugin,
+            scope=scope,
+            message_index=message_index,
+        )
+        context = self._active_session_context(message_index=message_index)
+        return (
+            self.execute_ui_element(
+                element,
+                context=context,
+                dialog_values=dialog_values,
+            ),
+            element,
+            context,
+        )
+
+    def register_run_action_followup(
+        self,
+        action: Mapping[str, Any],
+        display: Mapping[str, Any],
+        context: Mapping[str, Any],
+        *,
+        notification: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Register a direct or notification ``run_action`` follow-up."""
+
+        if action.get("kind") != "run_action":
+            raise TerminalUserError("follow-up is not a run_action")
+        required = (action.get("id"), action.get("plugin"), action.get("action_id"))
+        if not all(isinstance(value, str) and value for value in required):
+            raise TerminalUserError("run_action follow-up is malformed")
+        self._app.validate_action_binding(
+            action["plugin"],
+            action["action_id"],
+            action_owner=(
+                action.get("action_owner")
+                if isinstance(action.get("action_owner"), str)
+                else None
+            ),
+            context=dict(context),
+        )
+
+        reference: str | None = None
+        notification_key: Tuple[str, str, str, str] | None = None
+        stored_notification: Dict[str, Any] | None = None
+        if isinstance(notification, Mapping):
+            scope = notification.get("scope")
+            notification_id = notification.get("notification_id")
+            session_id = notification.get("session_id")
+            action_id = action.get("id")
+            if (
+                isinstance(scope, str)
+                and scope
+                and isinstance(notification_id, str)
+                and notification_id
+                and isinstance(action_id, str)
+                and action_id
+            ):
+                notification_key = (
+                    scope,
+                    session_id if isinstance(session_id, str) else "",
+                    notification_id,
+                    action_id,
+                )
+                reference = self._notification_reference_ids.get(notification_key)
+                stored_notification = {
+                    **notification,
+                    "followup_id": action_id,
+                }
+        if reference is None:
+            prefix = "notification" if notification_key is not None else "result"
+            reference = f"{prefix}-{self._next_action_reference}"
+            self._next_action_reference += 1
+        if notification_key is not None:
+            self._notification_reference_ids[notification_key] = reference
+        else:
+            display_id = display.get("display_id")
+            if isinstance(display_id, str) and display_id:
+                self._direct_display_references.setdefault(display_id, set()).add(
+                    reference
+                )
+                self._direct_reference_displays[reference] = display_id
+
+        self._action_references[reference] = {
+            "element": {
+                "ui_type": "action_result_followup",
+                "plugin": action["plugin"],
+                "id": action["id"],
+                "label": action.get("label") or action["id"],
+                "action_id": action["action_id"],
+                "action_owner": action.get("action_owner"),
+                "fixed_params": action.get("fixed_params"),
+                "param_map": action.get("param_map"),
+                "dialog": action.get("dialog"),
+                "form": display.get("form"),
+                "preserve_display": action.get("preserve_display"),
+            },
+            "context": dict(context),
+            "notification": stored_notification,
+        }
+        return reference
+
+    def begin_action_display(self, display: Mapping[str, Any]) -> None:
+        """Supersede direct references owned by an existing ``display_id``."""
+
+        display_id = display.get("display_id")
+        if not isinstance(display_id, str) or not display_id:
+            return
+        for reference in self._direct_display_references.pop(display_id, set()):
+            self._action_references.pop(reference, None)
+            self._direct_reference_displays.pop(reference, None)
+        self._direct_display_references[display_id] = set()
+
+    def get_action_reference(self, reference: str) -> Dict[str, Any]:
+        entry = self._action_references.get(reference)
+        if not isinstance(entry, dict):
+            raise TerminalUserError(f"unknown or expired action reference {reference!r}")
+        notification = entry.get("notification")
+        if isinstance(notification, Mapping):
+            return self._refresh_notification_reference(reference, entry)
+        return entry
+
+    def _authoritative_notification(
+        self,
+        *,
+        scope: str,
+        notification_id: str,
+        session_id: str | None,
+    ) -> Dict[str, Any] | None:
+        try:
+            if scope == "application":
+                items = self._app.list_application_notifications(include_terminal=True)
+            elif (
+                scope == "session"
+                and isinstance(session_id, str)
+                and self._session is not None
+                and session_id == self._session.session_id
+            ):
+                items = self._app.list_session_notifications(
+                    session_id,
+                    include_terminal=True,
+                )
+            else:
+                return None
+        except Exception:
+            return None
+        return next(
+            (
+                item
+                for item in items
+                if isinstance(item, dict) and item.get("id") == notification_id
+            ),
+            None,
+        )
+
+    def _refresh_notification_reference(
+        self,
+        reference: str,
+        entry: Mapping[str, Any],
+    ) -> Dict[str, Any]:
+        metadata = entry.get("notification")
+        if not isinstance(metadata, Mapping):
+            raise TerminalUserError("notification reference metadata is invalid")
+        scope = metadata.get("scope")
+        notification_id = metadata.get("notification_id")
+        session_id = metadata.get("session_id")
+        followup_id = metadata.get("followup_id")
+        if (
+            not isinstance(scope, str)
+            or not scope
+            or not isinstance(notification_id, str)
+            or not notification_id
+            or not isinstance(followup_id, str)
+            or not followup_id
+        ):
+            raise TerminalUserError("notification reference metadata is invalid")
+        current = self._authoritative_notification(
+            scope=scope,
+            notification_id=notification_id,
+            session_id=session_id if isinstance(session_id, str) else None,
+        )
+        if current is None or not is_active_notification(current):
+            self._action_references.pop(reference, None)
+            raise TerminalUserError("notification is no longer active")
+        display = current.get("display")
+        if not isinstance(display, Mapping):
+            self._action_references.pop(reference, None)
+            raise TerminalUserError(
+                "notification follow-up display is no longer available"
+            )
+        actions = display.get("actions")
+        action = next(
+            (
+                item
+                for item in (actions or [])
+                if isinstance(item, Mapping)
+                and item.get("kind") == "run_action"
+                and item.get("id") == followup_id
+            ),
+            None,
+        )
+        if action is None:
+            self._action_references.pop(reference, None)
+            raise TerminalUserError(
+                "notification follow-up is no longer available"
+            )
+        context = self._active_session_context()
+        refreshed_metadata = {
+            "scope": scope,
+            "session_id": session_id,
+            "notification_id": notification_id,
+            "revision": notification_revision_token(current),
+            "followup_id": followup_id,
+        }
+        self.register_run_action_followup(
+            action,
+            display,
+            context,
+            notification=refreshed_metadata,
+        )
+        return self._action_references[reference]
+
+    def execute_action_reference(
+        self,
+        reference: str,
+        *,
+        dialog_values: Mapping[str, Any] | None = None,
+        form_values: Mapping[str, Any] | None = None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        entry = self.get_action_reference(reference)
+        element = entry["element"]
+        context = entry["context"]
+        result = self.execute_ui_element(
+            element,
+            context=context,
+            dialog_values=dialog_values,
+            form_values=form_values,
+        )
+        if element.get("preserve_display") is not True:
+            self._action_references.pop(reference, None)
+            display_id = self._direct_reference_displays.pop(reference, None)
+            if isinstance(display_id, str):
+                references = self._direct_display_references.get(display_id)
+                if references is not None:
+                    references.discard(reference)
+        return result, element, context
+
+    # ------------------------------------------------------------------
+    # Automatic application/current-session notifications
+    # ------------------------------------------------------------------
+
+    def _notification_identity(
+        self,
+        scope: str,
+        notification: Mapping[str, Any],
+        session_id: str | None,
+    ) -> Tuple[str, str | None, str] | None:
+        notification_id = notification.get("id")
+        if not isinstance(notification_id, str) or not notification_id:
+            return None
+        return scope, session_id, notification_id
+
+    def _retire_notification_references(
+        self,
+        scope: str,
+        notification_id: str,
+        session_id: str | None,
+    ) -> None:
+        normalized_session_id = session_id or ""
+        keys = [
+            key
+            for key in self._notification_reference_ids
+            if key[0] == scope
+            and key[1] == normalized_session_id
+            and key[2] == notification_id
+        ]
+        for key in keys:
+            reference = self._notification_reference_ids.pop(key)
+            self._action_references.pop(reference, None)
+
+    def _supersede_notification_references(
+        self,
+        scope: str,
+        notification_id: str,
+        session_id: str | None,
+        notification: Mapping[str, Any],
+    ) -> None:
+        display = notification.get("display")
+        actions = display.get("actions") if isinstance(display, Mapping) else None
+        current_ids = {
+            action.get("id")
+            for action in (actions or [])
+            if isinstance(action, Mapping)
+            and action.get("kind") == "run_action"
+            and isinstance(action.get("id"), str)
+            and action.get("id")
+        }
+        normalized_session_id = session_id or ""
+        obsolete = [
+            key
+            for key in self._notification_reference_ids
+            if key[0] == scope
+            and key[1] == normalized_session_id
+            and key[2] == notification_id
+            and key[3] not in current_ids
+        ]
+        for key in obsolete:
+            reference = self._notification_reference_ids.pop(key)
+            self._action_references.pop(reference, None)
+
+    def _accept_notification(
+        self,
+        scope: str,
+        notification: Mapping[str, Any],
+        *,
+        session_id: str | None = None,
+    ) -> Dict[str, Any] | None:
+        identity = self._notification_identity(scope, notification, session_id)
+        if identity is None:
+            return None
+        revision = notification_revision_token(notification)
+        previous = self._notification_versions.get(identity)
+        if previous is not None:
+            if isinstance(previous, int) and isinstance(revision, int):
+                if revision <= previous:
+                    return None
+            elif str(revision) <= str(previous):
+                return None
+        self._notification_versions[identity] = revision
+        if not is_active_notification(notification):
+            self._retire_notification_references(
+                scope,
+                identity[2],
+                session_id,
+            )
+            return None
+        self._supersede_notification_references(
+            scope,
+            identity[2],
+            session_id,
+            notification,
+        )
+        return {
+            "scope": scope,
+            "session_id": session_id,
+            "notification": dict(notification),
+        }
+
+    def _hydrate_notifications(self) -> List[Dict[str, Any]]:
+        updates: List[Dict[str, Any]] = []
+        application_loaded = False
+        try:
+            application_items = self._app.list_application_notifications(
+                include_terminal=False
+            )
+            application_loaded = True
+        except Exception:
+            application_items = []
+        active_application_ids: set[str] = set()
+        for notification in application_items:
+            if isinstance(notification, Mapping):
+                notification_id = notification.get("id")
+                if isinstance(notification_id, str) and notification_id:
+                    active_application_ids.add(notification_id)
+                accepted = self._accept_notification(
+                    "application",
+                    notification,
+                )
+                if accepted is not None:
+                    updates.append(accepted)
+        if application_loaded:
+            for scope, _session_id, notification_id in list(
+                self._notification_versions
+            ):
+                if (
+                    scope == "application"
+                    and notification_id not in active_application_ids
+                ):
+                    self._retire_notification_references(
+                        "application",
+                        notification_id,
+                        None,
+                    )
+
+        if self._session is not None:
+            session_id = self._session.session_id
+            session_loaded = False
+            try:
+                session_items = self._app.list_session_notifications(
+                    session_id,
+                    include_terminal=False,
+                )
+                session_loaded = True
+            except Exception:
+                session_items = []
+            active_session_ids: set[str] = set()
+            for notification in session_items:
+                if isinstance(notification, Mapping):
+                    notification_id = notification.get("id")
+                    if isinstance(notification_id, str) and notification_id:
+                        active_session_ids.add(notification_id)
+                    accepted = self._accept_notification(
+                        "session",
+                        notification,
+                        session_id=session_id,
+                    )
+                    if accepted is not None:
+                        updates.append(accepted)
+            if session_loaded:
+                for scope, known_session_id, notification_id in list(
+                    self._notification_versions
+                ):
+                    if (
+                        scope == "session"
+                        and known_session_id == session_id
+                        and notification_id not in active_session_ids
+                    ):
+                        self._retire_notification_references(
+                            "session",
+                            notification_id,
+                            session_id,
+                        )
+        return updates
+
+    def poll_notification_updates(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Return newly accepted application/current-session notifications."""
+
+        store = self._app.get_event_store()
+        updates: List[Dict[str, Any]] = []
+        if self._notification_hydration_required:
+            try:
+                self._notification_event_id = store.get_latest_event_id()
+            except Exception:
+                self._notification_event_id = None
+            updates.extend(self._hydrate_notifications())
+            self._notification_hydration_required = False
+
+        listed = store.list(
+            since_id=self._notification_event_id,
+            request_id=None,
+            session_id=None,
+            limit=limit,
+        )
+        if listed.get("cursor_expired"):
+            self._notification_hydration_required = True
+            return [*updates, *self.poll_notification_updates(limit=limit)]
+        events = listed.get("events") or []
+        for event in events:
+            if not isinstance(event, Mapping):
+                continue
+            event_type = event.get("type")
+            notification = event.get("notification")
+            if not isinstance(notification, Mapping):
+                continue
+            if isinstance(event_type, str) and event_type.startswith(
+                "application_notification_"
+            ):
+                accepted = self._accept_notification(
+                    "application",
+                    notification,
+                )
+            elif isinstance(event_type, str) and event_type.startswith(
+                "session_notification_"
+            ):
+                event_session_id = event.get("session_id")
+                if (
+                    self._session is None
+                    or event_session_id != self._session.session_id
+                ):
+                    continue
+                accepted = self._accept_notification(
+                    "session",
+                    notification,
+                    session_id=event_session_id,
+                )
+            else:
+                continue
+            if accepted is not None:
+                updates.append(accepted)
+        if events:
+            event_id = events[-1].get("event_id")
+            if isinstance(event_id, str):
+                self._notification_event_id = event_id
+        return updates
 
     def get_last_assistant_message(self) -> Optional[Dict[str, Any]]:
         """Get the last assistant message from the active session.
