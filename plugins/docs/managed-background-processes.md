@@ -367,6 +367,12 @@ application plugin. It combines:
 - an async OpenAI compact transport for prompt HTTP cancellation;
 - guarded optimistic reconciliation for the final session update.
 
+The same pattern also drives the `summarize-range-app` range summarization
+plugin and the `claude-tools` Claude compaction application plugin. Both run
+their internal model request on a worker thread, cancel through a
+`RequestCancellation` wired into `send_request_stream`, and commit through
+snapshot plus reconciled persistence.
+
 See `application/python/docs/development/operations.md` for the application
 operation model and `plugins/openai_responses/README.md` for provider-specific
 behavior.

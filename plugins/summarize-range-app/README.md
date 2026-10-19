@@ -2,6 +2,17 @@
 
 Application-level plugin providing summarize-range session actions.
 
+The `summarize_range` action runs in the background: it validates the
+request, reserves the session's application operation, and returns promptly
+with an accepted operation envelope. The summarization model request runs on
+a worker thread while progress, cancellation, and completion are delivered
+through session notifications with Cancel and Retry followups, mirroring the
+OpenAI Responses native-compaction flow. A snapshot is created before the
+summarized session is committed, and concurrent session modifications are
+detected through reconciled persistence instead of being overwritten. The
+`cancel_summarize_range` action requests cancellation of a running
+operation.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

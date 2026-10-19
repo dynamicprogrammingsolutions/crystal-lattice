@@ -3,6 +3,7 @@
   "subdirectory": ".",
   "entries": [
     "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
+    "claude_tools.claude_compaction_app.ClaudeCompactionAppPlugin",
     "claude_tools.claude_bash_tool.ClaudeBashTool",
     "claude_tools.claude_read_tool.ClaudeReadTool",
     "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool",
@@ -25,7 +26,8 @@
     "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools",
     "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool": "tools",
     "claude_tools.claude_web_search_tool.ClaudeWebSearchTool": "tools",
-    "claude_tools.claude_mcp_tool.ClaudeMCPTool": "tools"
+    "claude_tools.claude_mcp_tool.ClaudeMCPTool": "tools",
+    "claude_tools.claude_compaction_app.ClaudeCompactionAppPlugin": "application"
   },
   "local_workspace_dependencies": [
     {

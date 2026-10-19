@@ -238,7 +238,7 @@ def test_feature_schema_includes_compaction_model_and_existing_keys() -> None:
     assert "claude_compaction_settings_overrides" in schema
 
 
-def test_feature_ui_elements_include_compaction_model_and_message_action() -> None:
+def test_feature_ui_elements_include_compaction_model_only() -> None:
     feature = ClaudeCompactionFeature()
 
     elements = feature.get_ui_elements(
@@ -256,14 +256,18 @@ def test_feature_ui_elements_include_compaction_model_and_message_action() -> No
         {"label": "Claude Sonnet", "value": "claude-sonnet"}
     ]
 
-    message_action = next(
-        element
+    # Manual compaction actions moved to the application plugin; the feature
+    # keeps only configuration UI.
+    assert not any(
+        element.get("ui_type") in {"session_action", "message_action"}
         for element in elements
-        if element.get("ui_type") == "message_action"
-        and element.get("id") == "compact_up_to_here"
     )
-    assert message_action["action_id"] == "compact_conversation"
-    assert message_action["fixed_params"] == {"start": 0, "end_inclusive": True}
+
+
+def test_feature_tags_include_claude_compaction_feature_tag() -> None:
+    feature = ClaudeCompactionFeature()
+
+    assert feature.get_tags({}, []) == ["feature:claude_compaction"]
 
 
 def test_feature_ui_elements_fall_back_to_text_when_models_are_unavailable() -> None:
