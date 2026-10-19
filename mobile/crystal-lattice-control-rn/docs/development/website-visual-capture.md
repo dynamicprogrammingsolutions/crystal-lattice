@@ -46,7 +46,33 @@ fixture is checked for local paths and credential-like fields.
   Z.ai, with attached source files and expanded pre-execution reasoning.
 - `workspaces`: production session list with `todo`, `in_progress`, and
   `done`, header pin state, a fresh pinned-action preference namespace, and
-  the default-pinned status rich list open.
+  the default-pinned status rich list open. The first row reuses the Starlette
+  compatibility title/subtitle from the conversation fixture, and its
+  descriptive slug avoids exposing a raw session UUID.
+- `message-actions`: the terminal Starlette/Codex assistant message with the
+  production Message actions menu open. The capture scrolls to the bottom and
+  targets the terminal message's action trigger in the native accessibility
+  order.
+- `composer-active`: active request with the production Composer actions menu,
+  model/reasoning/web-search controls, hard cancel, and soft cancel.
+- `system-template`: authored System-role instruction template with unresolved
+  placeholders followed by its user request.
+- `home`: production Home screen with deterministic local Watchlist, notes,
+  recent sessions, saved connections, and request states.
+- `connections`: the ordinary pre-connection application screen, captured
+  without the website harness so the real Manual Address, Automatic
+  Discovery, Bridge Service, and Cloud Agent Link choices remain visible.
+
+The `workspaces` capture now also supplies deterministic transient request
+states. Its `workspaces-list-<theme>.png` source is taken before the status
+selection modal opens; `workspaces-<theme>.png` retains the modal state.
+
+Select a bounded subset without changing the capture test:
+
+```bash
+CLC_WEBSITE_VISUAL_KINDS=composer-active,message-actions,workspaces,system-template,home,connections \
+  npm run detox:capture:website-visual:ios
+```
 
 Do not promote these captures directly. Homepage composition, annotations,
 device frames, review, source promotion, optimization, and binding are owned

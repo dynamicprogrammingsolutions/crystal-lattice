@@ -7,12 +7,14 @@
         "path": "metadata.openai_responses_reasoning.context"
       },
       "data": "metadata.openai_responses_reasoning.context",
+      "order": 2010,
       "plugin": "openai_responses_reasoning",
       "template": "context: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_prompt_tokens_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "input: {{data}}",
       "ui_type": "message_footer"
@@ -25,6 +27,7 @@
         }
       },
       "data": "metadata.usage_cached_tokens_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "cached: {{data}}",
       "ui_type": "message_footer"
@@ -35,6 +38,7 @@
         "path": "metadata.usage_cache_write_tokens_formatted"
       },
       "data": "metadata.usage_cache_write_tokens_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "cache write: {{data}}",
       "ui_type": "message_footer"
@@ -53,12 +57,14 @@
         ]
       },
       "data": "metadata.usage_estimated_cached_tokens_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "estimated cached: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_completion_tokens_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "completion: {{data}}",
       "ui_type": "message_footer"
@@ -69,6 +75,7 @@
         "path": "metadata.usage_effective_auth_mode_label"
       },
       "data": "metadata.usage_effective_auth_mode_label",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "auth: {{data}}",
       "ui_type": "message_footer"
@@ -81,12 +88,17 @@
             "path": "metadata.usage_service_tier"
           },
           {
+            "eq": "fast",
+            "path": "metadata.usage_service_tier"
+          },
+          {
             "eq": "priority",
             "path": "metadata.usage_service_tier"
           }
         ]
       },
       "data": "metadata.usage_service_tier",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "tier: {{data}}",
       "ui_type": "message_footer"
@@ -97,6 +109,7 @@
         "path": "metadata.usage_reasoning_mode"
       },
       "data": "metadata.usage_reasoning_mode",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "mode: {{data}}",
       "ui_type": "message_footer"
@@ -107,6 +120,7 @@
         "path": "metadata.usage_effective_auth_mode"
       },
       "data": "metadata.usage_total_cost_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "estimated cost: {{data}}",
       "ui_type": "message_footer"
@@ -119,6 +133,7 @@
         }
       },
       "data": "metadata.usage_total_cost_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "cost: {{data}}",
       "ui_type": "message_footer"
@@ -129,6 +144,7 @@
         "path": "metadata.usage_effective_auth_mode"
       },
       "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "estimated turn: {{data}}",
       "ui_type": "message_footer"
@@ -141,30 +157,35 @@
         }
       },
       "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "reasoning: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn input: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn cached: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn output: {{data}}",
       "ui_type": "message_footer"
@@ -329,6 +350,7 @@
         "path": "metadata.usage_effective_auth_mode"
       },
       "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "estimated turn: {{data}}",
       "ui_type": "message_footer"
@@ -341,27 +363,24 @@
         }
       },
       "data": "metadata.usage_turn_cost_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn input: {{data}}",
       "ui_type": "message_footer"
     },
     {
       "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+      "order": 2060,
       "plugin": "openai_responses_usage",
       "template": "turn output: {{data}}",
       "ui_type": "message_footer"
-    },
-    {
-      "data": "metadata.usage_total_cost_cumulative_formatted",
-      "plugin": "openai_responses_usage",
-      "template": "Total: {{data}}",
-      "ui_type": "status_bar"
     }
   ],
   "provider_usage_message": {
@@ -549,155 +568,26 @@
   "schema_version": 1,
   "session_application_ui_schema": [
     {
-      "action_id": "copy_session",
-      "dialog": {
-        "kind": "none"
-      },
-      "fixed_params": {
-        "source": "session_list"
-      },
-      "icon": "copy",
-      "id": "copy_session_from_list",
-      "label": "Copy",
-      "order": 10,
-      "param_map": {
-        "session_id": "$session.session_id"
-      },
-      "plugin": "session_actions",
-      "ui_type": "session_list_action"
+      "data": "metadata.title",
+      "id": "session_title_field",
+      "key": "session_title",
+      "label": "Session title",
+      "order": 0,
+      "plugin": "session_title",
+      "role": "title",
+      "template": "{{data}}",
+      "ui_type": "session_list_field"
     },
     {
-      "action_id": "delete_session",
-      "dialog": {
-        "kind": "confirm",
-        "message": "Delete this session and its messages?",
-        "title": "Delete session"
-      },
-      "fixed_params": {
-        "source": "session_list"
-      },
-      "icon": "trash-2",
-      "id": "delete_session_from_list",
-      "label": "Delete session",
-      "order": 20,
-      "param_map": {
-        "session_id": "$session.session_id"
-      },
-      "plugin": "session_actions",
-      "ui_type": "session_list_action"
-    },
-    {
-      "action_id": "copy_session",
-      "dialog": {
-        "kind": "none"
-      },
-      "fixed_params": {
-        "source": "session_view"
-      },
-      "icon": "copy",
-      "id": "copy_session_from_view",
-      "label": "Copy session",
-      "order": 10,
-      "param_map": {
-        "session_id": "$session.session_id"
-      },
-      "plugin": "session_actions",
-      "ui_type": "session_action"
-    },
-    {
-      "action_id": "fork_session_at",
-      "dialog": {
-        "kind": "none"
-      },
-      "fixed_params": {
-        "source": "message_menu"
-      },
-      "icon": "git-branch",
-      "id": "fork_session_at_message",
-      "label": "Fork here",
-      "order": 20,
-      "param_map": {
-        "index": "$message.index",
-        "session_id": "$session.session_id"
-      },
-      "plugin": "session_actions",
-      "ui_type": "message_action"
-    },
-    {
-      "action_id": "delete_messages",
-      "dialog": {
-        "kind": "confirm",
-        "message": "Delete this message?",
-        "title": "Delete message"
-      },
-      "fixed_params": {},
-      "icon": "trash-2",
-      "id": "delete_single_message",
-      "label": "Delete",
-      "order": 30,
-      "param_map": {
-        "indices": "$message.index",
-        "session_id": "$session.session_id"
-      },
-      "plugin": "session_actions",
-      "ui_type": "message_action"
-    },
-    {
-      "action_id": "delete_messages",
-      "dialog": {
-        "kind": "confirm",
-        "message": "Delete this message and all later messages?",
-        "title": "Delete from here"
-      },
-      "fixed_params": {},
-      "icon": "trash-2",
-      "id": "delete_from_here",
-      "label": "Delete from here",
-      "order": 35,
-      "param_map": {
-        "session_id": "$session.session_id",
-        "start": "$message.index"
-      },
-      "plugin": "session_actions",
-      "ui_type": "message_action"
-    },
-    {
-      "action_id": "delete_messages",
-      "dialog": {
-        "inputs": [
-          {
-            "label": "Start index",
-            "name": "start",
-            "placeholder": "e.g. 0 or -10",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "label": "End index (optional)",
-            "name": "end",
-            "placeholder": "leave blank for end",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "kind": "form",
-        "message": "Python-style range (start:end). Messages in this range will be removed.",
-        "title": "Delete messages"
-      },
-      "fixed_params": {
-        "source": "session_view"
-      },
-      "icon": "trash-2",
-      "id": "delete_last_messages",
-      "label": "Delete messages",
-      "order": 30,
-      "param_map": {
-        "end": "$dialog.end",
-        "session_id": "$session.session_id",
-        "start": "$dialog.start"
-      },
-      "plugin": "session_actions",
-      "ui_type": "session_action"
+      "data": "metadata.subtitle",
+      "id": "session_subtitle_field",
+      "key": "session_subtitle",
+      "label": "Session subtitle",
+      "order": 0,
+      "plugin": "session_title",
+      "role": "subtitle",
+      "template": "{{data}}",
+      "ui_type": "session_list_field"
     },
     {
       "action_id": "set_session_title",
@@ -742,6 +632,60 @@
       "ui_type": "session_list_action"
     },
     {
+      "action_id": "generate_title_for_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "zap",
+      "id": "generate_title_from_list",
+      "label": "Generate title",
+      "order": 6,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "generate_title",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "copy_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "copy",
+      "id": "copy_session_from_list",
+      "label": "Copy",
+      "order": 10,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "copy_session",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "copy",
+      "id": "copy_session_from_view",
+      "label": "Copy session",
+      "order": 10,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_action"
+    },
+    {
       "action_id": "set_session_title",
       "dialog": {
         "inputs": [
@@ -784,46 +728,6 @@
       "ui_type": "session_action"
     },
     {
-      "data": "metadata.title",
-      "id": "session_title_field",
-      "key": "session_title",
-      "label": "Session title",
-      "order": 0,
-      "plugin": "session_title",
-      "role": "title",
-      "template": "{{data}}",
-      "ui_type": "session_list_field"
-    },
-    {
-      "data": "metadata.subtitle",
-      "id": "session_subtitle_field",
-      "key": "session_subtitle",
-      "label": "Session subtitle",
-      "order": 0,
-      "plugin": "session_title",
-      "role": "subtitle",
-      "template": "{{data}}",
-      "ui_type": "session_list_field"
-    },
-    {
-      "action_id": "generate_title_for_session",
-      "dialog": {
-        "kind": "none"
-      },
-      "fixed_params": {
-        "source": "session_list"
-      },
-      "icon": "sparkles",
-      "id": "generate_title_from_list",
-      "label": "Generate title",
-      "order": 6,
-      "param_map": {
-        "session_id": "$session.session_id"
-      },
-      "plugin": "generate_title",
-      "ui_type": "session_list_action"
-    },
-    {
       "action_id": "generate_title_for_session",
       "dialog": {
         "kind": "none"
@@ -831,7 +735,7 @@
       "fixed_params": {
         "source": "session_view"
       },
-      "icon": "sparkles",
+      "icon": "zap",
       "id": "generate_title_from_view",
       "label": "Generate title",
       "order": 16,
@@ -842,7 +746,177 @@
       "ui_type": "session_action"
     },
     {
+      "action_id": "delete_session",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this session and its messages?",
+        "title": "Delete session"
+      },
+      "fixed_params": {
+        "source": "session_list"
+      },
+      "icon": "trash-2",
+      "id": "delete_session_from_list",
+      "label": "Delete session",
+      "order": 20,
+      "param_map": {
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_list_action"
+    },
+    {
+      "action_id": "fork_session_at",
+      "dialog": {
+        "kind": "none"
+      },
+      "fixed_params": {
+        "source": "message_menu"
+      },
+      "icon": "git-branch",
+      "id": "fork_session_at_message",
+      "label": "Fork here",
+      "order": 20,
+      "param_map": {
+        "index": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
       "action_id": "summarize_range",
+      "action_owner": "application",
+      "dialog": {
+        "inputs": [
+          {
+            "default": "Provide a detailed but concise summary of the selected conversation. Preserve decisions, relevant files, completed work, and useful next steps.",
+            "label": "Prompt",
+            "name": "prompt",
+            "placeholder": "Optional \u2013 edit the instruction if needed",
+            "required": false,
+            "type": "multiline"
+          }
+        ],
+        "kind": "form",
+        "message": "The messages up to here will be summarized into a single assistant message in the background.",
+        "title": "Summarize messages up to here"
+      },
+      "fixed_params": {
+        "end_inclusive": true,
+        "start": 0
+      },
+      "icon": "file-text",
+      "id": "summarize_before_message",
+      "label": "Summarize messages up to here",
+      "order": 20,
+      "param_map": {
+        "end": "$message.index",
+        "prompt": "$dialog.prompt",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "summarize_range",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "compact_native_history",
+      "action_owner": "application",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Compact provider-native history through this message in the background?",
+        "title": "OpenAI compaction up to here"
+      },
+      "fixed_params": {},
+      "icon": "archive",
+      "id": "compact_native_history_through_message",
+      "label": "OpenAI compaction up to here",
+      "order": 25,
+      "param_map": {
+        "message_index": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "openai_responses_native_compaction_app",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this message?",
+        "title": "Delete message"
+      },
+      "fixed_params": {},
+      "icon": "trash-2",
+      "id": "delete_single_message",
+      "label": "Delete",
+      "order": 30,
+      "param_map": {
+        "indices": "$message.index",
+        "session_id": "$session.session_id"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "inputs": [
+          {
+            "label": "Start index",
+            "name": "start",
+            "placeholder": "e.g. 0 or -10",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "label": "End index (optional)",
+            "name": "end",
+            "placeholder": "leave blank for end",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "kind": "form",
+        "message": "Python-style range (start:end). Messages in this range will be removed.",
+        "title": "Delete messages"
+      },
+      "fixed_params": {
+        "source": "session_view"
+      },
+      "icon": "trash-2",
+      "id": "delete_last_messages",
+      "label": "Delete messages",
+      "order": 30,
+      "param_map": {
+        "end": "$dialog.end",
+        "session_id": "$session.session_id",
+        "start": "$dialog.start"
+      },
+      "plugin": "session_actions",
+      "ui_type": "session_action"
+    },
+    {
+      "action_id": "delete_messages",
+      "dialog": {
+        "kind": "confirm",
+        "message": "Delete this message and all later messages?",
+        "title": "Delete from here"
+      },
+      "fixed_params": {},
+      "icon": "trash-2",
+      "id": "delete_from_here",
+      "label": "Delete from here",
+      "order": 35,
+      "param_map": {
+        "session_id": "$session.session_id",
+        "start": "$message.index"
+      },
+      "plugin": "session_actions",
+      "ui_type": "message_action"
+    },
+    {
+      "action_id": "summarize_range",
+      "action_owner": "application",
       "dialog": {
         "inputs": [
           {
@@ -869,7 +943,7 @@
           }
         ],
         "kind": "form",
-        "message": "Python-style range (start:end). The selected messages will be summarized into a single assistant message.",
+        "message": "Python-style range (start:end). The selected messages will be summarized into a single assistant message in the background.",
         "title": "Summarize range"
       },
       "fixed_params": {},
@@ -885,39 +959,6 @@
       },
       "plugin": "summarize_range",
       "ui_type": "session_action"
-    },
-    {
-      "action_id": "summarize_range",
-      "dialog": {
-        "inputs": [
-          {
-            "default": "Provide a detailed but concise summary of the selected conversation. Preserve decisions, relevant files, completed work, and useful next steps.",
-            "label": "Prompt",
-            "name": "prompt",
-            "placeholder": "Optional \u2013 edit the instruction if needed",
-            "required": false,
-            "type": "multiline"
-          }
-        ],
-        "kind": "form",
-        "message": "The messages up to here will be summarized into a single assistant message.",
-        "title": "Summarize messages up to here"
-      },
-      "fixed_params": {
-        "end_inclusive": true,
-        "start": 0
-      },
-      "icon": "file-text",
-      "id": "summarize_before_message",
-      "label": "Summarize messages up to here",
-      "order": 20,
-      "param_map": {
-        "end": "$message.index",
-        "prompt": "$dialog.prompt",
-        "session_id": "$session.session_id"
-      },
-      "plugin": "summarize_range",
-      "ui_type": "message_action"
     },
     {
       "action_id": "compact_native_history",
@@ -947,26 +988,6 @@
       },
       "plugin": "openai_responses_native_compaction_app",
       "ui_type": "session_action"
-    },
-    {
-      "action_id": "compact_native_history",
-      "action_owner": "application",
-      "dialog": {
-        "kind": "confirm",
-        "message": "Compact provider-native history through this message in the background?",
-        "title": "Compact native history up to here"
-      },
-      "fixed_params": {},
-      "icon": "archive",
-      "id": "compact_native_history_through_message",
-      "label": "Compact native history up to here",
-      "order": 25,
-      "param_map": {
-        "message_index": "$message.index",
-        "session_id": "$session.session_id"
-      },
-      "plugin": "openai_responses_native_compaction_app",
-      "ui_type": "message_action"
     }
   ],
   "session_base_config": {
@@ -1055,8 +1076,14 @@
   },
   "session_ui_schema": [
     {
+      "custom_value": {
+        "enabled": true,
+        "option_label": "Use '{value}' as a custom model ID",
+        "pattern": "^[^\\s]+$"
+      },
+      "icon": "cpu",
       "key": "model",
-      "label": "OpenAI Model",
+      "label": "Model",
       "options": [
         {
           "label": "GPT-5.6 Luna",
@@ -1067,11 +1094,39 @@
           "value": "gpt-5.4-mini"
         }
       ],
+      "order": 1010,
+      "placeholder": "Search models or enter a model ID",
       "plugin": "openai_responses",
+      "rich_ui": {
+        "custom_value": {
+          "enabled": true,
+          "option_label": "Use '{value}' as a custom model ID",
+          "pattern": "^[^\\s]+$"
+        },
+        "default_pinned": true,
+        "kind": "dropdown",
+        "label": "Model",
+        "options": [
+          {
+            "label": "GPT-5.6 Luna",
+            "value": "gpt-5.6-luna"
+          },
+          {
+            "label": "GPT-5.4 mini",
+            "value": "gpt-5.4-mini"
+          }
+        ],
+        "placeholder": "Search models or enter a model ID",
+        "placements": [
+          "composer"
+        ],
+        "show_label": false
+      },
       "type": "dropdown",
       "ui_type": "config"
     },
     {
+      "icon": "sliders",
       "key": "reasoning_effort",
       "label": "Reasoning Effort",
       "options": [
@@ -1096,7 +1151,40 @@
           "value": "max"
         }
       ],
+      "order": 2010,
       "plugin": "openai_responses_reasoning",
+      "rich_ui": {
+        "default_pinned": true,
+        "kind": "dropdown",
+        "label": "Reasoning effort",
+        "options": [
+          {
+            "label": "low",
+            "value": "low"
+          },
+          {
+            "label": "medium",
+            "value": "medium"
+          },
+          {
+            "label": "high",
+            "value": "high"
+          },
+          {
+            "label": "xhigh",
+            "value": "xhigh"
+          },
+          {
+            "label": "max",
+            "value": "max"
+          }
+        ],
+        "placements": [
+          "composer"
+        ],
+        "show_icon": false,
+        "show_label": false
+      },
       "type": "select",
       "ui_type": "config"
     },
@@ -1117,6 +1205,7 @@
           "value": "high"
         }
       ],
+      "order": 2020,
       "plugin": "openai_responses_verbosity",
       "type": "select",
       "ui_type": "config"
@@ -1124,14 +1213,40 @@
     {
       "key": "enable_prompt_cache_key",
       "label": "Enable prompt cache key",
+      "order": 2050,
       "plugin": "openai_responses_prompt_caching",
       "type": "checkbox",
       "ui_type": "config"
     },
     {
+      "icon": "globe",
       "key": "enable_web_search",
       "label": "Enable web search",
+      "order": 2090,
       "plugin": "openai_responses_websearch",
+      "rich_ui": {
+        "default_pinned": true,
+        "kind": "toggle",
+        "label": "Web search",
+        "options": [
+          {
+            "icon": "globe",
+            "label": "Off",
+            "tone": "primary",
+            "value": false
+          },
+          {
+            "icon": "globe",
+            "label": "On",
+            "tone": "success",
+            "value": true
+          }
+        ],
+        "placements": [
+          "composer"
+        ],
+        "show_label": false
+      },
       "type": "checkbox",
       "ui_type": "config"
     },
@@ -1139,6 +1254,7 @@
       "default": false,
       "key": "use_compaction_placeholder_transcript",
       "label": "Show compacted history as placeholder transcript",
+      "order": 2070,
       "plugin": "openai_responses_native_compaction",
       "type": "checkbox",
       "ui_type": "config"

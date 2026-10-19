@@ -181,7 +181,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     if placeholder_enabled
                     else "Collapse compacted messages"
                 ),
-                "icon": "rows-3",
+                "icon": "maximize-2" if placeholder_enabled else "minimize-2",
                 "order": 45,
                 "action_id": "toggle_compaction_transcript_mode",
                 "action_owner": "provider_extension",

@@ -588,6 +588,8 @@ def test_compaction_toggle_ui_label_depends_on_config() -> None:
 
     assert collapsed_toggle["label"] == "Collapse compacted messages"
     assert expand_toggle["label"] == "Expand compacted messages"
+    assert collapsed_toggle["icon"] == "minimize-2"
+    assert expand_toggle["icon"] == "maximize-2"
     assert collapsed_toggle["condition"] == {
         "path": "metadata.openai_responses_compaction",
         "exists": True,

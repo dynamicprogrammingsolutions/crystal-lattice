@@ -5,13 +5,27 @@ import {
   SafeAreaView,
 } from "react-native-safe-area-context";
 
-import type { AgentBackend, IndexedMessage, SessionSummary } from "@crystal-lattice/frontend-sdk";
+import type {
+  AgentBackend,
+  ConnectionRecord,
+  IndexedMessage,
+  KeyValueStore,
+  SessionRequestStatus,
+  SessionSummary,
+} from "@crystal-lattice/frontend-sdk";
 
 import { ApplicationPluginsProvider } from "../ApplicationPluginsContext";
+import type { SessionsCache } from "../../App";
+import HomeScreen from "../HomeScreen";
 import { PinnedActionsProvider } from "../PinnedActionsContext";
 import SessionChatScreen from "../SessionChatScreen";
 import SessionsScreen from "../SessionsScreen";
 import { HomeWorkspaceProvider } from "../HomeWorkspaceContext";
+import {
+  HOME_WATCHLIST_STORAGE_KEY,
+  MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY,
+  SESSION_NOTES_STORAGE_KEY,
+} from "../homeWorkspaceState";
 import ActionResultModal from "../components/ActionResultModal";
 import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
 import SessionPluginsModal from "../components/SessionPluginsModal";
@@ -187,26 +201,66 @@ const VIBE_SESSION_SUMMARY: SessionSummary = {
   },
 };
 
+const SYSTEM_TEMPLATE_MESSAGES: IndexedMessage[] = [
+  {
+    index: 0,
+    message: {
+      role: "system",
+      content:
+        "You are {{AGENT_TITLE}}. Follow the project guidance below before acting.\n\n{{PROJECT_GUIDANCE}}\n\nUse the enabled {{TOOLSET_NAME}} tools and report assumptions explicitly.",
+      metadata: {},
+    },
+  },
+  {
+    index: 1,
+    message: {
+      role: "user",
+      content:
+        "Review the release notes and propose the smallest safe validation plan.",
+      metadata: {},
+    },
+  },
+];
+
+const SYSTEM_TEMPLATE_SUMMARY: SessionSummary = {
+  session_id: SESSION_ID,
+  modified: SESSION_SUMMARY.modified,
+  preview: SYSTEM_TEMPLATE_MESSAGES[1].message.content,
+  metadata: {
+    agent_id: "codex-openai",
+    status: "in_progress",
+  },
+  presentation: {
+    title: "Validate a release plan",
+    subtitle: "Authored instructions remain visible",
+    meta: "Status: In progress",
+  },
+};
+
+const FIXTURE_NOW_SECONDS = Math.floor(Date.now() / 1000);
+const WORKSPACE_PRIMARY_SESSION_ID = "starlette-compatibility";
+
 const WORKSPACE_SESSIONS: SessionSummary[] = [
   {
-    session_id: "launch-research",
-    modified: 30,
-    preview: "Compare launch approaches and define the validation plan.",
+    session_id: WORKSPACE_PRIMARY_SESSION_ID,
+    modified: FIXTURE_NOW_SECONDS - 30,
+    preview: SESSION_SUMMARY.preview,
     metadata: {
-      title: "Launch strategy research",
-      subtitle: "Sources, assumptions, and validation plan",
+      agent_id: "codex-openai",
+      title: SESSION_SUMMARY.presentation?.title,
+      subtitle: SESSION_SUMMARY.presentation?.subtitle,
       status: "in_progress",
       pinned: true,
     },
     presentation: {
-      title: "Launch strategy research",
-      subtitle: "Sources, assumptions, and validation plan",
+      title: SESSION_SUMMARY.presentation?.title ?? "Plan a Starlette compatibility fix",
+      subtitle: SESSION_SUMMARY.presentation?.subtitle ?? "Coding session · OpenAI Responses",
       meta: "Status: In progress",
     },
   },
   {
     session_id: "customer-signals",
-    modified: 20,
+    modified: FIXTURE_NOW_SECONDS - 120,
     preview: "Synthesize the latest customer interview notes.",
     metadata: {
       title: "Customer signal synthesis",
@@ -222,7 +276,7 @@ const WORKSPACE_SESSIONS: SessionSummary[] = [
   },
   {
     session_id: "release-brief",
-    modified: 10,
+    modified: FIXTURE_NOW_SECONDS - 360,
     preview: "Final launch brief ready for review.",
     metadata: {
       title: "Release readiness brief",
@@ -238,10 +292,115 @@ const WORKSPACE_SESSIONS: SessionSummary[] = [
   },
 ];
 
+const WORKSPACE_REQUEST_STATUSES: Record<string, SessionRequestStatus> = {
+  [WORKSPACE_PRIMARY_SESSION_ID]: {
+    session_id: WORKSPACE_PRIMARY_SESSION_ID,
+    request_id: "request-starlette-compatibility",
+    state: "running",
+    basis: "active_request",
+    session_modified: 30,
+  },
+  "customer-signals": {
+    session_id: "customer-signals",
+    request_id: null,
+    state: "not_started",
+    basis: "session_tail",
+    session_modified: 20,
+  },
+  "release-brief": {
+    session_id: "release-brief",
+    request_id: "request-release-brief",
+    state: "succeeded",
+    basis: "session_tail",
+    session_modified: 10,
+  },
+};
+
+const HOME_CONNECTIONS: ConnectionRecord[] = [
+  {
+    id: "local-workspace",
+    kind: "manual",
+    name: "Local workspace",
+    host: "127.0.0.1",
+    port: 9000,
+    lastUsedAt: 2,
+  },
+  {
+    id: "remote-workspace",
+    kind: "bridge",
+    name: "Remote workspace",
+    bridgeUrl: "wss://bridge.example/ws/websocket",
+    serverId: "review-runtime",
+    serverName: "Review runtime",
+    pairingToken: "website-review-token",
+    lastUsedAt: 1,
+  },
+];
+
+const HOME_SESSIONS_CACHE: SessionsCache = {
+  "local-workspace": {
+    connectionId: "local-workspace",
+    lastLoadedAt: Date.now(),
+    sessions: WORKSPACE_SESSIONS.slice(0, 2),
+  },
+  "remote-workspace": {
+    connectionId: "remote-workspace",
+    lastLoadedAt: Date.now(),
+    sessions: [WORKSPACE_SESSIONS[2]],
+  },
+};
+
+const HOME_STATUSES: Record<
+  string,
+  Record<string, SessionRequestStatus>
+> = {
+  "local-workspace": {
+    [WORKSPACE_PRIMARY_SESSION_ID]:
+      WORKSPACE_REQUEST_STATUSES[WORKSPACE_PRIMARY_SESSION_ID],
+    "customer-signals": WORKSPACE_REQUEST_STATUSES["customer-signals"],
+  },
+  "remote-workspace": {
+    "release-brief": WORKSPACE_REQUEST_STATUSES["release-brief"],
+  },
+};
+
+const HOME_VISUAL_STORE: KeyValueStore = {
+  get: async (key: string) => {
+    if (key === HOME_WATCHLIST_STORAGE_KEY) {
+      return JSON.stringify([
+        {
+          connectionId: "local-workspace",
+          sessionId: WORKSPACE_PRIMARY_SESSION_ID,
+        },
+        { connectionId: "local-workspace", sessionId: "customer-signals" },
+        { connectionId: "remote-workspace", sessionId: "release-brief" },
+      ]);
+    }
+    if (key === SESSION_NOTES_STORAGE_KEY) {
+      return JSON.stringify({
+        [WORKSPACE_PRIMARY_SESSION_ID]:
+          "Compare the evidence before recommending a launch.",
+      });
+    }
+    if (key === MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY) {
+      return JSON.stringify({
+        recentSessionsWindow: "1w",
+        timeTrackingEnabled: false,
+        timeTrackingPluginId: "human_time",
+      });
+    }
+    return null;
+  },
+  set: async () => {},
+  delete: async () => {},
+};
+
 function createHarnessBackend(kind: string): AgentBackend {
   const displayedMessages =
     kind === "usage" || kind === "cost"
       ? [PROVIDER_USAGE_MESSAGE]
+      : kind === "system-template"
+        ? SYSTEM_TEMPLATE_MESSAGES
       : kind === "vibe"
           ? VIBE_MESSAGES
       : kind === "hero"
@@ -279,7 +438,11 @@ function createHarnessBackend(kind: string): AgentBackend {
           ],
     listSessions: async () => [SESSION_SUMMARY],
     getSessionSummary: async () =>
-      kind === "vibe" ? VIBE_SESSION_SUMMARY : SESSION_SUMMARY,
+      kind === "vibe"
+        ? VIBE_SESSION_SUMMARY
+        : kind === "system-template"
+          ? SYSTEM_TEMPLATE_SUMMARY
+          : SESSION_SUMMARY,
     getSessionAgent: async () => kind === "vibe" ? "zai" : "codex-openai",
     switchSessionAgent: async () => {},
     listApplicationActions: async () =>
@@ -290,7 +453,8 @@ function createHarnessBackend(kind: string): AgentBackend {
     listMessages: async () => ({
       messages: displayedMessages,
       cursorEventId: "0",
-      activeRequestId: null,
+      activeRequestId:
+        kind === "composer-active" ? "website-active-request" : null,
     }),
     getLatestEventId: async () => "0",
     listEvents: async () => ({
@@ -557,11 +721,41 @@ function MobileWorkspaceVisual({
                 cachedSessions={WORKSPACE_SESSIONS}
                 lastLoadedAt={1}
                 isActive
+                requestStatuses={WORKSPACE_REQUEST_STATUSES}
                 onUpdateCache={() => {}}
                 onSelectSession={() => {}}
               />
             </View>
           </ApplicationPluginsProvider>
+        </HomeWorkspaceProvider>
+      </PinnedActionsProvider>
+    </ThemeProvider>
+  );
+}
+
+function MobileHomeVisual({
+  theme,
+}: {
+  theme: Theme;
+}): React.JSX.Element {
+  return (
+    <ThemeProvider theme={theme}>
+      <PinnedActionsProvider>
+        <HomeWorkspaceProvider store={HOME_VISUAL_STORE}>
+          <View
+            style={[styles.root, { backgroundColor: theme.background }]}
+            testID="website-home-ready"
+          >
+            <HomeScreen
+              connections={HOME_CONNECTIONS}
+              sessionsCache={HOME_SESSIONS_CACHE}
+              statusesByConnection={HOME_STATUSES}
+              onOpenGlobalSettings={() => {}}
+              onOpenEmbeddedSettings={() => {}}
+              onNewConnection={() => {}}
+              onSelectSession={() => {}}
+            />
+          </View>
         </HomeWorkspaceProvider>
       </PinnedActionsProvider>
     </ThemeProvider>
@@ -592,6 +786,9 @@ export function MobileWebsiteVisualHarness({
 
   if (configuredKind === "workspaces") {
     return <MobileWorkspaceVisual theme={theme} />;
+  }
+  if (configuredKind === "home") {
+    return <MobileHomeVisual theme={theme} />;
   }
 
   if (!visualOpen) {
@@ -640,37 +837,57 @@ export function MobileWebsiteVisualHarness({
                   connectionId="website-visual"
                   isActive={
                     configuredKind === "actions" ||
+                    configuredKind === "message-actions" ||
                     configuredKind === "usage" ||
                     configuredKind === "cost" ||
                     configuredKind === "hero" ||
                     configuredKind === "compiled" ||
-                    configuredKind === "vibe"
+                    configuredKind === "vibe" ||
+                    configuredKind === "composer-active" ||
+                    configuredKind === "system-template"
                   }
                   sessionId={SESSION_ID}
                   sessionSummary={
                     configuredKind === "vibe"
                       ? VIBE_SESSION_SUMMARY
-                      : SESSION_SUMMARY
+                      : configuredKind === "system-template"
+                        ? SYSTEM_TEMPLATE_SUMMARY
+                        : SESSION_SUMMARY
                   }
                   cachedMessages={
                     configuredKind === "usage" || configuredKind === "cost"
                       ? [PROVIDER_USAGE_MESSAGE]
                       : configuredKind === "vibe"
                           ? VIBE_MESSAGES
+                      : configuredKind === "system-template"
+                        ? SYSTEM_TEMPLATE_MESSAGES
                       : configuredKind === "hero"
                         ? MOBILE_HERO_MESSAGES
                       : MESSAGES
                   }
                   lastLoadedAt={1}
                   cachedEventsCursorId="0"
-                  cachedActiveRequestId={null}
+                  cachedActiveRequestId={
+                    configuredKind === "composer-active"
+                      ? "website-active-request"
+                      : null
+                  }
                   onUpdateCache={() => {}}
                   onUpdateSessionSummaries={() => {}}
                   onBack={() => {}}
                   onNavigateToSession={() => {}}
-                  initialComposeText=""
+                  initialComposeText={
+                    configuredKind === "composer-active"
+                      ? "Append a validation note while the current request finishes."
+                      : ""
+                  }
                   initialScrollAnchor={null}
-                  initialRangeStartText="-50"
+                  initialRangeStartText={
+                    configuredKind === "vibe" ||
+                    configuredKind === "system-template"
+                      ? "0"
+                      : "-50"
+                  }
                   initialRangeEndText=""
                   onSaveComposeText={() => {}}
                   onSaveScrollAnchor={() => {}}
@@ -693,11 +910,14 @@ export function MobileWebsiteVisualHarness({
                     />
                   ) : null}
                   {configuredKind === "actions" ||
+                  configuredKind === "message-actions" ||
                   configuredKind === "usage" ||
                   configuredKind === "cost" ||
                   configuredKind === "hero" ||
                   configuredKind === "compiled" ||
-                  configuredKind === "vibe" ? null : configuredKind === "snapshots" ? (
+                  configuredKind === "vibe" ||
+                  configuredKind === "composer-active" ||
+                  configuredKind === "system-template" ? null : configuredKind === "snapshots" ? (
                   <SessionSnapshotsModal
                     visible
                     snapshotsLoading={false}
