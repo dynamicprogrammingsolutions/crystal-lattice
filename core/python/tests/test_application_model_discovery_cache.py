@@ -160,3 +160,16 @@ def test_agent_application_shares_model_discovery_cache_across_fresh_cores(
 
     assert loaded_session.session_id == session.session_id
     assert CountingLifecycleProvider.get_models_calls == 1
+
+
+def test_model_enumeration_shares_cache_without_creating_a_session(tmp_path: Path) -> None:
+    CountingLifecycleProvider.get_models_calls = 0
+    app = AgentApplication(_write_config(tmp_path), tmp_path / "sessions")
+    try:
+        assert app.list_agent_models("default") == [{"id": "test-model"}]
+        assert app.list_agent_models("default") == [{"id": "test-model"}]
+        assert CountingLifecycleProvider.get_models_calls == 1
+        assert app.list_session_summaries() == []
+    finally:
+        app.close()
+    assert not list((tmp_path / "sessions").glob("*.json"))

@@ -11,6 +11,9 @@ import pytest
 from agent_app import SessionRequestAlreadyRunningError
 from agent_terminal_app import AgentRunResult, RunProgress, open_runtime
 from agent_terminal_app.local_runtime import normalize_run_progress
+from application.python.tests.fixtures.headless_runtime_plugins import (
+    write_model_catalog_config,
+)
 
 
 def _write_config(
@@ -43,6 +46,38 @@ def _write_config(
         encoding="utf-8",
     )
     return path
+
+
+def test_list_models_uses_agent_configuration_without_sessions_or_inference(
+    tmp_path: Path,
+) -> None:
+    config = write_model_catalog_config(tmp_path / "config.json")
+    original_config = config.read_bytes()
+    sessions = tmp_path / "sessions"
+    with open_runtime(config_path=config, session_root=sessions) as runtime:
+        models = runtime.list_models(agent_id="alpha")
+        assert models == (
+            {
+                "id": "model-z",
+                "name": "Model Z",
+                "description": "Fast\tmodel\nfor reviews",
+                "capabilities": {"reasoning": True},
+            },
+            {"id": "model-a"},
+        )
+        assert runtime.list_models("alpha") == models
+        assert runtime.list_models("beta") == ({"id": "beta-model", "name": "Beta"},)
+        assert runtime.list_models("empty") == ()
+        with pytest.raises(KeyError, match="Unknown agent_id"):
+            runtime.list_models("unknown")
+        with pytest.raises(ValueError, match="non-empty"):
+            runtime.list_models("")
+        assert runtime.list_sessions()["sessions"] == []
+    with pytest.raises(RuntimeError, match="closed"):
+        runtime.list_models("alpha")
+    assert not list(sessions.glob("*.json"))
+    assert config.read_bytes() == original_config
+    assert "must-not-appear" not in json.dumps(models)
 
 
 def _write_long_tool_config(path: Path) -> Path:

@@ -690,7 +690,7 @@ def _resolve_config_and_session_paths(
 
 
 _LOCAL_HEADLESS_COMMANDS = frozenset(
-    {"agents", "run", "history", "sessions", "messages"}
+    {"agents", "models", "run", "history", "sessions", "messages"}
 )
 _MAX_RUN_SETTING_ASSIGNMENTS = 64
 _MAX_RUN_SETTING_ASSIGNMENT_CHARS = 4096
@@ -770,6 +770,54 @@ def _run_agents_command(
         return
     for agent_id in agents:
         print(agent_id)
+
+
+def _run_models_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser("models", "Discover models for a configured agent")
+    command_parser.add_argument("--agent", required=True)
+    command_parser.add_argument("--format", choices=["text", "json"], default="text")
+    parsed = command_parser.parse_args(command_args)
+
+    from .local_runtime import open_runtime
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                models = runtime.list_models(agent_id=parsed.agent)
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    if parsed.format == "json":
+        print(
+            json.dumps(
+                {"agent_id": parsed.agent, "models": list(models)},
+                ensure_ascii=False,
+            )
+        )
+        return
+    for model in models:
+        print(
+            "\t".join(
+                str(model.get(key) or "")
+                .replace("\t", " ")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                for key in ("id", "name", "description")
+            )
+        )
 
 
 def _read_run_prompt(
@@ -1195,6 +1243,15 @@ def _run_local_headless_command(
             env_overrides=env_overrides,
         )
         return
+    if command == "models":
+        _run_models_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
     if command == "history":
         _run_history_command(
             command_args,
@@ -1451,7 +1508,7 @@ def main() -> None:  # pragma: no cover - manual execution only
         "command",
         nargs="?",
         help=(
-            "standalone command such as agents, run, history, bundle, "
+            "standalone command such as agents, models, run, history, bundle, "
             "or a configured application-plugin command"
         ),
     )

@@ -20,6 +20,7 @@ DEFAULT_CONFIG_DIR = (
 )
 FIXTURES = Path(__file__).parent / "fixtures"
 RUN_GATE = "RUN_CRYSTAL_LATTICE_OPENAI_EPHEMERAL_REVIEW_E2E"
+MODEL_DISCOVERY_GATE = "RUN_CRYSTAL_LATTICE_OPENAI_MODEL_DISCOVERY_E2E"
 PARENT_MODEL = "gpt-5.6-luna"
 CHILD_MODEL = "gpt-6-luna"
 PROMPT = (
@@ -29,9 +30,9 @@ PROMPT = (
 )
 
 
-def _require_credentials() -> Path:
-    if os.environ.get(RUN_GATE) != "1":
-        pytest.skip(f"{RUN_GATE} != '1'")
+def _require_credentials(gate: str = RUN_GATE) -> Path:
+    if os.environ.get(gate) != "1":
+        pytest.skip(f"{gate} != '1'")
     credentials = (
         Path(
             os.environ.get("CHATGPT_CREDENTIALS")
@@ -101,6 +102,91 @@ def _write_config(config_dir: Path, session_root: Path, credentials: Path) -> Pa
 def _records(path: Path) -> list[dict[str, Any]]:
     assert path.is_file(), "The real provider/session observers did not start"
     return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+@pytest.mark.integration
+@pytest.mark.api
+@pytest.mark.openai
+@pytest.mark.timeout(420)
+def test_luna_parent_discovers_models_from_access_guidance(tmp_path: Path) -> None:
+    credentials = _require_credentials(MODEL_DISCOVERY_GATE)
+    workspace = tmp_path / "external-project"
+    workspace.mkdir()
+    session_root = tmp_path / "shared-sessions"
+    config_path = _write_config(tmp_path / "crystal-config", session_root, credentials)
+    trace_path = tmp_path / "model-discovery-evidence.ndjson"
+    log_path = tmp_path / "parent-stderr.log"
+    prompt = (
+        "Discover the models available to the configured coding agent and "
+        "tell me which are Luna models."
+    )
+    environment = {
+        **os.environ,
+        "CRYSTAL_DELEGATION_TEST_TRACE": str(trace_path),
+        "PYTHONPATH": os.pathsep.join(
+            [
+                str(FIXTURES),
+                str(ROOT / "application" / "python"),
+                str(ROOT / "core" / "python"),
+                str(ROOT / "plugins" / "openai_responses" / "src"),
+                os.environ.get("PYTHONPATH", ""),
+            ]
+        ),
+    }
+    command = [
+        sys.executable,
+        "-m",
+        "agent_terminal_app",
+        "--config",
+        str(config_path),
+        "--sessions-dir",
+        str(session_root),
+        "run",
+        "--agent",
+        "codex-openai",
+        "--set",
+        "include_crystal_lattice_access=true",
+        "--prompt",
+        prompt,
+        "--timeout",
+        "300",
+        "--format",
+        "json",
+    ]
+    with log_path.open("w", encoding="utf-8") as stderr:
+        completed = subprocess.run(
+            command,
+            cwd=workspace,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            text=True,
+            timeout=360,
+            check=False,
+        )
+    assert completed.returncode == 0, f"Inspect {log_path}: {completed.stdout}"
+    result = json.loads(completed.stdout)
+    assert result["status"] == "succeeded" and result["error"] is None, result
+    records = _records(trace_path)
+    requests = [row for row in records if row["kind"] == "provider_request"]
+    first_request = requests[0]
+    assert first_request["model"] == PARENT_MODEL
+    assert first_request["user_prompts"] == [prompt]
+    assert first_request["has_model_discovery_guidance"]
+    discoveries = [row for row in records if row["kind"] == "model_discovery"]
+    assert discoveries, "The parent did not use production CLI/SDK model discovery"
+    assert all(row["agent_id"] == "codex-openai" for row in discoveries)
+    luna_ids = {
+        model["id"]
+        for row in discoveries
+        for model in row["models"]
+        if "luna" in (model["id"] + " " + model.get("name", "")).lower()
+    }
+    assert {"gpt-5.6-luna", "gpt-6-luna"}.issubset(luna_ids), discoveries
+    assert all(model_id in result["output_text"] for model_id in luna_ids), result
+    assert {path.stem for path in session_root.glob("*.json")} == {result["session_id"]}
+    print(f"\nParent answer:\n{result['output_text']}\n")
+    print(f"Real model-discovery evidence: {trace_path}")
 
 
 @pytest.mark.integration

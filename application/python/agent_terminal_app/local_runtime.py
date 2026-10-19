@@ -322,6 +322,16 @@ class LocalAgentRuntime:
         self._require_open()
         return self._application.describe_agent_run(agent_id)
 
+    def list_models(self, agent_id: str) -> tuple[Mapping[str, Any], ...]:
+        """Discover model descriptors for a configured agent.
+
+        Reuses generic plugin discovery and caching. Model IDs, order, and
+        additional plugin metadata are preserved; discovery may fetch a
+        catalog but does not create a session or send an inference request.
+        """
+        self._require_open()
+        return tuple(self._application.list_agent_models(agent_id))
+
     def run(
         self,
         prompt: str,

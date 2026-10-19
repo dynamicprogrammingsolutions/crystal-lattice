@@ -11,6 +11,9 @@ from typing import Any
 
 import pytest
 
+from application.python.tests.fixtures.headless_runtime_plugins import (
+    write_model_catalog_config,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -43,6 +46,61 @@ def _write_config(path: Path, *, delay_ms: int = 0) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def test_models_command_preserves_json_and_prints_readable_rows(tmp_path: Path) -> None:
+    config = write_model_catalog_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+    result = _run(
+        tmp_path, config, sessions, "models", "--agent", "alpha", "--format", "json"
+    )
+    assert result.returncode == 0, result.stderr
+    payload = _json_stdout(result)
+    assert payload == {
+        "agent_id": "alpha",
+        "models": [
+            {
+                "id": "model-z",
+                "name": "Model Z",
+                "description": "Fast\tmodel\nfor reviews",
+                "capabilities": {"reasoning": True},
+            },
+            {"id": "model-a"},
+        ],
+    }
+    assert "Model catalog discovery diagnostic" in result.stderr
+    assert "must-not-appear" not in result.stdout
+    text = _run(tmp_path, config, sessions, "models", "--agent", "alpha")
+    assert text.returncode == 0, text.stderr
+    assert text.stdout.splitlines() == [
+        "model-z\tModel Z\tFast model for reviews",
+        "model-a\t\t",
+    ]
+    beta = _run(
+        tmp_path, config, sessions, "models", "--agent", "beta", "--format", "json"
+    )
+    assert beta.returncode == 0, beta.stderr
+    assert _json_stdout(beta)["models"] == [{"id": "beta-model", "name": "Beta"}]
+    empty = _run(
+        tmp_path, config, sessions, "models", "--agent", "empty", "--format", "json"
+    )
+    assert empty.returncode == 0, empty.stderr
+    assert _json_stdout(empty) == {"agent_id": "empty", "models": []}
+    assert not list(sessions.glob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [(), ("--agent", "unknown"), ("--agent", "alpha", "--format", "csv")],
+)
+def test_models_command_reports_usage_errors(
+    tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    config = write_model_catalog_config(tmp_path / "config.json")
+    result = _run(tmp_path, config, tmp_path / "sessions", "models", *arguments)
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr
 
 
 def _write_long_tool_config(path: Path) -> Path:

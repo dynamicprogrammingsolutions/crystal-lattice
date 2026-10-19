@@ -37,6 +37,29 @@ def assert_headless_access(
     )
 
     cli_sessions = workspace / "CLI sessions with spaces"
+    catalog = _run_json(
+        [
+            *(str(part) for part in command),
+            "--config",
+            str(smoke_config),
+            "--sessions-dir",
+            str(cli_sessions),
+            "models",
+            "--agent",
+            ACCESS_AGENT_ID,
+            "--format",
+            "json",
+        ],
+        cwd=workspace,
+        env=env,
+    )
+    if catalog != {
+        "agent_id": ACCESS_AGENT_ID,
+        "models": [{"id": "headless-access-smoke"}],
+    }:
+        raise RuntimeError(f"Installed model discovery returned {catalog!r}")
+    if list(cli_sessions.glob("*.json")):
+        raise RuntimeError("Installed model discovery created a session")
     cli_result = _run_json(
         [
             *(str(part) for part in command),
@@ -157,6 +180,8 @@ def assert_headless_access(
                 "    from agent_terminal_app import open_runtime",
                 "",
                 "    with open_runtime(config_path=sys.argv[1], session_root=sys.argv[2]) as runtime:",
+                "        assert runtime.list_models(agent_id='headless-access-smoke') == ({'id': 'headless-access-smoke'},)",
+                "        assert runtime.list_sessions()['sessions'] == []",
                 "        result = runtime.run(",
                 "            'SDK_ACCESS_SMOKE',",
                 "            agent_id='headless-access-smoke',",
@@ -353,7 +378,21 @@ def _assert_access_result(
     output = result.get("output_text")
     if not isinstance(output, str):
         raise RuntimeError(f"Headless access output is not text: {result!r}")
-    python_value = str(python.resolve())
+    python_match = re.search(r"execute it with `([^`]+)`", output)
+    if python_match is None:
+        raise RuntimeError("Headless access output omitted the SDK interpreter")
+    advertised_python = Path(python_match.group(1))
+    if (
+        not advertised_python.is_file()
+        or advertised_python.parent.resolve() != python.parent.resolve()
+        or not advertised_python.samefile(python)
+    ):
+        raise RuntimeError(
+            f"Headless access advertised another Python environment: {advertised_python}"
+        )
+    # Preserve the advertised spelling (for example macOS /var vs /private/var)
+    # while still requiring the CLI argv to use exactly the SDK interpreter.
+    python_value = str(advertised_python)
     expected_argv = json.dumps(
         [
             python_value,

@@ -8,13 +8,14 @@ It covers:
 
 - discovery of the same configured agents used by the application;
 - safe discovery of effective agent defaults and configurable fields;
+- generic model discovery through the selected agent's configured plugins;
 - context-managed local runtime construction;
 - atomic synchronous persisted, non-retained, and follow-up execution;
 - generic request-scoped provider/plugin settings;
 - bounded progress observation;
 - compact structured outcomes;
 - deterministic compact history and explicit full-message retrieval;
-- one-shot `crystal-lattice agents`, `run`, and `history` commands;
+- one-shot `crystal-lattice agents`, `models`, `run`, and `history` commands;
 - direct Python and shell concurrency for distinct sessions;
 - cooperative timeout and interrupt cancellation;
 - later opt-in guidance that lets configured agents locate Crystal Lattice
