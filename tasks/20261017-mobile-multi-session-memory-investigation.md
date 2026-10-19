@@ -22,17 +22,20 @@ after the actual application shell navigates to another session with its normal
       session-screen unmounts.
 - [x] Keep the work diagnostic: do not change production memory behavior or
       claim physical-device jetsam safety from Simulator results.
-- [ ] Provide selectable `simple-reload`, `mobile-anchor-v1`, and
+- [x] Provide selectable `simple-reload`, `mobile-anchor-v1`, and
       `single-flight-anchor` transcript range-navigation strategies.
-- [ ] Make `single-flight-anchor` the product default, retain
+- [x] Make `single-flight-anchor` the product default, retain
       `simple-reload` as an immediate kill switch, and expose
       `mobile-anchor-v1` only as a development diagnostic.
-- [ ] Guarantee that the corrected anchor controller has at most one active
+- [x] Guarantee that the corrected anchor controller has at most one active
       retry chain, cancels all work on replacement/user navigation/unmount, and
       stops within bounded attempts and time before falling back safely.
-- [ ] Persist the selected strategy in Development Settings and make the
+- [x] Apply the same single-scheduled-retry invariant to the transcript
+      scroll-to-top helper so scroll/layout events cannot continuously replace
+      its timer and starve progress.
+- [x] Persist the selected strategy in Development Settings and make the
       strategy selectable by the deterministic range-navigation harness.
-- [ ] Add focused unit/component and production-path tests that distinguish the
+- [x] Add focused unit/component and production-path tests that distinguish the
       three strategies and prevent retry re-entry regressions.
 
 ## Scope
@@ -254,14 +257,15 @@ loaded range at its natural FlatList position.
 
 ### Task checklist
 
-- [ ] Add strategy types, persistence, and Development Settings controls.
-- [ ] Route the selected strategy through the production chat/list boundary.
-- [ ] Extract the pre-August simple range-loading path.
-- [ ] Preserve the current mobile v1 controller behind its diagnostic mode.
-- [ ] Implement the bounded single-flight controller and diagnostics.
-- [ ] Extend unit/component and Detox coverage for all strategies.
-- [ ] Re-run the range-navigation and multi-session memory investigation.
-- [ ] Update completion evidence and document follow-up findings.
+- [x] Add strategy types, persistence, and Development Settings controls.
+- [x] Route the selected strategy through the production chat/list boundary.
+- [x] Extract the pre-August simple range-loading path.
+- [x] Preserve the current mobile v1 controller behind its diagnostic mode.
+- [x] Implement the bounded single-flight controller and diagnostics.
+- [x] Make edge-to-top navigation single-scheduled and bounded.
+- [x] Extend unit/component and Detox coverage for all strategies.
+- [x] Re-run the range-navigation and multi-session memory investigation.
+- [x] Update completion evidence and document follow-up findings.
 
 ### Requirement verification
 
@@ -284,3 +288,69 @@ loaded range at its natural FlatList position.
 - Build the Release iOS Simulator app.
 - Use RSS-only profiling for long stress runs; any Allocations trace remains
   explicitly opt-in and bounded.
+
+### Follow-up implementation notes
+
+- Added three strategy modes at the production chat/list boundary:
+  `single-flight-anchor` is the default, `simple-reload` performs no explicit
+  viewport restoration, and `mobile-anchor-v1` preserves the previous mobile
+  implementation for controlled diagnosis.
+- Development Settings persists the selected strategy. The normal application
+  shell memory harness changes the setting through that UI, while the
+  deterministic range-navigation harness accepts the strategy as a launch
+  property.
+- The corrected anchor controller permits only one scheduled frame or retry
+  timer and one native measurement. Repeated row/layout notifications only
+  notify the existing operation. Replacement, user navigation, strategy
+  changes, and unmount cancel outstanding work; stale asynchronous completions
+  cannot resume it. Each operation stops after 30 attempts or five seconds and
+  restores the captured fallback offset instead of jumping to the visual
+  bottom.
+- The edge-to-top helper now keeps one earliest scheduled retry, converges with
+  `scrollToEnd` plus the measured maximum offset, and stops after 20 attempts
+  or five seconds. This replaced the prior 60-attempt/30-second convergence
+  loop that amplified rendering pressure.
+- Range-navigation diagnostics now record start, bounded progress, completion,
+  cancellation, and stop reasons in the existing debug timeline.
+- The checkpoint investigation and harness were committed as `a651c24f`
+  (`Add memory investigation`). The follow-up implementation is kept separate
+  from unrelated worktree changes in its own commit.
+
+### Follow-up findings
+
+- The corrected default completed all six A windows and all three C windows
+  without a navigation stall. Peak RSS was 663.3 MiB. Fresh B settled at
+  428.0 MiB; B after A settled at 413.3 MiB (-14.8 MiB), and B after A+C at
+  427.5 MiB (-0.6 MiB).
+- `simple-reload` also completed the sequence without a stall. Peak RSS was
+  675.0 MiB. Its fresh-B control was 420.3 MiB, B after A was 337.9 MiB
+  (-82.4 MiB), and B after A+C was 314.3 MiB (-106.1 MiB).
+- With the corrected edge helper but `mobile-anchor-v1` selected, A stalled
+  after the third loaded window, peak RSS reached 993.2 MiB, and A settled at
+  807.4 MiB. B after A remained 131.8 MiB above its fresh control; B after A+C
+  remained 38.3 MiB above control.
+- The strategy isolation therefore shows two contributors. The old
+  edge-to-top convergence loop amplified rendering pressure, but the original
+  mobile anchor retry/re-entry remains independently capable of producing the
+  large memory spike and stalled navigation.
+- Absolute Simulator RSS varied between cold runs, so the decisive evidence is
+  each run's fresh-B versus post-heavy-session delta plus whether the same
+  traversal completed. These results are strong Simulator evidence for the
+  correction but do not replace physical-device or all-day validation.
+
+### Follow-up verification
+
+- `npx tsc --noEmit` passed.
+- Focused Jest coverage passed: 6 suites and 31 tests, including persistence,
+  Development Settings, single-flight scheduling/cancellation, edge retry
+  scheduling, range fallback, and the application bridge shell.
+- `npm run detox:build:ios` completed with `BUILD SUCCEEDED`.
+- Native Development Settings Detox coverage passed after selecting and
+  resetting the diagnostic strategies.
+- Native range-navigation Detox coverage passed for all three strategies.
+- Three RSS-only real-session runs completed for the corrected default,
+  `simple-reload`, and `mobile-anchor-v1`; the legacy run intentionally
+  recorded its navigation stall and continued to collect post-switch memory.
+- ESLint was not available for focused verification because this package's
+  `eslint` invocation cannot locate a configuration file. TypeScript, Prettier,
+  Jest, Release build, and Detox checks completed instead.

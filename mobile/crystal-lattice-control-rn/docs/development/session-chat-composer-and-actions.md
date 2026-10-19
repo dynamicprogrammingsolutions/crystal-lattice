@@ -127,11 +127,38 @@ submission and generation. Application actions track independent operation
 identities and leave unrelated actions usable; finishing one does not hide
 another's progress.
 
+## Transcript range navigation strategies
+
+Home → Development Settings exposes three diagnostic strategies for loading
+older and newer transcript ranges:
+
+- **Single-flight anchor** is the product default. It preserves the visible
+  message with one bounded retry operation. Replacement, user navigation,
+  strategy changes, and unmount cancel outstanding work. The operation stops
+  after five seconds or 30 attempts and leaves the newly loaded range at its
+  natural FlatList position if it cannot converge.
+- **Simple reload** is the pre-anchor baseline. It loads the requested range
+  without explicit viewport capture or restoration.
+- **Mobile anchor v1** retains the original mobile retry implementation for
+  controlled comparison only.
+
+The single-flight controller serializes native measurement work and rejects
+row/layout notifications while a frame, measurement, or retry is already
+scheduled. Debug timeline entries record operation start, bounded progress,
+completion, cancellation, and stop reasons. Long memory stress runs use
+process RSS sampling; Allocations tracing remains short and explicitly opt-in.
+The visual-top helper also keeps only one scheduled retry, uses `scrollToEnd`
+plus the measured maximum offset to converge, and stops after five seconds or
+20 attempts.
+
 ## Verification and entry points
 
 Maintainer entry points:
 
 - `src/SessionChatScreen.tsx`
+- `src/components/DependencyFlatList.tsx`
+- `src/components/transcriptAnchorRetry.ts`
+- `src/transcriptAnchorStrategy.ts`
 - `src/composerPrimaryAction.ts`
 - `src/components/SessionSettingsModal.tsx`
 - `src/testing/MobileRichSessionUiHarness.tsx`
@@ -139,6 +166,8 @@ Maintainer entry points:
 Focused coverage includes:
 
 - `__tests__/composerPrimaryAction.test.ts`
+- `__tests__/transcriptAnchorRetry.test.ts`
+- `__tests__/developmentSettings.test.tsx`
 - `__tests__/RichSessionUi.test.tsx`
 - Session Chat component tests
 - `e2e/richSessionUi.e2e.test.ts`

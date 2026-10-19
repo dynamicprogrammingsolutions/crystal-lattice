@@ -34,7 +34,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       } ?? false
     let moduleName: String
     var initialProperties: [String: Any] = [:]
-    for name in ["clcChatOperationsBaseUrl", "clcChatOperationsSessions", "clcDisplayPreset"] {
+    for name in [
+      "clcChatOperationsBaseUrl",
+      "clcChatOperationsSessions",
+      "clcDisplayPreset",
+      "clcTranscriptAnchorStrategy",
+    ] {
       if let index = arguments.firstIndex(where: { $0 == "-\(name)" || $0 == name }),
          arguments.indices.contains(index + 1) {
         initialProperties[name] = arguments[index + 1]

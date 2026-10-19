@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import type {
   AgentBackend,
@@ -11,6 +12,10 @@ import { ApplicationPluginsProvider } from "../ApplicationPluginsContext";
 import { PinnedActionsProvider } from "../PinnedActionsContext";
 import SessionChatScreen from "../SessionChatScreen";
 import { ThemeProvider, lightTheme } from "../theme";
+import {
+  normalizeTranscriptAnchorStrategy,
+  type TranscriptAnchorStrategy,
+} from "../transcriptAnchorStrategy";
 
 const CONNECTION_ID = "transcript-range-navigation";
 const SESSION_ID = "transcript-range-navigation-session";
@@ -25,10 +30,10 @@ const ALL_MESSAGES: IndexedMessage[] = Array.from(
       content: Array.from(
         { length: 2 + (index % 4) },
         (_unused, line) =>
-          `Range navigation message ${index}, line ${line + 1}.`,
+          `Range navigation message ${index}, line ${line + 1}.`
       ).join("\n"),
     },
-  }),
+  })
 );
 
 const SESSION_SUMMARY: SessionSummary = {
@@ -51,8 +56,12 @@ function normalizeBound(value: number | undefined, fallback: number): number {
   return Math.max(0, Math.min(MESSAGE_COUNT, relative));
 }
 
-export function MobileTranscriptRangeNavigationHarness(): React.JSX.Element {
+export function MobileTranscriptRangeNavigationHarness(props: {
+  clcTranscriptAnchorStrategy?: string;
+}): React.JSX.Element {
   const [loadedRange, setLoadedRange] = useState("100:199");
+  const transcriptAnchorStrategy: TranscriptAnchorStrategy =
+    normalizeTranscriptAnchorStrategy(props.clcTranscriptAnchorStrategy);
   const backend = useMemo(
     () =>
       ({
@@ -69,7 +78,7 @@ export function MobileTranscriptRangeNavigationHarness(): React.JSX.Element {
         getSessionAgent: async () => "default",
         listMessages: async (
           _sessionId: string,
-          params: { start?: number; end?: number } = {},
+          params: { start?: number; end?: number } = {}
         ) => {
           const start = normalizeBound(params.start, 0);
           const end = normalizeBound(params.end, MESSAGE_COUNT);
@@ -77,7 +86,7 @@ export function MobileTranscriptRangeNavigationHarness(): React.JSX.Element {
           setLoadedRange(
             messages.length > 0
               ? `${messages[0].index}:${messages[messages.length - 1].index}`
-              : "empty",
+              : "empty"
           );
           return {
             messages,
@@ -104,52 +113,58 @@ export function MobileTranscriptRangeNavigationHarness(): React.JSX.Element {
           latestEventId: "range-navigation:1",
           cursorExpired: false,
         }),
-      }) as unknown as AgentBackend,
-    [],
+      } as unknown as AgentBackend),
+    []
   );
 
   return (
-    <ThemeProvider theme={lightTheme}>
-      <PinnedActionsProvider>
-        <ApplicationPluginsProvider
-          backend={backend}
-          connectionId={CONNECTION_ID}
-        >
-          <View
-            style={styles.root}
-            testID="transcript-range-navigation-harness-ready"
+    <SafeAreaProvider>
+      <ThemeProvider theme={lightTheme}>
+        <PinnedActionsProvider>
+          <ApplicationPluginsProvider
+            backend={backend}
+            connectionId={CONNECTION_ID}
           >
-            <Text testID="transcript-range-navigation-loaded-range">
-              {loadedRange}
-            </Text>
-            <SessionChatScreen
-              backend={backend}
-              connectionId={CONNECTION_ID}
-              isActive={false}
-              sessionId={SESSION_ID}
-              sessionSummary={SESSION_SUMMARY}
-              cachedMessages={ALL_MESSAGES.slice(100, 200)}
-              lastLoadedAt={1}
-              cachedEventsCursorId="range-navigation:1"
-              cachedActiveRequestId={null}
-              onUpdateCache={() => {}}
-              onUpdateSessionSummaries={() => {}}
-              onBack={() => {}}
-              onNavigateToSession={() => {}}
-              initialComposeText=""
-              initialScrollAnchor={null}
-              initialRangeStartText="100"
-              initialRangeEndText="200"
-              onSaveComposeText={() => {}}
-              onSaveScrollAnchor={() => {}}
-              onSaveHistoryRange={() => {}}
-              debugTimeline={[]}
-              onAppendDebugTimelineEntry={() => {}}
-            />
-          </View>
-        </ApplicationPluginsProvider>
-      </PinnedActionsProvider>
-    </ThemeProvider>
+            <View
+              style={styles.root}
+              testID="transcript-range-navigation-harness-ready"
+            >
+              <Text testID="transcript-range-navigation-loaded-range">
+                {loadedRange}
+              </Text>
+              <Text testID="transcript-range-navigation-anchor-strategy">
+                {transcriptAnchorStrategy}
+              </Text>
+              <SessionChatScreen
+                backend={backend}
+                connectionId={CONNECTION_ID}
+                isActive={false}
+                sessionId={SESSION_ID}
+                sessionSummary={SESSION_SUMMARY}
+                cachedMessages={ALL_MESSAGES.slice(100, 200)}
+                lastLoadedAt={1}
+                cachedEventsCursorId="range-navigation:1"
+                cachedActiveRequestId={null}
+                onUpdateCache={() => {}}
+                onUpdateSessionSummaries={() => {}}
+                onBack={() => {}}
+                onNavigateToSession={() => {}}
+                initialComposeText=""
+                initialScrollAnchor={null}
+                initialRangeStartText="100"
+                initialRangeEndText="200"
+                transcriptAnchorStrategy={transcriptAnchorStrategy}
+                onSaveComposeText={() => {}}
+                onSaveScrollAnchor={() => {}}
+                onSaveHistoryRange={() => {}}
+                debugTimeline={[]}
+                onAppendDebugTimelineEntry={() => {}}
+              />
+            </View>
+          </ApplicationPluginsProvider>
+        </PinnedActionsProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

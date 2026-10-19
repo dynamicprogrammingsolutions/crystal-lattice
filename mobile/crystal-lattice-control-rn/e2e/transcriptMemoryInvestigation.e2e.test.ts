@@ -15,6 +15,10 @@ import {
   type IOSMemoryProfiler,
   type MemorySample,
 } from "./support/iosMemoryProfiler";
+import {
+  DEFAULT_TRANSCRIPT_ANCHOR_STRATEGY,
+  normalizeTranscriptAnchorStrategy,
+} from "../src/transcriptAnchorStrategy";
 
 jest.setTimeout(30 * 60 * 1000);
 
@@ -24,6 +28,9 @@ const MAX_SWIPES_PER_WINDOW = Number(
 );
 const A_EXPANSIONS = Number(process.env.CLC_MEMORY_A_EXPANSIONS ?? 5);
 const C_EXPANSIONS = Number(process.env.CLC_MEMORY_C_EXPANSIONS ?? 2);
+const TRANSCRIPT_ANCHOR_STRATEGY = normalizeTranscriptAnchorStrategy(
+  process.env.CLC_MEMORY_ANCHOR_STRATEGY
+);
 
 type RangeWindow = {
   start: number;
@@ -74,6 +81,60 @@ async function launchFreshApp(): Promise<void> {
   await waitFor(element(by.id("connections-new-connection")))
     .toBeVisible()
     .withTimeout(60_000);
+}
+
+async function selectTranscriptAnchorStrategy(): Promise<void> {
+  if (TRANSCRIPT_ANCHOR_STRATEGY === DEFAULT_TRANSCRIPT_ANCHOR_STRATEGY) {
+    return;
+  }
+  await element(by.id("home-tab")).tap();
+  await element(by.id("home-scroll")).scrollTo("top");
+  await element(by.id("home-menu")).tap();
+  await pause(500);
+  await waitFor(element(by.id("home-menu-development-settings")))
+    .toBeVisible()
+    .withTimeout(15_000);
+  await element(by.id("home-menu-development-settings")).tap();
+  await pause(750);
+  await waitFor(element(by.id("development-settings-modal")))
+    .toBeVisible()
+    .withTimeout(15_000);
+  const optionText =
+    TRANSCRIPT_ANCHOR_STRATEGY === "simple-reload"
+      ? "Simple reload — Diagnostic baseline"
+      : "Mobile anchor v1 — Legacy diagnostic";
+  const option = element(by.text(optionText));
+  const optionControl = element(
+    by.id(`development-transcript-anchor-${TRANSCRIPT_ANCHOR_STRATEGY}`)
+  );
+  await element(by.id("development-settings-scroll")).scrollTo("bottom");
+  await waitFor(option).toBeVisible().withTimeout(10_000);
+  const selectedLabel =
+    TRANSCRIPT_ANCHOR_STRATEGY === "simple-reload"
+      ? "Simple reload — Diagnostic baseline selected"
+      : "Mobile anchor v1 — Legacy diagnostic selected";
+  let selected = false;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await option.tap();
+    await pause(750);
+    const attributes = (await optionControl.getAttributes()) as {
+      label?: string;
+    };
+    if (attributes.label === selectedLabel) {
+      selected = true;
+      break;
+    }
+  }
+  if (!selected) {
+    throw new Error(
+      `Unable to select transcript anchor strategy ${TRANSCRIPT_ANCHOR_STRATEGY}.`
+    );
+  }
+  await element(by.id("development-settings-modal-close")).tap();
+  await waitFor(element(by.id("development-settings-modal")))
+    .not.toExist()
+    .withTimeout(15_000);
+  await pause(750);
 }
 
 async function connectToFixture(port: number): Promise<void> {
@@ -297,6 +358,7 @@ async function runProfiledScenario(
   run: (profiler: IOSMemoryProfiler, results: ScenarioResults) => Promise<void>
 ): Promise<ScenarioResults> {
   await launchFreshApp();
+  await selectTranscriptAnchorStrategy();
   const profiler = await startIOSMemoryProfiler({
     simulatorId: device.id,
     scenario,
@@ -469,6 +531,7 @@ describe("multi-session transcript memory investigation", () => {
         codeBlock: "selectable-native",
         source: "fresh-install defaults",
       },
+      transcriptAnchorStrategy: TRANSCRIPT_ANCHOR_STRATEGY,
       sessions: started.sessions,
       control,
       experimental,
