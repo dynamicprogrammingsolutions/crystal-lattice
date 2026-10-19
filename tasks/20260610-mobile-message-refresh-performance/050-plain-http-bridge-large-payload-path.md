@@ -687,6 +687,13 @@ approved.
   tests prove the HTTP default, saved-record migration, Home-menu settings
   flow, saved/add/remove bridge URL workflow, explicit legacy diagnostics, and
   absence of automatic fallback.
+- [x] The normal Bridge address input accepts a bare domain as the preferred
+  format and shows a bare-domain placeholder. Bare addresses use HTTPS;
+  explicit HTTP(S)/WS(S) addresses and saved legacy URLs remain compatible
+  with product and development modes.
+- [x] Connection setup uses keyboard avoidance on iOS and Android so the
+  focused field and connection/pairing controls remain usable above the
+  software keyboard.
 - [ ] The mobile bridge UX is human-tested, with the user's confirmation
   recorded before desktop bridge implementation starts. Automated test
   results alone do not satisfy this gate.
@@ -1037,11 +1044,10 @@ bridge transport and must not submit an incomplete paired record.
   `tasks/20261006-mobile-home-and-contextual-content/010-home-connection-section-and-navigation.md`.
   This follow-up starts afterward and changes the bridge content/transport
   within that host.
-- Earlier discussion proposed shorter bridge-address entry without requiring
-  `wss://` or the standard WebSocket endpoint path. This is not yet a decided
-  input contract: resolve the intended fixed part and default protocol/domain
-  rules before adding that behavior to requirements or implementation. Desktop
-  must reuse the resulting accepted input contract if it joins mobile scope.
+- The user approved bare-domain input and its placeholder on 2026-10-12.
+  Bare addresses use HTTPS, with explicit `http://` for plaintext local
+  deployments. Existing WS(S) addresses remain valid. Desktop must reuse this
+  accepted input contract after the human mobile review gate.
 - The visibility and app-wide scope of Development Settings are highlighted
   for approval because they
   materially define the diagnostic escape hatch.
@@ -1218,7 +1224,8 @@ bridge transport and must not submit an incomplete paired record.
   Detox journey, setup cancellation/failure retention, native Home/settings,
   and bridge selection within the delivered modal.
 - Stage 1 is authorized. Stage 3 remains gated on human mobile review.
-  Short-address input remains an unresolved proposal outside implementation.
+  Short-address input was unresolved at this checkpoint; the later
+  2026-10-12 feedback section records its approval and implementation.
 - Implemented the HTTP SDK default, separate endpoint/development stores,
   saved-first Home-modal bridge flow, and general Development Settings window.
   Legacy transport implementations and Python/server wire behavior are intact.
@@ -1414,3 +1421,40 @@ server on an HTTP-v1-capable bridge:
   were preserved without edits.
 - Merging the code does not constitute human mobile UX confirmation; desktop
   bridge implementation remains gated as recorded above.
+
+### Mobile UX feedback implementation — 2026-10-12
+
+- The user requested preferred bare-domain entry/placeholder and correction
+  of keyboard overlap in the connection modal. Execution of these changes is
+  authorized by that request; human acceptance and desktop remain pending.
+- Added shared address normalization: omitted scheme means HTTPS, explicit
+  HTTP(S)/WS(S) remains supported, and legacy diagnostic factories derive the
+  standard WebSocket endpoint from a bare domain or HTTP origin. Existing
+  configured WebSocket endpoint paths/queries are preserved.
+- The mobile form validates through the shared helper, keeps the trimmed
+  entered address in endpoint history, and shows `bridge.example.com` as the
+  placeholder. Connectivity testing uses the same HTTP-base derivation.
+- The wizard already requested `KeyboardAvoidingView`. Its Android behavior
+  was unset, and modal size was tied to the outer view. Keyboard avoidance now
+  uses explicit platform behavior and an inner viewport so modal bounds and
+  scrolling follow the remaining height.
+- Focused SDK address/transport and mobile App input tests pass. Native
+  verification uses real software-keyboard viewport assertions and the public
+  bridge discovery/pairing/send/reopen path.
+- Feedback implementation verified: SDK 54 suites / 400 tests; mobile 64
+  suites / 349 tests; mobile TypeScript; real App-to-bridge integration; and
+  Docker SDK transport regressions 5/5 pass.
+- iOS native real-bridge journey and Android settings/real-bridge journeys
+  pass. The tests open the software keyboard, verify the available viewport
+  shrinks, assert the modal stays within it, and use the visible Connect
+  action. They continue through real discovery/pairing, send/response, and
+  saved reopen.
+- Setup cancellation/completion now dismisses the keyboard. The stronger
+  keyboard scenario also exposed the chat keyboard offset under the safe
+  area; that offset was corrected, and the normal native Send action passes
+  while the keyboard is open.
+- The user requested committing these feedback changes on `develop`.
+  Unrelated concurrent workspace changes were preserved. Human mobile UX
+  acceptance and the desktop stage remain open.
+- Documentation preparation/build pass with existing unrelated link warnings;
+  whitespace checks pass.

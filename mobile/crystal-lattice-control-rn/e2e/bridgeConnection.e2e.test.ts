@@ -26,6 +26,32 @@ async function enabled(testId: string) {
   }, { timeoutMs: 10000, intervalMs: 100 });
 }
 
+async function frame(testId: string): Promise<{ x: number; y: number; width: number; height: number }> {
+  const attributes = await element(by.id(testId)).getAttributes() as {
+    frame?: { x: number; y: number; width: number; height: number };
+    elementBounds?: { x: number; y: number; width: number; height: number };
+  };
+  const result = attributes.frame ?? attributes.elementBounds;
+  if (!result || typeof result.height !== 'number' || typeof result.y !== 'number') {
+    throw new Error(`Missing frame for ${testId}`);
+  }
+  return result;
+}
+
+async function enterAddressWithKeyboard() {
+  const viewportBefore = await frame('connection-wizard-modal-viewport');
+  await element(by.id('bridge-url-input')).tap();
+  await element(by.id('bridge-url-input')).typeText(appUrl);
+  await waitForAsync(async () => {
+    const viewport = await frame('connection-wizard-modal-viewport');
+    return viewport.height < viewportBefore.height - 20;
+  }, { timeoutMs: 10000 });
+  const viewport = await frame('connection-wizard-modal-viewport');
+  const modal = await frame('connection-wizard-modal');
+  jestExpect(modal.y + modal.height).toBeLessThanOrEqual(viewport.y + viewport.height + 2);
+  await detoxExpect(element(by.id('bridge-connect-button'))).toBeVisible();
+}
+
 async function openBridge() {
   await element(by.id("home-tab")).tap();
   await waitFor(element(by.id("home-scroll"))).toBeVisible().withTimeout(10000);
@@ -62,6 +88,7 @@ describe("Home bridge public flow", () => {
     }, { timeoutMs: 30000 });
     appUrl = device.getPlatform() === "android"
       ? bridge.bridgeUrl.replace("127.0.0.1", "10.0.2.2") : bridge.bridgeUrl;
+    appUrl = appUrl.replace('ws://', 'http://').replace('/ws/websocket', '');
   });
 
   afterAll(async () => {
@@ -74,7 +101,7 @@ describe("Home bridge public flow", () => {
     await openBridge();
     await detoxExpect(element(by.id("bridge-transport-mode-websocket"))).not.toExist();
     await element(by.id("bridge-add-new")).tap();
-    await element(by.id("bridge-url-input")).replaceText(appUrl);
+    await enterAddressWithKeyboard();
     await enabled("bridge-connect-button");
     await settle();
     await element(by.id("bridge-connect-button")).tap();

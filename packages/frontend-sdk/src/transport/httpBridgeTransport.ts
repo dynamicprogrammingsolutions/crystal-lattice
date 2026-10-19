@@ -2,6 +2,7 @@ import type { BridgeServer } from './bridgeTransport';
 import type { BridgeConnectionTransportOptions } from './bridgeConnectionTransport';
 import type { HttpMethod, TransportTimeoutRule } from './transport';
 import { resolveTransportTimeoutMs } from './transport';
+import { normalizeBridgeAddress } from './bridgeAddress';
 
 function generateUuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
@@ -16,7 +17,7 @@ function generateUuid(): string {
 export function deriveBridgeHttpBaseUrl(bridgeUrl: string): string {
   // React Native's ambient URL declaration is intentionally minimal even
   // though its runtime implementation exposes the standard mutable fields.
-  const parsed = new URL(bridgeUrl) as unknown as {
+  const parsed = new URL(normalizeBridgeAddress(bridgeUrl)) as unknown as {
     protocol: string;
     pathname: string;
     search: string;

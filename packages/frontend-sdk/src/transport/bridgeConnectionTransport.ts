@@ -3,6 +3,7 @@ import { BridgeTransport } from './bridgeTransport';
 import type { PathPrefixTimeoutRule, Transport, TransportTimeoutRule } from './transport';
 import { HttpBridgeTransport } from './httpBridgeTransport';
 import { HybridBridgeTransport } from './hybridBridgeTransport';
+import { deriveBridgeWebSocketUrl } from './bridgeAddress';
 
 export type BridgeTransportMode = 'websocket' | 'http' | 'hybrid';
 
@@ -45,10 +46,13 @@ export function createBridgeConnectionTransport(
     return new HttpBridgeTransport(options);
   }
   if (mode === 'hybrid') {
-    return new HybridBridgeTransport(options);
+    return new HybridBridgeTransport({
+      ...options,
+      bridgeUrl: deriveBridgeWebSocketUrl(options.bridgeUrl),
+    });
   }
   return new BridgeTransport({
-    bridgeUrl: options.bridgeUrl,
+    bridgeUrl: deriveBridgeWebSocketUrl(options.bridgeUrl),
     serverId: options.serverId,
     pairingToken: options.pairingToken,
     clientId: options.clientId,

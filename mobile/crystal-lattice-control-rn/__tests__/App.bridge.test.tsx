@@ -1,6 +1,6 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Modal } from 'react-native';
+import { Alert, Keyboard, Modal } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import * as sdk from '@crystal-lattice/frontend-sdk';
 import App from '../App';
@@ -82,6 +82,51 @@ it('does not save failed discovery or automatically open a legacy transport', as
   expect(global.WebSocket).not.toHaveBeenCalled();
 }, 10000);
 
+it('prefers a bare-domain placeholder, uses HTTPS, and saves the entered address', async () => {
+  const screen = render(<App />);
+  await openBridge(screen);
+  fireEvent.press(screen.getByTestId('bridge-add-new'));
+  const input = screen.getByTestId('bridge-url-input');
+  expect(input.props.placeholder).toBe('bridge.example.com');
+  expect(input.props.value).toBe('');
+  fireEvent.changeText(input, ' bridge.example.com ');
+  fireEvent.press(screen.getByTestId('bridge-connect-button'));
+  await screen.findByText('Available Servers (0)');
+  expect(global.fetch).toHaveBeenCalledWith(
+    'https://bridge.example.com/bridge/v1/capabilities', expect.any(Object),
+  );
+  expect(JSON.parse((await AsyncStorage.getItem(sdk.SAVED_BRIDGES_STORAGE_KEY))!))
+    .toEqual([{ url: 'bridge.example.com', lastUsedAt: expect.any(Number) }]);
+  expect(global.WebSocket).not.toHaveBeenCalled();
+}, 10000);
+
+it('uses the same bare-domain normalization for Test Connectivity', async () => {
+  const screen = render(<App />);
+  await openBridge(screen);
+  fireEvent.press(screen.getByTestId('bridge-add-new'));
+  fireEvent.changeText(screen.getByTestId('bridge-url-input'), 'bridge.example.com');
+  fireEvent.press(screen.getByText('Test Connectivity'));
+  await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+    'https://bridge.example.com/health', expect.any(Object),
+  ));
+}, 10000);
+
+it.each(['https://bridge.test', 'http://localhost:4000'])(
+  'connects an explicit %s HTTP address',
+  async (address) => {
+    const screen = render(<App />);
+    await openBridge(screen);
+    fireEvent.press(screen.getByTestId('bridge-add-new'));
+    fireEvent.changeText(screen.getByTestId('bridge-url-input'), address);
+    fireEvent.press(screen.getByTestId('bridge-connect-button'));
+    await screen.findByText('Available Servers (0)');
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${address}/bridge/v1/capabilities`, expect.any(Object),
+    );
+    expect(global.WebSocket).not.toHaveBeenCalled();
+  }, 10000,
+);
+
 it.each([undefined, 'websocket', 'hybrid', 'http', 'malformed'])(
   'reopens historical %s records using HTTP with unchanged identity and credentials',
   async (transportMode) => {
@@ -132,6 +177,7 @@ it('opens general Development Settings from Home and persists/reset legacy overr
 }, 10000);
 
 it('repairs an existing server without replacing its connection ID or cache ownership', async () => {
+  const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss');
   const record = {
     id: 'repair-existing', kind: 'bridge', name: 'Repair server', lastUsedAt: 1,
     bridgeUrl: url, serverId: 'server', serverName: 'Repair server',
@@ -170,4 +216,18 @@ it('repairs an existing server without replacing its connection ID or cache owne
   expect(JSON.parse((await AsyncStorage.getItem('clc_sessions_cache_v1'))!))
     .toHaveProperty(record.id);
   expect(global.WebSocket).not.toHaveBeenCalled();
+  expect(dismissKeyboard).toHaveBeenCalled();
+}, 10000);
+
+it('dismisses the keyboard when setup closes without changing saved endpoints', async () => {
+  const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss');
+  const screen = render(<App />);
+  await openBridge(screen);
+  fireEvent.press(screen.getByTestId('bridge-add-new'));
+  fireEvent.changeText(screen.getByTestId('bridge-url-input'), 'bridge.example.com');
+  dismissKeyboard.mockClear();
+  fireEvent.press(screen.getByTestId('connection-wizard-modal-close'));
+  expect(dismissKeyboard).toHaveBeenCalledTimes(1);
+  expect(screen.queryByTestId('connection-wizard-modal')).toBeNull();
+  expect(await AsyncStorage.getItem(sdk.SAVED_BRIDGES_STORAGE_KEY)).toBeNull();
 }, 10000);

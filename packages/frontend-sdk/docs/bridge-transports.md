@@ -15,7 +15,7 @@ import {
 const mode: BridgeTransportMode = 'http';
 
 const bridge = createBridgeConnectionTransport({
-  bridgeUrl: 'wss://bridge.example/ws/websocket',
+  bridgeUrl: 'bridge.example.com',
   mode,
   serverId: savedServerId,
   pairingToken: savedPairingToken,
@@ -79,7 +79,15 @@ validates the pairing:
 
 ## HTTP origin
 
-HTTP and hybrid accept HTTP(S) origins and existing WebSocket bridge URLs.
+Bridge factories accept bare domains, HTTP(S) origins, and existing WebSocket
+bridge URLs. A bare domain defaults to HTTPS; use explicit `http://` for a
+plaintext local bridge.
+
+`normalizeBridgeAddress()` validates the input and supplies the HTTPS scheme.
+`deriveBridgeWebSocketUrl()` supplies the corresponding WS(S) endpoint for
+explicit legacy diagnostic factories. Existing configured WS(S) endpoints
+and query strings remain unchanged.
+
 The SDK:
 
 - converts `ws` to `http` and `wss` to `https`;

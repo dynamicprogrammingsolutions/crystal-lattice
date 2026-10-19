@@ -120,6 +120,10 @@ export type {
 export { FetchTransport } from "./transport/fetchTransport";
 export { BridgeTransport } from "./transport/bridgeTransport";
 export { createBridgeConnectionTransport } from "./transport/bridgeConnectionTransport";
+export {
+  normalizeBridgeAddress,
+  deriveBridgeWebSocketUrl,
+} from "./transport/bridgeAddress";
 export type {
   BridgeConnectionTransport,
   BridgeConnectionTransportOptions,

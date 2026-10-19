@@ -83,7 +83,10 @@ export default function BridgeConnectionStep(props: BridgeConnectionStepProps) {
             <>
               <WizardInput
                 testID="bridge-url-input"
-                placeholder="Bridge URL"
+                accessibilityLabel="Bridge address"
+                placeholder="bridge.example.com"
+                keyboardType="url"
+                textContentType="URL"
                 value={props.url}
                 onChangeText={props.onUrl}
               />

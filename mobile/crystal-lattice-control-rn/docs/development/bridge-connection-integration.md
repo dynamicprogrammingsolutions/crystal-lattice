@@ -20,6 +20,18 @@ app-wide preference is hydrated before construction, separately persisted,
 and changes only future transports. Reset preserves other settings.
 There is no automatic fallback or in-flight replay.
 
+Bridge input prefers a bare-domain placeholder. The shared address helper
+validates it with HTTPS as the omitted-scheme default, while explicit
+HTTP(S)/WS(S) values remain supported. History retains the trimmed entered
+address; transport construction derives its HTTP base or legacy endpoint.
+Connectivity testing shares that normalization.
+
+The connection wizard requests keyboard avoidance from
+`CenteredModalSurface`. The keyboard wrapper uses iOS padding/Android height
+behavior and contains a flex viewport; modal percentages and the wizard
+scroll area are bounded by the remaining space. Native checks type into the
+real field with the software keyboard and compare modal/viewport bounds.
+
 Successful pairing stores a `BridgeConnectionRecord` with bridge URL, server
 ID/name, pairing token, and product `transportMode: 'http'`, even with a
 diagnostic override. Historical modes remain readable but do not select the

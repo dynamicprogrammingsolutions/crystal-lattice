@@ -28,12 +28,19 @@ re-pairing also uses the setup modal.
 
 Choose **Bridge** in that modal to see saved bridge endpoints first. Tap an
 entry to connect and list its servers, or choose **Add New Bridge** to enter
-a bridge URL. Successful discovery saves the URL before pairing, including
+a bridge address. Enter a domain such as `bridge.example.com`; it uses HTTPS
+without requiring a scheme or `/ws/websocket` suffix. Use an explicit
+`http://host:port` for a local bridge without TLS. Full HTTP(S) and existing
+WS(S) URLs also work.
+
+Successful discovery saves the address before pairing, including
 when no servers are currently available. The trash button removes that
 endpoint from the list; paired server connections and credentials remain.
 
 Normal bridge connections use HTTP, including existing saved connections.
 Existing `ws://` and `wss://` bridge URLs continue to work.
+The setup modal adjusts its viewport for the software keyboard so fields and
+controls remain accessible by scrolling.
 
 ## Development Settings
 

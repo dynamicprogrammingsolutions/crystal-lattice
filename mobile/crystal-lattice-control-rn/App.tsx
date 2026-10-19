@@ -8,6 +8,7 @@ import {
   StyleSheet,
   useColorScheme,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,6 +18,8 @@ import {
   CloudTransport,
   FetchTransport,
   createBridgeConnectionTransport,
+  deriveBridgeHttpBaseUrl,
+  normalizeBridgeAddress,
   invalidateAgentsCache,
   parseCloudConnectionLink,
   type KeyValueStore,
@@ -578,6 +581,7 @@ function App(): React.JSX.Element {
       upsertConnection(record);
       setSelectedConnectionId(record.id);
       if (isSearching) stopDiscovery();
+      Keyboard.dismiss();
       setShowConnectionWizard(false);
       setConnectionMethod(null);
       setConnectingBridgeTransport(null);
@@ -856,6 +860,7 @@ function App(): React.JSX.Element {
   };
 
   const cancelConnectionWizard = () => {
+    Keyboard.dismiss();
     connectionSetup.cancel();
     repairingBridgeRecordRef.current = null;
     setIsLoading(false);
@@ -1043,14 +1048,17 @@ function App(): React.JSX.Element {
     }
   };
 
-  const connectToBridge = async (url = bridgeUrl) => {
+  const connectToBridge = async (input = bridgeUrl) => {
+    const url = input.trim();
     if (!url) {
-      Alert.alert('Error', 'Please enter bridge URL');
+      Alert.alert('Error', 'Please enter a bridge address');
       return;
     }
 
-    if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
-      Alert.alert('Invalid URL', 'Bridge URL must start with ws:// or wss://');
+    try {
+      normalizeBridgeAddress(url);
+    } catch (error) {
+      Alert.alert('Invalid Bridge Address', error instanceof Error ? error.message : String(error));
       return;
     }
 
@@ -1290,10 +1298,13 @@ function App(): React.JSX.Element {
   const testBridgeConnectivity = async () => {
     if (!bridgeUrl) return;
 
-    const httpUrl = bridgeUrl
-      .replace('ws://', 'http://')
-      .replace('wss://', 'https://')
-      .replace('/ws/websocket', '/health');
+    let httpUrl: string;
+    try {
+      httpUrl = `${deriveBridgeHttpBaseUrl(bridgeUrl)}/health`;
+    } catch (error) {
+      Alert.alert('Invalid Bridge Address', error instanceof Error ? error.message : String(error));
+      return;
+    }
 
     setIsLoading(true);
     try {

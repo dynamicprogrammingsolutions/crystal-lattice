@@ -486,7 +486,8 @@ without changing the production release manifest.
 
 3. **In the app:**
    - Open Home → New connection and select "Bridge Service"
-   - Select a saved bridge, or choose Add New Bridge and enter its URL
+   - Select a saved bridge, or choose Add New Bridge and enter its domain
+     (for example, `bridge.example.com`; HTTPS is the default)
      - For iOS device testing bridge on Mac: use Mac's IP address
      - Example: `ws://192.168.1.100:4000/ws/websocket`
    - Tap "Connect to Bridge"
@@ -501,6 +502,8 @@ including events. HTTPS is used for secure bridge URLs. Discovery saves the
 endpoint before pairing; existing paired connections reuse their credentials.
 Home → Development Settings provides explicit legacy WebSocket/hybrid
 diagnostics for later connection construction, independently of saved records.
+Full HTTP(S) and WS(S) addresses are also accepted. For plaintext local
+bridges, enter an explicit address such as `http://192.168.1.100:4000`.
 
 4. **Make requests:**
    - Once connected, tap "GET /api/data" or "PUT /api/data"

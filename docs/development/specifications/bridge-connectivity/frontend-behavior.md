@@ -36,6 +36,7 @@ heartbeat-healthy socket.
 
 HTTP mode:
 
+- accepts bare domains, defaulting to HTTPS without implicit plaintext retry;
 - derives `http` from `ws` and `https` from `wss`;
 - removes a trailing `/ws` or `/ws/websocket` path;
 - accepts an explicit HTTP base when public origins differ;
@@ -109,6 +110,11 @@ New Bridge. Selecting an endpoint connects and lists servers immediately.
 Successful discovery saves the endpoint before pairing, including an empty
 server list. Failed discovery does not save it. Normal setup contains no
 transport selector.
+The address placeholder uses the bare-domain form. Explicit HTTP(S)/WS(S)
+addresses remain supported; legacy diagnostics derive the corresponding
+WebSocket endpoint when needed. Existing configured WebSocket endpoints
+remain intact. Setup uses a keyboard-adjusted viewport on both mobile
+platforms so the input and actions remain reachable.
 
 Home → Development Settings opens a general settings window whose Bridge
 section offers the HTTP product default and explicit legacy WebSocket/hybrid
