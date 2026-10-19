@@ -292,7 +292,7 @@ class LocalPathRepoSource:
                 ],
             )
 
-        logger.info("plugin_local_resolved", path=str(base), install_dir=str(install_dir))
+        logger.debug("plugin_local_resolved", path=str(base), install_dir=str(install_dir))
 
         classes: List[type] = []
         errors: List[Dict[str, Any]] = []

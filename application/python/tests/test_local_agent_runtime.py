@@ -50,7 +50,9 @@ def _write_config(
 
 def test_list_models_uses_agent_configuration_without_sessions_or_inference(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent / "fixtures"))
     config = write_model_catalog_config(tmp_path / "config.json")
     original_config = config.read_bytes()
     sessions = tmp_path / "sessions"
