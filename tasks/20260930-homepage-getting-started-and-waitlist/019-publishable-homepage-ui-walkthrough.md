@@ -1188,3 +1188,44 @@ fulfilled by the walkthrough or feature proof. At minimum:
   Checkpoint 3. H4 must not begin until the user approves the walkthrough's
   clarity, legibility, navigation, responsive behavior, and transition into
   the remaining feature sections.
+- 2026-10-16: Human review rejected the first H3 compact compositions at an
+  iPhone 12 Mini-equivalent width. The actual image area was about 307 × 384
+  CSS pixels; multiple near-complete surfaces reduced important labels below
+  practical reading size, and the large overlapping insets obscured their
+  source instead of reading as magnification. H3 remains unapproved and H4
+  remains blocked.
+- 2026-10-16: The rejected but recoverable H2/H3 checkpoint was committed on
+  `main` as `747b20fc` (`Add homepage walkthrough checkpoint`) before the
+  responsive revision began. Generated review assets remain ignored and no
+  public source, push, deployment, or publication occurred.
+- 2026-10-16: The revised compact contract preserves a small genuine context
+  thumbnail, localizes the source region with a matching highlight, and places
+  a near-full-width genuine crop below it without overlap. Compact assets now
+  use chapter-specific natural heights instead of a forced 4:5 frame. Compose,
+  Messages, Session actions, and Workspace use explicit source-to-detail
+  connectors; Session settings uses matching source/detail colors and a taller
+  profile → tools → provider settings → plugins storyboard.
+- 2026-10-16: The implemented compact sources are 1000 pixels wide with
+  chapter heights of 1920 (Compose), 2490 (Messages), 1920 (Session actions),
+  3280 (Session settings), and 1370 (Workspace). At the 375 CSS-pixel page
+  viewport the actual image area is about 307 pixels wide, producing natural
+  rendered heights from about 421 to 1008 pixels instead of reducing every
+  chapter into the former 384-pixel frame.
+- 2026-10-16: Direct `view_image` inspection covered every light-theme chapter
+  at actual 375- and 320-pixel page rendering, the regenerated wide assets,
+  and focused dark-theme 375/1440 Playwright evidence. The context remains
+  recognizable, important detail labels are readable without opening the
+  source asset, and no enlarged panel overlaps or obscures its highlighted
+  source. The Messages metadata now uses complete focused usage, cost, and
+  output rows rather than a truncated miniature footer.
+- 2026-10-16: Revised H3 verification passed 14 final-walkthrough Playwright
+  tests across 1440, 1024, 768, 390, 375, and 320 CSS pixels in light/dark
+  themes, including natural asset dimensions, interaction behavior, and the
+  no-JavaScript fallback. It also passed all 15 retained H2 candidate tests, 8
+  homepage content/download tests, 25 visual-asset tests, `git diff --check`,
+  the normal Astro build, and the explicit H3 preview build. The review server
+  was restored to the final preview after the retained-candidate run.
+- 2026-10-16: The responsive revision remains uncommitted for H3 human review.
+  No public asset promotion, develop-branch product change, push, deployment,
+  or H4 work occurred. H4 remains blocked until the user accepts the revised
+  walkthrough in context.

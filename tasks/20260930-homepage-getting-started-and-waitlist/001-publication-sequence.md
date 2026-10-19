@@ -338,3 +338,13 @@ Agent work after approval:
   normal-build isolation, and responsive light/dark browser matrix are
   implemented and verified. Execution is paused at the required H3 human
   walkthrough-in-context checkpoint.
+- 2026-10-16: H3 human review found the first compact compositions unreadable
+  on an iPhone 12 Mini and rejected their overlapping magnifier treatment.
+  The first implementation is preserved in main commit `747b20fc`; H3 is
+  undergoing a focused responsive-composition revision and remains at the
+  same human checkpoint. H4 and every later publication step remain blocked.
+- 2026-10-16: The H3 responsive revision is agent-complete and verified at the
+  same checkpoint. It replaces the fixed 4:5 compact media with
+  chapter-specific natural heights and non-overlapping source/detail
+  compositions. Human acceptance is still required before H3 can be checked
+  off or H4 can begin.

@@ -3,6 +3,13 @@ export const walkthroughFinalPreviewEnabled =
 
 const prefix = "/__preview/walkthrough-final";
 const sourceDirectory = "artifacts/walkthrough-final-preview";
+const compactHeights = {
+  compose: 1920,
+  messages: 2490,
+  "session-actions": 1920,
+  "session-settings": 3280,
+  workspace: 1370,
+};
 
 function walkthroughImage(name, alt) {
   return {
@@ -14,7 +21,7 @@ function walkthroughImage(name, alt) {
     width: 1800,
     height: 1013,
     widthCompact: 1000,
-    heightCompact: 1250,
+    heightCompact: compactHeights[name],
   };
 }
 

@@ -286,27 +286,35 @@ node scripts/visual-assets/walkthrough-final-composition.mjs
 
 The script reads the approved real Desktop/mobile sources retained under
 `artifacts/walkthrough-candidates/` plus the reviewed agent-picker source. It
-writes ignored light/dark wide (1800 × 1013) and compact (1000 × 1250) WebP
-assets under `artifacts/walkthrough-final-preview/`.
+writes ignored light/dark wide (1800 × 1013) and chapter-specific compact WebP
+assets under `artifacts/walkthrough-final-preview/`. Compact assets are 1000
+pixels wide and use natural heights from 1370 to 3280 pixels rather than a
+shared 4:5 frame.
 
 The chapter-specific treatment is deliberate:
 
-- Compose keeps a real active conversation, magnifies the genuine Composer
-  actions popup, and separately enlarges composer/provider controls.
+- Compose keeps a real active conversation, identifies the genuine Composer
+  actions popup in context, and places a readable popup crop plus
+  composer/provider controls below or beside it.
 - Messages uses the same Starlette/Codex fixture, enlarges the terminal
-  message's genuine Message actions menu, and retains its provider-supplied
-  response footer.
-- Session actions magnifies the genuine whole-session menu while preserving
-  its popup chrome.
-- Session settings combines the reviewed Desktop agent picker with focused
-  native provider-settings and per-session plugin views.
-- Workspace crops out the simulator safe-area collision and enlarges aligned
-  durable task status and transient request-state rows.
+  message's genuine Message actions menu, and retains focused complete rows
+  from its provider-supplied response footer.
+- Session actions identifies the genuine whole-session menu before presenting
+  readable excerpts of the introductory, settings, and title controls.
+- Session settings combines a highlighted Desktop agent-picker context with
+  focused profile/tool, native provider-settings, and per-session plugin
+  views in a taller mobile storyboard.
+- Workspace crops out the simulator safe-area collision, highlights one row
+  in the complete list context, and enlarges its title, pin, durable task
+  status, and transient request state.
 
 Compositions may crop, magnify, border, or arrange genuine source regions; they
 must not redraw controls, change values, or retain raw UUIDs. The compact
 variants are independently composed for rendered phone readability rather than
-being scaled copies of the wide image.
+being scaled copies of the wide image. A context thumbnail remains visible,
+the source region is localized with a matching highlight, and an enlarged
+detail must not overlap or obscure that source. The website renders each
+compact asset at its natural ratio.
 
 These remain ignored review outputs until the H3 human checkpoint is approved
 and a later source-promotion step is authorized. The explicit page binding is

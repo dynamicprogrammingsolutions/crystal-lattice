@@ -214,6 +214,11 @@ navigation, previous/next buttons, horizontal swipe over the visual, no
 autoplay, a reduced-motion-safe presentation, and sequential panels when
 JavaScript is unavailable.
 
+Compact chapter media uses the dimensions declared by each content asset
+rather than a shared aspect ratio. This permits a short list detail and a
+longer settings storyboard to remain readable at an iPhone 12 Mini-equivalent
+375 CSS pixels without covering the contextual source screenshot.
+
 The final preview removes the superseded model-family and session-workspace
 compact highlights but leaves later feature and Getting Started changes to
 their owning checkpoint. H2 and H3 flags are mutually exclusive. The final

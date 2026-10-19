@@ -9,11 +9,11 @@ test.skip(
 
 const directory = path.resolve("artifacts/walkthrough-final-review/page");
 const chapters = [
-  { id: "compose", label: "Compose" },
-  { id: "messages", label: "Messages" },
-  { id: "session-actions", label: "Session actions" },
-  { id: "session-settings", label: "Session settings" },
-  { id: "workspace", label: "Workspace" },
+  { id: "compose", label: "Compose", compactHeight: 1920 },
+  { id: "messages", label: "Messages", compactHeight: 2490 },
+  { id: "session-actions", label: "Session actions", compactHeight: 1920 },
+  { id: "session-settings", label: "Session settings", compactHeight: 3280 },
+  { id: "workspace", label: "Workspace", compactHeight: 1370 },
 ];
 
 async function loadImages(page) {
@@ -29,7 +29,7 @@ async function loadImages(page) {
   );
 }
 
-for (const width of [1440, 1024, 768, 390, 320]) {
+for (const width of [1440, 1024, 768, 390, 375, 320]) {
   for (const theme of ["light", "dark"]) {
     test(`final walkthrough ${width} ${theme}`, async ({ page }) => {
       fs.mkdirSync(directory, { recursive: true });
@@ -80,6 +80,28 @@ for (const width of [1440, 1024, 768, 390, 320]) {
         await tabs.nth(index).click();
         await expect(tabs.nth(index)).toHaveAttribute("aria-selected", "true");
         await expect(panels.nth(index)).toBeVisible();
+        const image = panels.nth(index).locator("img");
+        const imageState = await image.evaluate(element => ({
+          currentSrc: element.currentSrc,
+          naturalWidth: element.naturalWidth,
+          naturalHeight: element.naturalHeight,
+          renderedWidth: element.getBoundingClientRect().width,
+          renderedHeight: element.getBoundingClientRect().height,
+        }));
+        if (width <= 760) {
+          expect(imageState.currentSrc).toContain(
+            `${chapters[index].id}-compact`,
+          );
+          expect(imageState.naturalWidth).toBe(1000);
+          expect(imageState.naturalHeight).toBe(chapters[index].compactHeight);
+          expect(
+            imageState.renderedHeight / imageState.renderedWidth,
+          ).toBeCloseTo(chapters[index].compactHeight / 1000, 2);
+        } else {
+          expect(imageState.currentSrc).toContain(`${chapters[index].id}-wide`);
+          expect(imageState.naturalWidth).toBe(1800);
+          expect(imageState.naturalHeight).toBe(1013);
+        }
         await walkthrough.screenshot({
           path: path.join(
             directory,
