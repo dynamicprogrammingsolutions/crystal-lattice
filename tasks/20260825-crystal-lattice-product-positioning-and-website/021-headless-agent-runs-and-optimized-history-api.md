@@ -1520,6 +1520,95 @@ CLI and Python runs, shared-runtime parallel investigation, model/effort
 calibration, phased evidence packets, cost/time guards, cross-session queries,
 and direct read-only inspection of immutable session snapshots.
 
+#### Immediate follow-up: naturally bounded output and observable run activity
+
+Create a separately approved implementation task for the ordinary headless
+runtime and CLI. It must not require callers or model agents to know host-tool
+line limits, choose character budgets, or interpret unrestricted raw events.
+
+- **Naturally bounded command output:** Agent-facing CLI defaults return a
+  concise result with product-owned per-value, per-record, and total bounds.
+  Oversized values report their original size, truncation/omission state, and
+  a stable retrieval reference. Exact canonical data remains available only
+  through an explicit full-data operation, targeted message lookup, output
+  file, or the lower-level SDK/API contract.
+- **Physical line bounds:** JSON and especially JSONL/NDJSON rendering must
+  not place an unrestricted assistant message, tool argument, tool result, or
+  nested object on one physical line. Every line-oriented record has a fixed
+  implementation-owned maximum and remains parseable after truncation or
+  projection.
+- **Structured run activity:** Extend the convenience progress contract with
+  ordered bounded records for completed intermediary assistant messages,
+  tool calls, tool results, and terminal request state. Do not emit hidden
+  reasoning or token-level assistant deltas.
+- **Assistant observation:** A completed intermediary assistant message
+  carries bounded display text plus its canonical message index when
+  checkpointed. The complete message remains retrievable separately by
+  session ID and canonical index.
+- **Tool observation:** A tool call carries tool name, call ID, and a safe
+  one-line summary when available. A tool result carries the existing
+  plugin-provided `metadata.display.single_line` or another bounded safe
+  display fallback plus its canonical message index. Never fall back to
+  unrestricted raw arguments or the complete tool result because either may
+  be large or sensitive.
+- **Live consumption:** Python callbacks receive the same structured activity
+  records. The CLI gains a bounded machine-readable progress mode, such as
+  JSONL on stderr, while preserving human progress and final-result stdout
+  separation. A cursor or sequence identity lets a consumer resume without
+  replaying the complete activity stream.
+- **Compact final result:** CLI JSON avoids duplicating unrestricted
+  `output_text` inside unrestricted `final_messages`. It reports bounded
+  output, original length, truncation state, status/error, and the session or
+  message reference needed for focused retrieval.
+- **Compatibility decision:** Before implementation, decide whether existing
+  unqualified CLI queries become bounded with an explicit `--full` escape
+  hatch or whether new agent-facing commands own concise defaults while
+  current low-level commands remain exact. Preserve exact Python/HTTP
+  contracts unless they are separately changed and versioned.
+
+Verification should include long multiline assistant messages, large and
+sensitive tool arguments, long tool results with and without display
+metadata, repeated progress reads, concurrent distinct sessions, JSONL line
+bounds, final-output truncation references, and retrieval of each referenced
+canonical message in full.
+
+This is generic headless-run behavior. It must not add or constrain
+vendor-compatible persistent-subagent tools, whose model-facing observation
+and waiting behavior remains owned by their upstream-parity tasks.
+
+#### Immediate follow-up: explicit live and snapshot read views
+
+Promote read-only snapshot access from the later evidence/safety list into a
+separately approved implementation task.
+
+- Add local Python and CLI snapshot enumeration with snapshot ID, creation
+  time, reason, structured metadata, canonical message count, and selected
+  state.
+- Add explicit live and snapshot selectors to projected messages, compact
+  history, and single-message retrieval. Suggested CLI forms are `--live` and
+  `--snapshot SNAPSHOT_ID`; equivalent SDK calls use one shared typed source
+  selector.
+- Preserve the current selected view as the compatibility default, but every
+  result identifies whether its effective source is the live session, the
+  currently selected snapshot, or an explicitly requested snapshot. Include
+  `snapshot_id` and `readonly` where applicable.
+- Explicit reads never select, restore, clear, or delete a snapshot and never
+  change active-session write eligibility or frontend state.
+- Add exact local session-summary lookup so a caller with one session ID does
+  not enumerate every session.
+- Add an optional canonical timestamp to compact message rows when current
+  message metadata contains one; document the exact metadata path without
+  claiming that every plugin or historical message supplies a timestamp.
+- Keep full snapshot messages and provider-native state out of inventory and
+  compact responses. Retrieve one canonical message explicitly when its
+  complete fields are required.
+
+Verification should compare selected-snapshot, explicit-snapshot, and
+explicit-live reads in one process; prove selected state is unchanged; verify
+source provenance through Python and real CLI subprocesses; and cover a large
+snapshot containing long assistant/tool metadata without returning those
+fields in inventory or compact defaults.
+
 #### Priority 1: direct delegation ergonomics
 
 - **Effective run context:** Expose the current effective agent ID, provider
@@ -1595,10 +1684,9 @@ subagent work.
   tests, dependency installation, network calls, hosted providers, Docker,
   native devices, external search, and writes outside an assigned output
   directory are allowed.
-- **Snapshot reads:** Add read-only snapshot enumeration and projected
-  history/message retrieval by `snapshot_id` to the local Python and CLI APIs,
-  without selecting or restoring the snapshot. Reading a snapshot must not
-  affect active-session write eligibility or selected-snapshot state.
+- **Snapshot reads:** Promoted to the immediate explicit live/snapshot read
+  view follow-up above. Keep storage-level projection work separate from that
+  public source-selection and provenance contract.
 - **Storage-level projections:** Continue the already-recorded investigation
   into avoiding complete message/tool-result materialization before
   projection. A smaller response is not necessarily a cheaper storage read.
