@@ -413,6 +413,7 @@ def _assert_access_result(
         python_value,
         f"Programmatic CLI argv: `{expected_argv}`",
         "from agent_terminal_app import open_runtime",
+        "Built-in plugin docs and source:",
         "https://docs.crystallattice.dev/",
     )
     missing = [value for value in expected if value not in output]
@@ -426,6 +427,11 @@ def _assert_access_result(
     if docs_match is None or not Path(docs_match.group(1)).is_dir():
         raise RuntimeError(
             f"Headless access output lacks a readable local docs path:\n{output}"
+        )
+    plugins_match = re.search(r"Built-in plugin docs and source: `([^`]+)`", output)
+    if plugins_match is None or not Path(plugins_match.group(1)).is_dir():
+        raise RuntimeError(
+            f"Headless access output lacks a readable plugin source path:\n{output}"
         )
     session_id = _result_session_id(result)
     if not list(session_root.rglob(f"{session_id}.json")):

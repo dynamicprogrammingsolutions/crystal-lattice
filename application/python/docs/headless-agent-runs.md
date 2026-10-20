@@ -110,6 +110,33 @@ a session or send an inference request. An empty tuple in Python, or
 are returned; it does not prove that the provider cannot run a manually
 specified model.
 
+## Discover runtime and plugin capabilities
+
+Treat the active runtime as authoritative before reading implementation
+documentation:
+
+1. Use `agents --details --format json` to inspect the selected agent's safe
+   effective defaults and flattened provider/plugin configuration schema.
+2. Use `models --agent ID --format json` for the model catalog. In the
+   interactive terminal, use `/action` to list applicable action-oriented UI
+   elements; a one-shot headless action discovery/execution command is not yet
+   available.
+3. If those runtime descriptors do not explain a field or behavior, read the
+   owning plugin's README and package documentation under the runtime-provided
+   `BUILTIN_PLUGINS` directory. Inspect plugin source there only when the
+   documentation and descriptors leave an implementation detail unresolved.
+
+The opt-in external-project guidance renders the active built-in plugin path
+as `Built-in plugin docs and source`. This path follows the selected source,
+archive, or installed runtime rather than assuming a repository checkout.
+General application documentation remains available through
+`CRYSTAL_LATTICE_DOCS` and `CRYSTAL_LATTICE_DOCS_URL`.
+
+Application actions and UI schemas are already available to frontends through
+the HTTP API. Adding equivalent one-shot CLI and `LocalAgentRuntime` discovery
+and execution is a separate follow-up; agents should not infer that every
+plugin procedure is currently callable through the headless commands.
+
 ## Python first run
 
 The public local API is provided by the `crystal-lattice-cli` distribution's
@@ -402,6 +429,9 @@ crystal-lattice run \
 Exactly one of `--agent` and `--session`, and exactly one of `--prompt`,
 `--prompt-file`, and `--stdin`, is required.
 
+The opt-in agent guidance also calls out these multiline forms so a parent
+agent does not need to discover shell quoting limits through trial and error.
+
 Continue a completed session:
 
 ```bash
@@ -579,6 +609,8 @@ session checkbox; the configuration owns every line of agent guidance.
 
 The other runtime-owned values are:
 
+- `BUILTIN_PLUGINS`, the active built-in plugin source, README, and package
+  documentation root;
 - `CRYSTAL_LATTICE_CLI_ARGV_JSON`;
 - `CRYSTAL_LATTICE_CLI_COMMAND`;
 - `CRYSTAL_LATTICE_CONFIG`;

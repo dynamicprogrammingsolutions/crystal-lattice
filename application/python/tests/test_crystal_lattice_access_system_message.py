@@ -322,6 +322,10 @@ def test_access_message_is_owned_by_one_config_mixin_not_helper_code() -> None:
     assert delegation_text.startswith("# Delegating work through Crystal Lattice")
     assert "These instructions are for you, the parent agent." in delegation_text
     assert "construct a self-contained child user prompt" in delegation_text
+    assert '--prompt-file "<path>"' in delegation_text
+    assert "--stdin" in delegation_text
+    assert "Discover capabilities from the active config" in delegation_text
+    assert "${env:BUILTIN_PLUGINS}" in delegation_text
     assert (
         "selected Crystal Lattice agent's own configured system/developer message"
         in delegation_text
@@ -395,6 +399,9 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
             assert "from agent_terminal_app import open_runtime" in enabled
             assert 'models --agent "<agent-id>" --format json' in enabled
             assert 'runtime.list_models(agent_id="<agent-id>")' in enabled
+            assert '--prompt-file "<path>"' in enabled
+            assert "Built-in plugin docs and source:" in enabled
+            assert str(Path(full_env["BUILTIN_PLUGINS"]).resolve()) in enabled
             assert "Task Files and Subtasks" not in enabled
             assert "must-not-appear" not in enabled
     finally:
@@ -429,5 +436,7 @@ def test_default_access_variants_compile_exclusively_for_all_agents(
             assert "from agent_terminal_app import open_runtime" not in enabled
             assert 'models --agent "<agent-id>" --format json' in enabled
             assert "runtime.list_models" not in enabled
+            assert '--prompt-file "<path>"' in enabled
+            assert str(Path(cli_env["BUILTIN_PLUGINS"]).resolve()) in enabled
     finally:
         cli_app.close()

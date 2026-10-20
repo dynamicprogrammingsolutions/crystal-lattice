@@ -324,6 +324,7 @@ def test_headless_smoke_accepts_directory_aliases_but_rejects_another_environmen
             f"For the Python SDK, execute it with `{advertised}`:",
             "from agent_terminal_app import open_runtime",
             f"Local documentation: `{ROOT / 'application/python/docs'}`",
+            f"Built-in plugin docs and source: `{ROOT / 'plugins'}`",
             "https://docs.crystallattice.dev/",
         ]
     )
