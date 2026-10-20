@@ -1,6 +1,7 @@
 # ChatGPT Auth App
 
-Minimal application plugin implementing a device-code login flow for ChatGPT-style auth.
+Application plugin implementing Codex browser and device-code login for
+ChatGPT-style authentication.
 
 ## Terminal commands
 
@@ -17,11 +18,34 @@ available as:
 /login codex
 ```
 
-The current flow is device-code only and therefore has no method argument. It
-prints the verification URL and code, waits while the plugin-owned worker
-polls, renders progress/status changes, and returns only at authentication,
-failure, cancellation, or expiry. Ctrl-C requests cancellation for that exact
-attempt; a stale worker cannot replace a newer attempt or credentials.
+Choose a method explicitly when needed:
+
+```bash
+crystal-lattice auth login codex --method browser
+crystal-lattice auth login codex --method device-code
+crystal-lattice auth login codex --method browser --no-open
+```
+
+```text
+/login codex method=browser
+/login codex method=device-code
+```
+
+Command flows default to browser. Browser login is supported only when the
+browser runs on the same host as the backend/plugin listener. The plugin binds
+`127.0.0.1` on provider-accepted port `1455` or `1457`, advertises the matching
+`http://localhost:<port>/auth/callback`, performs PKCE and state validation,
+exchanges the code, and closes the listener on every terminal outcome. The URL
+is always printed; a local interactive terminal may open it best-effort unless
+`--no-open` is supplied. No pasted callback/code flow is supported.
+
+Device code remains the production method for mobile, remote, and headless
+arrangements. It prints the verification URL and code while the plugin-owned
+worker polls. No public bridge callback relay or embedded WebView is used.
+
+Both methods return only at authentication, failure, cancellation, or expiry.
+Ctrl-C requests cancellation for that exact attempt; a stale worker or
+callback cannot replace a newer attempt or credentials.
 
 Logout remains a separate action intent and is not contributed as a command
 by this package. Mobile, desktop, and other frontends can continue invoking
@@ -33,7 +57,9 @@ actions.
 The plugin exposes session actions for OpenAI Responses sessions with
 `auth_mode` set to `auto` or `chatgpt`:
 
-- **Sign in with ChatGPT**: starts the device-code login flow.
+- **Sign in with ChatGPT**: selects browser (same-host only) or device-code
+  login. The visible session action defaults to device code for cross-device
+  safety.
 - **Show ChatGPT login status**: returns the current login state.
 - **Show ChatGPT account status**: returns the account and current
   usage-limit status, plus estimated usage accumulated since the last usage
@@ -53,12 +79,12 @@ The plugin exposes session actions for OpenAI Responses sessions with
 
 ## HTTPS and fixed runtimes
 
-Device-code start, polling, token exchange, and credential refresh keep TLS
-verification enabled and use Certifi's bundled public roots. OpenAI's
+Device-code start, polling, browser token exchange, and credential refresh keep
+TLS verification enabled and use Certifi's bundled public roots. OpenAI's
 device-auth endpoint may return a Cloudflare route error to Python `urllib`;
 the plugin retries that specific response with the in-process `requests`
-client. The plugin does not require a `curl` subprocess, so the same login
-actions work in fixed runtimes such as the embedded iOS application.
+client. The plugin does not require a `curl` subprocess, so device-code actions
+work in fixed runtimes such as the embedded iOS application.
 
 ## ChatGPT usage journal
 

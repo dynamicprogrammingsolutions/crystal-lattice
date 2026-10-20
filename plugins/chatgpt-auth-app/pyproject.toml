@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chatgpt-auth-app"
 version = "0.1.0"
-description = "Application plugin for minimal ChatGPT device login"
+description = "Application plugin for ChatGPT browser and device login"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

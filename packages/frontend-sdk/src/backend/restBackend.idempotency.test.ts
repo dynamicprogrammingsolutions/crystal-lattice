@@ -226,4 +226,30 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
   });
+
+  it('routes callback element ids without converting them to bare action ids', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
+    };
+    const backend = new RestAgentBackend({ transport });
+    const redirectUrl =
+      'crystal-lattice://action/c1/s1/p1/callback-element?code=opaque&state=opaque';
+
+    await backend.executeSessionActionCallback!({
+      sessionId: 's1',
+      pluginId: 'p1',
+      callbackElementId: 'callback-element',
+      redirectUrl,
+    });
+
+    expect(transport.request).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/sessions/s1/action-callbacks/callback-element',
+      body: {
+        plugin: 'p1',
+        redirect_url: redirectUrl,
+      },
+      timeoutMs: 120000,
+    });
+  });
 });

@@ -341,6 +341,16 @@ recoverable `interrupted` state. It does not automatically repeat the provider
 request. Actual background duration remains controlled by iOS and is not a
 product guarantee.
 
+This bounded request background task is not evidence that a mobile-owned OAuth
+localhost listener can survive an external-browser sign-in or MFA interval.
+The iOS host has no durable listener background mode for that flow, and the
+Android app has no corresponding native listener service. Deterministic
+callback routing can prove opaque forwarding to a
+`session_action_callback`, but it cannot prove OS suspension behavior or an
+automatic secret-free return from the browser. Browser login is therefore not
+productized for mobile; Codex device code remains the supported mobile method.
+No embedded WebView or public callback relay is used.
+
 ## Focused verification
 
 Run source-level checks:

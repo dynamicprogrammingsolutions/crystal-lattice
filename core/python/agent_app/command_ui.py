@@ -189,6 +189,18 @@ def normalize_command_element(raw: Mapping[str, Any]) -> dict[str, Any]:
         raise CommandCatalogError(
             f"{plugin}.{element_id}.browser must declare auto_open_local=true"
         )
+    if isinstance(browser, Mapping) and browser.get("when") is not None:
+        when = browser.get("when")
+        if (
+            not isinstance(when, Mapping)
+            or not isinstance(when.get("result_path"), str)
+            or not when.get("result_path")
+            or "equals" not in when
+        ):
+            raise CommandCatalogError(
+                f"{plugin}.{element_id}.browser.when must declare "
+                "result_path and equals"
+            )
 
     return {
         **raw,

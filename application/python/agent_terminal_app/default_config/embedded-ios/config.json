@@ -282,7 +282,8 @@
     "rebuild_native_enabled": true,
     "chatgpt_auth": {
       "credentials_path": "${env:EMBEDDED_CHATGPT_CREDENTIALS_PATH}",
-      "rate_limits_path": "${env:EMBEDDED_CHATGPT_RATE_LIMITS_PATH}"
+      "rate_limits_path": "${env:EMBEDDED_CHATGPT_RATE_LIMITS_PATH}",
+      "browser_login_enabled": false
     },
     "cost_tracking": {
       "db_path": "${env:EMBEDDED_COST_TRACKING_DB_PATH}"

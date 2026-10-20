@@ -348,11 +348,12 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
     )
     assert start_resp["status"] == "ok"
     start_result = start_resp["result"]
-    callback_url = (
+    generated_url = (
         "crystal-lattice://action/test-connection/"
-        f"{session.session_id}/complete_external_flow?result=approved&nonce=n-123"
+        f"{session.session_id}/generic_callback_complete_external_flow"
+        "?result=approved&nonce=n-123"
     )
-    assert start_result["callback_url"] == callback_url
+    assert start_result["callback_url"] == generated_url
     open_action = next(
         action
         for action in start_result["display"]["actions"]
@@ -360,7 +361,7 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
     )
     assert open_action["id"] == "open-generic-callback-link"
     assert open_action["label"] == "Open link"
-    assert open_action["url"] == callback_url
+    assert open_action["url"] == generated_url
     copy_action = next(
         action
         for action in start_result["display"]["actions"]
@@ -369,18 +370,15 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
     assert copy_action["kind"] == "copy_text"
     assert copy_action["id"] == "copy-generic-callback-link"
     assert copy_action["label"] == "Copy link"
-    assert copy_action["text"] == callback_url
+    assert copy_action["text"] == generated_url
     assert copy_action["copied_label"] == "Copied"
+    callback_url = generated_url + "&ignored=not-forwarded"
 
-    resp = server_mod.execute_session_action(
+    resp = server_mod.execute_session_action_callback(
         session.session_id,
+        "generic_callback_complete_external_flow",
         {
-            "action_id": "complete_external_flow",
-            "inputs": {
-                "result": "approved",
-                "nonce": "n-123",
-                "redirect_url": callback_url,
-            },
+            "redirect_url": callback_url,
         },
         app_instance=app,
     )
@@ -397,6 +395,15 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
         "redirect_url": callback_url,
     }
     assert result["context"]["session_id"] == session.session_id
+
+    rejected = server_mod.execute_session_action_callback(
+        session.session_id,
+        "complete_external_flow",
+        {"redirect_url": callback_url},
+        app_instance=app,
+    )
+    assert rejected["status"] == "error"
+    assert rejected["error_type"] == "unknown_callback"
 
 
 def test_execute_session_action_alias_calls_same_plugin_path(tmp_path: Path) -> None:
@@ -426,6 +433,47 @@ def test_execute_session_action_alias_calls_same_plugin_path(tmp_path: Path) -> 
     assert isinstance(plugin, DummyAppPlugin)
     assert plugin.executed
     assert plugin.executed[-1]["params"] == {"value": "hello"}
+
+
+def test_session_action_callback_http_route_resolves_ui_element(
+    tmp_path: Path,
+) -> None:
+    from fastapi.testclient import TestClient
+    from agent_terminal_app import server as server_mod
+
+    app = _build_generic_callback_app(tmp_path)
+    _core, _base_config, session = app.create_session("default")
+    callback_url = (
+        "crystal-lattice://action/test-connection/"
+        f"{session.session_id}/generic_callback_app/"
+        "generic_callback_complete_external_flow"
+        "?result=approved&nonce=n-123&ignored=not-forwarded"
+    )
+    server_mod.app.dependency_overrides[server_mod.get_agent_app] = lambda: app
+    try:
+        response = TestClient(server_mod.app).post(
+            (
+                f"/sessions/{session.session_id}/action-callbacks/"
+                "generic_callback_complete_external_flow"
+            ),
+            json={
+                "plugin": "generic_callback_app",
+                "redirect_url": callback_url,
+            },
+        )
+    finally:
+        server_mod.app.dependency_overrides.pop(server_mod.get_agent_app, None)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["callback_element_id"] == ("generic_callback_complete_external_flow")
+    assert payload["action_id"] == "complete_external_flow"
+    assert payload["result"]["inputs"] == {
+        "result": "approved",
+        "nonce": "n-123",
+        "redirect_url": callback_url,
+    }
 
 
 def test_execute_session_action_alias_preserves_error_envelope(tmp_path: Path) -> None:

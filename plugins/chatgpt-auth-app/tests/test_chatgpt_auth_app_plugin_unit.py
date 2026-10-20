@@ -9,8 +9,9 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Tuple
-from urllib.error import HTTPError
-from urllib.parse import parse_qs
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 
 import chatgpt_auth_app
 import pytest
@@ -169,6 +170,7 @@ class _FakeDeviceCodeHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/oauth/token":
+            state["exchange_requests"].append(payload)
             self._write_json(
                 200,
                 {
@@ -208,6 +210,7 @@ def _start_fake_server(
         "device_requests": [],
         "token_requests": [],
         "poll_count": 0,
+        "exchange_requests": [],
         "succeed_after_polls": succeed_after_polls,
         "always_pending": always_pending,
     }
@@ -366,6 +369,38 @@ def _build_default_codex_app(tmp_path: Path, *, issuer: str) -> AgentApplication
     )
 
 
+def _build_browser_app(tmp_path: Path, *, issuer: str) -> AgentApplication:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            _plugin_entry(
+                "chatgpt-auth-app",
+                "chatgpt_auth_app.ChatGPTAuthAppPlugin",
+            ),
+        ],
+        "agents": {"default": {"provider": "echo"}},
+        "application": {
+            "chatgpt_auth": {
+                "issuer": issuer,
+                "credentials_path": "${env:CONFIG_DIR}/auth/chatgpt-auth.json",
+                "browser_callback_ports": [0],
+                "http_timeout_seconds": 5,
+                "login_timeout_seconds": 30,
+            }
+        },
+    }
+    config_path = tmp_path / "config_chatgpt_auth_browser.json"
+    config_path.write_text(json.dumps(cfg), encoding="utf-8")
+    return AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
+    )
+
+
 def test_login_start_polls_in_background_and_persists_credentials(
     tmp_path: Path,
 ) -> None:
@@ -398,7 +433,8 @@ def test_login_start_polls_in_background_and_persists_credentials(
             time.sleep(0.1)
 
         assert status["state"] == "authenticated"
-        assert status["account_email"] == "user@example.com"
+        assert "account_email" not in status
+        assert "account_id" not in status
         assert state["poll_count"] >= 2
 
         credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
@@ -503,7 +539,8 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(
             time.sleep(0.1)
 
         assert status["state"] == "authenticated"
-        assert status["account_email"] == "codex@example.com"
+        assert "account_email" not in status
+        assert "account_id" not in status
         credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
         saved = json.loads(credentials_path.read_text(encoding="utf-8"))
         assert saved["access_token"] == "codex-access-token"
@@ -514,6 +551,205 @@ def test_codex_default_endpoints_and_exchange_flow_work_from_issuer_only(
             state["device_requests"][0]["client_id"] == "app_EMoamEEZ73f0CkXaXp7hrann"
         )
     finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_browser_login_uses_pkce_loopback_and_persists_compatible_credentials(
+    tmp_path: Path,
+) -> None:
+    server, state = _start_fake_server(succeed_after_polls=0)
+    app: AgentApplication | None = None
+    try:
+        issuer = f"http://127.0.0.1:{server.server_address[1]}"
+        app = _build_browser_app(tmp_path, issuer=issuer)
+
+        started = app.execute_application_action(
+            "chatgpt_auth",
+            "login_start",
+            {"method": "browser"},
+        )
+        auth_status = started["auth_status"]
+        assert auth_status["state"] == "pending"
+        assert auth_status["method"] == "browser"
+        assert auth_status["user_code"] is None
+        authorization_url = urlparse(auth_status["verification_url"])
+        authorization_query = parse_qs(authorization_url.query)
+        assert authorization_url.path == "/oauth/authorize"
+        assert authorization_query["response_type"] == ["code"]
+        assert authorization_query["scope"] == ["openid profile email offline_access"]
+        assert authorization_query["code_challenge_method"] == ["S256"]
+        assert authorization_query["code_challenge"][0]
+        assert authorization_query["state"][0]
+        redirect_uri = authorization_query["redirect_uri"][0]
+        assert redirect_uri.startswith("http://localhost:")
+        assert redirect_uri.endswith("/auth/callback")
+
+        state_value = authorization_query["state"][0]
+        callback_base = redirect_uri.replace("localhost", "127.0.0.1")
+        with pytest.raises(HTTPError) as wrong_state:
+            urlopen(
+                f"{callback_base}?code=wrong-code&state=wrong-state",
+                timeout=5,
+            )
+        assert wrong_state.value.code == 400
+        still_pending = app.execute_application_action(
+            "chatgpt_auth",
+            "check_status",
+            {"login_id": auth_status["login_id"]},
+        )["auth_status"]
+        assert still_pending["state"] == "pending"
+
+        with urlopen(
+            f"{callback_base}?code=browser-code&state={state_value}",
+            timeout=5,
+        ) as response:
+            assert response.status == 200
+            assert b"completed" in response.read()
+
+        completed = app.execute_application_action(
+            "chatgpt_auth",
+            "check_status",
+            {"login_id": auth_status["login_id"]},
+        )["auth_status"]
+        assert completed["state"] == "authenticated"
+        assert completed["method"] == "browser"
+        assert "account_email" not in completed
+        assert "account_id" not in completed
+        assert state["exchange_requests"]
+        exchange = state["exchange_requests"][-1]
+        assert exchange["grant_type"] == "authorization_code"
+        assert exchange["code"] == "browser-code"
+        assert exchange["redirect_uri"] == redirect_uri
+        assert exchange["code_verifier"]
+
+        saved = json.loads(
+            (tmp_path / "auth" / "chatgpt-auth.json").read_text(encoding="utf-8")
+        )
+        assert saved["provider"] == "chatgpt_codex_browser"
+        assert saved["access_token"] == "codex-access-token"
+        assert saved["refresh_token"] == "codex-refresh-token"
+        assert saved["account_id"] == "acct-123"
+        assert saved["account_email"] == "codex@example.com"
+
+        with pytest.raises((URLError, OSError)):
+            urlopen(
+                f"{callback_base}?code=duplicate&state={state_value}",
+                timeout=0.5,
+            )
+    finally:
+        if app is not None:
+            app.close()
+        server.shutdown()
+        server.server_close()
+
+
+def test_browser_login_cancellation_closes_listener_without_credentials(
+    tmp_path: Path,
+) -> None:
+    server, _state = _start_fake_server(succeed_after_polls=0)
+    app: AgentApplication | None = None
+    try:
+        issuer = f"http://127.0.0.1:{server.server_address[1]}"
+        app = _build_browser_app(tmp_path, issuer=issuer)
+        started = app.execute_application_action(
+            "chatgpt_auth",
+            "login_start",
+            {"method": "browser"},
+        )
+        auth_status = started["auth_status"]
+        redirect_uri = parse_qs(urlparse(auth_status["verification_url"]).query)[
+            "redirect_uri"
+        ][0]
+        callback_base = redirect_uri.replace("localhost", "127.0.0.1")
+
+        canceled = app.execute_application_action(
+            "chatgpt_auth",
+            "cancel_login",
+            {"login_id": auth_status["login_id"]},
+        )["auth_status"]
+        assert canceled["state"] == "canceled"
+        assert canceled["method"] == "browser"
+        assert not (tmp_path / "auth" / "chatgpt-auth.json").exists()
+        with pytest.raises((URLError, OSError)):
+            urlopen(
+                f"{callback_base}?code=late&state=late",
+                timeout=0.5,
+            )
+    finally:
+        if app is not None:
+            app.close()
+        server.shutdown()
+        server.server_close()
+
+
+def test_codex_cli_command_runs_complete_foreground_browser_flow(
+    tmp_path: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    from agent_terminal_app.__main__ import _run_standalone_command_element
+
+    server, _state = _start_fake_server(succeed_after_polls=0)
+    app: AgentApplication | None = None
+    callback_error: list[BaseException] = []
+    try:
+        issuer = f"http://127.0.0.1:{server.server_address[1]}"
+        app = _build_browser_app(tmp_path, issuer=issuer)
+        command = next(
+            element
+            for element in app.get_application_command_ui_elements("cli_command")
+            if element["path"] == ["auth", "login", "codex"]
+        )
+
+        def complete_callback() -> None:
+            try:
+                deadline = time.time() + 5
+                attempt = None
+                while time.time() < deadline:
+                    attempt = app._app_plugins["chatgpt_auth"].state.get(
+                        "active_attempt"
+                    )
+                    if isinstance(attempt, dict) and attempt.get("method") == "browser":
+                        break
+                    time.sleep(0.01)
+                assert isinstance(attempt, dict)
+                callback = str(attempt["redirect_uri"]).replace(
+                    "localhost",
+                    "127.0.0.1",
+                )
+                with urlopen(
+                    f"{callback}?code=browser-cli-code&state={attempt['oauth_state']}",
+                    timeout=5,
+                ) as response:
+                    assert response.status == 200
+            except BaseException as exc:
+                callback_error.append(exc)
+
+        callback_thread = threading.Thread(target=complete_callback, daemon=True)
+        callback_thread.start()
+        _run_standalone_command_element(
+            app,
+            command,
+            {"method": "browser", "_terminal_no_open": True},
+        )
+        callback_thread.join(timeout=5)
+
+        assert not callback_error
+        output = capfd.readouterr().out
+        assert "browser login" in output.lower()
+        assert "login is active" in output.lower()
+        assert "browser-cli-code" not in output
+        assert "codex-access-token" not in output
+        assert "codex-refresh-token" not in output
+        assert "acct-123" not in output
+        assert "codex@example.com" not in output
+        saved = json.loads(
+            (tmp_path / "auth" / "chatgpt-auth.json").read_text(encoding="utf-8")
+        )
+        assert saved["access_token"] == "codex-access-token"
+    finally:
+        if app is not None:
+            app.close()
         server.shutdown()
         server.server_close()
 
@@ -534,18 +770,16 @@ def test_session_ui_elements_are_gated_by_provider_and_auth_mode(
         config={"provider": "openai_responses", "auth_mode": "api"},
         tags=["provider:openai_responses"],
     )
-    assert [
-        (element["ui_type"], element["path"])
-        for element in hidden_for_api
-    ] == [("cli_command", ["auth", "login", "codex"])]
+    assert [(element["ui_type"], element["path"]) for element in hidden_for_api] == [
+        ("cli_command", ["auth", "login", "codex"])
+    ]
 
     hidden_for_other_provider = app.get_application_ui_schema(
         config={"provider": "echo_openai_like", "auth_mode": "chatgpt"},
         tags=["provider:echo_openai_like"],
     )
     assert [
-        (element["ui_type"], element["path"])
-        for element in hidden_for_other_provider
+        (element["ui_type"], element["path"]) for element in hidden_for_other_provider
     ] == [("cli_command", ["auth", "login", "codex"])]
 
     assert [
@@ -615,7 +849,8 @@ def test_show_account_status_reads_saved_rate_limits(tmp_path: Path) -> None:
     body = result["display"]["body"]
     assert "Requested auth mode: `auto`" in body
     assert "Effective auth mode: `chatgpt`" in body
-    assert "Account: `user@example.com`" in body
+    assert "user@example.com" not in body
+    assert "acct-123" not in body
     assert "Plan: `plus`" in body
     assert "5h limit: `55% left`" in body
     assert "Weekly limit: `70% left`" in body
@@ -1022,7 +1257,7 @@ def test_usage_report_actions_gated_to_chatgpt_sessions(tmp_path: Path) -> None:
     assert not _journal_path(tmp_path).exists()
 
 
-def test_codex_command_elements_bind_device_flow_without_method_or_logout() -> None:
+def test_codex_command_elements_bind_method_selection_without_logout() -> None:
     plugin = ChatGPTAuthAppPlugin()
     state = plugin.init({})
 
@@ -1050,9 +1285,60 @@ def test_codex_command_elements_bind_device_flow_without_method_or_logout() -> N
     for element in session_elements:
         if element.get("ui_type") not in {"cli_command", "slash_command"}:
             continue
-        assert element.get("dialog") == {"kind": "none"}
-        assert "method" not in element
+        dialog = element.get("dialog")
+        assert dialog["kind"] == "form"
+        assert dialog["inputs"][0]["name"] == "method"
+        assert dialog["inputs"][0]["default"] == "browser"
+        assert element["param_map"] == {"method": "$dialog.method"}
+        assert element["browser"]["when"] == {
+            "result_path": "auth_status.method",
+            "equals": "browser",
+        }
         assert "logout" not in element["path"]
+
+    callback = next(
+        element
+        for element in session_elements
+        if element.get("ui_type") == "session_action_callback"
+    )
+    assert callback["id"] == "chatgpt_browser_oauth_callback"
+    assert callback["action_id"] == "complete_browser_login"
+
+
+def test_browser_method_can_be_disabled_for_mobile_runtime() -> None:
+    plugin = ChatGPTAuthAppPlugin()
+    state = plugin.init(
+        {
+            "application": {
+                "chatgpt_auth": {
+                    "browser_login_enabled": False,
+                }
+            }
+        }
+    )
+    elements = plugin.get_ui_elements(
+        state,
+        {"provider": "openai_responses", "auth_mode": "auto"},
+        ["provider:openai_responses"],
+        [],
+    )
+    login_elements = [
+        element for element in elements if element.get("action_id") == "login_start"
+    ]
+    assert login_elements
+    for element in login_elements:
+        method = element["dialog"]["inputs"][0]
+        assert method["default"] == "device-code"
+        assert method["options"] == [{"value": "device-code", "label": "Device code"}]
+
+    with pytest.raises(ValueError, match="disabled in this runtime"):
+        plugin.execute_action(
+            None,
+            "login_start",
+            {"method": "browser"},
+            None,
+            state,
+        )
 
 
 def test_stale_attempt_cannot_commit_credentials(tmp_path: Path) -> None:

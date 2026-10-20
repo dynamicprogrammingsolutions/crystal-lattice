@@ -20,6 +20,14 @@ Metro + TS are configured to handle symlinks (`desktop/crystal-lattice-control-d
 - [Home, Watchlist, History, status, and session tabs](docs/home-and-session-navigation.md)
 - [Agent selection and default plugin preview](docs/agent-selection.md)
 
+## Codex login boundary
+
+Codex browser login is supported only when the desktop browser and the
+connected backend run on the same host, because the auth plugin owns a
+temporary localhost callback listener on port `1455` or `1457`. For a remote
+backend, use device-code login. The desktop app does not exchange OAuth tokens,
+host a public callback relay, or embed a provider WebView.
+
 ## Development documentation
 
 - [Desktop development](docs/development/index.md)

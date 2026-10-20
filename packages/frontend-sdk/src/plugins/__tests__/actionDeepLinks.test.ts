@@ -6,40 +6,29 @@ describe('parseActionDeepLink', () => {
   it('parses plugin-qualified session action links', () => {
     expect(
       parseActionDeepLink(
-        'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_app/generic_callback_complete_external_flow?result=approved&nonce=n-123',
       ),
     ).toEqual({
       connectionId: 'test-connection',
       sessionId: 'session-123',
       pluginId: 'generic_callback_app',
-      actionId: 'complete_external_flow',
-      inputs: {
-        result: 'approved',
-        nonce: 'n-123',
-        redirect_url:
-          'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
-      },
+      callbackElementId: 'generic_callback_complete_external_flow',
       redirectUrl:
-        'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_app/generic_callback_complete_external_flow?result=approved&nonce=n-123',
     });
   });
 
   it('parses session action links without plugin ids', () => {
     expect(
       parseActionDeepLink(
-        'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_complete_external_flow?result=approved',
       ),
     ).toEqual({
       connectionId: 'test-connection',
       sessionId: 'session-123',
-      actionId: 'complete_external_flow',
-      inputs: {
-        result: 'approved',
-        redirect_url:
-          'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
-      },
+      callbackElementId: 'generic_callback_complete_external_flow',
       redirectUrl:
-        'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_complete_external_flow?result=approved',
     });
   });
 

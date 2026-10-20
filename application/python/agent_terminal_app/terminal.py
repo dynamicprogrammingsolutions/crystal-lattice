@@ -828,6 +828,14 @@ def _maybe_open_command_url(
         no_open
         or not isinstance(browser, dict)
         or browser.get("auto_open_local") is not True
+        or (
+            isinstance(browser.get("when"), dict)
+            and _result_path(
+                result,
+                browser["when"].get("result_path"),
+            )
+            != browser["when"].get("equals")
+        )
         or not is_local_interactive_output()
     ):
         return

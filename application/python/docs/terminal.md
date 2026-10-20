@@ -71,6 +71,25 @@ paths, so one action may be exposed as both `crystal-lattice auth login codex`
 and `/login codex`. Legacy `get_commands()` contributions remain top-level
 only.
 
+The Codex login command is one foreground operation:
+
+```bash
+crystal-lattice auth login codex --method browser
+crystal-lattice auth login codex --method device-code
+```
+
+```text
+/login codex method=browser
+/login codex method=device-code
+```
+
+Browser login is for a browser on the same host as the terminal/backend. It
+always prints the authorization URL, may open it best-effort in a local
+interactive terminal, and supports `--no-open`. The plugin owns the localhost
+callback listener and closes it after success, failure, cancellation, or
+expiry. Device code is the remote/headless fallback. Neither flow requires
+separate status commands; Ctrl-C cancels the active attempt.
+
 ## Running action UI elements
 
 `/action` exposes applicable action-oriented UI elements, not every procedure

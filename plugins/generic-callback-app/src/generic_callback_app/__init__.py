@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Generic callback application plugin for deep-link integration tests."""
+
+from __future__ import annotations
 
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -63,7 +63,18 @@ class GenericCallbackAppPlugin:
                 "param_map": {
                     "connection_id": "$context.connectionId",
                 },
-            }
+            },
+            {
+                "ui_type": "session_action_callback",
+                "id": "generic_callback_complete_external_flow",
+                "label": "Complete generic external flow",
+                "action_id": "complete_external_flow",
+                "param_map": {
+                    "result": "$callback.query.result",
+                    "nonce": "$callback.query.nonce",
+                    "redirect_url": "$callback.redirect_url",
+                },
+            },
         ]
 
     def get_commands(self, state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -164,7 +175,7 @@ class GenericCallbackAppPlugin:
         ]
         if include_plugin_id:
             segments.append(quote(self.name, safe=""))
-        segments.append("complete_external_flow")
+        segments.append("generic_callback_complete_external_flow")
         return f"{'/'.join(segments)}?{urlencode({'result': result, 'nonce': nonce})}"
 
     def _link_display_payload(self, callback_url: str) -> dict[str, Any]:

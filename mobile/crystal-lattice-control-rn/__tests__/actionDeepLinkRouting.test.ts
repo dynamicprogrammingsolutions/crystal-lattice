@@ -3,12 +3,12 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import { createActionDeepLinkHandler } from '../src/actionDeepLinkRouting';
 
 const url =
-  'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved&nonce=n-123';
+  'crystal-lattice://action/test-connection/session-123/generic_callback_complete_external_flow?result=approved&nonce=n-123';
 
 function makeBackend(): AgentBackend {
   return {
     executeAction: jest.fn(),
-    executeSessionAction: jest.fn(async () => ({
+    executeSessionActionCallback: jest.fn(async () => ({
       status: 'ok',
       plugin: 'generic_callback_app',
       action_id: 'complete_external_flow',
@@ -29,15 +29,11 @@ test('handleIncomingUrl executes session action on the named connection', async 
   const result = await handler(url);
 
   expect(result).toMatchObject({ handled: true, status: 'ok' });
-  expect(backend.executeSessionAction).toHaveBeenCalledWith({
+  expect(backend.executeSessionActionCallback).toHaveBeenCalledWith({
     sessionId: 'session-123',
     pluginId: undefined,
-    actionId: 'complete_external_flow',
-    inputs: {
-      result: 'approved',
-      nonce: 'n-123',
-      redirect_url: url,
-    },
+    callbackElementId: 'generic_callback_complete_external_flow',
+    redirectUrl: url,
   });
   expect(backend.executeAction).not.toHaveBeenCalled();
 });
@@ -56,7 +52,7 @@ test('handleIncomingUrl rejects unknown connections without executing', async ()
     status: 'error',
     errorType: 'unknown_connection',
   });
-  expect(backend.executeSessionAction).not.toHaveBeenCalled();
+  expect(backend.executeSessionActionCallback).not.toHaveBeenCalled();
 });
 
 test('handleIncomingUrl queues existing but inactive connections', async () => {
@@ -81,5 +77,5 @@ test('handleIncomingUrl ignores unrelated urls', async () => {
   });
 
   await expect(handler('https://example.com')).resolves.toEqual({ handled: false });
-  expect(backend.executeSessionAction).not.toHaveBeenCalled();
+  expect(backend.executeSessionActionCallback).not.toHaveBeenCalled();
 });

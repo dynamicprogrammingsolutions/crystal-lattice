@@ -182,6 +182,66 @@ def test_standalone_foreground_interrupt_cancels_once_and_exits_130(
     ]
 
 
+def test_standalone_browser_opening_honors_result_condition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[str] = []
+
+    class _App:
+        def execute_action_with_metadata(
+            self,
+            _plugin: str,
+            _action_id: str,
+            params: dict,
+            **_kwargs: object,
+        ) -> SimpleNamespace:
+            method = params["method"]
+            return SimpleNamespace(
+                result={
+                    "auth_status": {
+                        "state": "authenticated",
+                        "method": method,
+                    },
+                    "display": {
+                        "actions": [
+                            {
+                                "kind": "open_url",
+                                "url": f"https://example.test/{method}",
+                            }
+                        ]
+                    },
+                }
+            )
+
+    command = {
+        "plugin": "fixture",
+        "action_id": "start",
+        "param_map": {"method": "$dialog.method"},
+        "browser": {
+            "auto_open_local": True,
+            "when": {
+                "result_path": "auth_status.method",
+                "equals": "browser",
+            },
+        },
+    }
+    monkeypatch.setattr(
+        "agent_terminal_app.__main__.is_local_interactive_output",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "agent_terminal_app.__main__.webbrowser.open",
+        lambda url: opened.append(url),
+    )
+
+    from agent_terminal_app.__main__ import _run_standalone_command_element
+
+    _run_standalone_command_element(_App(), command, {"method": "device-code"})
+    _run_standalone_command_element(_App(), command, {"method": "browser"})
+
+    assert opened == ["https://example.test/browser"]
+
+
 def test_standalone_help_never_exposes_sensitive_form_flags(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -495,7 +555,9 @@ def test_action_inventory_excludes_bare_procedures_and_orders_ui_elements(
     frontend, _app = _terminal(tmp_path)
 
     elements = frontend.action_elements()
-    assert "bare" not in {element["id"] for element in elements}
+    element_ids = {element["id"] for element in elements}
+    assert "bare" not in element_ids
+    assert "fixture_callback" not in element_ids
     assert [element["id"] for element in elements[:4]] == [
         "fixture_session",
         "fixture_session_list",
@@ -504,6 +566,24 @@ def test_action_inventory_excludes_bare_procedures_and_orders_ui_elements(
     ]
     with pytest.raises(TerminalUserError, match="no applicable action element"):
         frontend.resolve_action_element("bare")
+
+    callback = _app.execute_session_action_callback(
+        frontend.session_id,
+        "fixture_callback",
+        "crystal-lattice://action/connection/session/terminal_action_fixture/fixture_callback",
+        plugin_id="terminal_action_fixture",
+    )
+    assert callback.action_id == "bare"
+    assert _calls(_app)[0]["action_id"] == "bare"
+    with pytest.raises(
+        AgentApplication._ApplicationActionResolutionError,  # type: ignore[attr-defined]
+        match="No applicable session action callback",
+    ):
+        _app.execute_session_action_callback(
+            frontend.session_id,
+            "bare",
+            "crystal-lattice://action/connection/session/bare",
+        )
 
 
 @pytest.mark.asyncio

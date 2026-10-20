@@ -664,6 +664,16 @@ def _command_result_path(result: dict[str, Any], path: Any) -> Any:
     return current
 
 
+def _command_browser_applies(
+    browser: dict[str, Any],
+    result: dict[str, Any],
+) -> bool:
+    when = browser.get("when")
+    if not isinstance(when, dict):
+        return True
+    return _command_result_path(result, when.get("result_path")) == when.get("equals")
+
+
 def _run_standalone_command_element(
     app: Any,
     command: dict[str, Any],
@@ -696,6 +706,7 @@ def _run_standalone_command_element(
         not no_open
         and isinstance(browser, dict)
         and browser.get("auto_open_local") is True
+        and _command_browser_applies(browser, result)
         and is_local_interactive_output()
     ):
         display = result.get("display")

@@ -219,6 +219,12 @@ class TerminalActionAppPlugin:
                 "order": 30,
             },
             {
+                "ui_type": "session_action_callback",
+                "id": "fixture_callback",
+                "label": "Fixture callback",
+                "action_id": "bare",
+            },
+            {
                 "ui_type": "message_action",
                 "id": "fixture_message",
                 "label": "Fixture message action",

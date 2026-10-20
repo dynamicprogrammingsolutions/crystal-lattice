@@ -6,27 +6,49 @@ the existing provider action/credential architecture.
 
 ## Requirements checklist
 
-- [ ] Existing Codex device-code login remains supported and selectable.
-- [ ] Codex browser OAuth performs PKCE authorization, callback validation,
+- [x] Existing Codex device-code login remains supported and selectable.
+- [x] Codex browser OAuth performs PKCE authorization, callback validation,
   token exchange, refresh-compatible persistence, and account metadata
   extraction without changing the credential format consumed by OpenAI
   Responses.
-- [ ] A top-level contributed command can start one complete Codex login flow,
+- [x] A top-level contributed command can start one complete Codex login flow,
   present or open the authorization URL, report progress, wait for callback,
   and finish with a terminal result.
-- [ ] The interactive terminal can invoke the same complete flow through a
+- [x] The interactive terminal can invoke the same complete flow through a
   contributed slash command.
-- [ ] When provider policy permits, terminal browser login uses a temporary
+- [x] When provider policy permits, terminal browser login uses a temporary
   loopback callback server owned by the auth plugin and closes it after
   success, failure, cancellation, or expiry.
-- [ ] Mobile and desktop start and complete browser login through plugin
-  actions and generic deep-link routing rather than running an OAuth server or
-  exchanging tokens in frontend code.
-- [ ] Users can select among the supported Codex login methods through
-  standard action dialog controls or command arguments.
-- [ ] Callback state, PKCE verifier, authorization code, access token, refresh
+- [x] Terminal and same-host desktop/backend arrangements can complete browser
+  login through the plugin-owned loopback listener on provider-accepted port
+  `1455` or `1457`; the browser must run on the listener host.
+- [x] Device code remains a production Codex login path for mobile, remote,
+  and headless arrangements. No raw embedded WebView or public bridge callback
+  relay is introduced.
+- [x] A provider-neutral `session_action_callback` UI element is the only
+  action-deep-link exposure boundary, and generic/MCP callback consumers no
+  longer invoke bare action ids.
+- [ ] Mobile browser login uses a UI-owned one-shot localhost receiver and a
+  system authentication/browser surface, without making the embedded Python
+  runtime own the listener, requesting background execution initially, or
+  adding an Android service.
+- [ ] iOS first attempts `ASWebAuthenticationSession`; Android first attempts
+  Chrome Custom Tabs. Alternatives are gated on recorded failure evidence from
+  the corresponding primary surface.
+- [ ] Browser and device-code login are exposed as separate applicable UI
+  elements: browser uses the provider-neutral `session_browser_auth`
+  orchestration element bound to start/status/cancel and the existing
+  `session_action_callback`; device code remains an ordinary action-backed
+  `session_action` with fixed `method=device-code` and existing
+  display/notification/action behavior.
+- [ ] Mobile browser login binds `127.0.0.1` before start, advertises
+  `http://localhost:<1455|1457>/auth/callback`, forwards the callback URL
+  opaquely through named callback-element routing, returns to the app without
+  putting code/state/token data in an app link, persists/logs no callback
+  secrets, and closes cleanly.
+- [x] Callback state, PKCE verifier, authorization code, access token, refresh
   token, and account identifiers remain out of ordinary displays and logs.
-- [ ] Stale, duplicate, expired, cancelled, and superseded callbacks cannot
+- [x] Stale, duplicate, expired, cancelled, and superseded callbacks cannot
   replace current credentials.
 
 Parent Task:
@@ -44,17 +66,22 @@ capability probe on 2026-10-19.
 1. Begin with the minimal pi-compatible scopes needed by the existing OpenAI
    Responses credential consumer. Add connector scopes only if provider
    behavior proves they are required.
-2. Treat only redirects demonstrated by the approved capability probe as
-   supported. Prefer direct loopback for terminals and a direct
-   custom/universal app redirect only if the provider accepts it.
-3. Do not add an HTTPS callback relay in this task. If app redirects are
-   rejected, retain device code for unsupported remote frontend/backend
-   arrangements and return for a product decision.
+2. Treat localhost ports `1455` and `1457` and the provider-owned
+   `https://auth.openai.com/deviceauth/callback` as accepted through the
+   pre-sign-in boundary. The provider rejected both
+   `crystal-lattice://oauth/callback` and
+   `https://crystal-bridge.dynamicprogrammingsolutions.com/oauth/callback`
+   with `invalid_authorize_request`.
+3. Deliver browser OAuth for terminal and same-host desktop/backend
+   arrangements. Retain device code as the production mobile, remote, and
+   headless fallback. Do not add a raw embedded WebView or an HTTPS/public
+   bridge callback relay.
 4. Omit manual browser callback/code entry. Device code is the remote/headless
    fallback, preserving the approved bounded foreground command contract.
-5. Use public method values `browser` and `device-code`, default user-facing
-   command/dialog flows to browser, and preserve device code for an omitted
-   raw-action method during the compatibility window.
+5. The completed terminal implementation introduced public method values
+   `browser` and `device-code`, browser defaults, and raw-action compatibility.
+   The mobile planning decisions below supersede nested method selection for UI
+   exposure and require separate browser/device elements.
 6. Add one provider-neutral condition over mapped command input/result state
    so only browser OAuth may auto-open. Preserve the inherited always-print,
    local-interactive best-effort opening, and `--no-open` policy.
@@ -79,6 +106,47 @@ capability probe on 2026-10-19.
     and a model request remain a later human-assisted acceptance checkpoint
     requiring separate explicit approval. Capability-probe approval does not
     authorize them.
+12. Inspect mobile source/native APIs and use safe deterministic harnesses to
+    assess a mobile-owned localhost listener plus external/system browser
+    handoff. Do not productize it or choose a material native lifecycle design
+    unless evidence is decisive; otherwise record the unresolved decision and
+    keep production mobile on device code.
+
+## Approved mobile planning decisions
+
+The user materially reopened mobile browser login for planning after the
+initial feasibility result. These decisions supersede the prior conclusion
+that mobile browser login should remain indefinitely unproductized and the
+prior nested method-selection UI direction:
+
+1. The embedded Python runtime must not own the mobile loopback listener unless
+   a later failed native investigation proves it uniquely necessary.
+2. The first and primary browser surfaces are iOS
+   `ASWebAuthenticationSession` and Android Chrome Custom Tabs. Investigate an
+   alternative only after its platform's primary path fails with recorded
+   evidence.
+3. Do not initially request iOS background execution time or add an Android
+   foreground/background service. The initial premise is that the system
+   authentication/browser session keeps the flow viable; lifecycle evidence
+   must verify or falsify that premise.
+4. Browser and device-code login are separate UI elements. Browser requires
+   one new provider-neutral orchestration type; device code stays on the
+   existing ordinary action-backed session UI contract. Neither is a method
+   selector nested inside the other.
+5. `openAuth`-style custom/HTTPS callback handling does not solve this flow:
+   the Codex public client rejected both investigated app/public redirects.
+   The system browser surface must use the provider-accepted localhost
+   redirect and a UI-owned localhost receiver.
+6. A raw embedded WebView and a public callback relay remain excluded.
+7. Device code remains the safe production fallback throughout investigation
+   and after any rejected browser attempt.
+8. Fallback investigation is ordered: iOS may investigate
+   `SFSafariViewController` only after decisive
+   `ASWebAuthenticationSession` failure; Android may investigate service or
+   background mechanisms only after decisive Custom Tabs lifecycle failure.
+   Embedded-Python listener ownership requires still-later evidence that native
+   ownership cannot satisfy the contract and that the runtime is uniquely
+   necessary.
 
 ## Repository reassessment
 
@@ -102,6 +170,10 @@ capability probe on 2026-10-19.
 - The later approved capability probe is recorded in Implementation Notes. No
   browser launch, sign-in, callback code, token exchange, credential write,
   refresh, or hosted model request was performed.
+- Read-only AWS inspection found the live bridge host on the Ireland EC2
+  server, verified `/health` returns 200, and observed the current
+  `/oauth/callback` route returns 404. No DNS, AWS, server, deployment, or
+  infrastructure state was changed.
 
 ## Supporting details
 
@@ -154,9 +226,10 @@ capability probe on 2026-10-19.
   synchronized with the OAuth redirect allow-list. It validates state before
   exchanging the code, bounds browser login, returns a small browser response,
   and keeps device auth as the remote/headless path.
-- Codex currently requests additional connector scopes. pi does not. Neither
-  local source checkout proves which scopes and redirect variants the live
-  provider currently accepts for Crystal Lattice.
+- Codex currently requests additional connector scopes. pi does not. The
+  approved probe established only the pre-sign-in redirect boundary; it did
+  not authorize or prove hosted sign-in, callback completion, token exchange,
+  refresh, or provider requests.
 - Local OpenCode at `1c7c03332e` reinforces the foreground interaction model:
   return URL/instructions, gather automatic or code input, report progress, and
   await one terminal result. It does not justify moving provider protocol into
@@ -240,53 +313,94 @@ do not enter command output.
 
 Status: Approved
 
-Implement browser OAuth as another method of the existing ChatGPT auth action
-and foreground contract after recording the approved capability probe.
-Keep protocol work, attempts, callback validation, token exchange, credential
-persistence, and listener cleanup in `chatgpt-auth-app`; keep the command and
-frontend layers provider-neutral. Real hosted sign-in/model acceptance remains
-separately gated even though this execution plan is approved.
+Preserve the completed terminal and same-host desktop/backend browser OAuth,
+device-code flow, provider-owned PKCE/state/exchange/persistence, and generic
+`session_action_callback` implementation and evidence. Reopen only the mobile
+browser-login product surface and the UI-element split required by the new
+decisions. No mobile implementation begins until the contract and remaining
+native lifecycle decisions below are approved.
 
-### Proposed architecture
+### Preserved completed baseline
 
-Use one action family:
+- Terminal browser OAuth and same-host desktop/backend use the existing
+  plugin-owned loopback listener and one complete foreground operation.
+- Device code remains complete and independently usable.
+- `chatgpt-auth-app` owns PKCE, OAuth state, attempt identity, token exchange,
+  credential normalization/persistence, stale-write prevention, and
+  start/status/cancel procedures.
+- The applicable `session_action_callback` contract remains the sole generic
+  external callback exposure boundary. Generic and MCP consumers remain
+  element-addressed rather than bare-action-addressed.
+- The Codex public client evidence remains unchanged: localhost ports `1455`
+  and `1457` reached the pre-sign-in boundary; custom-scheme and investigated
+  public HTTPS redirects were rejected.
+- Raw embedded WebViews, public callback relays, pasted browser callbacks, and
+  frontend token exchange remain excluded.
 
-- `login_start(method, callback context...)` starts either device code or
-  browser OAuth and returns the existing safe `auth_status` envelope.
-- `check_status(login_id)` and `cancel_login(login_id)` remain the only
-  foreground continuation actions.
-- `complete_browser_login(redirect_url)` remains an ordinary callable
-  procedure in `get_actions`; it gains external callback exposure only through
-  an applicable `session_action_callback` UI element. That UI element and the
-  loopback listener reach the same private attempt finalizer.
-- `logout` remains independent.
+### Provider-neutral authentication UI contract
 
-The public CLI and slash command remain one complete foreground operation.
-Method selection is command/action input, not another command route and not a
-sequence of status commands. The existing generic foreground controller
-starts once, renders the initial result, optionally opens the URL under the
-approved browser policy, polls status, maps interruption to attempt-scoped
-cancellation, and exits only on a terminal state.
+Introduce only one new provider-neutral UI element type, working name
+`session_browser_auth`. Existing UI contracts are sufficient for device code;
+do not introduce `session_device_code_auth` unless later implementation
+evidence proves that an ordinary action-backed session element cannot satisfy
+the requirements.
 
-For terminal browser login, the plugin generates state and PKCE, binds the
-accepted loopback listener before exposing the authorization URL, and records
-the exact redirect URI used for exchange. The listener accepts only the
-callback path and expected method/host/port, validates provider error or
-constant-time state match, consumes one authorization code, exchanges it, and
-closes on success, failure, cancellation, expiry, plugin close, or start
-failure. It must not send a cancellation request to an unknown process
-occupying a preferred port. If no provider-accepted port is available, the
-attempt fails safely and recommends device code.
+`session_browser_auth` is a dedicated browser workflow declaration. It binds:
 
-For app browser login, the session action supplies generic connection and
-session context. If and only if the provider accepts a custom/universal
-redirect, the plugin constructs an explicit
-`chatgpt_auth.chatgpt_browser_oauth_callback` callback-element link. The OS
-returns that link to the frontend; a generic router resolves the named
-connection and session and asks the backend to invoke that applicable callback
-element. The frontend never sees the verifier, exchanges a token, or persists
-credentials. If an HTTPS relay is required, stop and create an approved
-security/deployment design before implementing it.
+- a start action and its static parameters/mappings;
+- a status action, attempt-id mapping, pending/success/failure/cancelled/expired
+  states, and bounded polling;
+- an attempt-scoped cancel action;
+- one existing applicable `session_action_callback` element;
+- one UI-owned loopback receiver declaration;
+- one platform system-authentication/browser presentation.
+
+The receiver declaration is provider-neutral and includes:
+
+```python
+{
+    "owner": "ui",
+    "bind_host": "127.0.0.1",
+    "advertised_host": "localhost",
+    "ports": [1455, 1457],
+    "path": "/auth/callback",
+    "bind_before_start": True,
+    "redirect_uri_param": "redirect_uri",
+    "one_shot": True,
+}
+```
+
+The UI must bind one accepted port before calling the start action, construct
+the exact `http://localhost:<bound-port>/auth/callback` URI, and map that URI
+into `login_start`. Start creates the plugin-owned PKCE/state attempt and
+returns the authorization URL. The UI presents the URL through
+`ASWebAuthenticationSession` on iOS or Chrome Custom Tabs on Android. The
+one-shot receiver captures the complete callback URL as an opaque string and
+forwards it to the declared callback element for the named connection and
+session. The backend callback action validates state/attempt/expiry and owns
+exchange and persistence.
+
+UI cancellation invokes the attempt-scoped cancel action once and then closes
+the browser surface and receiver. Start failure, browser presentation failure,
+successful forwarding, backend failure, expiry, app teardown, and port setup
+failure all close the receiver. A callback accepted after closure cannot
+recreate or complete the attempt.
+
+Device code remains a separate ordinary `session_action` bound to
+`login_start` with `fixed_params: {"method": "device-code"}`. It uses existing
+action result displays, notifications, follow-ups, status checks, and
+cancellation actions. It has no loopback receiver or browser callback binding.
+Frontends render the ordinary device-code action separately from the browser
+orchestration element; neither presents a nested method selector.
+
+The completed public terminal grammar is preserved exactly:
+
+```text
+crystal-lattice auth login codex --method browser|device-code
+/login codex method=browser|device-code
+```
+
+This mobile UI split leaves the completed command grammar unchanged.
 
 ### Provider-neutral callback UI contract
 
@@ -338,6 +452,10 @@ For Codex, the declaration is conceptually:
 }
 ```
 
+The browser-auth element references this callback element by plugin and
+element id. The receiver and system browser never call
+`complete_browser_login` as a bare procedure.
+
 `session_action_callback` is excluded from session menus, toolbars, command
 catalogs, and `/action` because those consumers enumerate their own explicit UI
 types and do not include this type. Do not add `hidden`, `discoverable: false`,
@@ -350,9 +468,11 @@ declaration so compatibility tests prove there is no raw-action fallback.
 Represent both methods with one attempt record containing a generated
 `login_id`, method, state, start/expiry times, cancellation signal, terminal
 outcome, and method-owned cleanup handles. Browser-only private fields include
-the PKCE verifier, expected OAuth state, exact redirect URI, and listener
-handle. Device-only private fields remain the current device auth id/code and
-polling interval.
+the PKCE verifier, expected OAuth state, and exact redirect URI. Terminal and
+same-host flows may retain the existing plugin-owned listener handle. Mobile
+instead keeps the receiver handle and opaque UI flow id in UI/native memory;
+the embedded Python runtime does not own them. Device-only private fields
+remain the current device auth id/code and polling interval.
 
 Only the active pending attempt may exchange or commit. Cancellation marks the
 attempt terminal before stopping workers/listeners. A callback must match the
@@ -366,94 +486,127 @@ keys and path. Extract account id/email/plan from reviewed token claims for
 backend use, preserve refresh compatibility, and atomically replace the file
 only after all validation succeeds. Do not place state, verifier, code, tokens,
 or account identifiers in action status, browser response, errors, events,
-logs, diagnostics, notifications, or frontend pending metadata. The
-authorization URL exception remains subject to approval because it necessarily
-embeds state.
+logs, diagnostics, notifications, or frontend pending metadata. The complete
+authorization URL remains the approved sole state-bearing display exception.
 
-### Method selection and browser presentation
+### Separate login elements and browser presentation
 
-Subject to approval, expose:
+Remove method selection from visible action dialogs. Browser and device code
+have separate labels, applicability, disabled reasons, commands, accessibility
+identifiers, progress, cancellation, and acceptance evidence. Browser uses
+`session_browser_auth`; device code uses an ordinary `session_action` with
+fixed `method=device-code`. They may bind the same provider procedures, but
+one UI element never asks the user to choose the other method.
 
-```text
-crystal-lattice auth login codex [--method browser|device-code] [--no-open]
-/login codex [method=browser|device-code] [--no-open]
-```
+The completed terminal command and slash grammar remains unchanged. Browser
+commands continue to print a copyable URL and may best-effort open it with
+`--no-open` support. Device-code commands never auto-open. Mobile browser
+presentation is native and platform-specific:
 
-Use the same select input in the standard session action dialog. The proposed
-user-facing default is browser, matching pi/Codex, while an omitted `method` on
-the raw action retains device code for compatibility with existing action
-callers. Device code remains selectable everywhere it is currently supported.
+- iOS: `ASWebAuthenticationSession` is the first attempted surface.
+- Android: Chrome Custom Tabs is the first attempted surface.
 
-Always render a copyable browser authorization URL. Adopt the dependency's
-approved best-effort auto-open behavior only for a local interactive browser
-method and preserve `--no-open`; device-code URLs never auto-open. Because
-browser metadata is currently static, implement and document the smallest
-approved generic conditional extension. Browser-open failure remains
-non-terminal because the printed URL is authoritative.
+These are system authentication/browser surfaces, not raw embedded WebViews.
+An `openAuth` helper that waits for a custom scheme or public HTTPS callback
+does not solve this provider constraint because those redirects were rejected.
+The primary surfaces are used with the accepted localhost redirect and the
+UI-owned receiver.
 
 ### Frontend routing
 
-Keep parsing and execution generic. Move or generalize the mobile-local action
-link handler into the frontend SDK so mobile and desktop share callback-element
-parsing, target routing, and response handling. The frontend must invoke the
-callback-element endpoint/request shape rather than
-`executeSessionAction(actionId)`. Register the existing custom scheme in
-desktop native configuration and bridge cold-start and live URL events into
-the production root.
+Keep callback forwarding provider-neutral and opaque. The UI flow record,
+stored only in bounded memory, contains an opaque flow id, named connection,
+session, callback plugin/element, bound listener address, expiry, and
+cancellation handle. It never stores parsed code/state/token values.
 
-Route against the named connection and session, never the currently focused
-connection by substitution. Execute immediately when that named backend is
-open. Under the proposed policy, retain a bounded, memory-only pending callback
-for a known but closed connection, prompt the user to open it, expire it with
-the provider attempt, and never navigate or focus automatically. Unknown
-connections fail without dispatch. Do not write callback URLs or codes to
-saved connection state, debug timelines, analytics, crash breadcrumbs, or
-ordinary alerts.
+After the local receiver accepts one request:
 
-Present the safe callback action result through each frontend's existing
-action-display machinery. Refresh affected action/auth state without embedding
-Codex-specific logic in React Native. Add stable test identifiers only to
-production controls used by native verification.
+1. Stop accepting additional callbacks and preserve the complete URL only in
+   the live forwarding operation.
+2. Invoke the applicable callback element against the named backend/session;
+   never substitute the focused connection.
+3. If a bridge disconnects, retain the opaque callback only in bounded memory
+   until reconnect or expiry. Process death loses it and the flow fails safely;
+   no callback secret is persisted for recovery.
+4. Render only the backend's safe terminal result and retire the flow.
+5. Close the receiver and browser session on every terminal outcome.
+
+For Android, the local completion response should return from the Custom Tab
+to Crystal Lattice using an app deep link containing only the opaque flow id,
+for example `crystal-lattice://auth-return/<flow-id>`. Code, state, callback
+URL, access token, and refresh token never enter that app link. The flow id
+resolves only an in-memory record and is useless after completion/expiry.
+
+For iOS, investigate whether `ASWebAuthenticationSession` can finish from the
+localhost response directly or requires the same secret-free flow-id return.
+Do not assume either behavior; record simulator and physical-device evidence.
+
+### Mobile system-browser and listener investigation
+
+Build the first deterministic native harness around a UI/native-owned one-shot
+receiver, not embedded Python:
+
+1. Bind `127.0.0.1:1455`; fall back to `:1457`; fail visibly if both are busy.
+2. Advertise `localhost` and `/auth/callback` exactly.
+3. Start a local deterministic OAuth fixture that can emulate normal,
+   delayed-MFA, denial, malformed, duplicate, and late callbacks.
+4. Bind before invoking the plugin start action and assert the chosen redirect
+   URI is mapped into `login_start`.
+5. Present through `ASWebAuthenticationSession` or Custom Tabs.
+6. Capture and forward the callback URL opaquely to the applicable backend
+   callback element.
+7. Return to the app, display only safe status, and release all native/JS
+   resources.
+
+The initial implementation plan must not call iOS
+`beginBackgroundTask`, declare a new iOS background mode, or add an Android
+service. Tests first verify the premise that the system auth/browser session
+and UI/native listener remain viable. A failure caused by suspension,
+termination, or browser-surface behavior is decisive only when reproduced on a
+physical device with timestamps and lifecycle evidence.
 
 ### Ordered implementation
 
-1. After receiving capability-probe approval, issue only the reviewed
-   pre-sign-in authorize requests needed to observe redirect/scope validation.
-   Record accepted/rejected loopback hosts/ports, custom app URI, and universal
-   link behavior, plus anything the provider does not reveal before sign-in.
-   Do not authenticate, receive a callback code, exchange tokens, write
-   credentials, test refresh, or make a model request under this approval.
-2. Resolve all redirect, default-method, manual fallback, browser condition,
-   pending callback, and security questions. If cross-device app redirect is
-   impossible without a relay, return for the approved product decision
-   instead of implementing a relay or weakening the frontend requirement.
-3. Add and validate the provider-neutral `session_action_callback` element,
-   callback context mappings, authoritative applicable-element resolution, and
-   generic frontend/backend invocation path. Migrate the generic callback and
-   MCP consumers; prove bare action ids are no longer deep-link callable and
-   that the new type stays out of ordinary menus and `/action`.
-4. Refactor `chatgpt-auth-app` attempt handling just enough to share lifecycle,
-   active-attempt guards, cleanup, normalization, persistence, and safe status
-   rendering across device and browser methods. Preserve current device
-   endpoint and polling behavior.
-5. Add PKCE generation, authorization URL construction, strict callback
-   parsing, form-encoded token exchange, account metadata extraction, and
-   attempt-scoped loopback handling. Add `close(state)` cleanup.
-6. Bind the browser completion procedure to the applicable callback UI element,
-   add method input, and update the existing CLI, slash, and visible
-   session-action elements. Extend generic browser metadata only for the
-   approved method-conditional opening behavior.
-7. Implement the approved generic mobile/desktop routing and pending behavior,
-   including desktop native URL delivery, without frontend token logic or
-   implicit navigation.
-8. Add deterministic protocol, lifecycle, command, HTTP/backend, frontend,
-   native routing, credential-consumer, refresh, and redaction evidence.
-9. Update maintained user/developer documentation only for behavior that is
-   implemented and verified.
-10. Only after separate real-acceptance approval, run browser and device-code
-    sign-ins, exercise live token/refresh behavior, and make one OpenAI
-    Responses request. Remove isolated credentials and record non-secret
-    evidence. Capability-probe approval does not authorize this step.
+1. Approve the exact `session_browser_auth` schema, nested receiver contract,
+   native receiver API, and process-death semantics. The existing CLI/slash
+   grammar is fixed and is not an approval question.
+2. Add generic validation and discovery only for
+   `session_browser_auth`. Validate every start/status/cancel/callback binding
+   before start and prove it is excluded from `/action` by explicit UI-type
+   semantics.
+3. Update `chatgpt-auth-app` UI declarations to contribute one browser
+   orchestration element and one separate ordinary device-code
+   `session_action` with fixed `method=device-code`. Preserve completed
+   procedures, credentials, terminal grammar/behavior, and
+   `session_action_callback`.
+4. Add an iOS test-native one-shot receiver and
+   `ASWebAuthenticationSession` harness. Do not use embedded Python or request
+   background time.
+5. Run iOS simulator evidence, then physical-device evidence for the complete
+   scenario matrix. If the primary path fails, classify the cause before
+   changing architecture.
+6. Only after recorded `ASWebAuthenticationSession` failure attributable to
+   the browser surface, investigate `SFSafariViewController`. If failure is
+   listener suspension/lifecycle instead, stop for a lifecycle decision rather
+   than switching browser surfaces.
+7. Add an Android test-native one-shot receiver, Chrome Custom Tabs harness,
+   and secret-free opaque-flow-id completion response. Do not add a service.
+8. Run Android emulator evidence, then physical-device evidence for the
+   complete scenario matrix. If Custom Tabs cannot preserve the listener,
+   record that failure and stop before considering a service/background
+   mechanism.
+9. Verify callback forwarding through direct and bridge-backed named
+   connections using the production callback-element adapter, with disconnect,
+   reconnect, expiry, and process-death behavior.
+10. If either platform's native listener remains inconclusive or fails, retain
+    device code and request approval for the next ordered fallback. Investigate
+    embedded-Python ownership only after native approaches fail and evidence
+    shows it is uniquely necessary.
+11. Update maintained docs and requirement evidence only for behavior that was
+    implemented and physically verified. Keep target-only browser claims
+    marked not implemented until then.
+12. Real OpenAI acceptance remains separately gated; deterministic fixtures
+    precede any request for hosted sign-in approval.
 
 ### Human-assisted hosted-acceptance checkpoints
 
@@ -465,79 +618,86 @@ the capability-probe turn.
   consent, and MFA when requested. The provider returns automatically to the
   loopback callback, and the command completes without any pasted redirect URL
   or authorization code.
-- Mobile hosted browser acceptance is conditional on the provider accepting a
-  Crystal Lattice custom or universal redirect. A human starts browser login
-  from the production session action and completes provider sign-in, consent,
-  and MFA. The OS reopens the app; generic routing selects the named
-  connection, session, and `session_action_callback` element; the backend owns
-  callback validation, token exchange, and credential storage.
-- If the provider rejects the app redirect, do not claim mobile browser
-  acceptance and do not add a callback relay. Keep device code available,
-  record the unsupported browser arrangement, and return for a product
-  decision.
+- Mobile hosted browser acceptance remains incomplete. It requires the
+  physically verified UI-owned localhost flow described above, human
+  sign-in/consent/MFA in the primary system browser surface, automatic
+  localhost callback, opaque callback-element forwarding, safe app return, and
+  backend-owned exchange/storage. A custom/HTTPS redirect or `openAuth`
+  callback is not an acceptance substitute.
 
 ### Implementation decisions and open questions
 
-- Approved: browser and device code are methods of one provider auth
-  plugin, use one complete action-backed foreground operation, and produce the
-  existing OpenAI Responses credential format.
-- Approved: protocol logic, callback listeners, PKCE, state, token
-  exchange, refresh-compatible persistence, cancellation, and cleanup remain
-  provider-plugin responsibilities. Terminal and frontend adapters execute
-  actions and render results only.
-- Approved: actions remain callable procedures; external callback
-  invocation is authorized only by a currently applicable action-backed UI
-  element and uses the existing action execution boundary.
-- Approved: terminal interruption requests attempt-scoped
-  cancellation with bounded cleanup; standalone exits 130 and interactive
-  terminal restores the prompt. Ordinary prompt entry is unavailable while
-  the foreground slash command is active.
-- Approved: use minimal pi-compatible browser scopes/flags initially and
-  finalize redirect support from the bounded capability evidence. Connector
-  scopes require evidence that they are necessary.
-- Approved: no callback relay or manual pasted callback. Device code remains
-  the unsupported-remote/headless fallback, and rejected app redirects return
-  for a product decision.
-- Approved: public method names/defaults, raw-action compatibility behavior,
-  and the provider-neutral method condition for browser opening described
-  above.
-- Approved: the `session_action_callback` contract, element-id route
-  semantics, explicit callback mappings, and removal of raw action-id
-  deep-link invocation.
-- Approved: one-shot callback claiming and the proposed
-  no-auto-supersede behavior: a repeated start returns the current pending
-  attempt, while cancel-then-start makes the prior callback stale.
-- Approved: generic frontend target/pending semantics, including
-  memory-only bounded retention, no implicit connection opening, and no focus
-  or navigation changes.
-- Approved: authorization URL as the sole state-bearing display
-  exception and omission of account id/email from ordinary results.
-- Approved for this turn: the limited pre-sign-in capability probe using the
-  three reviewed redirect candidates and no credentials.
-- Still separately gated: human-assisted browser/device sign-ins,
-  token/refresh verification, credential writes, and the subsequent model
-  request.
+- Fixed: terminal/same-host browser OAuth, device code, provider-owned
+  PKCE/state/exchange/persistence, and the applicable
+  `session_action_callback` remain completed.
+- Fixed: the mobile listener is UI/native-owned. Embedded Python is excluded
+  unless later native failure evidence proves it uniquely necessary.
+- Fixed: the primary surfaces are `ASWebAuthenticationSession` and Chrome
+  Custom Tabs. A raw embedded WebView and public relay remain out of scope.
+- Fixed: no iOS background task or Android service is added initially.
+- Fixed: browser and device code are separate UI elements. Only browser gets a
+  new orchestration type; device code remains an ordinary action-backed
+  `session_action` with fixed `method=device-code`.
+- Fixed: preserve the public terminal grammar exactly as
+  `crystal-lattice auth login codex --method browser|device-code` and
+  `/login codex method=browser|device-code`.
+- Fixed: mobile browser uses localhost `1455`/`1457` and `/auth/callback`;
+  rejected custom/HTTPS redirect handling is not retried under another helper.
+- Fixed: Android app return carries only an opaque flow id. No OAuth callback
+  secret enters an app deep link.
+- Fixed: device code remains available before, during, and after browser
+  investigation.
+- Open: should the receiver contract live directly on
+  `session_browser_auth` or in a reusable nested capability object?
+  - Recommendation: keep one `session_browser_auth` type with a nested
+    `loopback_receiver` object. Do not add a second auth orchestration type
+    unless ordinary device-code action evidence later proves insufficient.
+- Open: should iOS set `prefersEphemeralWebBrowserSession`?
+  - Recommendation: default to the ordinary shared authentication session so
+    account/MFA behavior matches user expectations; test ephemeral mode only
+    if provider/session behavior requires it.
+- Open: which native listener primitive should own the one-shot HTTP receiver?
+  - Recommendation: choose the smallest maintained platform-native primitive
+    that can bind loopback, reject non-loopback traffic, enforce one request,
+    and expose explicit close/cancel; do not introduce a general embedded web
+    server.
+- Open: how should process death be presented when callback secrets cannot be
+  persisted?
+  - Recommendation: fail the browser attempt safely, retire the opaque flow
+    id, and offer restart plus device code. Do not persist callback URLs.
+- Open: how long may an opaque callback remain in memory while a bridge
+  reconnects?
+  - Recommendation: never beyond the provider attempt expiry, with one bounded
+    item per flow and explicit cancellation on connection removal.
+- Open: can `ASWebAuthenticationSession` close directly after the localhost
+  response, or must the response issue a secret-free flow-id app return?
+  - Recommendation: test direct completion first; use the same opaque flow-id
+    return pattern as Android only if physical-device evidence requires it.
+- Open: what failure threshold unlocks a fallback?
+  - Recommendation: require reproducible physical-device failure with native
+    timestamps, lifecycle state, listener state, and a passing deterministic
+    control before opening the next fallback gate.
+- Remaining hosted acceptance work: verify reload and refresh from the
+  isolated browser credential and make the approved minimal model request.
+  Human browser sign-in and the existing device-code flow have been confirmed.
 
 ### Documentation
 
-- Update `plugins/chatgpt-auth-app/README.md` with supported methods, exact
-  command/action syntax, defaults, loopback/app redirect limitations,
-  cancellation, expiry, port conflicts, browser-open behavior, and any approved
-  manual fallback.
-- Update the terminal guide for method arguments, `--no-open`, foreground
-  waiting, Ctrl-C, and safe failure behavior. Update command/UI-element docs
-  only if the generic browser metadata contract changes.
-- Update UI-element, action, HTTP, and frontend SDK deep-link documentation
-  with `session_action_callback`, element-id routing, callback mappings,
-  applicability/disabled checks, explicit menu and `/action` exclusion,
-  target validation, pending lifetime, no-navigation behavior, and sensitive
-  callback handling.
-- Update mobile and desktop user/development docs for supported incoming-link
-  behavior and platform registration. Do not describe a relay or redirect mode
-  that was not provider-verified and delivered.
-- Preserve the OpenAI Responses credential/refresh documentation unless a
-  factual clarification is needed; browser login must not create a second
-  credential format.
+- Preserve maintained terminal, same-host desktop, callback-element,
+  credential, and device-code documentation.
+- Update plugin-author UI docs with the single new
+  `session_browser_auth` schema, bind-before-start receiver contract,
+  callback-element reference, opaque forwarding, fallback gates, and the
+  separate ordinary device-code `session_action` pattern.
+- Document mobile browser login as target-only until physical-device evidence
+  passes. Clearly distinguish `ASWebAuthenticationSession` and Custom Tabs
+  from raw WebViews.
+- Document that `openAuth`-style custom/HTTPS callbacks remain unsuitable for
+  this provider and that localhost is the actual OAuth redirect.
+- Document the Android secret-free opaque-flow-id app return and the
+  no-persistence/process-death behavior.
+- Document platform evidence and any opened fallback gate alongside the code
+  that makes it true; do not publish aspirational browser support as current.
 
 ### Task checklist
 
@@ -550,22 +710,48 @@ the capability-probe turn.
 - [x] Obtain the distinct limited capability-probe approval.
 - [x] Perform only the reviewed pre-sign-in capability requests and record
   redacted classifications.
-- [ ] Add the approved applicable callback UI contract and migrate existing
+- [x] Add the approved applicable callback UI contract and migrate existing
   generic callback consumers without a raw-action fallback.
-- [ ] Define the unified private attempt model and safe public status shape.
-- [ ] Add browser PKCE, authorization, callback validation, token exchange,
+- [x] Complete and record the bounded mobile-local loopback feasibility
+  checkpoint without productizing an inconclusive native lifecycle design.
+- [x] Define the unified private attempt model and safe public status shape.
+- [x] Add browser PKCE, authorization, callback validation, token exchange,
   credential normalization, and lifecycle cleanup.
-- [ ] Preserve and regression-test the existing device-code flow.
-- [ ] Add approved method selection and method-conditional browser
+- [x] Preserve and regression-test the existing device-code flow.
+- [x] Add approved method selection and method-conditional browser
   presentation to the existing complete command/action flow.
-- [ ] Bind browser completion through the applicable callback UI element and
-  add approved generic mobile/desktop routing.
-- [ ] Add decisive protocol, command, frontend, lifecycle, security,
+- [x] Bind browser completion through the applicable callback UI element and
+  add approved generic callback routing while keeping production mobile on
+  device code.
+- [x] Add decisive protocol, command, frontend, lifecycle, security,
   credential-consumer, and refresh evidence.
-- [ ] Update maintained documentation.
-- [ ] Obtain separate real-acceptance approval and only then run hosted sign-in,
-  token/refresh, and model-request acceptance.
-- [ ] Record requirement evidence before marking any requirement complete.
+- [x] Update maintained documentation.
+- [ ] Approve the materially amended `session_browser_auth` receiver contract,
+  listener primitive criteria, process-death semantics, and failure thresholds.
+- [ ] Split mobile presentation into one browser orchestration element and one
+  ordinary device-code `session_action` with fixed `method=device-code`,
+  without changing completed CLI/slash grammar or behavior.
+- [ ] Build and verify the iOS `ASWebAuthenticationSession` plus UI-owned
+  one-shot localhost harness without background execution time.
+- [ ] Run the full iOS simulator and physical-device lifecycle/security matrix;
+  open the `SFSafariViewController` gate only after qualifying primary failure.
+- [ ] Build and verify the Android Custom Tabs plus UI-owned one-shot localhost
+  harness with secret-free opaque-flow-id app return and no service.
+- [ ] Run the full Android emulator and physical-device lifecycle/security
+  matrix; open the service/background gate only after qualifying primary
+  failure.
+- [ ] Verify direct and bridge callback forwarding, disconnect/reconnect,
+  process-death failure, secret non-persistence, and app return on production
+  adapters.
+- [ ] Update maintained mobile/plugin UI documentation only for physically
+  verified current behavior.
+- [x] Obtain separate real-acceptance approval and complete the human browser
+  sign-in; retain the user's confirmation that the existing device-code flow
+  still works.
+- [ ] Complete isolated credential reload, refresh, and model-request
+  acceptance.
+- [x] Record deterministic requirement evidence before marking non-hosted
+  requirements complete.
 
 ### Requirement verification
 
@@ -589,23 +775,55 @@ the capability-probe turn.
   malformed callback, wrong state/path/method/host, timeout, cancellation,
   token-exchange failure, port conflict, plugin close, and start failure. Each
   case proves the listener is closed and a later attempt can bind and finish.
-- Frontend action routing: one mobile and one desktop real-backend integration
-  must start from the production session action, open the returned URL,
-  deliver an OS-style callback to the production generic router, cross
-  `RestAgentBackend` and the public HTTP callback-element invocation path,
-  re-resolve the applicable `session_action_callback`, and finish in
-  `chatgpt_auth`. Native iOS/Android and macOS focused tests must prove cold and
-  live URL delivery where those platforms claim support; mocked per-side tests
-  alone are not decisive.
+- Frontend callback routing: generic/MCP mobile and desktop real-backend
+  integrations must deliver an OS-style callback to the production generic
+  router, cross `RestAgentBackend` and the public HTTP callback-element
+  invocation path, and re-resolve the applicable
+  `session_action_callback`. Codex browser acceptance is not inferred from
+  those tests; same-host desktop Codex uses the plugin loopback listener and
+  production mobile uses device code.
 - Callback exposure boundary: generic callback and MCP production-path tests
   prove callback links target UI element ids, only declared callback mappings
   become action inputs, conditions/disabled state are authoritative at
   invocation, omitted-plugin ambiguity is rejected, and bare or inapplicable
   action ids cannot execute. Inventory tests prove callback elements are
   absent from session menus, command catalogs, and `/action`.
-- Method controls: production component tests for mobile and desktop and
-  terminal parser tests prove both choices, labels, defaults, cancellation
-  before start, CLI `--method`, slash `method=`, and `--no-open`.
+- Separate auth elements: schema, inventory, component, and native UI tests
+  prove browser orchestration and the ordinary device-code action are
+  independent applicable elements with separate labels, accessibility ids,
+  bindings, disabled states, cancellation, and no nested method selector.
+  Inventory tests prove only browser introduces a new UI type and device code
+  remains `session_action` with fixed `method=device-code`.
+- Terminal compatibility: public subprocess and interactive tests preserve
+  exactly `crystal-lattice auth login codex --method browser|device-code` and
+  `/login codex method=browser|device-code`; the mobile split adds no alternate
+  command grammar.
+- iOS primary path: simulator and physical-device tests use the production
+  `ASWebAuthenticationSession` adapter and UI-owned receiver. Evidence covers
+  normal completion, provider denial, MFA delays long enough to exercise
+  backgrounding, user cancellation, Home/background/foreground transitions,
+  screen lock/unlock, interruption by another auth session, app process
+  termination/relaunch, port `1455` conflict with `1457` fallback, both ports
+  unavailable, duplicate/late callbacks, and return to the app.
+- Android primary path: emulator and physical-device tests use production
+  Custom Tabs and the UI-owned receiver. Run the same lifecycle matrix plus
+  back-button/tab dismissal, activity recreation, task switching, and the
+  local completion response that deep-links back with only an opaque flow id.
+- Callback forwarding: direct and real bridge-backed tests route the opaque
+  callback URL to the named connection/session/callback element. Cover bridge
+  disconnect before callback, callback while disconnected, reconnect before
+  expiry, expiry before reconnect, connection removal, duplicate delivery, and
+  wrong-connection rejection.
+- Secret non-persistence: canary code/state/token/callback values are absent
+  from app deep links, intents, universal-link state, AsyncStorage, UserDefaults,
+  Android preferences/saved state, logs, diagnostics, analytics, crash
+  breadcrumbs, notifications, screenshots/accessibility labels, and persisted
+  pending-flow records. Native memory is released on every terminal outcome.
+- Lifecycle premise: tests explicitly report whether the listener remained
+  reachable without iOS background time or an Android service. Simulator or
+  emulator success alone is insufficient. A physical-device failure with a
+  passing foreground control and native timestamps is required to falsify the
+  premise and unlock a fallback gate.
 - Sensitive-data boundary: seeded canaries for state, verifier, code, access
   token, refresh token, account id, and account email must be absent from
   captured terminal output other than the approved complete authorization-URL
@@ -639,6 +857,17 @@ the capability-probe turn.
   references, plaintext callback persistence, unbounded pending queues,
   duplicate credential writers, and browser-opening branches outside the
   generic terminal/frontend presentation layers.
+- Inspect native dependency and binary configuration to prove the first
+  implementation adds neither an iOS background mode/background-task request
+  nor an Android service/foreground-service permission.
+- Prove the primary adapters use `ASWebAuthenticationSession` and Custom Tabs,
+  not a raw embedded WebView. Treat an `openAuth` helper as acceptable only if
+  it is a thin adapter over the required system surface and still uses the
+  localhost receiver rather than a rejected custom/HTTPS OAuth redirect.
+- Keep a fallback decision record per platform containing the failing
+  production scenario, physical device/OS, timestamps, listener/browser/app
+  lifecycle state, deterministic control result, and why the next fallback
+  addresses that exact failure. No evidence record means no fallback work.
 
 ## Implementation Notes
 
@@ -660,13 +889,115 @@ the capability-probe turn.
   fresh isolated requests returned HTTP 400 JSON with non-secret classification
   `invalid_request_error` / `invalid_authorize_request` and no redirect. No
   custom-scheme browser acceptance may be claimed from this candidate.
-- No HTTPS universal-link candidate was authorized or probed, so universal-link
-  behavior remains unverified. Mobile hosted browser acceptance therefore
-  remains conditional on a separately demonstrated provider-accepted app
-  redirect. Do not add a relay; retain device code and return for a product
-  decision if no acceptable app redirect is available.
+- Follow-up pre-sign-in evidence recorded after the HTTPS/AWS investigation:
+  the provider-owned
+  `https://auth.openai.com/deviceauth/callback` reached the accepted
+  pre-sign-in boundary, while
+  `https://crystal-bridge.dynamicprogrammingsolutions.com/oauth/callback`
+  returned `invalid_authorize_request`. This rejects the investigated public
+  bridge callback candidate and does not authorize a relay.
+- Read-only AWS inspection found the live bridge host on the Ireland EC2
+  server. Its `/health` route returned HTTP 200 and its current
+  `/oauth/callback` route returned HTTP 404. No DNS, AWS, EC2, bridge service,
+  deployment, server, or other infrastructure state was changed.
+- The approved product scope is therefore loopback browser OAuth for terminal
+  and same-host desktop/backend arrangements, with device code retained for
+  production mobile, remote, and headless use. Do not claim mobile browser
+  acceptance, add a raw embedded WebView, or add a public callback relay.
 - The probe did not open a browser, authenticate, request consent or MFA,
   receive an authorization code, contact the token endpoint, write or read
   credentials, test refresh, or make a model request. Only the redacted
   classifications, HTTP status classes, and redacted response location/error
   categories above were retained.
+- 2026-10-19: Implemented the approved non-hosted product scope. The ChatGPT
+  auth plugin now shares one attempt lifecycle across browser and device-code
+  methods, generates PKCE/state, binds strict loopback callbacks on `1455`
+  then `1457`, validates host/path/state and one-shot ownership, performs
+  form-encoded exchange, normalizes the existing refresh-compatible credential
+  file, and closes workers/listeners on success, failure, cancellation,
+  expiry, and application close. No hosted OpenAI flow had been executed at
+  the time of this implementation checkpoint.
+- Command and action adoption now provides `browser` / `device-code`
+  selection, browser-only conditional opening, `--no-open`, complete
+  CLI/slash foreground waiting, and a device-code default on visible session
+  actions. The embedded iOS runtime sets `browser_login_enabled: false`, so
+  production mobile exposes device code only.
+- Added the provider-neutral `session_action_callback` boundary. Deep links
+  target applicable callback element ids; the backend reloads authoritative
+  session UI, enforces condition/disabled state, maps only declared
+  `$callback.*` fields, and executes through the existing action boundary.
+  Frontends route the original callback as an opaque URL. Generic callback and
+  MCP consumers were migrated with no bare action-id fallback.
+- Mobile-local loopback feasibility remains inconclusive and was not
+  productized. Foreground-only deterministic harnesses proved that both
+  `127.0.0.1:1455` and `:1457` can bind, capture one opaque callback in memory,
+  and clean up. Existing production routing proves callback-element forwarding
+  over generic HTTP paths, including bridge transports. However, iOS provides
+  only the existing finite background task tied to an active embedded request,
+  has no durable OAuth-listener background mode, and explicitly does not
+  guarantee background duration. Android has no embedded listener/service
+  counterpart. Existing native tests prove only a short bounded background
+  tool request, not external-browser sign-in/MFA survival or a secret-free
+  automatic return. A production mobile listener therefore requires a later
+  material lifecycle decision; device code remains the supported mobile path.
+- Maintained docs now distinguish same-host browser login from production
+  mobile/remote/headless device code, document callback-element authorization
+  and opaque frontend routing, and explicitly exclude a raw WebView and public
+  callback relay.
+- Deterministic verification passed:
+  - ChatGPT auth package excluding manual integration: 23 passed, 2 deselected.
+  - Combined core application-plugin plus application callback/terminal slice:
+    59 passed.
+  - OpenAI Responses ChatGPT auth and refresh recovery: 16 passed.
+  - Generic callback and MCP runtime plugin packages: 24 passed.
+  - Embedded mobile runtime/configuration slice: 16 passed, 9 deselected.
+  - Frontend SDK parser/router/backend units: 15 passed.
+  - Frontend SDK generic callback real-backend integration: 1 passed across
+    the public HTTP callback-element route.
+  - Ruff, targeted Black checks for plugin/test/server files, Python
+    compilation, JSON parsing, and `git diff --check` passed. The large
+    pre-existing core/terminal modules retain their existing formatting to
+    avoid unrelated churn.
+- Supplementary MCP real-backend verification reached backend startup after
+  increasing its dynamic-install budget, completed one token exchange in each
+  test, and then failed the unchanged downstream reconnect assertion because
+  no MCP Authorization header was observed. The callback-element and existing
+  manual-form paths failed identically after the hermetic environment resolved
+  the latest unpinned MCP dependency, while the owning 20-test MCP Python suite
+  passed. This is recorded as incomplete environment/dependency evidence, not
+  weakened into a passing test.
+- Mobile Jest and TypeScript commands could not run because this worktree has
+  no local `jest` or `tsc` executable. Frontend SDK Vitest was run using the
+  sibling dependency tree only as a module resolver; no dependencies or
+  lockfiles were installed or changed in this worktree.
+- Targeted Pyright still reports the repository's established strict-typing
+  and duplicate-route baseline across the large application modules. The new
+  callback endpoint's redirect input was narrowed explicitly; Ruff and runtime
+  tests are green.
+- 2026-10-19: The separately approved human-assisted browser flow completed
+  successfully against OpenAI in an isolated local config. The resulting
+  credential file was present with owner-only permissions and the expected
+  credential-field contract; no secret values were printed or recorded. The
+  user also confirmed the existing device-code flow still works as before.
+  Credential reload, refresh, and the minimal model request remain incomplete.
+- 2026-10-19: Mobile browser login was reopened for planning. The prior
+  foreground-only listener result remains valid evidence but no longer closes
+  the requirement. The next investigation uses a UI/native-owned one-shot
+  listener with `ASWebAuthenticationSession` and Chrome Custom Tabs as the
+  mandatory primary surfaces.
+- The revised plan deliberately requests no initial iOS background execution
+  and adds no Android service. Physical lifecycle tests must verify or falsify
+  the premise that the system auth/browser surface keeps the flow viable.
+- Browser and device-code presentation must be split into separate applicable
+  UI elements. The existing callback-element, provider-owned OAuth protocol,
+  completed terminal/same-host behavior, and device-code evidence remain
+  preserved.
+- The split is intentionally minimal: add only `session_browser_auth`; keep
+  device code as an ordinary action-backed `session_action` with fixed
+  `method=device-code`. Preserve the implemented CLI/slash `--method` /
+  `method=` grammar exactly.
+- Android completion may return to Crystal Lattice only with an opaque,
+  in-memory flow id. No callback URL, code, state, or token may appear in that
+  app deep link.
+- No product code, test, maintained documentation, native configuration, or
+  runtime state was changed as part of this planning revision.

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import ssl
 import tempfile
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import certifi
@@ -25,6 +29,9 @@ _DEFAULT_LOGIN_TIMEOUT_SECONDS = 900
 _DEFAULT_POLL_INTERVAL_SECONDS = 5
 _DEFAULT_ISSUER = "https://auth.openai.com"
 _DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+_DEFAULT_BROWSER_SCOPE = "openid profile email offline_access"
+_DEFAULT_BROWSER_CALLBACK_PORTS = (1455, 1457)
+_BROWSER_CALLBACK_PATH = "/auth/callback"
 _CANCEL_JOIN_TIMEOUT_SECONDS = 1.0
 _DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 _DEFAULT_CHATGPT_CREDENTIALS_RELATIVE_PATH = "auth/chatgpt-auth.json"
@@ -32,6 +39,25 @@ _DEFAULT_CHATGPT_RATE_LIMITS_RELATIVE_PATH = "auth/chatgpt-rate-limits.json"
 _NON_FATAL_TOKEN_ERRORS = {"authorization_pending", "slow_down"}
 _TERMINAL_TOKEN_ERRORS = {"access_denied", "expired_token", "invalid_grant"}
 _RATE_LIMIT_STALE_THRESHOLD_MINUTES = 15
+
+
+def _base64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _generate_pkce() -> tuple[str, str]:
+    verifier = secrets.token_urlsafe(64)
+    challenge = _base64url(hashlib.sha256(verifier.encode("ascii")).digest())
+    return verifier, challenge
+
+
+def _normalize_login_method(value: Any) -> str:
+    if not isinstance(value, str):
+        return "device-code"
+    normalized = value.strip().lower().replace("_", "-")
+    if normalized in {"browser", "device-code"}:
+        return normalized
+    raise ValueError("method must be browser or device-code")
 
 
 def _verified_ssl_context() -> ssl.SSLContext:
@@ -241,7 +267,7 @@ def _format_credit_balance(raw: Any) -> Optional[str]:
 
 
 class ChatGPTAuthAppPlugin:
-    """Application plugin implementing a minimal device-code login flow."""
+    """Application plugin implementing Codex browser and device-code login."""
 
     name = "chatgpt_auth"
     version = "0.1.0"
@@ -253,7 +279,7 @@ class ChatGPTAuthAppPlugin:
         return {
             "chatgpt_auth": {
                 "type": "object",
-                "description": "Device-code login settings for ChatGPT-style auth.",
+                "description": "Browser and device-code settings for ChatGPT-style auth.",
             }
         }
 
@@ -265,17 +291,29 @@ class ChatGPTAuthAppPlugin:
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         _ = (state, models)
+        browser_enabled = self._config(state).get("browser_login_enabled") is not False
         command_elements = [
             {
                 "ui_type": "cli_command",
                 "id": "codex_login_cli",
                 "label": "Sign in to Codex",
-                "description": "Sign in to Codex with the device-code flow.",
+                "description": "Sign in to Codex with browser or device-code login.",
                 "path": ["auth", "login", "codex"],
                 "scope": "application",
                 "action_id": "login_start",
-                "dialog": {"kind": "none"},
+                "param_map": {"method": "$dialog.method"},
+                "dialog": self._method_dialog(
+                    default="browser" if browser_enabled else "device-code",
+                    include_browser=browser_enabled,
+                ),
                 "foreground": self._login_foreground_contract(),
+                "browser": {
+                    "auto_open_local": True,
+                    "when": {
+                        "result_path": "auth_status.method",
+                        "equals": "browser",
+                    },
+                },
             }
         ]
         if not self._should_show_session_actions(config, tags):
@@ -286,12 +324,23 @@ class ChatGPTAuthAppPlugin:
                 "ui_type": "slash_command",
                 "id": "codex_login_slash",
                 "label": "Sign in to Codex",
-                "description": "Sign in to Codex with the device-code flow.",
+                "description": "Sign in to Codex with browser or device-code login.",
                 "path": ["login", "codex"],
                 "scope": "session",
                 "action_id": "login_start",
-                "dialog": {"kind": "none"},
+                "param_map": {"method": "$dialog.method"},
+                "dialog": self._method_dialog(
+                    default="browser" if browser_enabled else "device-code",
+                    include_browser=browser_enabled,
+                ),
                 "foreground": self._login_foreground_contract(),
+                "browser": {
+                    "auto_open_local": True,
+                    "when": {
+                        "result_path": "auth_status.method",
+                        "equals": "browser",
+                    },
+                },
             },
             {
                 "ui_type": "session_action",
@@ -300,7 +349,18 @@ class ChatGPTAuthAppPlugin:
                 "icon": "log-in",
                 "order": 5,
                 "action_id": "login_start",
-                "dialog": {"kind": "none"},
+                "param_map": {"method": "$dialog.method"},
+                "dialog": self._method_dialog(
+                    default="device-code",
+                    include_browser=browser_enabled,
+                ),
+            },
+            {
+                "ui_type": "session_action_callback",
+                "id": "chatgpt_browser_oauth_callback",
+                "label": "Complete ChatGPT browser login",
+                "action_id": "complete_browser_login",
+                "param_map": {"redirect_url": "$callback.redirect_url"},
             },
             {
                 "ui_type": "session_action",
@@ -369,6 +429,33 @@ class ChatGPTAuthAppPlugin:
         ]
 
     @staticmethod
+    def _method_dialog(
+        *,
+        default: str,
+        include_browser: bool,
+    ) -> Dict[str, Any]:
+        options = [{"value": "device-code", "label": "Device code"}]
+        if include_browser:
+            options.insert(
+                0,
+                {"value": "browser", "label": "Browser (same host)"},
+            )
+        return {
+            "kind": "form",
+            "title": "Choose Codex login method",
+            "inputs": [
+                {
+                    "name": "method",
+                    "type": "select",
+                    "label": "Login method",
+                    "default": default,
+                    "required": False,
+                    "options": options,
+                }
+            ],
+        }
+
+    @staticmethod
     def _login_foreground_contract() -> Dict[str, Any]:
         return {
             "attempt_id_path": "auth_status.login_id",
@@ -415,7 +502,7 @@ class ChatGPTAuthAppPlugin:
         else:
             rate_limits_file = credentials_file.with_name("chatgpt-rate-limits.json")
 
-        normalized_config = {
+        normalized_config: Dict[str, Any] = {
             "credentials_path": str(credentials_file),
             "rate_limits_path": str(rate_limits_file),
             "protocol": (
@@ -435,6 +522,7 @@ class ChatGPTAuthAppPlugin:
             "token_exchange_endpoint": auth_cfg.get("token_exchange_endpoint"),
             "verification_url": auth_cfg.get("verification_url"),
             "redirect_uri": auth_cfg.get("redirect_uri"),
+            "authorize_endpoint": auth_cfg.get("authorize_endpoint"),
             "client_id": auth_cfg.get("client_id") or _DEFAULT_CLIENT_ID,
             "client_secret": auth_cfg.get("client_secret"),
             "scope": auth_cfg.get("scope"),
@@ -472,6 +560,30 @@ class ChatGPTAuthAppPlugin:
                 auth_cfg.get("login_timeout_seconds"),
                 _DEFAULT_LOGIN_TIMEOUT_SECONDS,
             ),
+            "browser_callback_ports": (
+                [
+                    int(port)
+                    for port in auth_cfg.get("browser_callback_ports")
+                    if isinstance(port, int)
+                    and not isinstance(port, bool)
+                    and 0 <= port <= 65535
+                ]
+                if isinstance(auth_cfg.get("browser_callback_ports"), list)
+                else list(_DEFAULT_BROWSER_CALLBACK_PORTS)
+            ),
+            "browser_scope": (
+                auth_cfg.get("browser_scope").strip()
+                if isinstance(auth_cfg.get("browser_scope"), str)
+                and auth_cfg.get("browser_scope").strip()
+                else _DEFAULT_BROWSER_SCOPE
+            ),
+            "originator": (
+                auth_cfg.get("originator").strip()
+                if isinstance(auth_cfg.get("originator"), str)
+                and auth_cfg.get("originator").strip()
+                else "pi"
+            ),
+            "browser_login_enabled": auth_cfg.get("browser_login_enabled") is not False,
         }
         return {
             "config": normalized_config,
@@ -500,8 +612,22 @@ class ChatGPTAuthAppPlugin:
             {
                 "id": "login_start",
                 "label": "Sign in with ChatGPT",
-                "description": "Start a device-code login flow and return the verification URL.",
-                "inputs": {},
+                "description": "Start browser or device-code login.",
+                "inputs": {
+                    "method": {
+                        "type": "string",
+                        "required": False,
+                        "default": "device-code",
+                    },
+                },
+            },
+            {
+                "id": "complete_browser_login",
+                "label": "Complete ChatGPT browser login",
+                "description": "Complete the active browser login callback.",
+                "inputs": {
+                    "redirect_url": {"type": "string", "required": True},
+                },
             },
             {
                 "id": "check_status",
@@ -581,9 +707,25 @@ class ChatGPTAuthAppPlugin:
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
-        _ = context
         if action_id == "login_start":
-            return self._start_login(app, state)
+            return self._start_login(
+                app,
+                state,
+                method=_normalize_login_method(params.get("method")),
+            )
+        if action_id == "complete_browser_login":
+            auth_status = self._complete_browser_redirect(
+                app,
+                state,
+                str(params.get("redirect_url") or ""),
+            )
+            return {
+                "display": self._status_display_payload(
+                    auth_status,
+                    action="check_status",
+                ),
+                "auth_status": auth_status,
+            }
         if action_id == "check_status":
             auth_status = self._current_status(
                 state,
@@ -956,6 +1098,7 @@ class ChatGPTAuthAppPlugin:
         )
         return {
             "login_id": str(uuid.uuid4()),
+            "method": "device-code",
             "state": "pending",
             "device_code": device_code,
             "device_auth_id": device_auth_id,
@@ -970,7 +1113,13 @@ class ChatGPTAuthAppPlugin:
             "plan_type": None,
         }
 
-    def _start_login(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _start_login(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        *,
+        method: str,
+    ) -> Dict[str, Any]:
         with self._lock:
             current_attempt = state.get("active_attempt")
             if (
@@ -984,6 +1133,9 @@ class ChatGPTAuthAppPlugin:
                     ),
                     "auth_status": auth_status,
                 }
+
+            if method == "browser":
+                return self._start_browser_login(app, state)
 
             device_code_response = self._start_device_code(state)
             attempt = self._normalized_attempt(device_code_response, state)
@@ -1004,6 +1156,381 @@ class ChatGPTAuthAppPlugin:
                 "auth_status": auth_status,
             }
 
+    def _start_browser_login(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        cfg = self._config(state)
+        if cfg.get("browser_login_enabled") is False:
+            raise ValueError("Codex browser login is disabled in this runtime")
+        issuer = str(cfg.get("issuer") or _DEFAULT_ISSUER).rstrip("/")
+        authorize_endpoint = (
+            cfg.get("authorize_endpoint") or f"{issuer}/oauth/authorize"
+        )
+        client_id = cfg.get("client_id")
+        if not isinstance(client_id, str) or not client_id:
+            raise ValueError(
+                "[chatgpt_auth] application.chatgpt_auth.client_id is required"
+            )
+
+        verifier, challenge = _generate_pkce()
+        started_at = _utcnow()
+        timeout_seconds = _coerce_positive_int(
+            cfg.get("login_timeout_seconds"),
+            _DEFAULT_LOGIN_TIMEOUT_SECONDS,
+        )
+        attempt: Dict[str, Any] = {
+            "login_id": str(uuid.uuid4()),
+            "method": "browser",
+            "state": "pending",
+            "oauth_state": secrets.token_urlsafe(32),
+            "code_verifier": verifier,
+            "code_challenge": challenge,
+            "callback_claimed": False,
+            "started_at": _isoformat_utc(started_at),
+            "expires_at": _isoformat_utc(
+                started_at + timedelta(seconds=timeout_seconds)
+            ),
+            "cancel_event": threading.Event(),
+            "error": None,
+            "plan_type": None,
+        }
+        server = self._bind_browser_callback_server(app, state, attempt)
+        actual_port = int(server.server_address[1])
+        redirect_uri = f"http://localhost:{actual_port}{_BROWSER_CALLBACK_PATH}"
+        attempt["redirect_uri"] = redirect_uri
+        authorization_url = "{}?{}".format(
+            str(authorize_endpoint),
+            urlencode(
+                {
+                    "response_type": "code",
+                    "client_id": client_id,
+                    "redirect_uri": redirect_uri,
+                    "scope": str(cfg.get("browser_scope") or _DEFAULT_BROWSER_SCOPE),
+                    "code_challenge": challenge,
+                    "code_challenge_method": "S256",
+                    "state": attempt["oauth_state"],
+                    "id_token_add_organizations": "true",
+                    "codex_cli_simplified_flow": "true",
+                    "originator": str(cfg.get("originator") or "pi"),
+                }
+            ),
+        )
+        attempt["verification_url"] = authorization_url
+        attempt["listener"] = server
+        state["active_attempt"] = attempt
+        state["last_status"] = self._attempt_status(attempt)
+
+        listener_thread = threading.Thread(
+            target=server.serve_forever,
+            kwargs={"poll_interval": 0.1},
+            daemon=True,
+        )
+        attempt["listener_thread"] = listener_thread
+        listener_thread.start()
+        worker = threading.Thread(
+            target=self._monitor_browser_attempt,
+            args=(app, state, attempt),
+            daemon=True,
+        )
+        attempt["worker"] = worker
+        worker.start()
+        auth_status = self._attempt_status(attempt)
+        return {
+            "display": self._status_display_payload(
+                auth_status,
+                action="login_start",
+            ),
+            "auth_status": auth_status,
+        }
+
+    def _bind_browser_callback_server(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        attempt: Dict[str, Any],
+    ) -> ThreadingHTTPServer:
+        plugin = self
+
+        class CallbackServer(ThreadingHTTPServer):
+            allow_reuse_address = True
+            daemon_threads = True
+
+        class CallbackHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # noqa: N802
+                parsed = urlparse(self.path)
+                if parsed.path != _BROWSER_CALLBACK_PATH:
+                    self._respond(404, False)
+                    return
+                expected_port = int(getattr(self.server, "server_port", 0))
+                host = str(self.headers.get("Host") or "").lower()
+                if host not in {
+                    f"localhost:{expected_port}",
+                    f"127.0.0.1:{expected_port}",
+                }:
+                    self._respond(400, False)
+                    return
+                query = parse_qs(parsed.query, keep_blank_values=True)
+                if len(query.get("state") or []) != 1 or any(
+                    name in query and len(query[name]) != 1
+                    for name in ("code", "error")
+                ):
+                    self._respond(400, False)
+                    return
+                try:
+                    status = plugin._complete_browser_callback(
+                        app,
+                        state,
+                        attempt,
+                        code=(query.get("code") or [None])[0],
+                        callback_state=(query.get("state") or [None])[0],
+                        provider_error=(query.get("error") or [None])[0],
+                    )
+                except ValueError:
+                    self._respond(400, False)
+                    return
+                self._respond(
+                    200 if status.get("state") == "authenticated" else 400,
+                    status.get("state") == "authenticated",
+                )
+
+            def do_POST(self) -> None:  # noqa: N802
+                self._respond(405, False)
+
+            def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+                _ = (format, args)
+
+            def _respond(self, status: int, success: bool) -> None:
+                body = (
+                    b"Authentication completed. You can close this window."
+                    if success
+                    else b"Authentication could not be completed."
+                )
+                self.send_response(status)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Security-Policy", "default-src 'none'")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        ports = self._config(state).get("browser_callback_ports")
+        candidates = (
+            ports
+            if isinstance(ports, list) and ports
+            else list(_DEFAULT_BROWSER_CALLBACK_PORTS)
+        )
+        for raw_port in candidates:
+            if not isinstance(raw_port, int) or isinstance(raw_port, bool):
+                continue
+            try:
+                return CallbackServer(("127.0.0.1", raw_port), CallbackHandler)
+            except OSError:
+                continue
+        raise RuntimeError(
+            "Codex browser login could not bind an accepted localhost callback port"
+        )
+
+    def _monitor_browser_attempt(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        attempt: Dict[str, Any],
+    ) -> None:
+        expires_at = _parse_iso8601(attempt.get("expires_at"))
+        remaining = (
+            max(0.0, (expires_at - _utcnow()).total_seconds())
+            if expires_at is not None
+            else float(_DEFAULT_LOGIN_TIMEOUT_SECONDS)
+        )
+        cancel_event = attempt.get("cancel_event")
+        if not isinstance(cancel_event, threading.Event):
+            return
+        if cancel_event.wait(timeout=remaining):
+            return
+        status = self._update_current_attempt(
+            state,
+            attempt,
+            attempt_state="expired",
+            error="browser_login_expired",
+        )
+        self._close_browser_listener(attempt)
+        if status is not None:
+            self._publish_auth_event(app, status)
+
+    def _complete_browser_redirect(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        redirect_url: str,
+    ) -> Dict[str, Any]:
+        parsed = urlparse(redirect_url)
+        with self._lock:
+            attempt = state.get("active_attempt")
+            if not isinstance(attempt, dict) or attempt.get("method") != "browser":
+                raise ValueError("No active browser login matches this callback")
+            expected = urlparse(str(attempt.get("redirect_uri") or ""))
+            if (
+                parsed.scheme != expected.scheme
+                or parsed.hostname != expected.hostname
+                or parsed.port != expected.port
+                or parsed.path != expected.path
+            ):
+                raise ValueError("Browser login callback target mismatch")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        if len(query.get("state") or []) != 1 or any(
+            name in query and len(query[name]) != 1 for name in ("code", "error")
+        ):
+            raise ValueError("Browser login callback is malformed")
+        return self._complete_browser_callback(
+            app,
+            state,
+            attempt,
+            code=(query.get("code") or [None])[0],
+            callback_state=(query.get("state") or [None])[0],
+            provider_error=(query.get("error") or [None])[0],
+        )
+
+    def _complete_browser_callback(
+        self,
+        app: Any,
+        state: Dict[str, Any],
+        attempt: Dict[str, Any],
+        *,
+        code: Any,
+        callback_state: Any,
+        provider_error: Any,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            if state.get("active_attempt") is not attempt:
+                raise ValueError("Browser login callback is stale")
+            if attempt.get("method") != "browser" or attempt.get("state") != "pending":
+                raise ValueError("Browser login callback is no longer pending")
+            expires_at = _parse_iso8601(attempt.get("expires_at"))
+            if expires_at is not None and _utcnow() >= expires_at:
+                raise ValueError("Browser login callback has expired")
+            expected_state = attempt.get("oauth_state")
+            if (
+                not isinstance(callback_state, str)
+                or not isinstance(expected_state, str)
+                or not hmac.compare_digest(callback_state, expected_state)
+            ):
+                raise ValueError("Browser login callback state mismatch")
+            if attempt.get("callback_claimed") is True:
+                raise ValueError("Browser login callback was already consumed")
+            attempt["callback_claimed"] = True
+
+        if (
+            isinstance(provider_error, str)
+            and provider_error
+            and isinstance(code, str)
+            and code
+        ):
+            with self._lock:
+                attempt["callback_claimed"] = False
+            raise ValueError("Browser login callback has conflicting results")
+        if isinstance(provider_error, str) and provider_error:
+            status = self._update_current_attempt(
+                state,
+                attempt,
+                attempt_state="failed",
+                error="browser_authorization_denied",
+            )
+            self._close_browser_listener(attempt)
+            if status is None:
+                raise ValueError("Browser login callback is stale")
+            self._publish_auth_event(app, status)
+            return status
+        if not isinstance(code, str) or not code:
+            with self._lock:
+                attempt["callback_claimed"] = False
+            raise ValueError("Browser login callback is missing its code")
+
+        cfg = self._config(state)
+        issuer = str(cfg.get("issuer") or _DEFAULT_ISSUER).rstrip("/")
+        client_id = cfg.get("client_id")
+        if not isinstance(client_id, str) or not client_id:
+            raise ValueError("Browser login client is unavailable")
+        try:
+            exchanged = self._exchange_authorization_code(
+                str(cfg.get("token_exchange_endpoint") or f"{issuer}/oauth/token"),
+                authorization_code=code,
+                code_verifier=str(attempt.get("code_verifier") or ""),
+                client_id=client_id,
+                redirect_uri=str(attempt.get("redirect_uri") or ""),
+                timeout=_coerce_positive_float(
+                    cfg.get("http_timeout_seconds"),
+                    _DEFAULT_HTTP_TIMEOUT_SECONDS,
+                ),
+            )
+            if not isinstance(exchanged.get("access_token"), str) or not exchanged.get(
+                "access_token"
+            ):
+                raise RuntimeError("token response missing access token")
+            if not isinstance(exchanged.get("refresh_token"), str) or not exchanged.get(
+                "refresh_token"
+            ):
+                raise RuntimeError("token response missing refresh token")
+            credentials = self._normalized_credentials(
+                exchanged,
+                login_id=attempt.get("login_id"),
+            )
+            if not isinstance(
+                credentials.get("account_id"), str
+            ) or not credentials.get("account_id"):
+                raise RuntimeError("token response missing account metadata")
+            credentials["provider"] = "chatgpt_codex_browser"
+            credentials["issuer"] = issuer
+            credentials["client_id"] = client_id
+            credentials["credentials_path"] = str(self._credentials_path(state))
+            status = self._update_current_attempt(
+                state,
+                attempt,
+                attempt_state="authenticated",
+                credentials=credentials,
+            )
+        except Exception:
+            status = self._update_current_attempt(
+                state,
+                attempt,
+                attempt_state="failed",
+                error="authorization_code_exchange_failed",
+            )
+
+        self._close_browser_listener(attempt)
+        if status is None:
+            raise ValueError("Browser login callback is stale")
+        self._publish_auth_event(app, status)
+        return status
+
+    def _close_browser_listener(self, attempt: Dict[str, Any]) -> None:
+        with self._lock:
+            if attempt.get("listener_closed") is True:
+                return
+            attempt["listener_closed"] = True
+            listener = attempt.get("listener")
+            listener_thread = attempt.get("listener_thread")
+            cancel_event = attempt.get("cancel_event")
+        if isinstance(cancel_event, threading.Event):
+            cancel_event.set()
+        if isinstance(listener, ThreadingHTTPServer):
+            try:
+                listener.shutdown()
+            except Exception:
+                pass
+            try:
+                listener.server_close()
+            except Exception:
+                pass
+        if (
+            isinstance(listener_thread, threading.Thread)
+            and listener_thread is not threading.current_thread()
+            and listener_thread.is_alive()
+        ):
+            listener_thread.join(timeout=_CANCEL_JOIN_TIMEOUT_SECONDS)
+
     def _update_current_attempt(
         self,
         state: Dict[str, Any],
@@ -1018,21 +1545,15 @@ class ChatGPTAuthAppPlugin:
         with self._lock:
             if state.get("active_attempt") is not attempt:
                 return None
-            if (
-                attempt_state == "authenticated"
-                and (
-                    attempt.get("state") != "pending"
-                    or (
-                        isinstance(attempt.get("cancel_event"), threading.Event)
-                        and attempt["cancel_event"].is_set()
-                    )
+            if attempt_state == "authenticated" and (
+                attempt.get("state") != "pending"
+                or (
+                    isinstance(attempt.get("cancel_event"), threading.Event)
+                    and attempt["cancel_event"].is_set()
                 )
             ):
                 return None
-            if (
-                attempt_state == "canceled"
-                and attempt.get("state") != "pending"
-            ):
+            if attempt_state == "canceled" and attempt.get("state") != "pending":
                 return None
             if credentials is not None:
                 _write_json_atomic(self._credentials_path(state), credentials)
@@ -1042,6 +1563,7 @@ class ChatGPTAuthAppPlugin:
                 attempt["account_email"] = credentials.get("account_email")
                 attempt["plan_type"] = credentials.get("plan_type")
                 status = self._credentials_status(credentials)
+                status["method"] = attempt.get("method")
             else:
                 status = self._attempt_status(attempt)
             state["last_status"] = status
@@ -1301,6 +1823,7 @@ class ChatGPTAuthAppPlugin:
             )
         id_token = token_response.get("id_token")
         claims = _jwt_claims(id_token)
+        access_claims = _jwt_claims(token_response.get("access_token"))
         return {
             "provider": "chatgpt_device_code",
             "login_id": str(login_id) if login_id is not None else None,
@@ -1313,12 +1836,16 @@ class ChatGPTAuthAppPlugin:
             "expires_at": expires_at,
             "account_email": token_response.get("account_email")
             or token_response.get("email")
-            or claims.get("email"),
+            or claims.get("email")
+            or access_claims.get("email"),
             "account_id": token_response.get("account_id")
             or claims.get("chatgpt_account_id")
-            or claims.get("sub"),
+            or access_claims.get("chatgpt_account_id")
+            or claims.get("sub")
+            or access_claims.get("sub"),
             "plan_type": token_response.get("plan_type")
-            or claims.get("chatgpt_plan_type"),
+            or claims.get("chatgpt_plan_type")
+            or access_claims.get("chatgpt_plan_type"),
         }
 
     def _credentials_status(self, credentials: Dict[str, Any]) -> Dict[str, Any]:
@@ -1330,8 +1857,11 @@ class ChatGPTAuthAppPlugin:
         return {
             "state": state,
             "login_id": credentials.get("login_id"),
-            "account_email": credentials.get("account_email"),
-            "account_id": credentials.get("account_id"),
+            "method": (
+                "browser"
+                if credentials.get("provider") == "chatgpt_codex_browser"
+                else "device-code"
+            ),
             "plan_type": credentials.get("plan_type"),
             "credentials_path": (
                 str(credentials.get("credentials_path"))
@@ -1356,11 +1886,11 @@ class ChatGPTAuthAppPlugin:
         return {
             "state": attempt.get("state") or "pending",
             "login_id": attempt.get("login_id"),
+            "method": attempt.get("method") or "device-code",
             "verification_url": attempt.get("verification_url"),
             "user_code": attempt.get("user_code"),
             "started_at": attempt.get("started_at"),
             "expires_at": attempt.get("expires_at"),
-            "account_email": attempt.get("account_email"),
             "plan_type": attempt.get("plan_type"),
             "error": attempt.get("error"),
         }
@@ -1378,9 +1908,7 @@ class ChatGPTAuthAppPlugin:
                     not isinstance(active_attempt, dict)
                     or active_attempt.get("login_id") != login_id
                 ):
-                    raise ValueError(
-                        f"login attempt {login_id!r} is no longer active"
-                    )
+                    raise ValueError(f"login attempt {login_id!r} is no longer active")
                 return self._attempt_status(active_attempt)
             if (
                 isinstance(active_attempt, dict)
@@ -1910,9 +2438,7 @@ class ChatGPTAuthAppPlugin:
                 not isinstance(active_attempt, dict)
                 or active_attempt.get("login_id") != login_id
             ):
-                raise ValueError(
-                    f"login attempt {login_id!r} is no longer active"
-                )
+                raise ValueError(f"login attempt {login_id!r} is no longer active")
             if (
                 not isinstance(active_attempt, dict)
                 or active_attempt.get("state") != "pending"
@@ -1934,8 +2460,23 @@ class ChatGPTAuthAppPlugin:
             and worker.is_alive()
         ):
             worker.join(timeout=_CANCEL_JOIN_TIMEOUT_SECONDS)
+        if isinstance(active_attempt, dict):
+            self._close_browser_listener(active_attempt)
         self._publish_auth_event(app, status)
         return status
+
+    def close(self, state: Dict[str, Any]) -> None:
+        with self._lock:
+            active_attempt = state.get("active_attempt")
+            if not isinstance(active_attempt, dict):
+                return
+            cancel_event = active_attempt.get("cancel_event")
+            if isinstance(cancel_event, threading.Event):
+                cancel_event.set()
+            if active_attempt.get("state") == "pending":
+                active_attempt["state"] = "canceled"
+                state["last_status"] = self._attempt_status(active_attempt)
+        self._close_browser_listener(active_attempt)
 
     def _logout(self, app: Any, state: Dict[str, Any]) -> Dict[str, Any]:
         status = self._cancel_login(app, state)
@@ -1992,10 +2533,16 @@ class ChatGPTAuthAppPlugin:
 
         if state == "pending":
             variant = "info"
+            method = auth_status.get("method")
             verification_url = auth_status.get("verification_url")
             user_code = auth_status.get("user_code")
             if isinstance(verification_url, str) and verification_url:
-                lines.append(f"1. Open [ChatGPT device login]({verification_url})")
+                link_label = (
+                    "ChatGPT browser login"
+                    if method == "browser"
+                    else "ChatGPT device login"
+                )
+                lines.append(f"1. Open [{link_label}]({verification_url})")
                 actions.append(
                     {
                         "kind": "open_url",
@@ -2005,7 +2552,7 @@ class ChatGPTAuthAppPlugin:
                     }
                 )
             else:
-                lines.append("1. Open the ChatGPT device login page in your browser.")
+                lines.append("1. Open the ChatGPT login page in your browser.")
             if isinstance(user_code, str) and user_code:
                 lines.append(f"2. Enter code `{user_code}`")
                 actions.append(
@@ -2018,9 +2565,16 @@ class ChatGPTAuthAppPlugin:
                     }
                 )
             lines.append("")
-            lines.append(
-                "When you are done, return here and run **Show ChatGPT login status**."
-            )
+            if method == "browser":
+                lines.append(
+                    "Complete sign-in in the browser on this host. "
+                    "The localhost callback will finish automatically."
+                )
+            else:
+                lines.append(
+                    "When you are done, return here and run "
+                    "**Show ChatGPT login status**."
+                )
             expires_at = auth_status.get("expires_at")
             if isinstance(expires_at, str) and expires_at:
                 lines.append("")
@@ -2042,13 +2596,7 @@ class ChatGPTAuthAppPlugin:
         elif state == "authenticated":
             variant = "success"
             lines.append("ChatGPT login is active.")
-            account_email = auth_status.get("account_email")
-            account_id = auth_status.get("account_id")
             plan_type = auth_status.get("plan_type")
-            if isinstance(account_email, str) and account_email:
-                lines.append(f"Account: `{account_email}`")
-            if isinstance(account_id, str) and account_id:
-                lines.append(f"Account ID: `{account_id}`")
             if isinstance(plan_type, str) and plan_type:
                 lines.append(f"Plan: `{plan_type}`")
         elif state == "canceled":
@@ -2070,7 +2618,7 @@ class ChatGPTAuthAppPlugin:
         else:
             lines.append(f"Current ChatGPT auth state: `{state}`")
 
-        payload = {
+        payload: Dict[str, Any] = {
             "format": "markdown",
             "title": title,
             "body": "\n".join(lines),

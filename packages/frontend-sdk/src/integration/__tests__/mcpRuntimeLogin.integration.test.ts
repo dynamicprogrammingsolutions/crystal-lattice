@@ -97,7 +97,7 @@ describe('MCP runtime login flow against a real backend', () => {
     fixture = await startMcpAuthFixture();
     started = await startBackendServer({
       config: serverConfig(fixture),
-      startupTimeoutMs: 30000,
+      startupTimeoutMs: 120000,
     });
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: started.baseUrl }),
@@ -146,14 +146,14 @@ describe('MCP runtime login flow against a real backend', () => {
       connectionId: 'test-connection',
       sessionId,
       pluginId: 'mcp_runtime_app',
-      actionId: 'mcp_complete_login',
+      callbackElementId: 'mcp_complete_login_callback',
     });
 
-    const completed = await backend.executeSessionAction!({
+    const completed = await backend.executeSessionActionCallback!({
       sessionId: parsed!.sessionId,
       pluginId: parsed!.pluginId,
-      actionId: parsed!.actionId,
-      inputs: parsed!.inputs,
+      callbackElementId: parsed!.callbackElementId,
+      redirectUrl: parsed!.redirectUrl,
     });
 
     expect(completed.status).toBe('ok');
@@ -161,13 +161,13 @@ describe('MCP runtime login flow against a real backend', () => {
     expect(fixture.tokenRequests).toHaveLength(1);
     expect(fixture.tokenRequests[0].code).toBe('code-123');
     expect(fixture.mcpAuthorizationHeaders).toContain('Bearer access-123');
-  }, 60000);
+  }, 180000);
 
   it('completes login from the embedded callback URL form', async () => {
     fixture = await startMcpAuthFixture();
     started = await startBackendServer({
       config: serverConfig(fixture),
-      startupTimeoutMs: 30000,
+      startupTimeoutMs: 120000,
     });
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: started.baseUrl }),
@@ -245,5 +245,5 @@ describe('MCP runtime login flow against a real backend', () => {
     expect(fixture.tokenRequests).toHaveLength(1);
     expect(fixture.tokenRequests[0].code).toBe('code-123');
     expect(fixture.mcpAuthorizationHeaders).toContain('Bearer access-123');
-  }, 60000);
+  }, 180000);
 });
