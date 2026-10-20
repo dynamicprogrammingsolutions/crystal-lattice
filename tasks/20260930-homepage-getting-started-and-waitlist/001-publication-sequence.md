@@ -348,3 +348,12 @@ Agent work after approval:
   chapter-specific natural heights and non-overlapping source/detail
   compositions. Human acceptance is still required before H3 can be checked
   off or H4 can begin.
+- 2026-10-16: A second H3 mobile refinement was approved after the readable
+  images proved taller than a phone viewport. Pre-adjustment state is
+  preserved in main commit `b2f16e0b` and develop commit `06ba19fa`. The new
+  H3 acceptance target is a full-width, whole-image viewport fit with
+  image-edge chapter arrows; H4 remains blocked pending review.
+- 2026-10-16: The second H3 mobile refinement is agent-complete and verified
+  through short-phone light/dark browser coverage. It remains uncommitted and
+  paused at the same H3 human checkpoint; no later publication step has
+  started.

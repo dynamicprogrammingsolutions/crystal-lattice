@@ -1229,3 +1229,52 @@ fulfilled by the walkthrough or feature proof. At minimum:
   No public asset promotion, develop-branch product change, push, deployment,
   or H4 work occurred. H4 remains blocked until the user accepts the revised
   walkthrough in context.
+- 2026-10-16: Before the next H3 adjustment, the user required both worktrees
+  to be committed. `main` now preserves the readable-composition revision as
+  `b2f16e0b` (`Improve walkthrough mobile readability`), and `develop`
+  preserves the website capture fixtures plus the invalid compaction-icon fix
+  as `06ba19fa` (`Improve website visual fixtures`). The generated native
+  screenshot directory remains untracked.
+- 2026-10-16: Human review then found that the taller readable compact images
+  could not fit in one mobile viewport and left chapter navigation below the
+  full panel. The user approved a focused H3 revision: compact images must fit
+  at full available width in a mobile viewport, and chapter navigation must
+  use the same circular image-edge arrows as other homepage media rather than
+  a bottom Previous/Next footer.
+- 2026-10-16: The approved implementation keeps wide assets unchanged and
+  recomposes compact sources to 1000 × 1370–1570. Compose keeps context,
+  lifecycle controls, and the composer; Messages retains selected genuine
+  action rows plus complete usage/cost/output evidence with omission markers;
+  Session actions retains the agent/settings/plugin/snapshot/title controls;
+  Session settings keeps the Codex profile, tools, auth/flex settings, and
+  plugin features; Workspace retains its context/detail treatment.
+- 2026-10-16: Side arrows are rendered per active image, centered on the image
+  rather than the caption, with target-specific accessible names and disabled
+  first/last states. The named tabs, keyboard behavior, swipe, live status,
+  reduced-motion behavior, and no-JavaScript sequential fallback remain.
+  Side-arrow and swipe transitions compensate scroll position immediately so
+  the replacement image stays at the same viewport location.
+- 2026-10-16: The implemented compact dimensions are 1000 × 1500 (Compose),
+  1000 × 1570 (Messages), 1000 × 1450 (Session actions), 1000 × 1450
+  (Session settings), and 1000 × 1370 (Workspace). At 375 CSS pixels the
+  actual images render about 421–483 pixels tall; at 320 pixels they render
+  about 346–396 pixels tall. Every image can therefore be centered completely
+  inside both 375 × 667 and 320 × 568 viewports at full available width.
+- 2026-10-16: Direct ordinary-viewport `view_image` review—not stitched
+  element captures—confirmed that the full image, side controls, and caption
+  appear together on the short phone viewports. Side navigation remains on
+  the image edge, does not require scrolling to a footer, and preserves the
+  image top exactly when switching from Compose to Messages in all three
+  measured phone sizes.
+- 2026-10-16: Verification passed 16 final-walkthrough Playwright tests across
+  1440 × 1000, 1024 × 1000, 768 × 1000, 390 × 844, 375 × 812, 375 × 667,
+  and 320 × 568 in light/dark themes. The suite proves compact dimensions,
+  full-width viewport fit, arrow/image-center alignment, removal of bottom
+  controls, stable arrow navigation, keyboard/swipe/no-autoplay behavior, and
+  no-JavaScript fallback. All 15 retained H2 candidate tests, 8 homepage
+  content/download tests, 25 visual-asset tests, normal/explicit Astro builds,
+  and `git diff --check` also pass.
+- 2026-10-16: The viewport-fit revision remains uncommitted for H3 human
+  review. The explicit H3 preview was restored on port 4184 after retained
+  candidate verification. No public source promotion, push, deployment, or H4
+  work occurred.

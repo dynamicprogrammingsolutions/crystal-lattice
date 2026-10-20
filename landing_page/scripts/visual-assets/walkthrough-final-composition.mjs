@@ -138,6 +138,15 @@ function connector({
   ];
 }
 
+function ellipsis({ x, y, color = "border", radius = 4 }) {
+  return [-12, 0, 12].map(offset => ({
+    fill: color,
+    stroke: "none",
+    strokeWidth: 0,
+    command: `circle ${x + offset},${y} ${x + offset + radius},${y}`,
+  }));
+}
+
 function compose({ width, height, theme, parts, draws = [], destination }) {
   const args = ["-size", `${width}x${height}`, `xc:${theme.background}`];
   for (const part of parts) {
@@ -224,12 +233,12 @@ function buildCompose(theme) {
   const compactContext = card({
     name: `compose-${theme.suffix}-compact-context`,
     source,
-    crop: "1206x1750+0+250",
+    crop: "1206x720+0+400",
     width: 900,
-    height: 560,
+    height: 280,
     theme,
     focusBoxes: [
-      { x1: 295, y1: 130, x2: 605, y2: 552, color: "focus" },
+      { x1: 275, y1: 92, x2: 625, y2: 273, color: "focus" },
     ],
   });
   const compactPopup = card({
@@ -252,19 +261,19 @@ function buildCompose(theme) {
   });
   compose({
     width: 1000,
-    height: 1920,
+    height: 1500,
     theme,
     parts: [
       { source: compactContext, x: 50, y: 35 },
-      { source: compactPopup, x: 50, y: 680 },
-      { source: compactComposer, x: 50, y: 1515 },
+      { source: compactPopup, x: 50, y: 375 },
+      { source: compactComposer, x: 50, y: 1140 },
     ],
     draws: [
       ...connector({
         x1: 500,
-        y1: 588,
+        y1: 308,
         x2: 500,
-        y2: 680,
+        y2: 375,
         color: "focus",
       }),
     ],
@@ -350,22 +359,53 @@ function buildMessages(theme) {
   const compactContext = card({
     name: `messages-${theme.suffix}-compact-context`,
     source,
-    crop: "1206x1730+0+250",
+    crop: "1206x720+0+400",
     width: 900,
-    height: 560,
+    height: 260,
     theme,
     focusBoxes: [
-      { x1: 293, y1: 126, x2: 607, y2: 552, color: "focus" },
+      { x1: 275, y1: 87, x2: 625, y2: 253, color: "focus" },
     ],
   });
-  const compactActions = card({
-    name: `messages-${theme.suffix}-compact-actions`,
+  const compactModify = card({
+    name: `messages-${theme.suffix}-compact-modify`,
     source,
-    crop: "966x1370+120+620",
+    crop: "966x130+120+820",
     width: 900,
-    height: 1277,
+    height: 121,
     theme,
-    accent: "focus",
+  });
+  const compactFork = card({
+    name: `messages-${theme.suffix}-compact-fork`,
+    source,
+    crop: "966x140+120+1230",
+    width: 900,
+    height: 130,
+    theme,
+  });
+  const compactSummarize = card({
+    name: `messages-${theme.suffix}-compact-summarize`,
+    source,
+    crop: "966x170+120+1365",
+    width: 900,
+    height: 158,
+    theme,
+  });
+  const compactCompaction = card({
+    name: `messages-${theme.suffix}-compact-compaction`,
+    source,
+    crop: "966x145+120+1525",
+    width: 900,
+    height: 135,
+    theme,
+  });
+  const compactDeleteFrom = card({
+    name: `messages-${theme.suffix}-compact-delete-from`,
+    source,
+    crop: "966x145+120+1810",
+    width: 900,
+    height: 135,
+    theme,
   });
   const compactUsage = card({
     name: `messages-${theme.suffix}-compact-usage`,
@@ -379,7 +419,7 @@ function buildMessages(theme) {
   const compactCost = card({
     name: `messages-${theme.suffix}-compact-cost`,
     source: footer,
-    crop: "530x48+60+565",
+    crop: "530x50+60+555",
     width: 900,
     height: 100,
     theme,
@@ -396,23 +436,31 @@ function buildMessages(theme) {
   });
   compose({
     width: 1000,
-    height: 2490,
+    height: 1570,
     theme,
     parts: [
       { source: compactContext, x: 50, y: 35 },
-      { source: compactActions, x: 50, y: 680 },
-      { source: compactUsage, x: 50, y: 2040 },
-      { source: compactCost, x: 50, y: 2210 },
-      { source: compactOutput, x: 50, y: 2340 },
+      { source: compactModify, x: 50, y: 360 },
+      { source: compactFork, x: 50, y: 495 },
+      { source: compactSummarize, x: 50, y: 640 },
+      { source: compactCompaction, x: 50, y: 813 },
+      { source: compactDeleteFrom, x: 50, y: 963 },
+      { source: compactUsage, x: 50, y: 1140 },
+      { source: compactCost, x: 50, y: 1310 },
+      { source: compactOutput, x: 50, y: 1425 },
     ],
     draws: [
       ...connector({
         x1: 500,
-        y1: 588,
+        y1: 288,
         x2: 500,
-        y2: 680,
+        y2: 360,
         color: "focus",
       }),
+      ...ellipsis({ x: 500, y: 488 }),
+      ...ellipsis({ x: 500, y: 632 }),
+      ...ellipsis({ x: 500, y: 805 }),
+      ...ellipsis({ x: 500, y: 955 }),
     ],
     destination: output("messages", "compact", theme),
   });
@@ -485,12 +533,12 @@ function buildSessionActions(theme) {
   const compactContext = card({
     name: `session-actions-${theme.suffix}-compact-context`,
     source,
-    crop: "1096x2080+50+250",
+    crop: "1096x900+50+250",
     width: 900,
-    height: 620,
+    height: 260,
     theme,
     focusBoxes: [
-      { x1: 290, y1: 8, x2: 610, y2: 612, color: "focus" },
+      { x1: 293, y1: 5, x2: 607, y2: 253, color: "focus" },
     ],
   });
   const compactAgent = card({
@@ -513,21 +561,22 @@ function buildSessionActions(theme) {
   });
   compose({
     width: 1000,
-    height: 1920,
+    height: 1450,
     theme,
     parts: [
       { source: compactContext, x: 50, y: 35 },
-      { source: compactAgent, x: 50, y: 745 },
-      { source: compactActions, x: 50, y: 985 },
+      { source: compactAgent, x: 50, y: 365 },
+      { source: compactActions, x: 50, y: 560 },
     ],
     draws: [
       ...connector({
         x1: 500,
-        y1: 648,
+        y1: 288,
         x2: 500,
-        y2: 745,
+        y2: 365,
         color: "focus",
       }),
+      ...ellipsis({ x: 500, y: 544 }),
     ],
     destination: output("session-actions", "compact", theme),
   });
@@ -590,18 +639,6 @@ function buildSettings(theme) {
     destination: output("session-settings", "wide", theme),
   });
 
-  const compactContext = card({
-    name: `settings-${theme.suffix}-compact-context`,
-    source: agent,
-    crop: "1400x760+0+50",
-    width: 900,
-    height: 450,
-    theme,
-    focusBoxes: [
-      { x1: 50, y1: 30, x2: 578, y2: 98, color: "focus", strokeWidth: 7 },
-      { x1: 585, y1: 166, x2: 850, y2: 360, color: "secondary", strokeWidth: 7 },
-    ],
-  });
   const compactProfile = card({
     name: `settings-${theme.suffix}-compact-profile`,
     source: agent,
@@ -614,40 +651,39 @@ function buildSettings(theme) {
   const compactTools = card({
     name: `settings-${theme.suffix}-compact-tools`,
     source: agent,
-    crop: "440x330+930+330",
+    crop: "700x260+700+390",
     width: 900,
-    height: 675,
+    height: 334,
     theme,
     accent: "secondary",
   });
   const compactProvider = card({
     name: `settings-${theme.suffix}-compact-provider`,
     source: provider,
-    crop: "1040x770+83+930",
+    crop: "1040x400+83+1050",
     width: 900,
-    height: 666,
+    height: 346,
     theme,
     accent: "provider",
   });
   const compactPlugins = card({
     name: `settings-${theme.suffix}-compact-plugins`,
     source: plugins,
-    crop: "1040x1050+83+680",
+    crop: "1040x510+83+1040",
     width: 900,
-    height: 909,
+    height: 441,
     theme,
     accent: "plugin",
   });
   compose({
     width: 1000,
-    height: 3280,
+    height: 1450,
     theme,
     parts: [
-      { source: compactContext, x: 50, y: 35 },
-      { source: compactProfile, x: 50, y: 560 },
-      { source: compactTools, x: 50, y: 785 },
-      { source: compactProvider, x: 50, y: 1545 },
-      { source: compactPlugins, x: 50, y: 2275 },
+      { source: compactProfile, x: 50, y: 35 },
+      { source: compactTools, x: 50, y: 220 },
+      { source: compactProvider, x: 50, y: 590 },
+      { source: compactPlugins, x: 50, y: 970 },
     ],
     destination: output("session-settings", "compact", theme),
   });

@@ -9,11 +9,20 @@ test.skip(
 
 const directory = path.resolve("artifacts/walkthrough-final-review/page");
 const chapters = [
-  { id: "compose", label: "Compose", compactHeight: 1920 },
-  { id: "messages", label: "Messages", compactHeight: 2490 },
-  { id: "session-actions", label: "Session actions", compactHeight: 1920 },
-  { id: "session-settings", label: "Session settings", compactHeight: 3280 },
+  { id: "compose", label: "Compose", compactHeight: 1500 },
+  { id: "messages", label: "Messages", compactHeight: 1570 },
+  { id: "session-actions", label: "Session actions", compactHeight: 1450 },
+  { id: "session-settings", label: "Session settings", compactHeight: 1450 },
   { id: "workspace", label: "Workspace", compactHeight: 1370 },
+];
+const viewports = [
+  { id: "1440", width: 1440, height: 1000 },
+  { id: "1024", width: 1024, height: 1000 },
+  { id: "768", width: 768, height: 1000 },
+  { id: "390", width: 390, height: 844 },
+  { id: "375", width: 375, height: 812 },
+  { id: "375-short", width: 375, height: 667 },
+  { id: "320-short", width: 320, height: 568 },
 ];
 
 async function loadImages(page) {
@@ -29,11 +38,14 @@ async function loadImages(page) {
   );
 }
 
-for (const width of [1440, 1024, 768, 390, 375, 320]) {
+for (const viewport of viewports) {
   for (const theme of ["light", "dark"]) {
-    test(`final walkthrough ${width} ${theme}`, async ({ page }) => {
+    test(`final walkthrough ${viewport.id} ${theme}`, async ({ page }) => {
       fs.mkdirSync(directory, { recursive: true });
-      await page.setViewportSize({ width, height: 1000 });
+      await page.setViewportSize({
+        width: viewport.width,
+        height: viewport.height,
+      });
       await page.addInitScript(
         value => localStorage.setItem("cl-theme", value),
         theme,
@@ -65,7 +77,7 @@ for (const width of [1440, 1024, 768, 390, 375, 320]) {
 
       const firstImage = panels.nth(0).locator("img");
       const currentSource = await firstImage.evaluate(image => image.currentSrc);
-      if (width <= 760) {
+      if (viewport.width <= 760) {
         expect(currentSource).toContain("compose-compact");
       } else {
         expect(currentSource).toContain("compose-wide");
@@ -73,7 +85,10 @@ for (const width of [1440, 1024, 768, 390, 375, 320]) {
 
       await walkthrough.scrollIntoViewIfNeeded();
       await walkthrough.screenshot({
-        path: path.join(directory, `walkthrough-${width}-${theme}.png`),
+        path: path.join(
+          directory,
+          `walkthrough-${viewport.id}-${theme}.png`,
+        ),
       });
 
       for (let index = 0; index < chapters.length; index += 1) {
@@ -88,7 +103,7 @@ for (const width of [1440, 1024, 768, 390, 375, 320]) {
           renderedWidth: element.getBoundingClientRect().width,
           renderedHeight: element.getBoundingClientRect().height,
         }));
-        if (width <= 760) {
+        if (viewport.width <= 760) {
           expect(imageState.currentSrc).toContain(
             `${chapters[index].id}-compact`,
           );
@@ -97,6 +112,50 @@ for (const width of [1440, 1024, 768, 390, 375, 320]) {
           expect(
             imageState.renderedHeight / imageState.renderedWidth,
           ).toBeCloseTo(chapters[index].compactHeight / 1000, 2);
+          const imageStage = panels
+            .nth(index)
+            .locator("[data-walkthrough-image-stage]");
+          await imageStage.evaluate(element => {
+            const bounds = element.getBoundingClientRect();
+            window.scrollTo({
+              top:
+                window.scrollY
+                + bounds.top
+                - (window.innerHeight - bounds.height) / 2,
+              behavior: "instant",
+            });
+          });
+          const stageBounds = await imageStage.boundingBox();
+          const imageBounds = await image.boundingBox();
+          expect(stageBounds).not.toBeNull();
+          expect(imageBounds).not.toBeNull();
+          expect(imageBounds.width).toBeGreaterThanOrEqual(
+            stageBounds.width - 1,
+          );
+          expect(imageBounds.y).toBeGreaterThanOrEqual(0);
+          expect(imageBounds.y + imageBounds.height).toBeLessThanOrEqual(
+            viewport.height,
+          );
+
+          const previous = panels.nth(index).getByRole("button", {
+            name: /^Previous chapter/,
+          });
+          const next = panels.nth(index).getByRole("button", {
+            name: /^Next chapter/,
+          });
+          await expect(previous).toBeVisible();
+          await expect(next).toBeVisible();
+          const previousBounds = await previous.boundingBox();
+          const nextBounds = await next.boundingBox();
+          const imageCenter = imageBounds.y + imageBounds.height / 2;
+          expect(
+            Math.abs(
+              previousBounds.y + previousBounds.height / 2 - imageCenter,
+            ),
+          ).toBeLessThanOrEqual(2);
+          expect(
+            Math.abs(nextBounds.y + nextBounds.height / 2 - imageCenter),
+          ).toBeLessThanOrEqual(2);
         } else {
           expect(imageState.currentSrc).toContain(`${chapters[index].id}-wide`);
           expect(imageState.naturalWidth).toBe(1800);
@@ -105,13 +164,13 @@ for (const width of [1440, 1024, 768, 390, 375, 320]) {
         await walkthrough.screenshot({
           path: path.join(
             directory,
-            `${chapters[index].id}-${width}-${theme}.png`,
+            `${chapters[index].id}-${viewport.id}-${theme}.png`,
           ),
         });
       }
 
       await page.screenshot({
-        path: path.join(directory, `full-${width}-${theme}.png`),
+        path: path.join(directory, `full-${viewport.id}-${theme}.png`),
         fullPage: true,
       });
     });
@@ -126,25 +185,55 @@ test("walkthrough supports labeled controls, keyboard navigation, swipe, and no 
   const walkthrough = page.locator("#product-walkthrough");
   const tabs = walkthrough.getByRole("tab");
   const panels = walkthrough.locator('[role="tabpanel"]');
-  const next = walkthrough.getByRole("button", { name: /^Next:/ });
-  const previous = walkthrough.getByRole("button", { name: /^Previous/ });
-
-  await expect(next).toContainText("Messages");
+  await expect(walkthrough.locator(".walkthrough-controls")).toHaveCount(0);
+  const firstStage = panels.nth(0).locator("[data-walkthrough-image-stage]");
+  await firstStage.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    window.scrollTo({
+      top:
+        window.scrollY
+        + bounds.top
+        - (window.innerHeight - bounds.height) / 2,
+      behavior: "instant",
+    });
+  });
+  const firstStageBounds = await firstStage.boundingBox();
+  const previousAtStart = panels.nth(0).getByRole("button", {
+    name: "Previous chapter",
+  });
+  const next = panels.nth(0).getByRole("button", {
+    name: "Next chapter: Messages",
+  });
+  await expect(previousAtStart).toBeDisabled();
   await next.click();
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-  await expect(previous).toContainText("Compose");
+  const secondStage = panels.nth(1).locator("[data-walkthrough-image-stage]");
+  await expect(secondStage).toBeVisible();
+  await page.waitForTimeout(50);
+  const secondStageBounds = await secondStage.boundingBox();
+  expect(Math.abs(secondStageBounds.y - firstStageBounds.y)).toBeLessThanOrEqual(
+    2,
+  );
+  await expect(
+    panels.nth(1).getByRole("button", {
+      name: "Previous chapter: Compose",
+    }),
+  ).toBeVisible();
 
   await tabs.nth(1).focus();
   await page.keyboard.press("ArrowRight");
   await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("End");
   await expect(tabs.nth(4)).toHaveAttribute("aria-selected", "true");
+  await expect(
+    panels.nth(4).getByRole("button", { name: "Next chapter" }),
+  ).toBeDisabled();
 
   await page.waitForTimeout(1200);
   await expect(tabs.nth(4)).toHaveAttribute("aria-selected", "true");
 
   await tabs.nth(2).click();
-  const visual = panels.nth(2).locator("[data-walkthrough-visual]");
+  const visual = panels.nth(2).locator("[data-walkthrough-image-stage]");
   await visual.evaluate(element => {
     const start = new Event("touchstart", { bubbles: true });
     Object.defineProperty(start, "changedTouches", {
@@ -170,6 +259,11 @@ test("walkthrough content remains sequential without JavaScript", async ({ brows
     await expect(
       walkthrough.locator(`#walkthrough-panel-${chapter.id}`),
     ).toBeVisible();
+  }
+  for (const controls of await walkthrough
+    .locator("[data-walkthrough-image-controls]")
+    .all()) {
+    await expect(controls).toBeHidden();
   }
   await context.close();
 });

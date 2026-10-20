@@ -4,10 +4,10 @@ export const walkthroughFinalPreviewEnabled =
 const prefix = "/__preview/walkthrough-final";
 const sourceDirectory = "artifacts/walkthrough-final-preview";
 const compactHeights = {
-  compose: 1920,
-  messages: 2490,
-  "session-actions": 1920,
-  "session-settings": 3280,
+  compose: 1500,
+  messages: 1570,
+  "session-actions": 1450,
+  "session-settings": 1450,
   workspace: 1370,
 };
 

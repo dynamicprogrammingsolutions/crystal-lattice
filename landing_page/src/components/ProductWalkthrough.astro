@@ -67,20 +67,54 @@ const chapters = section.chapters ?? [];
             class="walkthrough-visual"
             data-walkthrough-visual
           >
-            <ThemedImage
-              src={chapter.image.src}
-              srcDark={chapter.image.srcDark}
-              srcCompact={chapter.image.srcCompact}
-              srcCompactDark={chapter.image.srcCompactDark}
-              width={chapter.image.width}
-              height={chapter.image.height}
-              widthCompact={chapter.image.widthCompact}
-              heightCompact={chapter.image.heightCompact}
-              alt={chapter.image.alt}
-              loading={index === 0 ? "eager" : "lazy"}
-              decoding="async"
-              fetchpriority={index === 0 ? "high" : "auto"}
-            />
+            <div class="walkthrough-image-stage" data-walkthrough-image-stage>
+              <ThemedImage
+                src={chapter.image.src}
+                srcDark={chapter.image.srcDark}
+                srcCompact={chapter.image.srcCompact}
+                srcCompactDark={chapter.image.srcCompactDark}
+                width={chapter.image.width}
+                height={chapter.image.height}
+                widthCompact={chapter.image.widthCompact}
+                heightCompact={chapter.image.heightCompact}
+                alt={chapter.image.alt}
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding="async"
+                fetchpriority={index === 0 ? "high" : "auto"}
+              />
+              <div
+                class="walkthrough-image-controls"
+                data-walkthrough-image-controls
+                hidden
+              >
+                <button
+                  type="button"
+                  class="walkthrough-image-button walkthrough-image-button--previous"
+                  data-walkthrough-step="-1"
+                  aria-label={index === 0
+                    ? "Previous chapter"
+                    : `Previous chapter: ${chapters[index - 1].label}`}
+                  disabled={index === 0}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m15 6-6 6 6 6"></path>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="walkthrough-image-button walkthrough-image-button--next"
+                  data-walkthrough-step="1"
+                  aria-label={index === chapters.length - 1
+                    ? "Next chapter"
+                    : `Next chapter: ${chapters[index + 1].label}`}
+                  disabled={index === chapters.length - 1}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m9 6 6 6-6 6"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
             <figcaption>{chapter.caption}</figcaption>
           </figure>
 
@@ -88,22 +122,7 @@ const chapters = section.chapters ?? [];
         </article>
       ))}
     </div>
-
-    <footer class="walkthrough-controls">
-      <button type="button" data-walkthrough-step="-1" disabled>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
-          <path d="m15 18-6-6 6-6"></path>
-        </svg>
-        <span data-walkthrough-previous-label>Previous</span>
-      </button>
-      <span class="sr-only" aria-live="polite" aria-atomic="true" data-walkthrough-status></span>
-      <button type="button" data-walkthrough-step="1">
-        <span data-walkthrough-next-label>Next: Messages</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
-          <path d="m9 18 6-6-6-6"></path>
-        </svg>
-      </button>
-    </footer>
+    <span class="sr-only" aria-live="polite" aria-atomic="true" data-walkthrough-status></span>
   </product-walkthrough>
 </SectionShell>
 
@@ -111,10 +130,6 @@ const chapters = section.chapters ?? [];
   class ProductWalkthroughElement extends HTMLElement {
     private tabs: HTMLButtonElement[] = [];
     private panels: HTMLElement[] = [];
-    private previousButton: HTMLButtonElement | null = null;
-    private nextButton: HTMLButtonElement | null = null;
-    private previousLabel: HTMLElement | null = null;
-    private nextLabel: HTMLElement | null = null;
     private status: HTMLElement | null = null;
     private currentIndex = 0;
     private touchStartX = 0;
@@ -123,10 +138,6 @@ const chapters = section.chapters ?? [];
     connectedCallback() {
       this.tabs = Array.from(this.querySelectorAll("[data-walkthrough-tab]"));
       this.panels = Array.from(this.querySelectorAll("[data-walkthrough-panel]"));
-      this.previousButton = this.querySelector('[data-walkthrough-step="-1"]');
-      this.nextButton = this.querySelector('[data-walkthrough-step="1"]');
-      this.previousLabel = this.querySelector("[data-walkthrough-previous-label]");
-      this.nextLabel = this.querySelector("[data-walkthrough-next-label]");
       this.status = this.querySelector("[data-walkthrough-status]");
 
       this.addEventListener("click", this.handleClick);
@@ -134,6 +145,10 @@ const chapters = section.chapters ?? [];
       this.addEventListener("touchstart", this.handleTouchStart, { passive: true });
       this.addEventListener("touchend", this.handleTouchEnd, { passive: true });
       this.dataset.ready = "true";
+      this.querySelectorAll<HTMLElement>("[data-walkthrough-image-controls]")
+        .forEach(element => {
+          element.hidden = false;
+        });
       this.showChapter(0, false);
     }
 
@@ -142,6 +157,10 @@ const chapters = section.chapters ?? [];
       this.removeEventListener("keydown", this.handleKeydown);
       this.removeEventListener("touchstart", this.handleTouchStart);
       this.removeEventListener("touchend", this.handleTouchEnd);
+      this.querySelectorAll<HTMLElement>("[data-walkthrough-image-controls]")
+        .forEach(element => {
+          element.hidden = true;
+        });
       delete this.dataset.ready;
     }
 
@@ -149,8 +168,28 @@ const chapters = section.chapters ?? [];
       return this.tabs[index]?.textContent?.replace(/^\s*\d+\s*/, "").trim() ?? "";
     }
 
-    private showChapter(index: number, announce = true, focusTab = false) {
+    private centerTab(index: number) {
+      const tab = this.tabs[index];
+      const tabList = tab?.parentElement;
+      if (!tab || !tabList) return;
+      tabList.scrollTo({
+        left: tab.offsetLeft - (tabList.clientWidth - tab.offsetWidth) / 2,
+        behavior: "auto",
+      });
+    }
+
+    private showChapter(
+      index: number,
+      announce = true,
+      focusTab = false,
+      preserveVisualPosition = false,
+    ) {
       if (index < 0 || index >= this.tabs.length) return;
+      const previousVisualTop = preserveVisualPosition
+        ? this.panels[this.currentIndex]
+          ?.querySelector<HTMLElement>("[data-walkthrough-image-stage]")
+          ?.getBoundingClientRect().top
+        : undefined;
       this.currentIndex = index;
 
       this.tabs.forEach((tab, tabIndex) => {
@@ -162,28 +201,22 @@ const chapters = section.chapters ?? [];
         panel.hidden = panelIndex !== index;
       });
 
-      if (this.previousButton) this.previousButton.disabled = index === 0;
-      if (this.nextButton) this.nextButton.disabled = index === this.tabs.length - 1;
-      if (this.previousLabel) {
-        this.previousLabel.textContent =
-          index === 0 ? "Previous" : `Previous: ${this.chapterLabel(index - 1)}`;
-      }
-      if (this.nextLabel) {
-        this.nextLabel.textContent =
-          index === this.tabs.length - 1
-            ? "Next"
-            : `Next: ${this.chapterLabel(index + 1)}`;
-      }
       if (announce && this.status) {
         this.status.textContent =
           `${this.chapterLabel(index)}, chapter ${index + 1} of ${this.tabs.length}`;
       }
       if (focusTab) this.tabs[index]?.focus();
-      this.tabs[index]?.scrollIntoView({
-        behavior: "auto",
-        block: "nearest",
-        inline: "center",
-      });
+      this.centerTab(index);
+
+      if (previousVisualTop !== undefined) {
+        requestAnimationFrame(() => {
+          const nextVisual = this.panels[index]
+            ?.querySelector<HTMLElement>("[data-walkthrough-image-stage]");
+          if (!nextVisual) return;
+          document.documentElement.scrollTop +=
+            nextVisual.getBoundingClientRect().top - previousVisualTop;
+        });
+      }
     }
 
     private handleClick = (event: Event) => {
@@ -196,7 +229,12 @@ const chapters = section.chapters ?? [];
       }
       const step = target.closest<HTMLButtonElement>("[data-walkthrough-step]");
       if (!step || !this.contains(step) || step.disabled) return;
-      this.showChapter(this.currentIndex + Number(step.dataset.walkthroughStep));
+      this.showChapter(
+        this.currentIndex + Number(step.dataset.walkthroughStep),
+        true,
+        false,
+        true,
+      );
     };
 
     private handleKeydown = (event: KeyboardEvent) => {
@@ -213,19 +251,24 @@ const chapters = section.chapters ?? [];
     };
 
     private handleTouchStart = (event: TouchEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-visual]")) return;
+      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-image-stage]")) return;
       const touch = event.changedTouches[0];
       this.touchStartX = touch.clientX;
       this.touchStartY = touch.clientY;
     };
 
     private handleTouchEnd = (event: TouchEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-visual]")) return;
+      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-image-stage]")) return;
       const touch = event.changedTouches[0];
       const deltaX = touch.clientX - this.touchStartX;
       const deltaY = touch.clientY - this.touchStartY;
       if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
-      this.showChapter(this.currentIndex + (deltaX < 0 ? 1 : -1));
+      this.showChapter(
+        this.currentIndex + (deltaX < 0 ? 1 : -1),
+        true,
+        false,
+        true,
+      );
     };
   }
 
@@ -301,7 +344,7 @@ const chapters = section.chapters ?? [];
   }
 
   .walkthrough-tabs button:focus-visible,
-  .walkthrough-controls button:focus-visible {
+  .walkthrough-image-button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
@@ -366,14 +409,19 @@ const chapters = section.chapters ?? [];
     border: 1px solid var(--border);
     border-radius: 1rem;
     background: var(--bg-raised);
-    overflow: hidden;
+    overflow: visible;
   }
 
-  .walkthrough-visual :global(picture) {
+  .walkthrough-image-stage {
+    position: relative;
+    min-width: 0;
+  }
+
+  .walkthrough-image-stage :global(picture) {
     display: block;
   }
 
-  .walkthrough-visual :global(img) {
+  .walkthrough-image-stage :global(img) {
     display: block;
     width: 100%;
     height: auto;
@@ -383,44 +431,57 @@ const chapters = section.chapters ?? [];
     object-fit: contain;
   }
 
+  .walkthrough-image-controls {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .walkthrough-image-controls[hidden] {
+    display: none;
+  }
+
+  .walkthrough-image-button {
+    position: absolute;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    transform: translateY(-50%);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--bg-raised);
+    color: var(--text);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .walkthrough-image-button--previous {
+    left: -1.15rem;
+  }
+
+  .walkthrough-image-button--next {
+    right: -1.15rem;
+  }
+
+  .walkthrough-image-button:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .walkthrough-image-button:not(:disabled):hover {
+    background: var(--bg-surface);
+  }
+
   .walkthrough-visual figcaption {
     margin-top: 0.75rem;
     color: var(--text-4);
     font-size: 0.8125rem;
     line-height: 1.55;
-  }
-
-  .walkthrough-controls {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1rem;
-  }
-
-  .walkthrough-controls button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-height: 42px;
-    padding: 0.6rem 0.85rem;
-    border: 1px solid var(--border);
-    border-radius: 0.65rem;
-    background: var(--bg-raised);
-    color: var(--text-2);
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 650;
-    cursor: pointer;
-  }
-
-  .walkthrough-controls button:disabled {
-    opacity: 0.38;
-    cursor: default;
-  }
-
-  .walkthrough-controls button:not(:disabled):hover {
-    border-color: var(--border-strong);
-    color: var(--text);
   }
 
   @media (max-width: 760px) {
@@ -430,8 +491,7 @@ const chapters = section.chapters ?? [];
     }
 
     .walkthrough-intro,
-    .walkthrough-stage,
-    .walkthrough-controls {
+    .walkthrough-stage {
       margin-left: 1.5rem;
       margin-right: 1.5rem;
     }
@@ -507,8 +567,17 @@ const chapters = section.chapters ?? [];
       margin-top: 0;
     }
 
-    .walkthrough-visual :global(img) {
+    .walkthrough-image-stage :global(picture) {
+      display: flex;
+      justify-content: center;
+    }
+
+    .walkthrough-image-stage :global(img) {
+      width: auto;
+      max-width: 100%;
+      max-height: calc(100svh - 10rem);
       aspect-ratio: auto;
+      margin-inline: auto;
       border-radius: 0.6rem;
     }
 
@@ -517,13 +586,12 @@ const chapters = section.chapters ?? [];
       font-size: 0.78rem;
     }
 
-    .walkthrough-controls {
-      justify-content: space-between;
-      margin-top: 0.8rem;
+    .walkthrough-image-button--previous {
+      left: -1.05rem;
     }
 
-    .walkthrough-controls button {
-      max-width: 48%;
+    .walkthrough-image-button--next {
+      right: -1.05rem;
     }
   }
 

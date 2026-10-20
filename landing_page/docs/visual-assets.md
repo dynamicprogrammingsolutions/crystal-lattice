@@ -288,8 +288,9 @@ The script reads the approved real Desktop/mobile sources retained under
 `artifacts/walkthrough-candidates/` plus the reviewed agent-picker source. It
 writes ignored light/dark wide (1800 × 1013) and chapter-specific compact WebP
 assets under `artifacts/walkthrough-final-preview/`. Compact assets are 1000
-pixels wide and use natural heights from 1370 to 3280 pixels rather than a
-shared 4:5 frame.
+pixels wide and use natural heights from 1370 to 1570 pixels rather than a
+shared 4:5 frame. Their maximum 1.57:1 portrait ratio keeps the complete image
+visible at full available width in short phone viewports.
 
 The chapter-specific treatment is deliberate:
 
@@ -314,7 +315,9 @@ variants are independently composed for rendered phone readability rather than
 being scaled copies of the wide image. A context thumbnail remains visible,
 the source region is localized with a matching highlight, and an enlarged
 detail must not overlap or obscure that source. The website renders each
-compact asset at its natural ratio.
+compact asset at its natural ratio. When a compact composition selects
+non-contiguous genuine menu rows, visible omission markers distinguish the
+excerpts from an unmodified continuous popup.
 
 These remain ignored review outputs until the H3 human checkpoint is approved
 and a later source-promotion step is authorized. The explicit page binding is

@@ -215,9 +215,11 @@ autoplay, a reduced-motion-safe presentation, and sequential panels when
 JavaScript is unavailable.
 
 Compact chapter media uses the dimensions declared by each content asset
-rather than a shared aspect ratio. This permits a short list detail and a
-longer settings storyboard to remain readable at an iPhone 12 Mini-equivalent
-375 CSS pixels without covering the contextual source screenshot.
+rather than a shared aspect ratio. Every current compact composition remains
+between 1.37:1 and 1.57:1, so the whole image can fit at full available width
+in 375 × 667 and 320 × 568 phone viewports. Chapter navigation uses the same
+circular image-edge arrow convention as feature media; named tabs remain the
+explicit pagination, and the previous bottom control footer is not retained.
 
 The final preview removes the superseded model-family and session-workspace
 compact highlights but leaves later feature and Getting Started changes to
