@@ -574,6 +574,72 @@ def test_run_accepts_each_prompt_source(tmp_path: Path, source: str) -> None:
     assert "[session]" in result.stderr
 
 
+def test_run_resend_retries_without_appending_a_user_message(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+    first = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--prompt",
+        "resend task",
+        "--format",
+        "json",
+    )
+    assert first.returncode == 0, first.stderr
+    session_id = _json_stdout(first)["session_id"]
+
+    resent = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--session",
+        session_id,
+        "--resend",
+        "--format",
+        "json",
+    )
+    assert resent.returncode == 0, resent.stderr
+    assert _json_stdout(resent)["output_text"] == "SYS= | USER=resend task"
+
+    history = _run(
+        tmp_path,
+        config,
+        sessions,
+        "history",
+        "--session",
+        session_id,
+        "--format",
+        "json",
+    )
+    assert history.returncode == 0, history.stderr
+    rows = _json_stdout(history)["messages"]
+    assert [row["role"] for row in rows] == ["user", "assistant", "assistant"]
+    assert [row["content"] for row in rows if row["role"] == "user"] == ["resend task"]
+
+
+def test_run_resend_requires_a_persisted_session(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "config.json")
+    result = _run(
+        tmp_path,
+        config,
+        tmp_path / "sessions",
+        "run",
+        "--agent",
+        "alpha",
+        "--resend",
+    )
+
+    assert result.returncode == 2
+    assert "--resend requires --session" in result.stderr
+
+
 def test_json_timeout_has_stable_result_and_exit_code(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "config.json", delay_ms=100)
     result = _run(

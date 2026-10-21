@@ -966,4 +966,27 @@ export class RestAgentBackend implements AgentBackend {
       params,
     );
   }
+
+  async executeSessionActionCallback(params: {
+    sessionId: string;
+    pluginId?: string;
+    callbackElementId: string;
+    redirectUrl: string;
+  }): Promise<ExecuteActionResponse> {
+    const payload: Record<string, any> = {
+      redirect_url: params.redirectUrl,
+    };
+    if (typeof params.pluginId === 'string' && params.pluginId) {
+      payload.plugin = params.pluginId;
+    }
+    const response = await this.transport.request<ExecuteActionResponse>({
+      method: 'POST',
+      path:
+        `/sessions/${encodeURIComponent(params.sessionId)}` +
+        `/action-callbacks/${encodeURIComponent(params.callbackElementId)}`,
+      body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
+    });
+    return this.handleExecuteActionResponse(response.data);
+  }
 }

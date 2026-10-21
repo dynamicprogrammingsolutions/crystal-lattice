@@ -257,6 +257,11 @@ export {
 } from "./plugins/applicationActionsInvalidation";
 export type { ParsedActionDeepLink } from "./plugins/actionDeepLinks";
 export { parseActionDeepLink } from "./plugins/actionDeepLinks";
+export { createActionDeepLinkHandler } from "./plugins/actionDeepLinkRouting";
+export type {
+  ActionDeepLinkHandlerOptions,
+  ActionDeepLinkRoutingResult,
+} from "./plugins/actionDeepLinkRouting";
 export type {
   ActionDisplayHost,
   ActionDisplaySurface,

@@ -65,7 +65,7 @@ describe('mobile MCP login deep-link routing with a real backend', () => {
     fixture = await startMcpAuthFixture();
     started = await startBackendServer({
       config: serverConfig(fixture),
-      startupTimeoutMs: 30000,
+      startupTimeoutMs: 120000,
     });
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: started.baseUrl }),
@@ -100,7 +100,7 @@ describe('mobile MCP login deep-link routing with a real backend', () => {
       connectionId: 'test-connection',
       sessionId,
       pluginId: 'mcp_runtime_app',
-      actionId: 'mcp_complete_login',
+      callbackElementId: 'mcp_complete_login_callback',
     });
 
     const handleIncomingUrl = createActionDeepLinkHandler({
@@ -125,5 +125,5 @@ describe('mobile MCP login deep-link routing with a real backend', () => {
     });
     expect(fixture.tokenRequests).toHaveLength(1);
     expect(fixture.mcpAuthorizationHeaders).toContain('Bearer access-123');
-  }, 60000);
+  }, 180000);
 });

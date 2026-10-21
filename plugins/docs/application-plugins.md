@@ -481,6 +481,18 @@ for the proposed notification delivery and revision-deduplication rules.
 
 Application plugins contribute UI elements via `get_ui_elements()`. The UI element shape differs from core plugins:
 
+Actions returned by `get_actions()` are callable procedures, not automatic UI
+or command inventory. Every user-facing exposure is an applicable
+action-backed UI element. This includes `application_action`,
+`session_action`, `session_list_action`, `message_action`, `cli_command`, and
+`slash_command`. Several elements may intentionally bind the same procedure.
+
+New command integrations use `cli_command` and `slash_command` elements
+documented in [UI elements](ui-elements.md#command-elements-cli_command-and-slash_command).
+The older `get_commands()` hook is compatibility-only: the application adapts
+its declarations to top-level CLI commands and never creates slash commands or
+`/action` entries from them.
+
 ```python
 def get_ui_elements(
     self,

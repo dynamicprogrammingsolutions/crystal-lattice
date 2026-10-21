@@ -823,7 +823,11 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
-- `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
+- `GET /application/ui-schema`, `POST /actions`, and
+  `POST /sessions/{session_id}/actions` - application UI/actions.
+- `POST /sessions/{session_id}/action-callbacks/{callback_element_id}` -
+  resolve one currently applicable `session_action_callback`, map only its
+  declared callback fields, and execute its bound action.
 
 Request admission and execution are application-layer behavior. FastAPI and
 the terminal delegate to the same `AgentApplication` session-request

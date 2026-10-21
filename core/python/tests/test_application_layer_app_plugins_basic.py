@@ -14,6 +14,7 @@ import pytest
 
 from agent_app.application_future import AgentApplication
 from agent_app.app_plugins import ApplicationPluginWrapper
+from agent_app.command_ui import CommandCatalogError
 from agent_core import AgentCore
 
 # Import dummy plugins so they are available for dotted-path loading.
@@ -87,6 +88,19 @@ def test_get_application_actions_and_ui_schema_attach_plugin_id(tmp_path: Path) 
     assert command["name"] == "dummy-command"
     assert command["action_id"] == "do_dummy"
     assert command["args"][0]["name"] == "value"
+
+    cli_elements = app.get_application_command_ui_elements("cli_command")
+    assert [
+        (element["path"], element["legacy"], element["action_id"])
+        for element in cli_elements
+    ] == [(["dummy-command"], True, "do_dummy")]
+    assert app.get_application_command_ui_elements("slash_command") == []
+
+    with pytest.raises(CommandCatalogError, match="built-in.*dummy_app_plugin"):
+        app.get_application_command_ui_elements(
+            "cli_command",
+            reserved_paths=[("dummy-command",)],
+        )
 
 
 def test_application_ui_schema_context_includes_authoritative_server_settings(

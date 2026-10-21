@@ -95,6 +95,18 @@ class MCPRuntimeAppPlugin:
                 "fixed_params": {},
                 "param_map": {"session_id": "$session.session_id"},
             },
+            {
+                "ui_type": "session_action_callback",
+                "id": "mcp_complete_login_callback",
+                "label": "Complete MCP login callback",
+                "action_id": "mcp_complete_login",
+                "param_map": {
+                    "server_name": "$callback.query.server_name",
+                    "code": "$callback.query.code",
+                    "state": "$callback.query.state",
+                    "redirect_url": "$callback.redirect_url",
+                },
+            },
         ]
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -729,7 +741,7 @@ class MCPRuntimeAppPlugin:
                 connection_id=connection_id,
                 session_id=session_id,
                 plugin_id=self.name,
-                action_id="mcp_complete_login",
+                action_id="mcp_complete_login_callback",
                 server_name=server_name,
             )
         base = "/".join(
@@ -738,7 +750,7 @@ class MCPRuntimeAppPlugin:
                 quote(connection_id, safe=""),
                 quote(session_id, safe=""),
                 quote(self.name, safe=""),
-                "mcp_complete_login",
+                "mcp_complete_login_callback",
             ]
         )
         return f"{base}?{urlencode({'server_name': server_name})}"

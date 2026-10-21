@@ -45,7 +45,10 @@ providers that require specific registered metadata.
 ```
 
 Supported redirect placeholders are `{connection_id}`, `{session_id}`,
-`{plugin_id}`, `{action_id}`, and `{server_name}`.
+`{plugin_id}`, `{action_id}`, and `{server_name}`. For the MCP runtime app,
+`{action_id}` is populated with the applicable
+`mcp_complete_login_callback` UI element id; it does not identify the
+`mcp_complete_login` procedure directly.
 
 `oauth.token_exchange.include_resource` controls whether the MCP resource is
 sent during the authorization-code token exchange. It defaults to true when a
@@ -100,8 +103,9 @@ after a request:
    submit it.
 
 The callback URL must contain the OAuth `code` and `state` query parameters.
-The same completion action also supports app deep links that pass `code` and
-`state` directly.
+App deep links resolve the applicable `mcp_complete_login_callback` element.
+That element explicitly maps the callback URL and query fields into the
+`mcp_complete_login` procedure; bare action ids are not callback routes.
 
 ## License
 

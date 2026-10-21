@@ -351,7 +351,7 @@ function App(): React.JSX.Element {
         appendDebugNote({
           scope: 'app',
           title: 'Action link queued',
-          detail: outcome.parsed.actionId,
+          detail: outcome.parsed.callbackElementId,
           meta: {
             connectionId: outcome.parsed.connectionId,
             sessionId: outcome.parsed.sessionId,
@@ -369,7 +369,7 @@ function App(): React.JSX.Element {
         appendDebugNote({
           scope: 'app',
           title: 'Action link execution succeeded',
-          detail: outcome.parsed.actionId,
+          detail: outcome.parsed.callbackElementId,
           meta: {
             connectionId: outcome.parsed.connectionId,
             sessionId: outcome.parsed.sessionId,
@@ -396,7 +396,7 @@ function App(): React.JSX.Element {
           connectionId: outcome.parsed?.connectionId ?? null,
           sessionId: outcome.parsed?.sessionId ?? null,
           pluginId: outcome.parsed?.pluginId ?? null,
-          actionId: outcome.parsed?.actionId ?? null,
+          callbackElementId: outcome.parsed?.callbackElementId ?? null,
           errorType: outcome.errorType,
         },
       });

@@ -279,6 +279,12 @@ export interface AgentBackend {
     inputs: Record<string, any>;
     idempotencyKey?: string;
   }): Promise<ExecuteActionResponse>;
+  executeSessionActionCallback?(params: {
+    sessionId: string;
+    pluginId?: string;
+    callbackElementId: string;
+    redirectUrl: string;
+  }): Promise<ExecuteActionResponse>;
 
   // --- Application-level config (optional; used by terminal today) ---
   getApplicationConfigSchema?(): Promise<Record<string, any>>;

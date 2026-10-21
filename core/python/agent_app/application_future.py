@@ -28,12 +28,19 @@ from contextlib import contextmanager
 from datetime import datetime
 import os
 import threading
+from urllib.parse import parse_qs, urlparse
 
 from agent_core import AgentCore, Message, ModelDiscoveryCache, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
+from .command_ui import (
+    CommandCatalogError,
+    build_command_catalog,
+    legacy_command_element,
+)
+from .utils.ui_condition import evaluate_condition
 from .application_notifications import (
     ApplicationNotificationMutation,
     ApplicationNotificationStore,
@@ -3530,9 +3537,9 @@ class AgentApplication:
     def get_application_commands(self) -> List[Dict[str, Any]]:
         """Return flattened command bindings from application plugins.
 
-        Each returned command dictionary includes a ``"plugin"`` field naming
-        the contributing plugin. Commands are frontend-facing bindings onto
-        existing application actions rather than a second executable surface.
+        This is the compatibility-only ``get_commands`` surface. New command
+        contributions use action-backed ``cli_command`` or ``slash_command``
+        UI elements. Legacy declarations are never promoted to slash commands.
         """
 
         commands: List[Dict[str, Any]] = []
@@ -3547,6 +3554,133 @@ class AgentApplication:
                     command["plugin"] = plugin_id
                     commands.append(command)
         return commands
+
+    def _validate_command_action_bindings(
+        self,
+        catalog: List[Dict[str, Any]],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        for element in catalog:
+            action_owner = (
+                element.get("action_owner")
+                if isinstance(element.get("action_owner"), str)
+                else None
+            )
+            try:
+                self.validate_action_binding(
+                    element["plugin"],
+                    element["action_id"],
+                    action_owner=action_owner,
+                    context=context,
+                )
+            except Exception as exc:
+                raise CommandCatalogError(
+                    "command element references unavailable action "
+                    f"{element['plugin']}.{element['action_id']}: {exc}"
+                ) from exc
+            foreground = element.get("foreground")
+            if isinstance(foreground, Mapping):
+                for step_name in ("status", "cancel"):
+                    step = foreground[step_name]
+                    step_plugin = step.get("plugin") or element["plugin"]
+                    step_action_id = step.get("action_id")
+                    step_owner = (
+                        step.get("action_owner")
+                        if isinstance(step.get("action_owner"), str)
+                        else action_owner
+                    )
+                    try:
+                        if not isinstance(step_plugin, str) or not isinstance(
+                            step_action_id,
+                            str,
+                        ):
+                            raise ValueError("plugin and action_id must be strings")
+                        self.validate_action_binding(
+                            step_plugin,
+                            step_action_id,
+                            action_owner=step_owner,
+                            context=context,
+                        )
+                    except Exception as exc:
+                        raise CommandCatalogError(
+                            f"command foreground {step_name} references unknown "
+                            f"action {step_plugin}.{step_action_id}"
+                        ) from exc
+        return catalog
+
+    def get_application_command_ui_elements(
+        self,
+        ui_type: str,
+        *,
+        reserved_paths: Sequence[Sequence[str]] = (),
+    ) -> List[Dict[str, Any]]:
+        """Return validated global command UI elements for one frontend.
+
+        ``cli_command`` includes compatibility adapters for legacy
+        ``get_commands`` declarations. ``slash_command`` is sourced only from
+        UI schema and therefore never receives a legacy command implicitly.
+        """
+
+        command_context = {"ui_context": ui_type}
+        elements = self.get_application_ui_schema(context=command_context)
+        command_elements: List[Dict[str, Any]] = [
+            element
+            for element in elements
+            if isinstance(element, dict)
+            and element.get("ui_type") == ui_type
+            and evaluate_condition(element.get("condition"), command_context)
+        ]
+        if ui_type == "cli_command":
+            for position, command in enumerate(self.get_application_commands()):
+                plugin = command.get("plugin")
+                if not isinstance(plugin, str) or not plugin:
+                    raise CommandCatalogError(
+                        "legacy command is missing its contributing plugin"
+                    )
+                command_elements.append(
+                    legacy_command_element(
+                        command,
+                        plugin=plugin,
+                        position=position,
+                    )
+                )
+        return self._validate_command_action_bindings(
+            build_command_catalog(
+                command_elements,
+                ui_type=ui_type,
+                reserved_paths=reserved_paths,
+            )
+        )
+
+    def get_session_command_ui_elements_for_session(
+        self,
+        core: AgentCore,
+        base_config: Dict[str, Any],
+        session: Session,
+        ui_type: str,
+        *,
+        reserved_paths: Sequence[Sequence[str]] = (),
+    ) -> List[Dict[str, Any]]:
+        """Return applicable command UI elements for an active session."""
+
+        elements = self.get_session_application_ui_schema_for_session(
+            core,
+            base_config,
+            session,
+        )
+        return self._validate_command_action_bindings(
+            build_command_catalog(
+                [
+                    element
+                    for element in elements
+                    if element.get("ui_type") == ui_type
+                ],
+                ui_type=ui_type,
+                reserved_paths=reserved_paths,
+            ),
+            context={"session_id": session.session_id},
+        )
 
     # Internal helpers for action validation ---------------------------------
 
@@ -3769,6 +3903,59 @@ class AgentApplication:
             action_owner="application",
         )
         return candidate.plugin_id
+
+    def validate_action_binding(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Resolve an action binding without validating inputs or executing it."""
+
+        candidate = self._resolve_action_candidate(
+            plugin_id,
+            action_id,
+            {},
+            action_owner=action_owner,
+            context=context,
+        )
+        if candidate.action_owner == "application":
+            definition = self._find_application_action_definition(
+                candidate.plugin_id,
+                candidate.action_id,
+            )
+            if definition is None:
+                raise self._ApplicationActionResolutionError(
+                    "unknown_action",
+                    (
+                        "Unknown application action "
+                        f"{candidate.plugin_id}.{candidate.action_id}"
+                    ),
+                    self._candidate_to_details(candidate),
+                )
+        else:
+            session_id = self._action_session_id({}, context)
+            if session_id is None or not any(
+                item.plugin_id == candidate.plugin_id
+                and item.action_id == candidate.action_id
+                and item.action_owner == candidate.action_owner
+                for item in self._session_action_candidates(
+                    session_id,
+                    candidate.action_id,
+                    action_owner=candidate.action_owner,
+                )
+            ):
+                raise self._ApplicationActionResolutionError(
+                    "unknown_action",
+                    (
+                        "Unknown session action "
+                        f"{candidate.plugin_id}.{candidate.action_id}"
+                    ),
+                    self._candidate_to_details(candidate),
+                )
+        return self._candidate_to_details(candidate)
 
     @staticmethod
     def _action_param_type_matches(value: Any, expected_type: str) -> bool:
@@ -4064,6 +4251,199 @@ class AgentApplication:
             action_id=candidate.action_id,
             action_owner=candidate.action_owner,
             result=result if isinstance(result, dict) else {},
+        )
+
+    @staticmethod
+    def _callback_mapping_value(
+        source: str,
+        callback_context: Dict[str, Any],
+    ) -> Tuple[bool, Any]:
+        if not source.startswith("$callback."):
+            return False, None
+        current: Any = callback_context
+        for part in source[len("$callback.") :].split("."):
+            if not part or not isinstance(current, Mapping) or part not in current:
+                return False, None
+            current = current[part]
+        return True, current
+
+    def execute_session_action_callback(
+        self,
+        session_id: str,
+        callback_element_id: str,
+        redirect_url: str,
+        *,
+        plugin_id: Optional[str] = None,
+    ) -> ExecutedAction:
+        """Resolve and execute one applicable session callback UI element."""
+
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        if not isinstance(callback_element_id, str) or not callback_element_id:
+            raise ValueError("callback_element_id must be a non-empty string")
+        if not isinstance(redirect_url, str) or not redirect_url:
+            raise ValueError("redirect_url must be a non-empty string")
+        if plugin_id is not None and (not isinstance(plugin_id, str) or not plugin_id):
+            raise ValueError("plugin_id must be a non-empty string")
+
+        loaded = self.load_session(session_id)
+        if loaded is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config,
+            session,
+            overrides,
+        )
+
+        elements = self.get_session_application_ui_schema_for_session(
+            core,
+            base_config,
+            session,
+        )
+        try:
+            core_elements = core.get_ui_schema(config=effective_config)
+        except Exception:
+            core_elements = []
+        elements.extend(
+            element for element in core_elements if isinstance(element, dict)
+        )
+
+        condition_context = {
+            **session.to_dict(),
+            "session": session.to_dict(),
+            "session_id": session_id,
+            "config": effective_config,
+        }
+        matches = [
+            element
+            for element in elements
+            if element.get("ui_type") == "session_action_callback"
+            and element.get("id") == callback_element_id
+            and (plugin_id is None or element.get("plugin") == plugin_id)
+            and evaluate_condition(element.get("condition"), condition_context)
+        ]
+        if not matches:
+            raise self._ApplicationActionResolutionError(
+                "unknown_callback",
+                "No applicable session action callback matches the requested element",
+                {
+                    "callback_element_id": callback_element_id,
+                    "plugin": plugin_id,
+                },
+            )
+        if len(matches) > 1:
+            raise self._ApplicationActionResolutionError(
+                "ambiguous_callback",
+                "More than one applicable session action callback matches the requested element",
+                {
+                    "callback_element_id": callback_element_id,
+                    "candidates": [
+                        {
+                            "plugin": element.get("plugin"),
+                            "callback_element_id": element.get("id"),
+                        }
+                        for element in matches
+                    ],
+                },
+            )
+
+        element = matches[0]
+        if element.get("disabled") is True:
+            raise self._ApplicationActionResolutionError(
+                "disabled_callback",
+                str(
+                    element.get("disabled_reason")
+                    or "The session action callback is disabled"
+                ),
+                {
+                    "plugin": element.get("plugin"),
+                    "callback_element_id": callback_element_id,
+                },
+            )
+
+        parsed = urlparse(redirect_url)
+        query_values = {
+            key: values[0] if len(values) == 1 else list(values)
+            for key, values in parse_qs(
+                parsed.query,
+                keep_blank_values=True,
+            ).items()
+        }
+        callback_context: Dict[str, Any] = {
+            "redirect_url": redirect_url,
+            "query": query_values,
+            "session_id": session_id,
+            "plugin_id": element.get("plugin"),
+            "element_id": callback_element_id,
+        }
+        fixed = element.get("fixed_params")
+        if fixed is not None and not isinstance(fixed, Mapping):
+            raise self._ApplicationActionResolutionError(
+                "invalid_callback",
+                "Session action callback fixed_params must be a mapping",
+            )
+        params = dict(fixed) if isinstance(fixed, Mapping) else {}
+        mappings = element.get("param_map")
+        if mappings is not None and (
+            not isinstance(mappings, Mapping)
+            or any(
+                not isinstance(name, str)
+                or not name
+                or not isinstance(source, str)
+                or not source.startswith("$callback.")
+                for name, source in mappings.items()
+            )
+        ):
+            raise self._ApplicationActionResolutionError(
+                "invalid_callback",
+                "Session action callback param_map contains an invalid mapping",
+            )
+        if isinstance(mappings, Mapping):
+            for name, source in mappings.items():
+                if not isinstance(name, str) or not isinstance(source, str):
+                    continue
+                found, value = self._callback_mapping_value(
+                    source,
+                    callback_context,
+                )
+                if found:
+                    params[name] = value
+
+        element_plugin = element.get("plugin")
+        action_id = element.get("action_id")
+        if not isinstance(element_plugin, str) or not element_plugin:
+            raise self._ApplicationActionResolutionError(
+                "invalid_callback",
+                "Session action callback is missing its plugin binding",
+            )
+        if not isinstance(action_id, str) or not action_id:
+            raise self._ApplicationActionResolutionError(
+                "invalid_callback",
+                "Session action callback is missing its action binding",
+            )
+
+        context = {
+            "session_id": session_id,
+            "session": session.to_dict(),
+            "base_config": base_config,
+            "config": effective_config,
+            "callback": callback_context,
+        }
+        return self.execute_action_with_metadata(
+            element_plugin,
+            action_id,
+            params,
+            action_owner=(
+                element.get("action_owner")
+                if isinstance(element.get("action_owner"), str)
+                else None
+            ),
+            context=context,
         )
 
     def execute_action(

@@ -457,6 +457,95 @@ def get_ui_elements(self, config, tags, models):
 
 Fields are the same as `message_footer`.
 
+### Command elements (`cli_command` and `slash_command`)
+
+Application actions are callable procedures. They are not exposed as commands
+merely because they appear in `get_actions()`. A plugin exposes a procedure to
+a command frontend by returning an applicable action-backed UI element:
+
+```python
+{
+    "ui_type": "cli_command",
+    "id": "codex_login_cli",
+    "label": "Sign in to Codex",
+    "description": "Sign in to Codex with browser or device-code login.",
+    "path": ["auth", "login", "codex"],
+    "aliases": [],
+    "scope": "application",
+    "action_id": "login_start",
+    "param_map": {"method": "$dialog.method"},
+    "dialog": {
+        "kind": "form",
+        "inputs": [{
+            "name": "method",
+            "type": "select",
+            "default": "browser",
+            "options": ["browser", "device-code"],
+        }],
+    },
+}
+```
+
+`cli_command` and `slash_command` are independent element types. They may bind
+the same action but have different token paths, aliases, applicability, and
+scope. A terminal slash path omits the leading `/`; for example
+`["login", "codex"]` is entered as `/login codex`.
+
+Command fields:
+
+| Field | Meaning |
+|---|---|
+| `path` | Required non-empty token array. Tokens contain no whitespace and no leading `/`. |
+| `aliases` | Optional array of complete alternative token paths. |
+| `scope` | `application` or `session`. Session commands are discovered from the active session's effective UI schema. |
+| `action_id` / `action_owner` | Existing action procedure to invoke. |
+| `fixed_params` / `param_map` | Ordinary action mapping; fixed values are applied before mapped values. |
+| `dialog` | Ordinary `none`, `confirm`, or ordered `form` contract. |
+| `condition` | Contextual applicability condition. |
+| `disabled` / `disabled_reason` | Keep the command visible but non-executable, with a user-facing reason. |
+| `foreground` | Optional statically validated start/status/cancel workflow described below. |
+
+Canonical paths and aliases must be unique within their frontend namespace,
+including built-in routes. A collision has no winner: catalog construction
+fails with every conflicting owner in deterministic order. A malformed command
+or unknown action binding also fails before any action executes.
+
+`ApplicationPlugin.get_commands()` remains a compatibility source for
+top-level CLI commands. Legacy declarations are adapted to `cli_command`
+internally and never become slash commands or `/action` entries.
+
+#### Foreground command workflows
+
+A command that starts provider-owned asynchronous work may declare:
+
+```python
+"foreground": {
+    "attempt_id_path": "auth_status.login_id",
+    "state_path": "auth_status.state",
+    "pending_states": ["pending"],
+    "success_states": ["authenticated"],
+    "failure_states": ["failed"],
+    "cancelled_states": ["canceled"],
+    "expired_states": ["expired"],
+    "poll_interval_seconds": 0.5,
+    "status": {"action_id": "check_status", "attempt_param": "login_id"},
+    "cancel": {"action_id": "cancel_login", "attempt_param": "login_id"},
+}
+```
+
+Start, status, and cancel remain ordinary actions. The terminal owns bounded
+waiting, rendering, and interruption only; the plugin owns protocol exchange,
+attempt state, callback listeners, credentials, and cleanup. All referenced
+actions and state metadata are validated before start.
+
+Browser flows may additionally declare
+`"browser": {"auto_open_local": true}`. A command shared by browser and
+non-browser methods may add
+`"when": {"result_path": "auth_status.method", "equals": "browser"}`. The URL
+is always printed. A local interactive terminal may best-effort open the first
+`open_url` follow-up when the condition matches; `--no-open` disables opening.
+Noninteractive, SSH/remote, headless, and device-code flows do not auto-open.
+
 ### Session actions (`ui_type == "session_action"`)
 
 Session-scoped actions displayed in session menus or toolbars. Used by application plugins to expose actions like "Compact range", "Export session", etc.
@@ -624,26 +713,53 @@ resolves to `null` or an empty string. False and zero are usable prefill values.
 Prefill initializes the control; the action still needs a corresponding
 `param_map` entry such as `"status": "$dialog.status"` to submit it.
 
-#### Action deep links
+#### Session action callbacks and deep links
 
-Mobile action callbacks use a session-scoped route so the frontend can route the
-callback to the intended backend connection and session before invoking the
-action:
+Actions remain callable procedures and are not exposed by a deep link merely
+because they appear in `get_actions()`. A plugin authorizes a session-scoped
+external callback by returning an applicable `session_action_callback`:
 
-```text
-crystal-lattice://action/<connection-id>/<session-id>/<action-id>?result=approved&nonce=n-123
-crystal-lattice://action/<connection-id>/<session-id>/<plugin-id>/<action-id>?result=approved&nonce=n-123
+```python
+{
+    "ui_type": "session_action_callback",
+    "id": "complete_external_flow_callback",
+    "label": "Complete external flow",
+    "action_id": "complete_external_flow",
+    "param_map": {
+        "result": "$callback.query.result",
+        "redirect_url": "$callback.redirect_url",
+    },
+}
 ```
 
-`connection-id` and `session-id` are always required. `plugin-id` is optional so
-callbacks can be produced by one plugin and handled by another plugin exposing
-the same action id. When omitted, the application layer resolves the action id
-against the target session. If no action matches, execution fails with
-`unknown_action`; if more than one action matches, execution fails with
-`ambiguous_action` and candidate details.
+The callback route identifies this UI element, not the bound action:
 
-Query parameters are submitted as action inputs. Frontends also add
-`redirect_url` with the full original callback URL.
+```text
+crystal-lattice://action/<connection-id>/<session-id>/<callback-element-id>?result=approved
+crystal-lattice://action/<connection-id>/<session-id>/<plugin-id>/<callback-element-id>?result=approved
+```
+
+`connection-id` and `session-id` are always required. Provider-generated links
+should include `plugin-id`. It may be omitted only when exactly one currently
+applicable callback element has that id.
+
+The backend reloads the target session's authoritative effective UI schema,
+selects only matching `session_action_callback` elements, evaluates condition
+and disabled state, and validates the bound action before execution. Arbitrary
+query parameters are never forwarded automatically. Only `fixed_params` and
+declared mappings from `$callback.redirect_url`, `$callback.query.<name>`,
+`$callback.session_id`, `$callback.plugin_id`, or `$callback.element_id`
+become action inputs.
+
+Frontends treat the callback URL as opaque while routing by the path identity.
+They do not parse, log, display, or persist callback query fields. Query
+decoding and declared mapping happen only at the backend callback-element
+boundary.
+
+`session_action_callback` is intentionally absent from ordinary session menus,
+toolbars, command catalogs, and `/action`; those surfaces enumerate their own
+explicit UI types. Do not use a hidden flag on `session_action` as a callback
+substitute, and do not fall back to invoking a bare action id.
 
 Plugins that generate external callback URLs can return those URLs in display
 actions using the standard `copy_text` action shape:
@@ -658,11 +774,9 @@ actions using the standard `copy_text` action shape:
 }
 ```
 
-Because callback links require a frontend connection id, link-generating session
-actions should request it through generic action context mapping, such as a
-`param_map` entry from `$context.connectionId`. Completion callback links should
-usually omit `plugin-id` when the callback should be handled by whichever plugin
-currently exposes the action id.
+Because callback links require a frontend connection id, link-generating
+session actions should request it through generic action context mapping, such
+as a `param_map` entry from `$context.connectionId`.
 
 ### Message actions (`ui_type == "message_action"`)
 
