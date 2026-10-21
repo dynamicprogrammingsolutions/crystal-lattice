@@ -60,7 +60,7 @@ bash install.sh
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh \
-  | VERSION=0.2.1 bash
+  | VERSION=0.2.2 bash
 ```
 
 ## Choose the command directory

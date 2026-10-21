@@ -130,7 +130,7 @@ Optionally bootstrap `latest.txt` while testing:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/upload-installer.sh \
   --profile test \
-  --latest-version 0.2.1
+  --latest-version 0.2.2
 ```
 
 Inspect the generated installers without uploading:
@@ -238,7 +238,7 @@ Publish already-built local release assets to the testing domain:
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
   --profile test \
   --assets-dir dist/crystal-lattice-python-runtime \
-  --version 0.2.1
+  --version 0.2.2
 ```
 
 This validates all six expected archives, uploads both generated installers,
@@ -251,7 +251,7 @@ Dry-run a release:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.2.1 \
+  --version 0.2.2 \
   --dry-run
 ```
 
@@ -260,7 +260,7 @@ Create and push the release tag, then watch GitHub Actions:
 ```bash
 deploy/aws-cli-downloads/release.sh \
   --profile test \
-  --version 0.2.1 \
+  --version 0.2.2 \
   --push-tag \
   --watch
 ```
@@ -306,7 +306,7 @@ Promote an existing GitHub Release to the testing domain:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile test \
-  --version 0.2.1 \
+  --version 0.2.2 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -315,7 +315,7 @@ Promote the same GitHub Release to production:
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile prod \
-  --version 0.2.1 \
+  --version 0.2.2 \
   --repo dynamicprogrammingsolutions/crystal-lattice
 ```
 
@@ -339,7 +339,7 @@ Preview promotion without downloading assets or mutating AWS:
 ```bash
 deploy/aws-cli-downloads/promote-github-release.sh \
   --profile test \
-  --version 0.2.1 \
+  --version 0.2.2 \
   --repo dynamicprogrammingsolutions/crystal-lattice \
   --dry-run
 ```
@@ -361,7 +361,7 @@ Smoke-test a specific URL/version:
 ```bash
 deploy/aws-cli-downloads/smoke.sh \
   --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
-  --version 0.2.1
+  --version 0.2.2
 ```
 
 On macOS and Linux, the smoke script also runs the installer into temporary
@@ -424,7 +424,7 @@ Pinned install examples should set `VERSION` for the `bash` process:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
-  VERSION=0.2.1 \
+  VERSION=0.2.2 \
   bash
 ```
 
@@ -440,7 +440,7 @@ PowerShell accepts the same release and download-base overrides through the
 process environment:
 
 ```powershell
-$env:VERSION = "0.2.1"
+$env:VERSION = "0.2.2"
 $env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL = "https://download.crystallattice.dev/crystal-lattice-cli"
 try {
   irm "$env:CRYSTAL_LATTICE_DOWNLOAD_BASE_URL/install.ps1" | iex
