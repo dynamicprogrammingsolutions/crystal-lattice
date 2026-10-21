@@ -1,0 +1,11 @@
+# Fully pinned, platform-neutral third-party dependencies bundled with the
+# embedded iOS Python application.
+certifi==2024.2.2
+charset-normalizer==3.4.4
+idna==3.18
+jsonpath-ng==1.7.0
+ply==3.11
+python-jsonpath==2.2.1
+requests==2.31.0
+structlog==25.5.0
+urllib3==2.2.1
