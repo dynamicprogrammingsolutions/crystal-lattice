@@ -56,7 +56,7 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | H3 implemented and verified | Human checkpoint H3: approve the walkthrough in context |
+| Publishable homepage | `019` | H3 responsive multi-frame storyboard prepared | Human checkpoint H3A: approve frames, captions, and responsive reading model |
 | Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H6 homepage approval and handoff |
 
 ## Execution plan
@@ -115,17 +115,26 @@ work, or the rejected set.
 
 Agent work:
 
-- implement the accessible selected walkthrough;
-- use labeled chapters rather than unlabeled position dots;
-- apply only accepted visitor copy and compositions;
-- verify that the default Compose view explains a complete product without
-  requiring interaction;
-- preserve clear scope from request to message, session, settings, and
-  workspace.
+- prepare and review the responsive multi-frame storyboard before replacing
+  the preserved one-image implementation;
+- implement a progressively enhanced Desktop stage with labeled chapters,
+  focused frames, image-edge arrows, and no autoplay;
+- render all chapters and frames in ordinary vertical document order on
+  mobile, without requiring tabs, dots, arrows, or swipe to discover content;
+- use visitor-facing image titles and captions that explain what relationship
+  to inspect;
+- preserve clear scope from request to message, session, settings, workspace,
+  and the final client/runtime connection boundary;
+- verify that Compose explains a complete product and that the separate
+  Agent, provider-settings, and Plugins/Tools frames remain legible.
 
-**HUMAN JUDGMENT:** Approve the walkthrough's clarity, visual rhythm,
-legibility, responsiveness, and transition into the remaining feature
-sections.
+**HUMAN JUDGMENT — H3A:** Approve the chapter/frame storyboard, draft
+visitor-facing captions, Desktop interaction, and mobile vertical reading
+order before component implementation.
+
+**HUMAN JUDGMENT — H3B:** Approve the implemented walkthrough's clarity,
+visual rhythm, legibility, responsiveness, and transition into the remaining
+feature sections.
 
 #### H4 — Features, Getting Started, and Mobile access
 
@@ -357,3 +366,10 @@ Agent work after approval:
   through short-phone light/dark browser coverage. It remains uncommitted and
   paused at the same H3 human checkpoint; no later publication step has
   started.
+- 2026-10-16: The second H3 refinement was preserved on `main` as
+  `b2a06b40`. Human review then approved replacing its one-image-per-chapter
+  interaction with a six-chapter, thirteen-frame model: Desktop uses labeled
+  chapters and image-edge frame arrows; mobile exposes the complete sequence
+  through ordinary vertical scrolling. Subtask `019` is paused at H3A for
+  review of the recorded frame order and draft visitor-facing captions before
+  component implementation. H4 remains blocked.

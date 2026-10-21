@@ -22,10 +22,12 @@ examples before the waitlist integration task begins.
       through visible UI concepts rather than startup commands or runtime
       architecture.
 - [ ] The walkthrough follows the approved bottom-up teaching order:
-      Composer; Messages; Session actions; Session settings; and Workspace.
+      Composer; Messages; Session actions; Session settings; Workspace; and
+      Connections.
       It starts from the AI-chat interaction visitors already understand and
-      expands from the next request to one message, the whole session, and
-      finally many sessions.
+      expands from the next request to one message, the whole session, many
+      sessions, and finally the client/runtime boundary that makes a
+      workspace available on another device.
 - [ ] Each walkthrough chapter first explains the ordinary role of the UI area,
       then introduces the relevant Crystal Lattice distinction. It does not
       assume familiarity with coding-agent architecture, provider terminology,
@@ -59,6 +61,12 @@ examples before the waitlist integration task begins.
       application-owned local Watchlist may be evaluated as an optional second
       proof after the standard list is understood and must not be described as
       a server pin or plugin-provided view.
+- [ ] The Connections stage explains only the product concept needed by a new
+      visitor: Desktop and mobile are clients that open sessions exposed by a
+      selected Crystal Lattice runtime. It uses focused Desktop and mobile
+      connection views without turning the introductory walkthrough into
+      installation or networking instructions; Getting Started retains the
+      local discovery, address/port, bridge, and trusted-network details.
 - [ ] Public wording distinguishes Crystal Lattice Codex-, Claude-, Gemini-,
       Qwen-, Kimi-, Grok-, and related profiles from official upstream
       applications, accounts, and sessions.
@@ -69,10 +77,13 @@ examples before the waitlist integration task begins.
       highlight, or magnify source regions without inventing controls or
       values.
 - [ ] Walkthrough navigation exposes descriptive labels such as Compose,
-      Messages, Session actions, Session settings, and Workspace. It is
-      responsive, keyboard accessible, swipe/scroll compatible,
-      reduced-motion aware, and understandable without relying on unlabeled
-      dots or autoplay.
+      Messages, Session actions, Session settings, Workspace, and Connections.
+      On sufficiently wide screens, direct chapter navigation and image-edge
+      arrows expose one focused frame at a time. On phones, all chapters and
+      frames appear in ordinary document order and require only vertical
+      scrolling. The result is keyboard accessible, reduced-motion aware, and
+      understandable without relying on unlabeled dots, hidden swipe-only
+      content, or autoplay.
 - [ ] The walkthrough uses a candidate-first process: create and explain more
       genuine UI candidates than the final homepage will necessarily retain,
       bind them to the actual local page for responsive visual review, and
@@ -157,10 +168,14 @@ examples before the waitlist integration task begins.
   on the actual responsive page and decide what remains in the introductory
   walkthrough, what moves to Plugins/Transparency/another deep dive, and what
   is deferred to documentation or a later page.
+- **HUMAN JUDGMENT — RESPONSIVE MULTI-FRAME STORYBOARD:** Review the six
+  chapters, frame count and order, visitor-facing frame titles/captions,
+  Desktop progression, and fully expanded mobile reading order before the
+  current one-image-per-chapter component is replaced.
 - **HUMAN JUDGMENT — UI WALKTHROUGH IN CONTEXT:** Review the implemented
-  walkthrough on the actual responsive page, including navigation,
-  legibility, copy, highlighted regions, and its transition into the
-  remaining features.
+  multi-frame walkthrough on the actual responsive page, including Desktop
+  navigation, mobile vertical flow, legibility, copy, highlighted regions,
+  and its transition into the remaining features.
 - **HUMAN JUDGMENT — GETTING STARTED AND MOBILE:** Review the complete
   six-step workflow, tester/public availability language, mobile-access
   grouping, connection-method order, and trusted-network warning.
@@ -232,6 +247,12 @@ examples before the waitlist integration task begins.
   behavior, production deployment, and final integrated publication.
 
 ## H1 candidate storyboard
+
+This section preserves the approved H1 candidate-production hypothesis and
+its source responsibilities. It is historical comparison material. The active
+H3 responsive multi-frame storyboard below supersedes its five-chapter,
+one-image placement assumptions without invalidating the source candidates or
+their verified ownership boundaries.
 
 ### Verified behavior and ownership constraints
 
@@ -623,6 +644,408 @@ candidates appear in the actual responsive page.
 7. Add deterministic mixed request states for C10–C12.
 8. Keep candidate artifacts outside `public/` until H2 selection.
 
+## H3 responsive multi-frame storyboard
+
+Interaction direction is **Approved**. Public frame titles, captions, and
+exact crops remain **Draft pending human review**. No frame is promoted to
+`public/` by this storyboard.
+
+### Research basis and rationale
+
+The approved direction is informed by:
+
+- the [W3C carousel tutorial](https://www.w3.org/WAI/tutorials/carousels/),
+  which emphasizes explicit user control, keyboard operation, communicated
+  state, and the discoverability cost of hidden rotating content;
+- the [WAI-ARIA Tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/),
+  used only for the sufficiently wide, progressively enhanced chapter
+  presentation;
+- Nielsen Norman Group's
+  [mobile carousel guidance](https://www.nngroup.com/articles/mobile-carousels/),
+  which identifies sequential-access and discoverability problems and
+  supports a visible list when visitors need to understand the complete set;
+- Apple's
+  [onboarding guidance](https://developer.apple.com/design/human-interface-guidelines/onboarding),
+  which supports focused instruction near the interface it explains rather
+  than teaching many unrelated controls at once; and
+- current product-page examples such as
+  [Linear Plan](https://linear.app/plan) and
+  [Warp Terminal](https://www.warp.dev/terminal), which use focused
+  screenshots and image-specific explanations rather than one dense image for
+  an entire feature family.
+
+These references guide the interaction and teaching model; they do not dictate
+Crystal Lattice styling or public copy.
+
+### Presentation contract
+
+The walkthrough has one semantic content order and two responsive
+presentations:
+
+- **Phone/narrow presentation:** all six chapters and every frame appear in
+  ordinary vertical document order. There are no tabs, arrows, dots, swipe
+  requirements, hidden panels, or chapter state to discover. Each chapter
+  keeps its role and Crystal Lattice distinction together before its frame
+  sequence. Every frame then presents a short title, one focused product
+  image, and a visitor-facing caption.
+- **Desktop/wide presentation:** chapter labels provide direct navigation.
+  One frame is visible at a time in a stable two-column teaching stage.
+  Image-edge arrows advance through a flattened frame sequence; crossing a
+  chapter boundary updates the active chapter and its explanation. Dots and a
+  textual `n of m` value below the image indicate progress within the current
+  chapter. There is no autoplay.
+- **Progressive enhancement:** the source markup is the complete vertical
+  sequence. JavaScript applies tab/panel semantics only when the component has
+  enough width for the staged Desktop presentation. Disabling JavaScript or
+  returning to the narrow layout restores ordinary headings, figures, and
+  document order rather than leaving inactive ARIA tabs or hidden content.
+- **Caption contract:** a frame title names the pictured UI area before the
+  image. The caption below the image tells a new visitor what relationship to
+  notice and why it matters. Captions do not discuss fixtures, crops,
+  magnification, provenance, review status, or what an image “proves.”
+- **Visual contract:** one frame teaches one relationship. A frame may crop or
+  magnify one genuine UI area, but it does not combine separate Agent,
+  Settings, and Plugins windows into one image. Wide and compact variants may
+  use different truthful crops when needed for legibility.
+
+Desktop concept:
+
+```text
+[Compose] [Messages] [Session actions] [Session settings] [Workspace] [Connections]
+
+┌────────────────────────────┬───────────────────────────────────────┐
+│ Chapter title              │ Frame title                           │
+│ Ordinary role              │                                       │
+│                            │   ◀  focused product image         ▶  │
+│ Crystal Lattice difference │                                       │
+│                            │           •  ●  •    2 of 3          │
+│                            │ Visitor-facing image caption          │
+└────────────────────────────┴───────────────────────────────────────┘
+```
+
+Phone concept:
+
+```text
+Chapter title
+Ordinary role
+Crystal Lattice difference
+
+Frame title
+Focused product image
+Visitor-facing caption
+
+Frame title
+Focused product image
+Visitor-facing caption
+
+Next chapter...
+```
+
+### Section introduction
+
+Working title:
+
+> **Familiar chat. More control at every level.**
+
+Draft body:
+
+> Start with the AI chat interface you already know. Then move outward from
+> the next request to one response, the whole session, its configuration, the
+> workspace around many sessions, and the connections that make those
+> sessions available to each client.
+
+The introduction establishes the visible UI hierarchy. It does not explain
+installation, ports, server binding, bridge deployment, or provider
+architecture.
+
+### Chapter and frame sequence
+
+#### 1. Compose
+
+Draft chapter title:
+
+> **Steer the next request.**
+
+Draft ordinary role:
+
+> The composer is where you write the next instruction and control a request
+> that is already running.
+
+Draft Crystal Lattice distinction:
+
+> The selected profile can place its model, reasoning, and web-search controls
+> beside the composer. Request actions let you add another instruction or
+> decide how running work should stop.
+
+Frame 1 — **Write the next instruction**
+
+- **Source responsibility:** active conversation, composer, and genuine
+  profile-contributed model/reasoning/search controls from C01.
+- **Draft caption:** “The conversation stays in view while the selected
+  profile places its model, reasoning, and search controls beside the
+  composer.”
+- **Composition:** preserve a recognizable conversation and full composer;
+  do not open the Composer actions popup in this frame.
+
+Frame 2 — **Control work that is already running**
+
+- **Source responsibility:** active-request Composer actions from C01.
+- **Draft caption:** “Open Composer actions to append another instruction,
+  signal the active provider and tool to stop, or let the current foreground
+  tool finish before the session stops.”
+- **Composition:** retain enough composer and conversation context to identify
+  the popup. Focus Append, Cancel, and Soft cancel; omitted rows remain
+  explicit rather than fabricated away.
+
+#### 2. Messages
+
+Draft chapter title:
+
+> **Act from any message.**
+
+Draft ordinary role:
+
+> Every response remains a specific point in the conversation, with its own
+> content, metadata, and actions.
+
+Draft Crystal Lattice distinction:
+
+> Provider and plugin metadata stays attached to the response that produced
+> it. Message actions can branch, revise, summarize, export, or remove history
+> from that exact point.
+
+Frame 1 — **Inspect the response in context**
+
+- **Source responsibility:** genuine message footer C02 attached to the
+  selected Starlette assistant response.
+- **Draft caption:** “Usage, estimated cost, and output details stay with the
+  response that produced them instead of being separated into a global
+  report.”
+- **Composition:** preserve enough assistant content to make the footer's
+  ownership unambiguous. Estimates remain qualified and provider-specific.
+
+Frame 2 — **Continue from this point in history**
+
+- **Source responsibility:** genuine Message actions C03 at the same response.
+- **Draft caption:** “The Message actions menu operates from this response:
+  modify or fork the conversation, summarize it, export it, or remove later
+  history.”
+- **Composition:** keep popup identity and a short recognizable response.
+  Optional plugin rows can remain visible but must not be described as
+  universal built-ins.
+
+#### 3. Session actions
+
+Draft chapter title:
+
+> **Control the whole session.**
+
+Draft ordinary role:
+
+> Session actions affect the current task as a whole rather than one selected
+> message.
+
+Draft Crystal Lattice distinction:
+
+> Application controls and enabled plugin actions share one session-level
+> surface. Frequently used actions can remain available from the session
+> header.
+
+Frame 1 — **Open whole-session controls**
+
+- **Source responsibility:** focused genuine Session actions popup C04.
+- **Draft caption:** “Switch the agent, open session settings or plugins,
+  inspect snapshots, and manage the task without tying the action to one
+  response.”
+- **Composition:** show a coherent introductory subset with genuine omission
+  markers. Avoid the exhaustive power-user menu.
+
+Frame 2 — **Keep frequent actions within reach**
+
+- **Source responsibility:** the same session header with selected actions
+  pinned through the production UI.
+- **Draft caption:** “Pinned actions keep the controls used in this workflow
+  beside the session title, while the complete menu remains available when
+  needed.”
+- **Composition:** use one session identity and show enough header context to
+  connect the pinned controls to the popup from Frame 1.
+
+#### 4. Session settings
+
+Draft chapter title:
+
+> **Configure this session.**
+
+Draft ordinary role:
+
+> Every session has an agent setup that establishes how its work should run.
+
+Draft Crystal Lattice distinction:
+
+> A profile can define the provider route, instructions, tools, features, and
+> UI controls. Provider settings and enabled plugins can then be adjusted for
+> this session without changing every other session.
+
+Frame 1 — **Choose the agent profile**
+
+- **Source responsibility:** smaller production Agent picker C05.
+- **Draft caption:** “A profile is more than a model name: the selected entry
+  describes the starting provider, purpose, features, and tools for this
+  session.”
+- **Composition:** one Agent picker only. Keep the ordered profile list and
+  selected details readable without adding Settings or Plugins windows.
+
+Frame 2 — **Adjust provider-specific settings**
+
+- **Source responsibility:** genuine Session settings C06.
+- **Draft caption:** “The selected provider contributes the controls it
+  understands—here including authentication mode and flex processing—and the
+  values can be overridden for this session.”
+- **Composition:** one focused Settings window. Show only the rows needed to
+  establish provider ownership and per-session override behavior.
+
+Frame 3 — **Change plugins and tools for this session**
+
+- **Source responsibility:** genuine Session plugins/tools view C07.
+- **Draft caption:** “Enabled providers, extensions, features, and tools form
+  this session's capabilities. Change an entry here or reset the session to
+  its agent defaults.”
+- **Composition:** one Plugins window. Prioritize enabled/disabled state,
+  Tools, Features, and Reset to defaults without shrinking unrelated
+  categories into unreadable rows.
+
+#### 5. Workspace
+
+Draft chapter title:
+
+> **Keep many sessions moving.**
+
+Draft ordinary role:
+
+> The workspace helps you recognize, search, and return to multiple durable
+> agent sessions.
+
+Draft Crystal Lattice distinction:
+
+> Titles, subtitles, pinning, task status, filters, and request state turn
+> sessions into recognizable work items rather than anonymous transcripts.
+> Plugin-driven presentation fields can be disabled, replaced, or refined.
+
+Frame 1 — **Find the session by the work it represents**
+
+- **Source responsibility:** standard Sessions list C10.
+- **Draft caption:** “Descriptive titles and subtitles identify the work,
+  while pinning, task status, search, and filters help keep the important
+  sessions in reach.”
+- **Composition:** retain the selected Starlette task and two or three related
+  rows. Avoid raw identifiers and debug-first timestamps.
+
+Frame 2 — **See what is running now**
+
+- **Source responsibility:** current request state C11 connected to the same
+  selected/open sessions.
+- **Draft caption:** “Task status records where the work belongs in the
+  workflow. A separate request indicator shows whether its current agent run
+  is idle, in progress, completed, or interrupted.”
+- **Composition:** make durable task status and transient request state
+  visually distinct. The local Watchlist remains deferred rather than added
+  as a third introductory frame.
+
+#### 6. Connections
+
+Draft chapter title:
+
+> **Open the workspace where it runs.**
+
+Draft ordinary role:
+
+> A connection tells the client which Crystal Lattice runtime owns the
+> sessions it should display.
+
+Draft Crystal Lattice distinction:
+
+> Desktop and mobile can open sessions from the same runtime instead of
+> creating unrelated client-local conversations. The connection method
+> determines whether that runtime is reached locally or remotely.
+
+Frame 1 — **Choose the workspace in Desktop**
+
+- **Source responsibility:** production Desktop Connections panel from C13.
+- **Draft caption:** “A saved connection identifies one running Crystal
+  Lattice workspace. Selecting it makes that runtime's agents and sessions
+  available in Desktop.”
+- **Composition:** show a concise saved connection with focused/open state;
+  avoid setup instructions, private addresses, and unnecessary diagnostics.
+
+Frame 2 — **Reach the same workspace from mobile**
+
+- **Source responsibility:** production mobile connection-method or saved
+  connection view from C13.
+- **Draft caption:** “The mobile app starts from the same connection model:
+  choose how to reach a Crystal Lattice runtime, then open the sessions it
+  exposes.”
+- **Composition:** introduce the concept without explaining the full
+  discovery/address/bridge setup. Getting Started retains that operational
+  teaching responsibility and current availability qualifications.
+
+### Navigation and accessibility behavior
+
+- Chapter labels select the first frame of a chapter on Desktop.
+- Previous/Next image-edge controls move through all frames in order. Their
+  accessible names identify the target frame, for example
+  `Next: Provider-specific settings`.
+- Dots and `n of m` below the image represent frames within the active chapter
+  only. They supplement rather than replace chapter labels and textual state.
+- Arrow keys operate chapter labels according to the ARIA Tabs pattern.
+  Focused Previous/Next buttons retain normal button keyboard behavior.
+- Frame changes update a polite live region with chapter, frame title, and
+  position. Focus is not moved automatically when an arrow changes the image.
+- Mobile renders no inactive tab semantics and no hidden frames. All headings,
+  images, captions, and distinctions remain available through ordinary
+  reading and vertical scrolling.
+- Motion is limited to a short opacity/translation transition and is removed
+  under `prefers-reduced-motion`.
+- Resizing between presentations preserves the nearest chapter when
+  practical, but revealing all mobile content takes priority over preserving
+  an invisible carousel state.
+
+### Data and asset model
+
+`ProductWalkthroughChapter` changes from one `caption` and `image` to a
+`frames` array. Each frame owns its visitor title, caption, wide/compact
+light/dark source, alt text, and native dimensions. Chapter role and
+distinction remain chapter-level content.
+
+The source candidates remain genuine product UI:
+
+- C01 supplies two Compose frames;
+- C02 and C03 supply two Messages frames;
+- C04 supplies two Session-actions crops/states;
+- C05, C06, and C07 remain three independent Session-settings frames;
+- C10 and C11 supply two Workspace frames;
+- C13 supplies two Connections frames and may later be reused with different
+  operational copy in Getting Started.
+
+The current one-image-per-chapter implementation is preserved in commit
+`b2a06b40` for comparison and possible recovery. Its image-edge control,
+keyboard, no-autoplay, theme-source, and test infrastructure may be reused,
+but its mobile hidden-panel behavior and multi-window Session-settings
+composition are superseded.
+
+### Human checkpoint for this storyboard
+
+Before component implementation, human review must confirm:
+
+1. Connections remains the sixth introductory chapter while setup detail
+   remains in Getting Started.
+2. The 2 / 2 / 2 / 3 / 2 / 2 frame count is proportionate.
+3. Frame titles and captions speak to a new visitor and accurately describe
+   what the genuine UI shows.
+4. Desktop uses chapter navigation plus image-edge frame arrows, while mobile
+   exposes the complete sequence through ordinary scrolling.
+5. Session settings remains three separate product images rather than one
+   three-window composition.
+
 ## Execution plan
 
 Status: Approved
@@ -630,7 +1053,8 @@ Status: Approved
 The first public version will teach the product through its UI before asking
 the visitor to install it. The walkthrough is a single full-width section
 after the hero. It starts from the AI chat interaction visitors already know
-and expands bottom-up through the control scopes around it.
+and expands bottom-up through the control scopes around it, then explains the
+connection boundary that lets Desktop or mobile open a selected runtime.
 
 The working section direction is:
 
@@ -646,13 +1070,13 @@ The working section direction is:
 This wording is a review baseline, not pre-approved final public copy. The
 storyboard checkpoint owns final phrasing.
 
-The walkthrough uses a split presentation on desktop: explanation on one side
-and the product image on the other. Phones stack explanation above the image.
-The chapter controls remain visible and named. The section does not autoplay.
-The current feature-image component may be extended when it can preserve its
-existing consumers cleanly; a dedicated walkthrough component is acceptable
-if the teaching layout and accessibility needs would otherwise distort the
-ordinary image strips.
+The walkthrough uses a split presentation on Desktop: explanation on one side
+and one focused frame on the other. Chapter labels select concepts and
+image-edge arrows advance through the frames. Phones render the complete
+chapter/frame sequence as ordinary vertical content without hidden panels,
+carousel controls, or required swipe gestures. The section does not autoplay.
+The dedicated walkthrough component progressively enhances the same semantic
+content rather than maintaining unrelated Desktop and mobile copy.
 
 ### Bottom-up walkthrough chapters
 
@@ -661,8 +1085,9 @@ ordinary image strips.
 | **Compose** | How do I steer the next request? | Active conversation with the composer, provider controls, and Composer actions | Immediate/soft cancellation, resend/append, model, reasoning, and search controls live around a familiar composer; the extension surface can receive provider/plugin contributions |
 | **Messages** | What can I inspect or do from one response? | Genuine message footer plus Message actions at one assistant message | Metadata stays attached to the response; actions such as fork/delete/export operate from an exact point and optional plugins can add workflows such as Send to Kindle |
 | **Session actions** | What affects the whole task? | Session header with a focused genuine subset of Session actions | Session actions have whole-task scope and remain distinct from message actions; plugins may contribute or replace entries |
-| **Session settings** | How is this session's agent configured? | Agent/provider settings and per-session Plugins/Tools views | A profile is more than a model selector, and each session can carry its own provider options, plugins, and tools |
+| **Session settings** | How is this session's agent configured? | Separate Agent picker, provider-settings, and per-session Plugins/Tools frames | A profile is more than a model selector, and each session can carry its own provider options, plugins, and tools |
 | **Workspace** | How do I organize and monitor many tasks? | Standard session list/filter/status view, open-session status inset, and optional local Watchlist candidate | Sessions have titles, states, pins, filters, and visible request progress; Desktop and mobile also maintain a local per-device Watchlist and recent-session workspace |
+| **Connections** | Where do these agents and sessions come from? | Focused Desktop and mobile connection views | Clients open the agents and sessions exposed by a selected runtime; Getting Started later explains how local and remote connection methods are configured |
 
 The Compose chapter is the default and must be self-sufficient enough that a
 visitor who does not advance still recognizes a complete AI-agent product.
@@ -676,10 +1101,11 @@ consecutive full-height popups: alternate contextual conversation, focused
 menu callouts, settings windows, and workspace views. Configuration-to-control
 connector lines remain exclusive to the later Plugins proof.
 
-Connections are not a primary introductory chapter in this bottom-up version.
-The tour may briefly state that the focused connection determines which
-workspace's sessions are shown. Getting Started owns the full explanation of
-local discovery, address/port, and bridge access.
+Connections is the final introductory chapter. It explains the client/runtime
+relationship only after the visitor understands the workspace it exposes.
+Getting Started continues to own the operational explanation of local
+discovery, address/port, bridge access, release availability, and trusted
+network use.
 
 ### Candidate pool and selection
 
@@ -800,7 +1226,7 @@ fulfilled by the walkthrough or feature proof. At minimum:
    footers, action scope, provider options, session plugins, request status,
    and connection state. Record any product defect, invalid icon, debug-first
    presentation, or capture limitation before designing around it.
-3. Prepare the five-chapter storyboard and fourteen-item candidate pool with
+3. Prepare the six-chapter storyboard and fourteen-item candidate pool with
    exact visitor question, draft copy, source UI state, differentiating
    statement, proposed destination, desktop composition, phone composition,
    and capture/product dependencies.
@@ -817,24 +1243,30 @@ fulfilled by the walkthrough or feature proof. At minimum:
 8. Stop at the candidate-selection checkpoint. Record which candidates belong
    in the introduction, deep dives, Getting Started, documentation, or later
    revisions.
-9. Implement the selected responsive accessible walkthrough and revised
-   homepage information architecture. Apply final visitor copy and
-   compositions only for the accepted candidates.
-10. Stop at the walkthrough-in-context checkpoint.
-11. Refine remaining feature order, captions, availability, compatibility,
+9. Preserve the verified one-image-per-chapter H3 implementation as comparison
+   material, then prepare the responsive multi-frame storyboard with exact
+   frame responsibilities and draft visitor copy.
+10. Stop at the H3A storyboard checkpoint.
+11. Implement the approved responsive accessible walkthrough and revised
+    homepage information architecture. Desktop progressively enhances the
+    semantic sequence into chapter/frame navigation; mobile leaves every frame
+    in ordinary vertical order. Apply final visitor copy and compositions only
+    for the accepted frames.
+12. Stop at the H3B walkthrough-in-context checkpoint.
+13. Refine remaining feature order, captions, availability, compatibility,
     and proof based on the accepted walkthrough.
-12. Revise Getting Started, the Mobile access grouping, local/LAN security
+14. Revise Getting Started, the Mobile access grouping, local/LAN security
     language, and current release states.
-13. Stop at the Getting Started/mobile checkpoint.
-14. Apply the lower-page release cut and verify all retained examples and
+15. Stop at the Getting Started/mobile checkpoint.
+16. Apply the lower-page release cut and verify all retained examples and
     links.
-15. Stop at the release-cut checkpoint.
-16. Complete responsive, accessibility, source-freshness, content, download,
+17. Stop at the release-cut checkpoint.
+18. Complete responsive, accessibility, source-freshness, content, download,
     security-copy, and full-page verification.
-17. Stop at the final publish-ready checkpoint.
-18. After human acceptance, promote only approved visual sources and update
+19. Stop at the final publish-ready checkpoint.
+20. After human acceptance, promote only approved visual sources and update
     maintained public bindings. Do not push or publish.
-19. Hand the approved local website to subtask `020` for the real waitlist,
+21. Hand the approved local website to subtask `020` for the real waitlist,
     privacy integration, final integrated review, and explicitly approved
     production publication.
 
@@ -844,12 +1276,13 @@ fulfilled by the walkthrough or feature proof. At minimum:
   not replace Getting Started or begin with commands, ports, project
   directories, server binding, or installation architecture.
 - **Decision:** the walkthrough uses a bottom-up scope hierarchy: Compose →
-  Messages → Session actions → Session settings → Workspace.
+  Messages → Session actions → Session settings → Workspace → Connections.
 - **Decision:** the first visual begins with a complete familiar conversation
   and composer context, not an isolated menu or runtime/startup explanation.
-- **Decision:** Connections is briefly named as the source of the focused
-  workspace but receives its full local-discovery/address/bridge explanation
-  in Getting Started.
+- **Decision:** Connections is a final introductory chapter because the
+  client/runtime boundary is materially different from single-client agent
+  applications. It explains the concept only; Getting Started retains the
+  local-discovery/address/bridge procedure.
 - **Decision:** the walkthrough explains ordinary UI role before
   differentiation and introduces plugin/provider terminology only after the
   visible behavior is understandable.
@@ -859,6 +1292,15 @@ fulfilled by the walkthrough or feature proof. At minimum:
   visitor through the walkthrough.
 - **Decision:** labeled chapter controls are required; dots may remain only as a
   secondary position indicator.
+- **Decision:** Desktop uses one focused frame at a time with image-edge
+  arrows; mobile shows the complete sequence through vertical scrolling and
+  does not require carousel interaction.
+- **Decision:** one frame teaches one relationship. Session settings uses
+  separate Agent, provider-settings, and Plugins/Tools images rather than one
+  three-window composition.
+- **Decision:** frame captions are visitor teaching copy. They identify what
+  relationship to inspect and contain no reviewer, fixture, crop, provenance,
+  or proof language.
 - **Decision:** Session actions and Message actions retain distinct scopes in
   the explanation.
 - **Decision:** the introductory Session actions proof presents a focused
@@ -935,9 +1377,21 @@ fulfilled by the walkthrough or feature proof. At minimum:
 - [x] **HUMAN JUDGMENT — CHECKPOINT 2:** Select the candidates for the
       introduction, deep dives, Getting Started, documentation, and later
       work after responsive in-page review.
-- [x] **AGENT:** Implement the selected responsive accessible walkthrough and
-      revised homepage information architecture.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 3:** Review the complete selected
+- [x] **AGENT:** Implement and verify the earlier one-image-per-chapter H3
+      walkthrough; preserve it as superseded comparison material.
+- [x] **AGENT:** Preserve the rejected one-image-per-chapter H3 implementation
+      as a reversible committed checkpoint.
+- [x] **HUMAN JUDGMENT:** Approve the responsive multi-frame direction:
+      Desktop staged navigation, mobile vertical reading, focused images, and
+      visitor-facing per-frame captions.
+- [x] **AGENT:** Prepare the detailed six-chapter, thirteen-frame responsive
+      storyboard and interaction contract.
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 3A:** Approve the responsive storyboard,
+      Connections scope, frame count/order, and draft titles/captions before
+      component implementation.
+- [ ] **AGENT:** Implement and verify the approved responsive multi-frame
+      walkthrough through the actual Desktop and mobile page presentations.
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 3B:** Review the complete selected
       walkthrough in page context at desktop and phone widths.
 - [ ] **AGENT:** Finalize remaining feature order, captions, proof, and
       availability distinctions.
@@ -983,6 +1437,11 @@ fulfilled by the walkthrough or feature proof. At minimum:
   390, and 320 CSS pixels in light/dark themes are opened with `view_image`.
   Text, highlighted regions, popup ownership, and UI identity must remain
   understandable at displayed size.
+- Responsive-reading boundary: phone screenshots and DOM inspection show all
+  six chapters and thirteen frames in document order with no tab selection,
+  arrow, dot, or swipe required to reveal them. Desktop inspection confirms
+  one active frame, direct chapter access, image-edge frame navigation, and
+  accurate chapter/frame state.
 - Feature boundary: content/browser tests prove the old model-family/session
   compact duplicates are absent, their approved values appear in the
   walkthrough, and Vibe, Work from anywhere, Plugins, and Transparency remain
@@ -1278,3 +1737,26 @@ fulfilled by the walkthrough or feature proof. At minimum:
   review. The explicit H3 preview was restored on port 4184 after retained
   candidate verification. No public source promotion, push, deployment, or H4
   work occurred.
+- 2026-10-16: Before replacing the one-image-per-chapter implementation, the
+  user authorized preserving any important recoverable work. The verified
+  viewport-fit and image-edge-navigation checkpoint was committed on `main`
+  as `b2a06b40` (`Refine walkthrough navigation`). Generated review assets
+  remain ignored; no push, public-source promotion, deployment, or publication
+  occurred.
+- 2026-10-16: Human review then rejected the underlying one-image-per-chapter
+  model. The approved replacement presents every chapter and frame in ordinary
+  vertical order on mobile, while Desktop progressively enhances the same
+  content into a labeled chapter stage with image-edge frame arrows. One frame
+  teaches one relationship; Session settings therefore returns to three
+  separate Agent, provider-settings, and Plugins/Tools images.
+- 2026-10-16: The introductory sequence now ends with a focused Connections
+  chapter. It explains that Desktop and mobile clients open sessions exposed
+  by a selected Crystal Lattice runtime, while operational discovery,
+  address/port, bridge, availability, and trusted-network guidance remains in
+  Getting Started.
+- 2026-10-16: The thirteen-frame responsive storyboard, draft visitor-facing
+  frame titles/captions, Desktop/mobile wireframes, accessibility contract,
+  data model, and genuine source mapping are recorded above. Implementation
+  is paused at Human Checkpoint H3A for copy, frame count/order, Connections
+  scope, and responsive-reading approval. No component or asset changes for
+  this new direction have begun.
