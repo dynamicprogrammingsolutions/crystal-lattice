@@ -10,6 +10,11 @@ import {
   type EmbeddedRuntimePublicConfiguration,
 } from "../src/embeddedRuntime/embeddedPythonRuntime";
 import { lightTheme, ThemeProvider } from "../src/theme";
+import { NEUTRAL_FOLLOWUP_DISPLAY } from "../../../test/fixture/displayFollowupDialog";
+
+jest.mock("@crystal-lattice/frontend-rn-components", () => ({
+  ...jest.requireActual("@crystal-lattice/frontend-rn-components"),
+}));
 
 jest.mock("../src/embeddedRuntime/embeddedPythonRuntime", () => ({
   configureEmbeddedPythonRuntime: jest.fn(),
@@ -57,7 +62,7 @@ const configuration: EmbeddedRuntimePublicConfiguration = {
     },
     openai: {
       id: "openai",
-      label: "OpenAI Responses",
+      label: "OpenAI",
       agentId: "openai-codex",
       toolFamily: "codex-like",
       enabled: false,
@@ -89,14 +94,15 @@ const configuration: EmbeddedRuntimePublicConfiguration = {
   },
 };
 
-function renderModal(onSaved = jest.fn()) {
+function renderModal(onSaved = jest.fn(), onRequestClose = jest.fn()) {
   return {
     onSaved,
+    onRequestClose,
     screen: render(
       <ThemeProvider theme={lightTheme}>
         <EmbeddedRuntimeSettingsModal
           visible
-          onRequestClose={() => {}}
+          onRequestClose={onRequestClose}
           onSaved={onSaved}
         />
       </ThemeProvider>
@@ -194,8 +200,6 @@ test("tests the current candidate without persisting it", async () => {
   await waitFor(() =>
     expect(validateEmbeddedPythonRuntimeConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({
-        defaultAgent: "openai-codex",
-        reviewerVisible: false,
         profileId: "openai",
         providers: expect.objectContaining({
           openai: expect.objectContaining({
@@ -218,7 +222,7 @@ test("tests the current candidate without persisting it", async () => {
   expect(onSaved).not.toHaveBeenCalled();
 });
 
-test("autosaves provider edits and default selection", async () => {
+test("autosaves edits without writing global visibility or default selection", async () => {
   const { onSaved, screen } = renderModal();
   await waitFor(() =>
     expect(screen.getByTestId("embedded-provider-openrouter")).toBeTruthy()
@@ -228,16 +232,11 @@ test("autosaves provider edits and default selection", async () => {
     screen.getByTestId("embedded-provider-openrouter-model"),
     "openrouter/test-model"
   );
-  fireEvent.press(
-    screen.getByTestId("embedded-provider-openrouter-default")
-  );
 
   await waitFor(
     () =>
       expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
         expect.objectContaining({
-          defaultAgent: "openrouter-claude",
-          reviewerVisible: false,
           providers: expect.objectContaining({
             openrouter: expect.objectContaining({
               model: "openrouter/test-model",
@@ -248,24 +247,35 @@ test("autosaves provider edits and default selection", async () => {
     { timeout: 2500 }
   );
   await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  const update = jest.mocked(configureEmbeddedPythonRuntime).mock.calls.at(-1)![0];
+  expect(update).not.toHaveProperty("defaultAgent");
+  expect(update).not.toHaveProperty("reviewerVisible");
+  expect(screen.queryByTestId("embedded-provider-openrouter-default")).toBeNull();
   expect(screen.queryByTestId("embedded-runtime-settings-save")).toBeNull();
 });
 
-test("keeps reviewer hidden until enabled and exposes only its API key", async () => {
+test("keeps reviewer exposure in global settings and hides the profile until exposed", async () => {
   const { screen } = renderModal();
   await waitFor(() =>
-    expect(screen.getByTestId("embedded-reviewer-visible")).toBeTruthy()
+    expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy()
   );
   expect(screen.queryByTestId("embedded-provider-reviewer")).toBeNull();
 
-  fireEvent(screen.getByTestId("embedded-reviewer-visible"), "valueChange", true);
+  expect(screen.queryByTestId("embedded-reviewer-visible")).toBeNull();
+});
+
+test("exposes a reviewer enable switch and key last without editable deployment fields", async () => {
+  jest.mocked(getEmbeddedPythonRuntimeConfiguration).mockResolvedValue({
+    ...configuration, reviewerVisible: true,
+  });
+  const { screen } = renderModal();
 
   await waitFor(() =>
     expect(screen.getByTestId("embedded-provider-reviewer")).toBeTruthy()
   );
   expect(
-    screen.queryByTestId("embedded-provider-reviewer-enabled")
-  ).toBeNull();
+    screen.getByTestId("embedded-provider-reviewer-enabled")
+  ).toBeTruthy();
   expect(
     screen.queryByTestId("embedded-provider-reviewer-base-url")
   ).toBeNull();
@@ -284,10 +294,17 @@ test("keeps reviewer hidden until enabled and exposes only its API key", async (
     "embedded-provider-reviewer"
   );
 
+  fireEvent(
+    screen.getByTestId("embedded-provider-reviewer-enabled-control"), "valueChange", false
+  );
   await waitFor(
     () =>
       expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
-        expect.objectContaining({ reviewerVisible: true })
+        expect.objectContaining({
+          providers: expect.objectContaining({
+            reviewer: expect.objectContaining({ enabled: false }),
+          }),
+        })
       ),
     { timeout: 2500 }
   );
@@ -302,11 +319,10 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
   expect(
     screen.queryByTestId("embedded-provider-openai-auth-auto")
   ).toBeNull();
-  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-chatgpt"));
 
   expect(
-    screen.queryByTestId("embedded-provider-openai-api-key")
-  ).toBeNull();
+    screen.getByTestId("embedded-provider-openai-api-key")
+  ).toBeTruthy();
   fireEvent.press(
     screen.getByTestId("embedded-provider-openai-chatgpt-login_start")
   );
@@ -334,6 +350,9 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
   expect(
     screen.getByTestId("action-display-action-copy-chatgpt-login-code")
   ).toBeTruthy();
+  expect(configureEmbeddedPythonRuntime).not.toHaveBeenCalled();
+  expect(screen.getByTestId("embedded-provider-openai-auth-selected"))
+    .toHaveTextContent("Default authentication: API key");
 
   jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValueOnce({
     auth_status: { state: "authenticated" },
@@ -367,6 +386,54 @@ test("runs plugin-driven ChatGPT login actions from provider settings", async ()
   ).toBeTruthy();
 });
 
+test("groups ordered authentication controls inside OpenAI and retains both credential paths", async () => {
+  const { screen } = renderModal();
+  const card = await screen.findByTestId("embedded-provider-openai");
+  const authentication = card.findByProps({ testID: "embedded-openai-auth-settings" });
+  const children = authentication.findAll(
+    (node) => typeof node.type === "string" && [
+      "embedded-provider-openai-default-authentication",
+      "embedded-provider-openai-api-key-field",
+      "embedded-provider-openai-chatgpt-account",
+    ].includes(node.props.testID)
+  );
+  expect(children.map((child) => child.props.testID)).toEqual([
+    "embedded-provider-openai-default-authentication",
+    "embedded-provider-openai-api-key-field",
+    "embedded-provider-openai-chatgpt-account",
+  ]);
+  expect(screen.getByText("Local provider settings")).toBeTruthy();
+  expect(screen.getAllByText("Default model")).toHaveLength(4);
+  expect(screen.getByText(
+    "Sessions use this authentication method unless overridden in Session Settings."
+  )).toBeTruthy();
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-chatgpt"));
+  expect(screen.getByTestId("embedded-provider-openai-api-key")).toBeTruthy();
+  expect(screen.getByTestId("embedded-provider-openai-chatgpt-login_start")).toBeEnabled();
+  await waitFor(() => expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
+    expect.objectContaining({
+      providers: expect.objectContaining({
+        openai: expect.objectContaining({ authMode: "chatgpt" }),
+      }),
+    })
+  ));
+});
+
+test("flushes a pending key edit when the window is closed before debounce", async () => {
+  const { screen, onSaved, onRequestClose } = renderModal();
+  fireEvent.changeText(await screen.findByTestId("embedded-provider-openai-api-key"), "pending-key");
+  fireEvent.press(screen.getByTestId("embedded-runtime-settings-close"));
+  await waitFor(() => expect(onRequestClose).toHaveBeenCalled());
+  expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith(
+    expect.objectContaining({
+      providers: expect.objectContaining({
+        openai: expect.objectContaining({ apiKey: "pending-key" }),
+      }),
+    })
+  );
+  expect(onSaved).toHaveBeenCalled();
+});
+
 test("shows candidate validation failure without persisting it", async () => {
   jest
     .mocked(validateEmbeddedPythonRuntimeConfiguration)
@@ -385,4 +452,28 @@ test("shows candidate validation failure without persisting it", async () => {
     ).toBe("The API key was rejected.")
   );
   expect(configureEmbeddedPythonRuntime).not.toHaveBeenCalled();
+});
+
+test("provider settings use neutral result dialogs and generic parameter mapping", async () => {
+  jest.mocked(executeEmbeddedRuntimeApplicationAction).mockResolvedValueOnce({
+    display: NEUTRAL_FOLLOWUP_DISPLAY,
+  });
+  const { screen } = renderModal();
+  await waitFor(() => expect(screen.getByTestId("embedded-provider-openai")).toBeTruthy());
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-auth-chatgpt"));
+  fireEvent.press(screen.getByTestId("embedded-provider-openai-chatgpt-login_start"));
+  fireEvent.press(await screen.findByText("Enter value"));
+  expect(screen.getByText("Edit value")).toBeTruthy();
+  fireEvent.press(screen.getByTestId("application-action-dialog-cancel"));
+  expect(screen.getByText("Neutral result")).toBeTruthy();
+  expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenCalledTimes(1);
+  fireEvent.press(screen.getByText("Enter value"));
+  fireEvent.changeText(screen.getByTestId("action-form-input-value"), "settings value");
+  fireEvent.press(screen.getByTestId("application-action-dialog-primary"));
+  await waitFor(() => expect(executeEmbeddedRuntimeApplicationAction).toHaveBeenLastCalledWith({
+    pluginId: "fixture",
+    actionId: "save",
+    actionOwner: "application",
+    inputs: { source: "neutral-result", value: "settings value", cleared: "", note: "kept note" },
+  }));
 });

@@ -9,10 +9,14 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import uuid
+import webbrowser
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Optional
+
+from .action_rendering import is_local_interactive_output, render_action_result
 
 from .runtime_layout import RuntimeLayout, load_runtime_layout
 from .runtime_environment import (
@@ -536,16 +540,251 @@ def _parse_contributed_command(
 
 
 def _render_command_result(result: dict[str, Any]) -> None:
-    display = result.get("display")
-    if isinstance(display, dict):
-        title = display.get("title")
-        body = display.get("body")
-        if isinstance(title, str) and title:
-            print(title)
-        if isinstance(body, str) and body:
-            print(body)
+    render_action_result(result, print)
+
+
+def _parse_command_ui_args(
+    command: dict[str, Any],
+    action_def: dict[str, Any],
+    argv: list[str],
+) -> dict[str, Any]:
+    if command.get("legacy") is True:
+        legacy = {
+            **command,
+            "name": " ".join(command.get("path") or []),
+        }
+        return _parse_contributed_command(legacy, action_def, argv)
+
+    parser = argparse.ArgumentParser(
+        prog=f"crystal-lattice {' '.join(command.get('path') or [])}",
+        description=str(command.get("description") or command.get("label") or ""),
+    )
+    if isinstance(command.get("browser"), dict):
+        parser.add_argument(
+            "--no-open",
+            dest="_terminal_no_open",
+            action="store_true",
+            help="print the browser URL without opening it",
+        )
+    dialog = command.get("dialog")
+    inputs = (
+        dialog.get("inputs")
+        if isinstance(dialog, dict) and dialog.get("kind") == "form"
+        else []
+    )
+    required_sensitive_fields: list[str] = []
+    for field in inputs if isinstance(inputs, list) else []:
+        if not isinstance(field, dict):
+            continue
+        name = field.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        field_type = str(field.get("type") or "string")
+        if field_type in {"secret", "password"}:
+            if field.get("required") is True:
+                required_sensitive_fields.append(name)
+            continue
+        flag = "--" + name.replace("_", "-")
+        kwargs: dict[str, Any] = {
+            "dest": name,
+            "required": bool(field.get("required", False)),
+            "help": str(field.get("description") or field.get("label") or ""),
+        }
+        if field_type in {"boolean", "checkbox"}:
+            kwargs["action"] = "store_true"
+        elif field_type == "integer":
+            kwargs["type"] = int
+        elif field_type == "number":
+            kwargs["type"] = float
+        elif field_type in {"select", "dropdown"}:
+            options = field.get("options")
+            kwargs["choices"] = [
+                option.get("value") if isinstance(option, dict) else option
+                for option in (options or [])
+            ]
+        else:
+            kwargs["type"] = str
+        if "default" in field:
+            kwargs["default"] = field["default"]
+        parser.add_argument(flag, **kwargs)
+    parsed = parser.parse_args(argv)
+    if required_sensitive_fields:
+        parser.error(
+            "required sensitive fields must be entered through the interactive "
+            "terminal /action flow: " + ", ".join(required_sensitive_fields)
+        )
+    return {name: value for name, value in vars(parsed).items() if value is not None}
+
+
+def _map_standalone_command_params(
+    command: dict[str, Any],
+    dialog_values: dict[str, Any],
+) -> dict[str, Any]:
+    fixed = command.get("fixed_params")
+    params = dict(fixed) if isinstance(fixed, dict) else {}
+    mappings = command.get("param_map")
+    if not isinstance(mappings, dict):
+        return params
+    roots: dict[str, Any] = {
+        "dialog": dialog_values,
+        "context": {"ui_context": "cli_command"},
+        "form": {},
+        "session": {},
+        "message": {},
+    }
+    for name, source in mappings.items():
+        if (
+            not isinstance(name, str)
+            or not isinstance(source, str)
+            or not source.startswith("$")
+            or "." not in source
+        ):
+            continue
+        prefix, _, path = source[1:].partition(".")
+        current: Any = roots.get(prefix)
+        found = prefix in roots
+        for part in [piece for piece in path.split(".") if piece]:
+            if not isinstance(current, dict) or part not in current:
+                found = False
+                break
+            current = current[part]
+        if found:
+            params[name] = current
+    return params
+
+
+def _command_result_path(result: dict[str, Any], path: Any) -> Any:
+    if not isinstance(path, str) or not path:
+        return None
+    current: Any = result
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _command_browser_applies(
+    browser: dict[str, Any],
+    result: dict[str, Any],
+) -> bool:
+    when = browser.get("when")
+    if not isinstance(when, dict):
+        return True
+    return _command_result_path(result, when.get("result_path")) == when.get("equals")
+
+
+def _run_standalone_command_element(
+    app: Any,
+    command: dict[str, Any],
+    params: dict[str, Any],
+) -> None:
+    if command.get("disabled") is True:
+        reason = command.get("disabled_reason") or command.get("description")
+        raise RuntimeError(
+            "command is disabled"
+            + (f": {reason}" if isinstance(reason, str) and reason else "")
+        )
+    params = dict(params)
+    no_open = bool(params.pop("_terminal_no_open", False))
+    action_params = (
+        params
+        if command.get("legacy") is True
+        else _map_standalone_command_params(command, params)
+    )
+    executed = app.execute_action_with_metadata(
+        command["plugin"],
+        command["action_id"],
+        action_params,
+        action_owner=command.get("action_owner"),
+        context={"ui_context": "cli_command"},
+    )
+    result = executed.result
+    _render_command_result(result)
+    browser = command.get("browser")
+    if (
+        not no_open
+        and isinstance(browser, dict)
+        and browser.get("auto_open_local") is True
+        and _command_browser_applies(browser, result)
+        and is_local_interactive_output()
+    ):
+        display = result.get("display")
+        actions = display.get("actions") if isinstance(display, dict) else None
+        url = next(
+            (
+                action.get("url")
+                for action in (actions or [])
+                if isinstance(action, dict)
+                and action.get("kind") == "open_url"
+                and isinstance(action.get("url"), str)
+                and action.get("url")
+            ),
+            None,
+        )
+        if isinstance(url, str):
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+    foreground = command.get("foreground")
+    if not isinstance(foreground, dict):
         return
-    print(json.dumps(result, indent=2, sort_keys=True))
+
+    attempt_id = _command_result_path(
+        result,
+        foreground.get("attempt_id_path"),
+    )
+    state_path = foreground.get("state_path")
+    pending = set(foreground.get("pending_states") or ["pending"])
+    terminal = set(
+        (foreground.get("success_states") or [])
+        + (foreground.get("failure_states") or [])
+        + (foreground.get("cancelled_states") or [])
+        + (foreground.get("expired_states") or [])
+    )
+    interval = foreground.get("poll_interval_seconds", 0.5)
+    if not isinstance(interval, (int, float)) or interval <= 0:
+        interval = 0.5
+    interval = min(float(interval), 5.0)
+    state = _command_result_path(result, state_path)
+    try:
+        while state in pending:
+            time.sleep(interval)
+            status = foreground.get("status")
+            if not isinstance(status, dict):
+                raise RuntimeError("foreground command is missing status action")
+            step_params = dict(status.get("fixed_params") or {})
+            attempt_param = status.get("attempt_param")
+            if isinstance(attempt_param, str) and attempt_param:
+                step_params[attempt_param] = attempt_id
+            result = app.execute_action_with_metadata(
+                status.get("plugin") or command["plugin"],
+                status["action_id"],
+                step_params,
+                action_owner=status.get("action_owner") or command.get("action_owner"),
+            ).result
+            next_state = _command_result_path(result, state_path)
+            if next_state != state or next_state in terminal:
+                _render_command_result(result)
+            state = next_state
+    except KeyboardInterrupt as exc:
+        cancel = foreground.get("cancel")
+        if isinstance(cancel, dict):
+            cancel_params = dict(cancel.get("fixed_params") or {})
+            attempt_param = cancel.get("attempt_param")
+            if isinstance(attempt_param, str) and attempt_param:
+                cancel_params[attempt_param] = attempt_id
+            cancel_result = app.execute_action_with_metadata(
+                cancel.get("plugin") or command["plugin"],
+                cancel["action_id"],
+                cancel_params,
+                action_owner=cancel.get("action_owner") or command.get("action_owner"),
+            ).result
+            _render_command_result(cancel_result)
+        raise SystemExit(130) from exc
+    if terminal and state not in terminal:
+        raise RuntimeError(f"foreground command returned undeclared state {state!r}")
 
 
 def _run_builtin_bundle_command(
@@ -690,8 +929,10 @@ def _resolve_config_and_session_paths(
 
 
 _LOCAL_HEADLESS_COMMANDS = frozenset(
-    {"agents", "run", "history", "sessions", "messages"}
+    {"agents", "models", "run", "history", "sessions", "messages"}
 )
+_MAX_RUN_SETTING_ASSIGNMENTS = 64
+_MAX_RUN_SETTING_ASSIGNMENT_CHARS = 4096
 
 
 def _command_parser(name: str, description: str) -> argparse.ArgumentParser:
@@ -722,6 +963,11 @@ def _run_agents_command(
         choices=["text", "json"],
         default="text",
     )
+    command_parser.add_argument(
+        "--details",
+        action="store_true",
+        help="include safe effective defaults and configurable fields",
+    )
     parsed = command_parser.parse_args(command_args)
 
     from .local_runtime import open_runtime
@@ -735,15 +981,82 @@ def _run_agents_command(
                 env_overrides=env_overrides,
             ) as runtime:
                 agents = runtime.list_agents()
+                descriptors = runtime.list_agent_descriptors() if parsed.details else ()
     except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(2) from exc
 
     if parsed.format == "json":
-        print(json.dumps({"agents": list(agents)}, ensure_ascii=False))
+        payload: dict[str, Any] = {"agents": list(agents)}
+        if parsed.details:
+            payload["agent_descriptors"] = list(descriptors)
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+    if parsed.details:
+        for descriptor in descriptors:
+            settings = descriptor.get("effective_settings")
+            settings = settings if isinstance(settings, dict) else {}
+            print(
+                "\t".join(
+                    (
+                        str(descriptor.get("id") or ""),
+                        str(descriptor.get("provider_route") or ""),
+                        str(settings.get("model") or ""),
+                        str(settings.get("reasoning_effort") or ""),
+                    )
+                )
+            )
         return
     for agent_id in agents:
         print(agent_id)
+
+
+def _run_models_command(
+    command_args: list[str],
+    *,
+    config_path: Path,
+    session_root: Path,
+    runtime_layout: RuntimeLayout,
+    env_overrides: dict[str, str],
+) -> None:
+    command_parser = _command_parser("models", "Discover models for a configured agent")
+    command_parser.add_argument("--agent", required=True)
+    command_parser.add_argument("--format", choices=["text", "json"], default="text")
+    parsed = command_parser.parse_args(command_args)
+
+    from .local_runtime import open_runtime
+
+    try:
+        with redirect_stdout(sys.stderr):
+            with open_runtime(
+                config_path=config_path,
+                session_root=session_root,
+                runtime_layout=runtime_layout,
+                env_overrides=env_overrides,
+            ) as runtime:
+                models = runtime.list_models(agent_id=parsed.agent)
+    except (FileNotFoundError, KeyError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+
+    if parsed.format == "json":
+        print(
+            json.dumps(
+                {"agent_id": parsed.agent, "models": list(models)},
+                ensure_ascii=False,
+            )
+        )
+        return
+    for model in models:
+        print(
+            "\t".join(
+                str(model.get(key) or "")
+                .replace("\t", " ")
+                .replace("\r", " ")
+                .replace("\n", " ")
+                for key in ("id", "name", "description")
+            )
+        )
 
 
 def _read_run_prompt(
@@ -767,6 +1080,38 @@ def _read_run_prompt(
     return prompt
 
 
+def _parse_run_setting_assignments(
+    assignments: list[str],
+    command_parser: argparse.ArgumentParser,
+) -> dict[str, Any]:
+    if len(assignments) > _MAX_RUN_SETTING_ASSIGNMENTS:
+        command_parser.error(
+            f"--set may be repeated at most {_MAX_RUN_SETTING_ASSIGNMENTS} times"
+        )
+
+    overrides: dict[str, Any] = {}
+    for assignment in assignments:
+        if len(assignment) > _MAX_RUN_SETTING_ASSIGNMENT_CHARS:
+            command_parser.error(
+                "--set assignment exceeds "
+                f"{_MAX_RUN_SETTING_ASSIGNMENT_CHARS} characters"
+            )
+        if "=" not in assignment:
+            command_parser.error("--set must use KEY=VALUE")
+        key, raw_value = assignment.split("=", 1)
+        key = key.strip()
+        if not key:
+            command_parser.error("--set key must not be empty")
+        if any(character.isspace() for character in key):
+            command_parser.error("--set key must not contain whitespace")
+        try:
+            value = json.loads(raw_value)
+        except json.JSONDecodeError:
+            value = raw_value
+        overrides[key] = value
+    return overrides
+
+
 def _run_agent_command(
     command_args: list[str],
     *,
@@ -786,6 +1131,14 @@ def _run_agent_command(
     prompt_source.add_argument("--prompt")
     prompt_source.add_argument("--prompt-file")
     prompt_source.add_argument("--stdin", action="store_true")
+    prompt_source.add_argument(
+        "--resend",
+        action="store_true",
+        help=(
+            "retry the current persisted session history without appending "
+            "another user message"
+        ),
+    )
     command_parser.add_argument(
         "--format",
         choices=["text", "json"],
@@ -793,8 +1146,30 @@ def _run_agent_command(
     )
     command_parser.add_argument("--timeout", type=float, default=None)
     command_parser.add_argument("--no-progress", action="store_true")
+    command_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "apply one request-scoped setting; JSON values are decoded and "
+            "other values remain strings"
+        ),
+    )
+    command_parser.add_argument(
+        "--ephemeral",
+        action="store_true",
+        help="run without retaining a session; follow-ups are unavailable",
+    )
     parsed = command_parser.parse_args(command_args)
-    prompt = _read_run_prompt(parsed, command_parser)
+    if parsed.ephemeral and parsed.session is not None:
+        command_parser.error("--ephemeral cannot be combined with --session")
+    if parsed.resend and parsed.session is None:
+        command_parser.error("--resend requires --session")
+    if parsed.resend and parsed.ephemeral:
+        command_parser.error("--resend cannot be combined with --ephemeral")
+    prompt = None if parsed.resend else _read_run_prompt(parsed, command_parser)
+    overrides = _parse_run_setting_assignments(parsed.set, command_parser)
 
     from .local_runtime import open_runtime
 
@@ -806,15 +1181,25 @@ def _run_agent_command(
                 runtime_layout=runtime_layout,
                 env_overrides=env_overrides,
             ) as runtime:
-                result = runtime.run(
-                    prompt,
-                    agent_id=parsed.agent,
-                    session_id=parsed.session,
-                    timeout=parsed.timeout,
-                    on_progress=(
-                        None if parsed.no_progress else _render_progress_to_stderr
-                    ),
-                )
+                progress = None if parsed.no_progress else _render_progress_to_stderr
+                if parsed.resend:
+                    result = runtime.resend(
+                        parsed.session,
+                        overrides=overrides,
+                        timeout=parsed.timeout,
+                        on_progress=progress,
+                    )
+                else:
+                    assert prompt is not None
+                    result = runtime.run(
+                        prompt,
+                        agent_id=parsed.agent,
+                        session_id=parsed.session,
+                        overrides=overrides,
+                        timeout=parsed.timeout,
+                        on_progress=progress,
+                        persistence=("ephemeral" if parsed.ephemeral else "persisted"),
+                    )
     except KeyboardInterrupt as exc:
         print("Agent request interrupted", file=sys.stderr)
         raise SystemExit(130) from exc
@@ -827,10 +1212,16 @@ def _run_agent_command(
     else:
         if result.output_text:
             print(result.output_text)
-        print(
-            f"[session] {result.session_id} (request={result.request_id})",
-            file=sys.stderr,
-        )
+        if result.persistence == "persisted":
+            print(
+                f"[session] {result.session_id} (request={result.request_id})",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"[request] {result.request_id} (ephemeral)",
+                file=sys.stderr,
+            )
 
     if result.status == "succeeded":
         return
@@ -1111,6 +1502,15 @@ def _run_local_headless_command(
             env_overrides=env_overrides,
         )
         return
+    if command == "models":
+        _run_models_command(
+            command_args,
+            config_path=config_path,
+            session_root=session_root,
+            runtime_layout=runtime_layout,
+            env_overrides=env_overrides,
+        )
+        return
     if command == "history":
         _run_history_command(
             command_args,
@@ -1367,7 +1767,7 @@ def main() -> None:  # pragma: no cover - manual execution only
         "command",
         nargs="?",
         help=(
-            "standalone command such as agents, run, history, bundle, "
+            "standalone command such as agents, models, run, history, bundle, "
             "or a configured application-plugin command"
         ),
     )
@@ -1469,6 +1869,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     # after logging is configured so that their loggers see the
     # correct level.
     from agent_app.application_future import AgentApplication
+    from agent_app.command_ui import match_command_path
     from agent_app.application_notifications import (
         SQLiteApplicationNotificationStore,
         resolve_application_notification_store_path,
@@ -1605,19 +2006,22 @@ def main() -> None:  # pragma: no cover - manual execution only
             env_overrides=env_overrides,
         )
         try:
-            commands = command_app.get_application_commands()
-            command_map = {
-                command["name"]: command
-                for command in commands
-                if isinstance(command, dict) and isinstance(command.get("name"), str)
-            }
-            command_def = command_map.get(contributed_command)
+            commands = command_app.get_application_command_ui_elements(
+                "cli_command",
+                reserved_paths=[
+                    (name,) for name in sorted({*_LOCAL_HEADLESS_COMMANDS, "bundle"})
+                ],
+            )
+            command_def, command_argv = match_command_path(
+                commands,
+                [contributed_command, *list(args.command_args or [])],
+            )
             if command_def is None:
                 parser.error(f"unknown command: {contributed_command}")
 
             if args.console or args.server:
                 parser.error(
-                    f"{contributed_command} is a standalone command and cannot be combined "
+                    f"{' '.join(command_def['path'])} is a standalone command and cannot be combined "
                     "with --console or --server"
                 )
 
@@ -1638,21 +2042,16 @@ def main() -> None:  # pragma: no cover - manual execution only
                     f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
                 )
 
-            params = _parse_contributed_command(
+            params = _parse_command_ui_args(
                 command_def,
                 action_def,
-                list(args.command_args or []),
+                command_argv,
             )
             try:
-                result = command_app.execute_application_action(
-                    plugin_id=plugin_id,
-                    action_id=action_id,
-                    params=params,
-                )
+                _run_standalone_command_element(command_app, command_def, params)
             except Exception as exc:
                 print(str(exc), file=sys.stderr)
                 raise SystemExit(1) from exc
-            _render_command_result(result)
             return
         finally:
             command_app.close()

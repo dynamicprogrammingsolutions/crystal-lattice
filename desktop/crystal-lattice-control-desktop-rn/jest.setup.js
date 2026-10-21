@@ -7,13 +7,18 @@ jest.mock('@crystal-lattice/react-native-mac-text-view', () => {
   const { TextInput } = require('react-native');
 
   const MacTextView = React.forwardRef((props, ref) => {
+    const [text, setText] = React.useState(props.initialText ?? '');
     React.useImperativeHandle(ref, () => ({
-      setText: () => {},
+      setText,
       focus: () => {},
     }));
     return React.createElement(TextInput, {
       ...props,
-      defaultValue: props.initialText,
+      value: text,
+      onChangeText: value => {
+        setText(value);
+        props.onChangeText?.(value);
+      },
     });
   });
 
@@ -327,6 +332,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 
   return {
     ...homeWorkspace,
+    ChatActivityRow: jest.requireActual('../../packages/frontend-rn-components/src/ChatActivityRow').ChatActivityRow,
+    ComposerEditContext: jest.requireActual('../../packages/frontend-rn-components/src/ComposerEditContext').ComposerEditContext,
     ...reorderGeometry,
     ...sessionRequestStatus,
     ...localSessionActions,

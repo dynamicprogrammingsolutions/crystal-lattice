@@ -1762,3 +1762,12 @@ verified behavior already described there.
   process, and no task-owned blocker remains.
 - `DOCFLOW-004` human review remains part of the separate task-guidance
   evaluation workstream and is not deferred scope from this completed task.
+
+### October 6, 2026: accepted merged baseline
+
+- The user confirmed that the merged contributor workflow, instruction
+  inspection action, frontend presentation, and proxy-safety behavior form a
+  sufficient reviewed working version.
+- The previously open readability and dialog review gates are accepted.
+- Later wording, task-guidance, and evaluation refinements remain non-blocking
+  follow-up and do not prevent dependent work from proceeding.

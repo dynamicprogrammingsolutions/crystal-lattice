@@ -105,7 +105,8 @@ class PipTargetInstallStrategy:
             ]
 
             try:
-                subprocess.check_call(cmd)
+                # Installation diagnostics must not pollute CLI/SDK result stdout.
+                subprocess.check_call(cmd, stdout=sys.stderr)
                 meta = dict(request.metadata)
                 meta.setdefault("id", request.safe_id)
                 meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")

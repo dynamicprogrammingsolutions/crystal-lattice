@@ -5,15 +5,32 @@ local and GitHub Actions use without committing or exposing private material.
 
 ## Requirements checklist
 
-- [ ] A valid Developer ID Application certificate and private key are available for team `73Q43R2PD4`.
+- [x] A valid Developer ID Application certificate and private key are available for team `73Q43R2PD4`.
 - [ ] A valid Developer ID Installer certificate and private key are available for the same team.
 - [ ] Signing assets are encrypted in the approved private signing repository and can be fetched read-only.
 - [ ] Local signing and CI signing use controlled keychains and do not depend on interactive prompts.
-- [ ] Notarization authentication is verified with the approved App Store Connect team API key.
+- [x] Notarization authentication is verified with the approved App Store Connect team API key.
 - [ ] Required GitHub secrets, variables, environment protection, rotation, and recovery steps are documented without secret values.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
 Depends On: tasks/20260820-macos-desktop-distribution/030-reproducible-macos-release-build.md
+
+## Reconciliation — October 7, 2026
+
+Progress: partially fulfilled through
+`tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+
+Developer ID Application import, encrypted storage, read-only retrieval,
+controlled local/CI keychains and App Store Connect notarization succeeded in
+the September release, including clean hosted run `36633536807`. Application
+rotation/recovery and GitHub settings are documented in
+`desktop/crystal-lattice-control-desktop-rn/docs/development/macos-release.md`.
+
+Developer ID Installer availability/import/verification is not established.
+The requirements covering all signing assets and their complete recovery
+documentation remain unchecked until that remaining PKG scope is verified.
+Reuse the working Application identity; this task is no longer a DMG blocker.
+Its remaining execution plan stays Draft.
 
 ## Manual prerequisite
 

@@ -77,10 +77,10 @@ to the core engine, not changing core algorithms.
     reasoning/tool traces, etc.).
   - Any changes should preserve readability in a plain terminal.
 
-- `sessions/`
-  - On-disk session files used by this app. Tests may create temporary files
-    here; do not commit new static session files unless a test explicitly
-    needs them.
+- Session files use the active session root. The default is
+  `./.crystal/sessions`; `--sessions-dir` may override it. Tests may create
+  temporary session files; do not commit them unless a test explicitly needs
+  them.
 
 ---
 
@@ -188,8 +188,8 @@ When extending or changing behavior that affects the mobile app:
     needed).
 
 - Document new mobile-related endpoints and flows in
-  `application/python/README.md` or a dedicated doc file alongside
-  `server_endpoints_parity.md`.
+  `application/python/README.md` or a focused page under
+  `application/python/docs/`.
 
 If in doubt about where to put something, prefer:
 

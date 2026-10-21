@@ -27,6 +27,20 @@ Parent Task: `tasks/20260821-modular-bridge-access-platform/000-main.md`
 
 Depends On: `tasks/20260821-modular-bridge-access-platform/020-configurable-bridge-access-and-pairing-profiles.md`
 
+## Approved downstream ownership — October 7, 2026
+
+This task retains its non-production challenge and replacement-provider proof.
+The arithmetic challenge is an allowance policy, not secure login.
+`tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md`
+owns real client login and its UI; the public community identity task owns
+account mapping and grant issuance.
+
+`tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`
+owns the deployed invited-tester outcome. It must use authenticated account
+subjects and preserve this task's production-use guards. A hosted demo is not
+permission to treat the configured example subject as a real authenticated
+user or to enable the unsafe production override.
+
 ## Required reading
 
 - `core/python/agent_core/types.py` and public plugin/Protocol style for

@@ -1,6 +1,6 @@
 # Prepare macOS Desktop Distribution, Bundled CLI Installer, And Workspace Onboarding
 
-Prepare Crystal Lattice Control for direct macOS distribution through signed,
+Prepare Crystal Lattice Desktop for direct macOS distribution through signed,
 notarized downloads. Retain an app-only DMG, add separate architecture-specific
 PKG installers that include the CLI, automate both release paths through GitHub
 Actions, present both choices clearly on the landing page, and add workspace
@@ -8,7 +8,7 @@ onboarding that works with either installation.
 
 ## Requirements checklist
 
-- [ ] A signed, notarized, stapled app-only DMG is available as a maintained release output.
+- [x] A signed, notarized, stapled app-only DMG is available as a maintained release output.
 - [ ] Signed, notarized, stapled Apple Silicon and Intel PKGs are available as separate release outputs and install both the desktop app and the matching CLI runtime.
 - [ ] Installing a combined PKG makes `crystal-lattice` available in Terminal without the desktop app starting, owning, or supervising the CLI process.
 - [ ] GitHub Actions can build, verify, sign, notarize, and publish both the retained DMG and the combined PKGs without exposing credentials.
@@ -19,10 +19,39 @@ onboarding that works with either installation.
 - [ ] Final release acceptance covers Apple Silicon and Intel, both distribution choices, workspace onboarding, Gatekeeper, installation, upgrade, and public downloads.
 - [ ] Current user and maintainer documentation explains the delivered distribution and release workflows without exposing task-phase terminology.
 
+## Reconciled delivery state — October 7, 2026
+
+Progress: partially fulfilled. The app-only build and DMG were delivered by
+`tasks/20260928-universal-macos-desktop-fastlane-release.md`; the combined
+CLI/PKG/onboarding outcome remains outstanding. The user approved this separate
+task/roadmap reconciliation on October 7, 2026. It preserves the original
+release history and does not authorize the remaining implementation plans.
+
+- **COMPLETED VIA:** subtasks 030 and 050 have evidence from the approved
+  September release. Candidate run `36633536807` succeeded on September 29;
+  publication run `36685765746` succeeded on September 30. The public output
+  is `Crystal Lattice Desktop 0.9.0 (4)`, universal, notarized and stapled.
+- **PARTIALLY COMPLETED VIA:** 010 has the app identity/preflight baseline;
+  040 has Developer ID Application signing and notarization. PKG-specific
+  preflight and Developer ID Installer delivery remain incomplete.
+- **SUPERSEDED BY:** 020, 060 and 070 are retained historical contracts whose
+  replacement is `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+  The user closed these tasks as done by supersession on October 7, 2026.
+  Their unmet original requirements remain unchecked; closure does not claim
+  those conditions were delivered. Retired execution dependencies are removed.
+  Display these closed tasks and partially completed 010/040 immediately before
+  the replacement release in the roadmap.
+- The replacement acceptance record still needs explicit Apple Silicon
+  public-artifact human confirmation. The first DMG's Intel hardware waiver
+  is not evidence of successful future CLI/PKG architecture acceptance.
+- Subtasks 080–130 remain active future work. The app stays universal, both
+  CLI architectures remain required, the DMG remains independent, and the
+  desktop never owns the user's CLI process.
+
 ## Approved scope and decisions
 
 - Direct distribution is outside the Mac App Store; no Mac App Store record is required.
-- Product name: `Crystal Lattice Control`.
+- Product name: `Crystal Lattice Desktop`, as approved for the September release.
 - macOS bundle ID: `com.dynamicprogrammingsolutions.crystallatticecontrol.macos`.
 - Apple Developer team: `73Q43R2PD4`.
 - Initial marketing version target: `0.9.0`; CI supplies monotonically increasing build numbers.
@@ -39,12 +68,17 @@ onboarding that works with either installation.
 ## Subtasks
 
 - [ ] `tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/020-production-identity-metadata-branding.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/030-reproducible-macos-release-build.md`
+- [x] `tasks/20260820-macos-desktop-distribution/020-production-identity-metadata-branding.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; original unmet requirements are retired.
+- [x] `tasks/20260820-macos-desktop-distribution/030-reproducible-macos-release-build.md`
+  - COMPLETED VIA `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
 - [ ] `tasks/20260820-macos-desktop-distribution/040-developer-id-signing-bootstrap.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md`
-- [ ] `tasks/20260820-macos-desktop-distribution/070-app-only-release-acceptance.md`
+- [x] `tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md`
+  - COMPLETED VIA `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+- [x] `tasks/20260820-macos-desktop-distribution/060-automated-app-only-release.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; original unmet requirements are retired.
+- [x] `tasks/20260820-macos-desktop-distribution/070-app-only-release-acceptance.md`
+  - CLOSED BY SUPERSESSION: `tasks/20260928-universal-macos-desktop-fastlane-release.md`; active acceptance remains in the replacement task.
 - [ ] `tasks/20260820-macos-desktop-distribution/080-desktop-cli-payload.md`
 - [ ] `tasks/20260820-macos-desktop-distribution/090-combined-app-cli-pkg.md`
 - [ ] `tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md`
@@ -52,7 +86,11 @@ onboarding that works with either installation.
 - [ ] `tasks/20260820-macos-desktop-distribution/120-workspace-onboarding.md`
 - [ ] `tasks/20260820-macos-desktop-distribution/130-final-release-acceptance.md`
 
-## Known starting state
+## Historical starting state — August 20, 2026
+
+The following observations describe the original audit, not the current
+released application. Current app/build/signing evidence belongs to the
+September release task and the reconciled subtask records.
 
 - The React Native macOS app is under `desktop/crystal-lattice-control-desktop-rn`.
 - The shared scheme is `CrystalLatticeControlDesktopRN-macOS`.
@@ -80,12 +118,17 @@ onboarding that works with either installation.
 ## Execution plan
 Status: Draft
 
-Execute the subtasks in numeric order. Preserve the app-only DMG as an
-independent working release before extending the distribution with the CLI
-payload and PKGs. Treat the two acceptance subtasks as explicit gates: bundled
-CLI work does not begin until the app-only release is accepted, and the main
-task does not complete until both release choices and workspace onboarding pass
-the final matrix.
+Use the completed app-only baseline rather than repeating superseded work.
+Finish remaining preflight in 010 and the replacement app-only human acceptance
+record before bundled-CLI execution. Installer preparation in 040 and payload
+work in 080 can then proceed independently; both are prerequisites for 090.
+Follow with automation 100, onboarding 120, distribution presentation 110 and
+final acceptance 130. Onboarding does not wait for marketing publication.
+
+The app-only acceptance gate is owned by
+`tasks/20260928-universal-macos-desktop-fastlane-release.md`; do not execute
+historical 070 as a second, conflicting gate. The parent remains incomplete
+until both release choices and onboarding pass the final matrix.
 
 The implementation must use current official Apple, GitHub Actions, fastlane,
 React Native macOS, and relevant packaging documentation. The executor has
@@ -115,8 +158,9 @@ task’s August 20, 2026 snapshot.
 
 ### Task checklist
 
-- [ ] Complete subtasks 010–060 and produce the automated app-only DMG release path.
-- [ ] Complete subtask 070 and obtain app-only release acceptance.
+- [x] Produce the automated app-only DMG release path through the September release task.
+- [ ] Finish remaining PKG preflight in 010 and Installer signing in 040.
+- [ ] Obtain app-only human acceptance in the replacement September release record.
 - [ ] Complete subtasks 080–100 and add the CLI payload and separate combined PKG release path.
 - [ ] Complete subtask 110 and publish the two clear desktop download choices.
 - [ ] Complete subtask 120 and include workspace onboarding in both distribution outputs.
@@ -125,7 +169,7 @@ task’s August 20, 2026 snapshot.
 
 ### Requirement verification
 
-- Verify the DMG requirement with a published, notarized, stapled artifact and the accepted 070 checklist.
+- Verify the DMG requirement with the published September artifact and its replacement acceptance record.
 - Verify the combined-installer requirements with both architecture-specific PKGs, installation receipts, terminal command checks, and the 130 matrix.
 - Verify automation through successful GitHub Actions runs whose logs contain no credentials and whose outputs match locally verified signing/notarization metadata.
 - Verify landing behavior through production URLs and downloads, not only a local static build.

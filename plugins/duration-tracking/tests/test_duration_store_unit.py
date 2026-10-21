@@ -1604,8 +1604,16 @@ def test_recent_report_queries_rank_by_human_and_join_other_times(
     assert projects[1]["tool_total_ms"] == 75
 
 
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {},
+        {"working_directory": "/tmp/ws"},
+        {"working_directory": "/tmp/ws", "session_id": "s1"},
+    ],
+)
 def test_daily_duration_totals_split_human_time_at_local_midnight(
-    tmp_path: Path,
+    tmp_path: Path, filters: dict
 ) -> None:
     db_path = tmp_path / "durations.sqlite3"
     local_now = datetime.now().astimezone()
@@ -1642,7 +1650,7 @@ def test_daily_duration_totals_split_human_time_at_local_midnight(
         ],
     )
 
-    totals = duration_store.daily_duration_totals(db_path)
+    totals = duration_store.daily_duration_totals(db_path, **filters)
     assert len(totals) == 7
     assert totals[yesterday.isoformat()]["human_total_ms"] == 10 * 60 * 1000
     assert totals[today.isoformat()] == {
@@ -1681,3 +1689,75 @@ def test_recent_views_ignore_project_reset(tmp_path: Path) -> None:
     recent = duration_store.top_sessions_by_human_time_recent(db_path)
     assert recent[0]["session_id"] == "s1"
     assert recent[0]["human_total_ms"] == 10 * 60 * 1000
+
+
+@pytest.mark.parametrize(
+    ("filters", "expected"),
+    [
+        ({}, (1500, 150, 600_000)),
+        ({"working_directory": "/tmp/ws"}, (1100, 110, 420_000)),
+        (
+            {"working_directory": "/tmp/ws", "session_id": "s1"},
+            (100, 10, 60_000),
+        ),
+        ({"session_id": "s1"}, (500, 50, 240_000)),
+        ({"working_directory": "/tmp/empty"}, (0, 0, 0)),
+    ],
+)
+def test_daily_duration_totals_scope_all_three_times(
+    tmp_path: Path, filters: dict, expected: tuple
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    for index, (project, session_id, amount) in enumerate(
+        [
+            ("/tmp/ws", "s1", 1),
+            ("/tmp/ws", "s2", 2),
+            ("/tmp/other", "s1", 3),
+            ("/tmp/ws", None, 4),
+        ]
+    ):
+        _record(
+            db_path,
+            working_directory=project,
+            session_id=session_id,
+            duration_ms=100 * 2**index,
+            time=_local_time_iso(hour=12),
+        )
+        duration_store.record_tool_duration(
+            db_path,
+            working_directory=project,
+            session_id=session_id,
+            request_id=f"tool-{index}",
+            tool_call_id=f"call-{index}",
+            duration_ms=10 * 2**index,
+            time=_local_time_iso(hour=12),
+        )
+        duration_store.record_human_time_spans(
+            db_path,
+            working_directory=project,
+            request_id=f"human-{index}",
+            spans=[
+                {
+                    "session_id": session_id,
+                    "from": _local_time_iso(hour=8 + index),
+                    "to": _local_time_iso(hour=8 + index, minute=amount),
+                }
+            ],
+        )
+    _record(db_path, duration_ms=9999, time=_local_time_iso(days_ago=8))
+    duration_store.reset_project(
+        db_path, working_directory="/tmp/ws", time=_local_time_iso(hour=13)
+    )
+
+    totals = duration_store.daily_duration_totals(db_path, **filters)
+
+    assert len(totals) == 7
+    today = datetime.now().astimezone().date().isoformat()
+    assert totals[today] == dict(
+        zip(("llm_total_ms", "tool_total_ms", "human_total_ms"), expected)
+    )
+    assert all(
+        value == {"llm_total_ms": 0, "tool_total_ms": 0, "human_total_ms": 0}
+        for day, value in totals.items()
+        if day != today
+    )

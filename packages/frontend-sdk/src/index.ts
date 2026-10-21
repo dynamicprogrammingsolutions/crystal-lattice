@@ -3,6 +3,8 @@ export type { AgentDescriptor } from "./types/agents";
 export type { AgentPluginEntry } from "./types/agentPlugins";
 export { normalizeAgentPluginEntries } from "./types/agentPlugins";
 
+export { buildDisplayFollowupActionElement } from "./plugins/displayFollowupAction";
+
 export type {
   SessionSummary,
   SessionSummaryPresentation,
@@ -118,6 +120,10 @@ export type {
 export { FetchTransport } from "./transport/fetchTransport";
 export { BridgeTransport } from "./transport/bridgeTransport";
 export { createBridgeConnectionTransport } from "./transport/bridgeConnectionTransport";
+export {
+  normalizeBridgeAddress,
+  deriveBridgeWebSocketUrl,
+} from "./transport/bridgeAddress";
 export type {
   BridgeConnectionTransport,
   BridgeConnectionTransportOptions,
@@ -251,6 +257,11 @@ export {
 } from "./plugins/applicationActionsInvalidation";
 export type { ParsedActionDeepLink } from "./plugins/actionDeepLinks";
 export { parseActionDeepLink } from "./plugins/actionDeepLinks";
+export { createActionDeepLinkHandler } from "./plugins/actionDeepLinkRouting";
+export type {
+  ActionDeepLinkHandlerOptions,
+  ActionDeepLinkRoutingResult,
+} from "./plugins/actionDeepLinkRouting";
 export type {
   ActionDisplayHost,
   ActionDisplaySurface,
@@ -486,6 +497,7 @@ export type {
 export { RestAgentBackend } from "./backend/restBackend";
 
 export type {
+  SavedBridgeUrl,
   ConnectionKind,
   BaseConnectionRecord,
   ManualConnectionRecord,
@@ -512,6 +524,11 @@ export {
   loadConnections,
   saveConnections,
 } from "./connections/store";
+export {
+  SAVED_BRIDGES_STORAGE_KEY,
+  loadSavedBridgeUrls,
+  saveSavedBridgeUrls,
+} from "./connections/savedBridges";
 export {
   SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
   SESSION_SCOPED_MESSAGES_CACHE_ENTRY_KEY_PREFIX,

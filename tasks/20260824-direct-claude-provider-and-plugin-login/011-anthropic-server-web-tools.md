@@ -18,6 +18,12 @@ existing client-side Claude tools as explicit alternatives.
 - [ ] Provider-native web-tool history remains reusable on later turns.
 - [ ] Users can explicitly select Anthropic server web tools, existing
   `claude-tools` web tools, or neither.
+- [ ] Configuration and documentation consistently distinguish
+  `Anthropic server web search` from the existing client-side Claude-compatible
+  web search backed by Gemini or Tavily.
+- [ ] Server-tool request shaping is independent of whether the provider
+  receives an API key or a saved OAuth credential; final OAuth-plus-search
+  acceptance is owned by subtask 030.
 
 ### Non-functional requirements
 
@@ -45,6 +51,9 @@ Specification:
 
 - The repository already has client-side Claude-compatible web search and web
   fetch tools backed by configurable local integrations.
+- The shipped `claude-anthropic` agent currently enables the client-side
+  `claude-tools` web search with a Gemini or Tavily backend. That capability is
+  not Anthropic's provider-native server web search.
 - Anthropic server tools use provider-native content blocks and citation/source
   metadata rather than the ordinary client tool-result loop.
 - Local Ollama does not provide these Anthropic server tools.
@@ -63,6 +72,10 @@ selection explicit so existing client tools remain stable.
 - Decision: search and fetch use separate extension classes but may share
   citation/source normalization helpers.
 - Decision: server tools are opt-in.
+- Decision: public UI and documentation use distinct server-versus-client
+  labels rather than presenting both as an undifferentiated `Web Search`.
+- Decision: authentication selects provider credentials but does not change
+  the server-tool normalization contract.
 - Open: select the exact config key that chooses server versus client web
   tooling without coupling the provider package to a specific tool bundle.
 
@@ -70,12 +83,15 @@ selection explicit so existing client tools remain stable.
 
 - Document server versus client web tools, supported request controls,
   citations, compatible-endpoint limitations, cost, and troubleshooting.
+- Document that the existing Gemini/Tavily-backed tool remains available and
+  is billed/configured independently from Anthropic server search.
 - Update the package specification and requirements before implementation.
 
 ### Task checklist
 
 - [ ] Extend the package specification and requirements.
 - [ ] Define explicit server/client web-tool selection.
+- [ ] Add unambiguous server/client labels and configuration diagnostics.
 - [ ] Implement web-search request and stream mapping.
 - [ ] Implement web-fetch request and stream mapping.
 - [ ] Add citation/source normalization and display metadata.
@@ -87,6 +103,8 @@ selection explicit so existing client tools remain stable.
 
 - Hosted search and fetch requests produce source-attributed assistant results.
 - Existing client web tools remain independently selectable and unchanged.
+- API-key and injected saved-OAuth credential fixtures traverse the same
+  server-tool request and response mapping.
 - Compatible endpoints without server-tool support omit the features cleanly.
 
 ### Additional implementation verification

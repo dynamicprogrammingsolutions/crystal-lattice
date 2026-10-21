@@ -1,13 +1,19 @@
 """Application-level plugin that summarizes a range of messages.
 
 This plugin operates at the :class:`agent_app.application_future.AgentApplication`
-layer and exposes a single logical action, ``summarize_range``. The action
-summarizes a contiguous range of messages in a session and replaces the
-original range with a single assistant message while keeping the rest of the
-history intact.
+layer and exposes two logical actions:
 
-The implementation is designed to respect provider/native history as far as
-possible when *building* the temporary summarization session:
+* ``summarize_range`` starts a background process that summarizes a
+  contiguous range of messages in a session and replaces the original range
+  with a single assistant message while keeping the rest of the history
+  intact. The action returns promptly with an accepted operation envelope;
+  progress, cancellation, and completion are delivered through session
+  notifications, mirroring the OpenAI Responses native-compaction flow.
+* ``cancel_summarize_range`` requests cancellation of a running background
+  summarization.
+
+The background process respects provider/native history as far as possible
+when *building* the temporary summarization session:
 
 * It uses :meth:`agent_core.AgentCore.slice_session` with a resolved
   configuration to construct an ephemeral slice of the conversation.
@@ -16,7 +22,7 @@ possible when *building* the temporary summarization session:
 * The summarization prompt is appended via :meth:`AgentCore.add_message` with
   the effective configuration before sending a request.
 
-When rewriting the original session to insert the summary, the plugin
+When rewriting the original session to insert the summary, the process
 constructs a new :class:`agent_core.types.Session` object with adjusted
 messages and drops provider-native history fields so that subsequent requests
 can rebuild native state from the core message list.
@@ -24,70 +30,24 @@ can rebuild native state from the core message list.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from agent_core import Message, Session
+from agent_app.managed_processes import get_managed_process_registry
+from agent_app.operations import (
+    ApplicationOperationBusyError,
+    get_application_operation_service,
+    session_operation_exclusivity_key,
+)
 
-from agent_app.config import resolve_request_config
+from .process import (
+    PLUGIN_ID,
+    SummarizeRangeProcess,
+    _normalize_slice_bounds,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from agent_app.application_future import AgentApplication
-
-
-def _collect_final_messages_from_stream(
-    core: Any,
-    session: Session,
-    config: Dict[str, Any],
-    *,
-    request_id: str | None = None,
-    context: Dict[str, Any] | None = None,
-) -> List[Dict[str, Any]]:
-    """Run an internal request via the streaming path and return final messages."""
-
-    final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
-        if event.get("type") != "final":
-            continue
-        raw_messages = event.get("messages")
-        if isinstance(raw_messages, list):
-            final_messages = raw_messages
-    return final_messages
-
-
-def _normalize_slice_bounds(
-    message_count: int,
-    start: int | None,
-    end: int | None,
-) -> tuple[int, int]:
-    """Return concrete ``(start_idx, end_idx)`` for slice-like bounds.
-
-    Semantics match the helper used by the server actions plugins:
-
-    - ``start`` and ``end`` follow Python slice rules, including support
-      for ``None`` and negative indices.
-    - Indices are clamped to ``[0, message_count]``.
-    - ``ValueError`` is raised when the range selects no messages.
-    """
-
-    def _bound(value: int | None, default: int) -> int:
-        if value is None:
-            return default
-        idx = value
-        if idx < 0:
-            idx = message_count + idx
-        if idx < 0:
-            return 0
-        if idx > message_count:
-            return message_count
-        return idx
-
-    start_idx = _bound(start, 0)
-    end_idx = _bound(end, message_count)
-
-    if start_idx >= end_idx:
-        raise ValueError("range selects no messages")
-
-    return start_idx, end_idx
 
 
 _DEFAULT_PROMPT = (
@@ -99,7 +59,7 @@ class SummarizeRangeAppPlugin:
     """Application-level plugin implementing range summarization."""
 
     name = "summarize_range"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         self._state: Dict[str, Any] = {}
@@ -144,8 +104,7 @@ class SummarizeRangeAppPlugin:
         self,
         state: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return UI schema elements for the summarization action.
 
@@ -164,6 +123,7 @@ class SummarizeRangeAppPlugin:
                 "icon": "file-text",
                 "order": 40,
                 "action_id": "summarize_range",
+                "action_owner": "application",
                 "fixed_params": {},
                 "param_map": {
                     "session_id": "$session.session_id",
@@ -176,7 +136,8 @@ class SummarizeRangeAppPlugin:
                     "title": "Summarize range",
                     "message": (
                         "Python-style range (start:end). The selected messages "
-                        "will be summarized into a single assistant message."
+                        "will be summarized into a single assistant message "
+                        "in the background."
                     ),
                     "inputs": [
                         {
@@ -217,6 +178,7 @@ class SummarizeRangeAppPlugin:
                 "icon": "file-text",
                 "order": 20,
                 "action_id": "summarize_range",
+                "action_owner": "application",
                 "fixed_params": {"start": 0, "end_inclusive": True},
                 "param_map": {
                     "session_id": "$session.session_id",
@@ -227,7 +189,8 @@ class SummarizeRangeAppPlugin:
                     "kind": "form",
                     "title": "Summarize messages up to here",
                     "message": (
-                        "The messages up to here will be summarized into a single assistant message."
+                        "The messages up to here will be summarized into a "
+                        "single assistant message in the background."
                     ),
                     "inputs": [
                         {
@@ -283,7 +246,10 @@ class SummarizeRangeAppPlugin:
             {
                 "id": "summarize_range",
                 "label": "Summarize range",
-                "description": "Summarize a contiguous range of messages in a session.",
+                "description": (
+                    "Summarize a contiguous range of messages in a session "
+                    "in the background."
+                ),
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
                     # ``start`` and ``end`` are optional so that callers can
@@ -295,7 +261,19 @@ class SummarizeRangeAppPlugin:
                     # config-derived default stored in plugin state.
                     "prompt": {"type": "string", "required": False},
                 },
-            }
+            },
+            {
+                "id": "cancel_summarize_range",
+                "label": "Cancel range summarization",
+                "description": (
+                    "Request cancellation of a running background range "
+                    "summarization."
+                ),
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "operation_id": {"type": "string", "required": True},
+                },
+            },
         ]
 
     def execute_action(
@@ -303,10 +281,14 @@ class SummarizeRangeAppPlugin:
         app: "AgentApplication",  # type: ignore[override]
         action_id: str,
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         if action_id == "summarize_range":
-            return self._do_summarize_range(app, params, state)
+            return self._start(app, params, context, state)
+
+        if action_id == "cancel_summarize_range":
+            return self._cancel(app, params)
 
         raise ValueError(f"Unknown action_id {action_id!r} for SummarizeRangeAppPlugin")
 
@@ -321,40 +303,19 @@ class SummarizeRangeAppPlugin:
             return prompt_param.strip()
         return str(prompt_from_state)
 
-    def _clone_message_without_native_indices(self, message: Message) -> Message:
-        data = message.to_dict()
-        md = data.get("metadata") or {}
-        if not isinstance(md, dict):
-            md = {}
-        md.pop("native_indices", None)
-        role = data.get("role", "user")
-        content = data.get("content", "")
-        if md:
-            return Message(role=role, content=content, metadata=md)
-        return Message(role=role, content=content, metadata=None)
-
-    def _replace_range_with_summary(
-        self,
-        session: Session,
-        start_idx: int,
-        end_idx: int,
-        summary_text: str,
-    ) -> Session:
-        # Legacy helper retained for backwards compatibility; no longer used.
-        # The new implementation applies range replacement via AgentCore
-        # slice_session and add_message to keep provider-native history
-        # consistent. This stub is kept to avoid breaking external imports.
-        raise NotImplementedError("_replace_range_with_summary is no longer used")
-
-    def _do_summarize_range(
+    def _start(
         self,
         app: "AgentApplication",
         params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
+
+        if app.get_selected_session_snapshot(session_id) is not None:
+            raise RuntimeError(f"Session {session_id!r} is viewing a readonly snapshot")
 
         # Inputs have already been validated by AgentApplication for primitive
         # types. ``start`` and ``end`` are optional; when omitted they are
@@ -363,218 +324,124 @@ class SummarizeRangeAppPlugin:
         start_raw = params.get("start")
         end_raw = params.get("end")
         end_inclusive = params.get("end_inclusive", False)
-        start_int = start_raw if isinstance(start_raw, int) else None
-        end_int = end_raw if isinstance(end_raw, int) else None
+        start_int = (
+            start_raw
+            if isinstance(start_raw, int) and not isinstance(start_raw, bool)
+            else None
+        )
+        end_int = (
+            end_raw
+            if isinstance(end_raw, int) and not isinstance(end_raw, bool)
+            else None
+        )
 
         effective_prompt = self._effective_prompt(params, state)
 
         with app.acquire_session_lock(session_id):
-            ctx = app.load_session(session_id)
-            if ctx is None:
+            loaded = app.load_session(session_id)
+            if loaded is None:
                 raise KeyError(f"Session {session_id!r} not found")
-            core_orig, base_config_orig, session_orig = ctx
+            core, base_config, session = loaded
             baseline_file_state = app.get_session_file_state(session_id)
 
-        message_count = len(session_orig.messages)
+        message_count = len(session.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)
         if end_inclusive and end_raw is not None:
             end_idx = min(end_idx + 1, message_count)
 
-        # Compute a slice that always keeps leading system messages as context.
-        system_prefix_end = 0
-        for msg in session_orig.messages:
-            if msg.role == "system":
-                system_prefix_end += 1
-            else:
-                break
-
-        keep_indices = set(range(system_prefix_end)) | set(range(start_idx, end_idx))
-        all_indices = set(range(message_count))
-        remove_indices = sorted(i for i in all_indices if i not in keep_indices)
-
-        # Build a config for slicing that respects any per-session overrides.
-        metadata = session_orig.metadata if isinstance(session_orig.metadata, dict) else {}
-        md_overrides_val = metadata.get("overrides")
-        md_overrides: Dict[str, Any] = (
-            md_overrides_val if isinstance(md_overrides_val, dict) else {}
-        )
-        slice_config = resolve_request_config(base_config_orig, md_overrides)
-
-        sliced_for_sum = core_orig.slice_session(
-            session_orig,
-            slice_config,
-            remove_indices=remove_indices,
-        )
-
-        # Choose summarizer agent: either a dedicated one from config or the
-        # current session agent.
-        agent_id_cfg = state.get("agent_id")
-        md_sliced = (
-            sliced_for_sum.metadata
-            if isinstance(sliced_for_sum.metadata, dict)
-            else {}
-        )
-        session_agent_id = md_sliced.get("agent_id")
-        if not isinstance(session_agent_id, str) or not session_agent_id:
-            raise RuntimeError("session metadata must contain non-empty 'agent_id'")
-
-        if isinstance(agent_id_cfg, str) and agent_id_cfg.strip():
-            target_agent_id = agent_id_cfg.strip()
-        else:
-            target_agent_id = session_agent_id
-
-        if target_agent_id == session_agent_id:
-            core_sum = core_orig
-            base_config_sum = base_config_orig
-            session_for_sum = sliced_for_sum
-        else:
-            core_sum, base_config_sum, session_for_sum = app.update_agent(
-                target_agent_id, sliced_for_sum
-            )
-
-        # Build overrides for the summarization request: per-session overrides
-        # plus any summarize_range-specific settings from configuration.
-        md2 = (
-            session_for_sum.metadata
-            if isinstance(session_for_sum.metadata, dict)
-            else {}
-        )
-        md_overrides2_val = md2.get("overrides")
-        md_overrides2: Dict[str, Any] = (
-            md_overrides2_val if isinstance(md_overrides2_val, dict) else {}
-        )
-
-        cfg_overrides_val = state.get("settings_overrides")
-        cfg_overrides: Dict[str, Any] = (
-            cfg_overrides_val if isinstance(cfg_overrides_val, dict) else {}
-        )
-
-        combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
-        request_overrides: Dict[str, Any] = {
-            "disable_all_tools": True,
-            **combined_overrides,
-        }
-        config_for_add = resolve_request_config(base_config_sum, combined_overrides)
-
-        # Append the prompt as a user message using the summarizer core and
-        # configuration so that any provider-native history stays consistent.
-        session_with_prompt = core_sum.add_message(
-            session_for_sum,
-            "user",
-            effective_prompt,
-            metadata=None,
-            config=config_for_add,
-        )
-
-        # Run the summarization request without persisting the temporary
-        # summarizer session. We only need the model output here.
+        operation_id = f"{PLUGIN_ID}:{uuid.uuid4().hex}"
+        operations = get_application_operation_service(app.get_runtime_store())
         try:
-            core_sum, _base_sum, session_with_prompt, request_config, rid = (
-                app.prepare_tools_for_session(
-                    core_sum,
-                    session_with_prompt,
-                    base_config_sum,
-                    request_overrides,
-                )
+            operation = operations.reserve(
+                operation_id=operation_id,
+                owner_id=PLUGIN_ID,
+                session_id=session_id,
+                exclusivity_keys=(session_operation_exclusivity_key(session_id),),
             )
-            handoff_context = app._context.build_core_handoff_context(
-                base_config=base_config_sum,
-                config=request_config,
-            )
-            last_final_messages = _collect_final_messages_from_stream(
-                core_sum,
-                session_with_prompt,
-                request_config,
-                request_id=rid,
-                context=handoff_context,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
+        except ApplicationOperationBusyError as exc:
             return {
                 "status": "error",
-                "error_type": "plugin_error",
-                "message": str(exc),
+                "error_type": "session_busy",
+                "message": "The session is busy with another operation.",
+                "operation": exc.current.to_dict(),
             }
 
-        summary_text: Optional[str] = None
-        if last_final_messages:
-            for msg in reversed(last_final_messages):
-                if not isinstance(msg, dict):
-                    continue
-                if msg.get("role") != "assistant":
-                    continue
-                content = msg.get("content")
-                if isinstance(content, str) and content.strip():
-                    summary_text = content.strip()
-                    break
-
-        if not summary_text:
-            return {
-                "status": "error",
-                "error_type": "plugin_error",
-                "message": "Summarization failed (no assistant reply).",
-            }
-
-        # Apply the summary to the original session snapshot and reconcile
-        # when saving so concurrent message edits fail instead of being
-        # silently rewritten onto a later session version.
-        edit_config = resolve_request_config(base_config_orig, md_overrides)
-        remove_indices = list(range(start_idx, end_idx))
-        session_after_delete = core_orig.slice_session(
-            session_orig,
-            edit_config,
-            remove_indices=remove_indices,
-        )
-
-        insert_after = start_idx - 1
-        summary_metadata: Dict[str, Any] = {
-            "summarized_range": {
-                "start_index": start_idx,
-                "end_index": end_idx,
-            }
-        }
-
-        new_session = core_orig.add_message(
-            session_after_delete,
-            "assistant",
-            summary_text,
-            metadata=summary_metadata,
-            config=edit_config,
-            after_index=insert_after,
-        )
-        new_session = app.save_session(
-            new_session,
-            reconcile=True,
-            baseline_session=session_orig,
+        registry = get_managed_process_registry(app.get_runtime_store())
+        process = SummarizeRangeProcess(
+            app=app,
+            registry=registry,
+            process_id=operation_id,
+            operation=operation,
+            session_id=session_id,
+            core=core,
+            base_config=base_config,
+            session=session,
             baseline_file_state=baseline_file_state,
-            conflict_prefix="Concurrent session modification detected while summarizing messages; ",
-            backup_on_conflict=True,
-            acquire_lock=True,
+            start_idx=start_idx,
+            end_idx=end_idx,
+            prompt=effective_prompt,
+            agent_id=state.get("agent_id"),
+            settings_overrides=state.get("settings_overrides"),
+            action_context=context,
         )
-
-        stored = app.publish_event(
-            {
-                "type": "range_summarized",
-                "session_id": new_session.session_id,
-                "start_index": start_idx,
-                "end_index": end_idx,
-            }
-        )
-
         try:
-            app.record_checkpoint(new_session.session_id, stored.get("request_id"))
-        except Exception:  # pragma: no cover - defensive
-            pass
+            registry.start(operation_id, process)
+        except Exception:
+            operation.release()
+            raise
 
         return {
-            "mutations": {
-                "created_session_ids": [],
-                "updated_session_ids": [session_id],
-                "deleted_session_ids": [],
-            },
-            "ui_effects": {
-                "reload_session_ids": [session_id],
-            },
-            "message": "Summarized messages in the selected range.",
+            "status": "ok",
+            "operation_status": "accepted",
+            "message": "Range summarization started.",
+            "operation_id": operation_id,
+            "notification_id": process.notification_id,
+        }
+
+    def _cancel(
+        self, app: "AgentApplication", params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        session_id = params["session_id"]
+        operation_id = params["operation_id"]
+        operations = get_application_operation_service(app.get_runtime_store())
+        current = operations.get(operation_id)
+        if (
+            current is None
+            or current.owner_id != PLUGIN_ID
+            or current.session_id != session_id
+        ):
+            return {
+                "status": "error",
+                "error_type": "operation_not_found",
+                "message": "The summarization operation is no longer active.",
+            }
+        registry = get_managed_process_registry(app.get_runtime_store())
+        process = registry.get(operation_id)
+        if not isinstance(process, SummarizeRangeProcess):
+            return {
+                "status": "error",
+                "error_type": "operation_not_found",
+                "message": "The summarization process is no longer active.",
+            }
+        if not process.matches(
+            session_id=session_id,
+            operation_id=operation_id,
+        ):
+            return {
+                "status": "error",
+                "error_type": "stale_operation",
+                "message": "The summarization action no longer matches this session.",
+            }
+        if not process.request_cancel():
+            return {
+                "status": "error",
+                "error_type": "operation_not_cancellable",
+                "message": "The summarization operation can no longer be cancelled.",
+            }
+        return {
+            "status": "ok",
+            "operation_status": "cancellation_requested",
+            "message": "Summarization cancellation requested.",
         }
 
 

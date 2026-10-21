@@ -40,7 +40,7 @@ forwarded after `--`.
 
 | Category | Command | Runs / requirements |
 | --- | --- | --- |
-| Local backend | `npm run integration:action-display-forms` | Dummy action display embedded form flow through SDK `runApplicationAction`. |
+| Local backend | `npm run integration:action-display-forms` | Neutral embedded form and follow-up dialog values through SDK `runApplicationAction` and the public backend. |
 | Local backend | `npm run integration:website-runtime-ui` | Canonical website config and promoted UI fixture through FastAPI, `FetchTransport`, and `RestAgentBackend`. |
 | Local backend | `npm run integration:backend` | `backend.integration.test.ts` with deterministic local providers. |
 | Local backend | `npm run integration:session-status` | Explicit-ID request status through real FastAPI, HTTP transport, and `RestAgentBackend`. |

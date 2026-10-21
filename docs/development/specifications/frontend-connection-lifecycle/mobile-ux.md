@@ -176,7 +176,7 @@ Illustrative rows:
 │   Cached yesterday              [Retry] │
 ├─────────────────────────────────────────┤
 │   Home Server           Repair required │
-│   Bridge · WebSocket                    │
+│   Bridge · HTTP                         │
 │   Cached sessions available     [Re-pair]│
 └─────────────────────────────────────────┘
 ```
@@ -306,7 +306,7 @@ is focused:
 │   Direct HTTP                     [Close]│
 ├─────────────────────────────────────────┤
 │   Home Server                   Closed  │
-│   Bridge · WebSocket              [Open]│
+│   Bridge · HTTP                   [Open]│
 └─────────────────────────────────────────┘
 ```
 

@@ -54,6 +54,21 @@ react {
     autolinkLibrariesWithApp()
 }
 
+tasks.withType(com.facebook.react.tasks.BundleHermesCTask).configureEach {
+    [
+        "frontend-sdk": "sharedSdkSources",
+        "frontend-sdk-react": "sharedReactSources",
+        "frontend-rn-components": "sharedNativeSources"
+    ].each { packageName, propertyName ->
+        inputs.dir(file("../../../../packages/${packageName}/src"))
+            .withPropertyName(propertyName)
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    inputs.dir(file("../../../../test/fixture"))
+        .withPropertyName("sharedFixtures")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */

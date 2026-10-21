@@ -15,11 +15,12 @@ These guidelines apply to everything under `mobile/crystal-lattice-control-rn/`.
   - Owns the active SDK `Transport` + `AgentBackend` instances.
   - Creates a `RestAgentBackend` over either `FetchTransport` (direct HTTP) or
     a mode-selected `BridgeConnectionTransport` (WebSocket, HTTP, or hybrid).
-  - On successful connect, renders `src/ConnectedRoot.tsx`.
+  - Renders `src/ConnectedRoot.tsx` with or without an active backend.
 - **Main navigation**: `src/ConnectedRoot.tsx`
-  - Bottom tab navigation with three tabs: `Connection`, `Sessions`, `Messages`.
+  - Bottom tab navigation with three tabs: `Home`, `Sessions`, `Messages`.
   - Manages currently selected session ID and which tab is active.
-  - Starts on the **Sessions** tab by default after connect.
+  - Starts on **Home**, which owns the main scroll area and composes the
+    Connections section above Watchlist and Recent Sessions.
 - **Screens** (`src/`):
   - `ConnectionScreen.tsx`: shows which backend we are connected to, runs `/api/hello` health checks, and exposes a disconnect button.
   - `SessionsScreen.tsx`: lists sessions from `/sessions`, provides filter, reload, and "New Session" actions.
@@ -93,23 +94,28 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
   - Bridge connections:
     `createBridgeConnectionTransport({ bridgeUrl, mode, serverId, pairingToken })`
   - Backend implementation: `new RestAgentBackend({ transport })`
-- Bridge connection records keep an optional `transportMode`; absence means
-  WebSocket. HTTP and hybrid remain experimental opt-ins with no automatic
-  fallback.
+- Bridge records keep optional historical `transportMode` metadata. Mobile
+  uses HTTP for all records unless the app-wide development preference
+  explicitly selects legacy WebSocket or hybrid, with no automatic fallback.
+  Saved bridge endpoints and development settings use separate stores.
 - `App.tsx` passes the ready `backend` (and `transport` for generic health checks) into `ConnectedRoot`.
 
 **Connected navigation shell** (`src/ConnectedRoot.tsx`):
 
-- Manages three tabs via local state `tab: 'connection' | 'sessions' | 'messages'`.
-- Starts on `'sessions'` when `ConnectedRoot` mounts.
+- Manages three tabs via local state `tab: 'home' | 'sessions' | 'messages'`.
+- Starts on `'home'` when `ConnectedRoot` mounts.
 - Holds the current `selectedSessionId` in state.
 - Renders:
-  - `ConnectionScreen` when `tab === 'connection'`.
+  - `HomeScreen` with `HomeConnectionsSection` when `tab === 'home'`.
   - `SessionsScreen` when `tab === 'sessions'`.
   - `SessionChatScreen` when `tab === 'messages' && selectedSessionId != null`.
   - A simple placeholder in the Messages tab when no session is selected.
 - `SessionsScreen` receives `onSelectSession` from `ConnectedRoot` and is responsible
   for choosing a session ID; when called, `ConnectedRoot` moves the user to the Messages tab.
+- The app-owned connection wizard appears in `ConnectionWizardModal`, with
+  focused step components under `src/connections/`. New setup retains the
+  active transport until candidate validation succeeds. Cancellation invalidates
+  the candidate generation before resource cleanup.
 
 **Sessions list** (`src/SessionsScreen.tsx`):
 

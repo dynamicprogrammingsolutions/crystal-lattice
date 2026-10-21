@@ -6,6 +6,9 @@ The coordination files live beside the configured plugin cache, in `.<cache-name
 
 The sweep removes unclaimed revision directories at the root and below `node/` and `bash/`, and removes known abandoned installation or Git clone temporary directories older than 24 hours. It also removes abandoned Python install lock files. It skips symlinks and other unrecognized entries. The default pip download cache is disabled for new installs; the previous default `pip` directory is removed under the cache-wide lock. Explicit pip cache configuration is left untouched.
 
+Python plugin installation sends pip diagnostics to stderr, preserving stdout
+for structured CLI results and SDK callers that print their returned values.
+
 Python's per-install lock still coordinates work on one revision. The install
 directory name combines the plugin ID with a content revision, so source
 provenance such as `path`, `project_dir`, Git URL, ref, and entry point does

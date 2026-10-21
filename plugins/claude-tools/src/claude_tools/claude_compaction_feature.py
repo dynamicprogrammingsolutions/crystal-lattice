@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from agent_core import Message, Session
+from agent_core.utils import get_logger
 
 
 _COMPACTION_PROMPT = """CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
@@ -157,6 +158,11 @@ _COMPACTION_METADATA_KEY = "claude_compaction"
 _COMPACTION_MODEL_KEY = "compaction_model"
 _PROMPT_KEY = "claude_compaction_prompt"
 _SETTINGS_OVERRIDES_KEY = "claude_compaction_settings_overrides"
+# Context key carrying an optional ``RequestCancellation``-like object that
+# lets background drivers (see ``claude_compaction_app``) interrupt the
+# internal compaction model request.
+CANCELLATION_CONTEXT_KEY = "claude_compaction_request_cancellation"
+FEATURE_TAG = "feature:claude_compaction"
 _TRANSCRIPT_FALLBACK = "<PROJECT_TRANSCRIPT>"
 _TRANSCRIPT_SNAPSHOT_DIR = "claude-compaction-transcripts"
 _MIN_COMPACTABLE_MESSAGE_COUNT = 3
@@ -515,9 +521,18 @@ def _collect_final_messages_from_stream(
     session: Session,
     config: Dict[str, Any],
     context: Dict[str, Any] | None = None,
+    *,
+    request_id: str | None = None,
+    cancellation: Any | None = None,
 ) -> List[Dict[str, Any]]:
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, context=context):
+    for event in core.send_request_stream(
+        session,
+        config,
+        request_id=request_id,
+        context=context,
+        cancellation=cancellation,
+    ):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -526,14 +541,34 @@ def _collect_final_messages_from_stream(
     return final_messages
 
 
+def _cancellation_from_context(
+    context: Optional[Dict[str, Any]],
+) -> Any | None:
+    if not isinstance(context, dict):
+        return None
+    raw = context.get(CANCELLATION_CONTEXT_KEY)
+    if raw is None or not callable(getattr(raw, "cancel", None)):
+        return None
+    return raw
+
+
 def _run_compaction_request(
     core: Any,
     session: Session,
     config: Dict[str, Any],
     context: Dict[str, Any] | None = None,
 ) -> str:
+    cancellation = _cancellation_from_context(context)
+    request_id: str | None = None
+    if cancellation is not None:
+        request_id = f"claude-compaction-{uuid.uuid4().hex}"
     final_messages = _collect_final_messages_from_stream(
-        core, session, config, context=context
+        core,
+        session,
+        config,
+        context=context,
+        request_id=request_id,
+        cancellation=cancellation,
     )
     for message in reversed(final_messages):
         if message.get("role") != "assistant":
@@ -569,13 +604,23 @@ def extract_prompt_sections(prompt_text: str) -> List[str]:
 
 
 def validate_summary_text(summary_text: str) -> None:
+    """Check advisory section completeness without rejecting the summary.
+
+    Models legitimately omit sections that do not apply to the conversation
+    (for example "Errors and fixes:" when nothing failed), so a missing
+    section is a quality signal, not a malformed response. Missing sections
+    are logged for observability; only structural problems (no or empty
+    ``<summary>`` block, no assistant reply) are hard errors. Snapshots and
+    the notification Retry action remain the safety net for poor summaries.
+    """
+
     missing = [
         section for section in _REQUIRED_SUMMARY_SECTIONS if section not in summary_text
     ]
     if missing:
-        raise ValueError(
-            "[claude_compaction] summary is missing required sections: "
-            + ", ".join(missing)
+        get_logger("claude_compaction").warning(
+            "compaction summary missing advisory sections",
+            missing_sections=missing,
         )
 
 
@@ -750,6 +795,13 @@ class ClaudeCompactionFeature:
     ) -> Dict[str, Any]:
         return state
 
+    def get_tags(
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
+    ) -> List[str]:
+        return [FEATURE_TAG]
+
     def get_ui_elements(
         self,
         config: Optional[Dict[str, Any]] = None,
@@ -783,84 +835,6 @@ class ClaudeCompactionFeature:
                 "label": "Compaction model",
                 "placeholder": "Use current model",
                 **({"options": model_options} if use_dropdown else {}),
-            },
-            {
-                "ui_type": "session_action",
-                "id": "compact_conversation",
-                "label": "Compact conversation",
-                "icon": "archive",
-                "order": 46,
-                "action_id": "compact_conversation",
-                "action_owner": "feature",
-                "fixed_params": {},
-                "param_map": {
-                    "session_id": "$session.session_id",
-                    "start": "$dialog.start",
-                    "end": "$dialog.end",
-                    "instructions": "$dialog.instructions",
-                },
-                "dialog": {
-                    "kind": "form",
-                    "title": "Compact conversation",
-                    "message": (
-                        "Python-style range (start:end). The selected messages "
-                        "will be compacted into a Claude-style compact summary."
-                    ),
-                    "inputs": [
-                        {
-                            "name": "start",
-                            "type": "integer",
-                            "label": "Start index",
-                            "required": False,
-                            "placeholder": "e.g. 0 or -10 (leave blank for start)",
-                        },
-                        {
-                            "name": "end",
-                            "type": "integer",
-                            "label": "End index",
-                            "required": False,
-                            "placeholder": "e.g. 10 or -1 (leave blank for end)",
-                        },
-                        {
-                            "name": "instructions",
-                            "type": "multiline",
-                            "label": "Instructions",
-                            "required": False,
-                            "placeholder": "Optional extra instructions for the compaction summary",
-                        },
-                    ],
-                },
-            },
-            {
-                "ui_type": "message_action",
-                "id": "compact_up_to_here",
-                "label": "Compact messages up to here",
-                "icon": "archive",
-                "order": 25,
-                "action_id": "compact_conversation",
-                "action_owner": "feature",
-                "fixed_params": {"start": 0, "end_inclusive": True},
-                "param_map": {
-                    "session_id": "$session.session_id",
-                    "end": "$message.index",
-                    "instructions": "$dialog.instructions",
-                },
-                "dialog": {
-                    "kind": "form",
-                    "title": "Compact messages up to here",
-                    "message": (
-                        "The messages up to here will be compacted into a Claude-style compact summary."
-                    ),
-                    "inputs": [
-                        {
-                            "name": "instructions",
-                            "type": "multiline",
-                            "label": "Instructions",
-                            "required": False,
-                            "placeholder": "Optional extra instructions for the compaction summary",
-                        }
-                    ],
-                },
             },
         ]
 

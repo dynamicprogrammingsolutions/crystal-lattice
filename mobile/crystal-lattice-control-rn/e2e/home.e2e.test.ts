@@ -72,11 +72,16 @@ describe("mobile Home Watchlist and recent sessions", () => {
     await launchHome(true);
 
     await detoxExpect(element(by.id("home-tab"))).toBeVisible();
-    await detoxExpect(element(by.id("connections-tab"))).toBeVisible();
+    const menuFrame = frameFrom(await element(by.id("home-menu")).getAttributes());
+    const accountFrame = frameFrom(await element(by.id("home-account-slot")).getAttributes());
+    jestExpect(menuFrame.x).toBeLessThan(accountFrame.x);
+    await detoxExpect(element(by.id("connections-tab"))).not.toExist();
+    await detoxExpect(element(by.id("connections-screen-title"))).toBeVisible();
     await detoxExpect(element(by.id("sessions-tab"))).toBeVisible();
     await detoxExpect(element(by.id("messages-tab"))).toBeVisible();
-    await detoxExpect(element(by.id("home-recent-timeline"))).toBeVisible();
-    await detoxExpect(element(by.text("Recent Sessions"))).toBeVisible();
+    await waitFor(element(by.text("Recent Sessions")))
+      .toBeVisible().whileElement(by.id("home-scroll")).scroll(180, "down");
+    await detoxExpect(element(by.id("home-recent-timeline"))).toExist();
     await detoxExpect(element(by.text("Last 3 days"))).toBeVisible();
     await detoxExpect(element(by.text("Older laptop session"))).toExist();
     await detoxExpect(
@@ -133,6 +138,8 @@ describe("mobile Home Watchlist and recent sessions", () => {
     await tapRecentWatch("laptop", "shared");
     await tapRecentWatch("office", "project");
     await element(by.id("home-scroll")).scrollTo("top");
+    await waitFor(element(by.id("home-watchlist-tile-office-project")))
+      .toBeVisible().whileElement(by.id("home-scroll")).scroll(180, "down");
     await waitFor(element(by.id("home-watchlist-tile-office-shared")))
       .toBeVisible()
       .withTimeout(10000);
@@ -204,6 +211,8 @@ describe("mobile Home Watchlist and recent sessions", () => {
     await detoxExpect(element(by.text("Older laptop session"))).not.toExist();
 
     await launchHome(false);
+    await waitFor(element(by.id("home-watchlist-tile-office-shared")))
+      .toBeVisible().whileElement(by.id("home-scroll")).scroll(180, "down");
     await detoxExpect(
       element(by.id("home-watchlist-note-preview-office-shared"))
     ).toHaveText("Permanent shared note");
@@ -221,9 +230,12 @@ describe("mobile Home Watchlist and recent sessions", () => {
       Math.abs(persistedFirst.y - persistedSecond.y)
     ).toBeLessThanOrEqual(2);
     jestExpect(persistedThird.y).toBeGreaterThan(persistedFirst.y);
-    await detoxExpect(element(by.text("Last 24 hours"))).toBeVisible();
+    await waitFor(element(by.text("Last 24 hours")))
+      .toBeVisible().whileElement(by.id("home-scroll")).scroll(150, "down");
     await detoxExpect(element(by.id("home-recent-office-shared"))).toExist();
 
+    await waitFor(element(by.id("home-watchlist-remove-office-shared")))
+      .toBeVisible().whileElement(by.id("home-scroll")).scroll(120, "up");
     await element(by.id("home-watchlist-remove-office-shared")).tap();
     await detoxExpect(
       element(by.id("home-watchlist-tile-office-shared"))

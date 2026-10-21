@@ -197,9 +197,7 @@
       "message": {
         "content": "Based on what you already found, compare two fixes: adding the same\n`128 * 1024` default directly to `GZipResponder`, or introducing a shared\nmodule-level constant for the middleware and responder. Consider backwards\ncompatibility, default-drift risk, patch and review scope, and future\nmaintenance. No further repository inspection is needed. Which approach would\nyou choose for this fix, and why? Keep the final recommendation concise.",
         "metadata": {
-          "native_indices": [
-            6
-          ]
+          "native_indices": [6]
         },
         "role": "user"
       }
@@ -216,10 +214,7 @@
           "fast_mode_applied": false,
           "flex_processing_applied": false,
           "has_tool_calls": false,
-          "native_indices": [
-            7,
-            8
-          ],
+          "native_indices": [7, 8],
           "openai_responses_reasoning": {
             "context": "all_turns",
             "items": [
@@ -391,11 +386,7 @@
         "fast_mode_applied": false,
         "flex_processing_applied": false,
         "has_tool_calls": false,
-        "native_indices": [
-          6,
-          7,
-          8
-        ],
+        "native_indices": [6, 7, 8],
         "openai_responses_reasoning": {
           "context": "all_turns",
           "items": [
@@ -786,6 +777,7 @@
     },
     {
       "action_id": "summarize_range",
+      "action_owner": "application",
       "dialog": {
         "inputs": [
           {
@@ -798,7 +790,7 @@
           }
         ],
         "kind": "form",
-        "message": "The messages up to here will be summarized into a single assistant message.",
+        "message": "The messages up to here will be summarized into a single assistant message in the background.",
         "title": "Summarize messages up to here"
       },
       "fixed_params": {
@@ -915,6 +907,7 @@
     },
     {
       "action_id": "summarize_range",
+      "action_owner": "application",
       "dialog": {
         "inputs": [
           {
@@ -941,7 +934,7 @@
           }
         ],
         "kind": "form",
-        "message": "Python-style range (start:end). The selected messages will be summarized into a single assistant message.",
+        "message": "Python-style range (start:end). The selected messages will be summarized into a single assistant message in the background.",
         "title": "Summarize range"
       },
       "fixed_params": {},
@@ -1033,11 +1026,7 @@
     },
     {
       "description": "Response verbosity level for supported models.",
-      "enum": [
-        "low",
-        "medium",
-        "high"
-      ],
+      "enum": ["low", "medium", "high"],
       "key": "verbosity",
       "plugin": "openai_responses_verbosity",
       "required": false,
@@ -1115,9 +1104,7 @@
           }
         ],
         "placeholder": "Search models or enter a model ID",
-        "placements": [
-          "composer"
-        ],
+        "placements": ["composer"],
         "show_label": false
       },
       "type": "dropdown",
@@ -1177,9 +1164,7 @@
             "value": "max"
           }
         ],
-        "placements": [
-          "composer"
-        ],
+        "placements": ["composer"],
         "show_icon": false,
         "show_label": false
       },
@@ -1240,9 +1225,7 @@
             "value": true
           }
         ],
-        "placements": [
-          "composer"
-        ],
+        "placements": ["composer"],
         "show_label": false
       },
       "type": "checkbox",

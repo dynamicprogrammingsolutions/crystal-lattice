@@ -1,6 +1,7 @@
 import React from "react";
 import type {
   FlatList,
+  FlatListProps,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -9,6 +10,15 @@ import type {
   ViewStyle,
 } from "react-native";
 import { FlatList as NativeFlatList, View } from "react-native";
+
+import {
+  DEFAULT_TRANSCRIPT_ANCHOR_STRATEGY,
+  type TranscriptAnchorStrategy,
+} from "../transcriptAnchorStrategy";
+import {
+  createSingleFlightAnchorRetryController,
+  type TranscriptAnchorDiagnostic,
+} from "./transcriptAnchorRetry";
 
 export interface DependencyFlatListRenderItemInfo<TItem> {
   item: TItem;
@@ -27,6 +37,8 @@ export interface DependencyFlatListProps<TItem> {
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
   testID?: string;
+  keyboardDismissMode?: FlatListProps<TItem>["keyboardDismissMode"];
+  keyboardShouldPersistTaps?: FlatListProps<TItem>["keyboardShouldPersistTaps"];
 
   ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
@@ -36,6 +48,8 @@ export interface DependencyFlatListProps<TItem> {
   extraData?: any;
   inverted?: boolean;
   maintainVisibleContentPosition?: any;
+  anchorStrategy?: TranscriptAnchorStrategy;
+  onAnchorDiagnostic?: (diagnostic: TranscriptAnchorDiagnostic) => void;
 
   scrollEventThrottle?: number;
   onLayout?: (event: LayoutChangeEvent) => void;
@@ -84,21 +98,34 @@ function DependencyFlatListInner<TItem>(
 ): React.JSX.Element {
   const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
   const lastExtraDataRef = React.useRef(props.extraData);
-  const flatListRef = React.useRef<FlatList<DependencyFlatListRow> | null>(null);
+  const flatListRef = React.useRef<FlatList<DependencyFlatListRow> | null>(
+    null
+  );
   const rowRefsRef = React.useRef<Map<string, any>>(new Map());
   const visibleMessageKeysRef = React.useRef<string[]>([]);
-  const pendingAnchorRef = React.useRef<{
+  const pendingV1AnchorRef = React.useRef<{
     key: string;
     offsetFromViewportTop: number;
     attempts: number;
     deadlineMs: number;
   } | null>(null);
-  const anchorTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const v1AnchorTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const scrollMetricsRef = React.useRef({
     offsetY: 0,
     viewportHeight: 0,
     contentHeight: 0,
   });
+  const indexByKeyRef = React.useRef(new Map<string, number>());
+  const invertedRef = React.useRef(false);
+  const measureItemViewportOffsetRef = React.useRef<
+    (key: string) => Promise<number | null>
+  >(() => Promise.resolve(null));
+  const onAnchorDiagnosticRef = React.useRef<
+    ((diagnostic: TranscriptAnchorDiagnostic) => void) | undefined
+  >(props.onAnchorDiagnostic);
+  const singleFlightFallbackOffsetRef = React.useRef<number | null>(null);
 
   const {
     data,
@@ -108,6 +135,8 @@ function DependencyFlatListInner<TItem>(
     style,
     contentContainerStyle,
     testID,
+    keyboardDismissMode,
+    keyboardShouldPersistTaps,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -115,6 +144,8 @@ function DependencyFlatListInner<TItem>(
     extraData,
     inverted,
     maintainVisibleContentPosition,
+    anchorStrategy = DEFAULT_TRANSCRIPT_ANCHOR_STRATEGY,
+    onAnchorDiagnostic,
     scrollEventThrottle,
     onLayout,
     onContentSizeChange,
@@ -124,6 +155,8 @@ function DependencyFlatListInner<TItem>(
     onMomentumScrollEnd,
     onScrollToIndexFailed,
   } = props;
+  invertedRef.current = inverted === true;
+  onAnchorDiagnosticRef.current = onAnchorDiagnostic;
 
   const cache = cacheRef.current;
   if (!Object.is(lastExtraDataRef.current, extraData)) {
@@ -198,20 +231,24 @@ function DependencyFlatListInner<TItem>(
     rows.forEach((row, index) => next.set(row.key, index));
     return next;
   }, [rows]);
-  const measureWindowY = React.useCallback((node: any): Promise<number | null> => {
-    if (!node || typeof node.measureInWindow !== "function") {
-      return Promise.resolve(null);
-    }
-    return new Promise((resolve) => {
-      try {
-        node.measureInWindow((_x: number, y: number) => {
-          resolve(Number.isFinite(y) ? y : null);
-        });
-      } catch {
-        resolve(null);
+  indexByKeyRef.current = indexByKey;
+  const measureWindowY = React.useCallback(
+    (node: any): Promise<number | null> => {
+      if (!node || typeof node.measureInWindow !== "function") {
+        return Promise.resolve(null);
       }
-    });
-  }, []);
+      return new Promise((resolve) => {
+        try {
+          node.measureInWindow((_x: number, y: number) => {
+            resolve(Number.isFinite(y) ? y : null);
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+    []
+  );
   const measureItemViewportOffset = React.useCallback(
     async (key: string): Promise<number | null> => {
       const row = rowRefsRef.current.get(key);
@@ -226,48 +263,121 @@ function DependencyFlatListInner<TItem>(
     },
     [measureWindowY]
   );
-  const clearAnchorTimer = React.useCallback(() => {
-    if (anchorTimerRef.current != null) {
-      clearTimeout(anchorTimerRef.current);
-      anchorTimerRef.current = null;
+  measureItemViewportOffsetRef.current = measureItemViewportOffset;
+  const singleFlightAnchorController = React.useMemo(
+    () =>
+      createSingleFlightAnchorRetryController({
+        now: Date.now,
+        requestFrame: (callback) => requestAnimationFrame(callback),
+        cancelFrame: (handle) => cancelAnimationFrame(handle as number),
+        setTimer: (callback, delayMs) => setTimeout(callback, delayMs),
+        clearTimer: (handle) =>
+          clearTimeout(handle as ReturnType<typeof setTimeout>),
+        measure: (key) => measureItemViewportOffsetRef.current(key),
+        applyCorrection: (operation, actualOffset) => {
+          const index = indexByKeyRef.current.get(operation.key);
+          if (index == null) {
+            return;
+          }
+          if (actualOffset == null) {
+            flatListRef.current?.scrollToIndex({
+              index,
+              animated: false,
+              viewPosition: 0,
+            });
+            return;
+          }
+          const metrics = scrollMetricsRef.current;
+          const maxOffsetY = Math.max(
+            0,
+            metrics.contentHeight - metrics.viewportHeight
+          );
+          const visualError = actualOffset - operation.offsetFromViewportTop;
+          const correction = invertedRef.current ? -visualError : visualError;
+          flatListRef.current?.scrollToOffset({
+            offset: Math.max(
+              0,
+              Math.min(maxOffsetY, metrics.offsetY + correction)
+            ),
+            animated: false,
+          });
+        },
+        onDiagnostic: (diagnostic) => {
+          if (diagnostic.event === "anchorStopped") {
+            const fallbackOffset = singleFlightFallbackOffsetRef.current;
+            if (fallbackOffset != null) {
+              flatListRef.current?.scrollToOffset({
+                offset: fallbackOffset,
+                animated: false,
+              });
+            }
+          }
+          if (
+            diagnostic.event === "anchorCompleted" ||
+            diagnostic.event === "anchorStopped" ||
+            diagnostic.event === "anchorCancelled"
+          ) {
+            singleFlightFallbackOffsetRef.current = null;
+          }
+          onAnchorDiagnosticRef.current?.(diagnostic);
+        },
+        timeoutMs: 5000,
+        maxAttempts: 30,
+        tolerancePx: 8,
+        retryDelayMs: 50,
+      }),
+    []
+  );
+  const clearV1AnchorTimer = React.useCallback(() => {
+    if (v1AnchorTimerRef.current != null) {
+      clearTimeout(v1AnchorTimerRef.current);
+      v1AnchorTimerRef.current = null;
     }
   }, []);
-  const cancelPendingAnchor = React.useCallback(() => {
-    clearAnchorTimer();
-    pendingAnchorRef.current = null;
-  }, [clearAnchorTimer]);
+  const cancelV1PendingAnchor = React.useCallback(() => {
+    clearV1AnchorTimer();
+    pendingV1AnchorRef.current = null;
+  }, [clearV1AnchorTimer]);
+  const cancelPendingAnchor = React.useCallback(
+    (reason = "cancelled") => {
+      cancelV1PendingAnchor();
+      singleFlightAnchorController.cancel(reason);
+    },
+    [cancelV1PendingAnchor, singleFlightAnchorController]
+  );
   React.useEffect(
     () => () => {
-      clearAnchorTimer();
+      clearV1AnchorTimer();
+      singleFlightAnchorController.cancel("unmount");
     },
-    [clearAnchorTimer]
+    [clearV1AnchorTimer, singleFlightAnchorController]
   );
-  const retryAnchorRef = React.useRef<() => void>(() => {});
-  const retryAnchor = React.useCallback(() => {
-    const pending = pendingAnchorRef.current;
+  const retryV1AnchorRef = React.useRef<() => void>(() => {});
+  const retryV1Anchor = React.useCallback(() => {
+    const pending = pendingV1AnchorRef.current;
     if (!pending) {
       return;
     }
     requestAnimationFrame(() => {
-      if (pendingAnchorRef.current !== pending) {
+      if (pendingV1AnchorRef.current !== pending) {
         return;
       }
       measureItemViewportOffset(pending.key).then((actualOffset) => {
-        if (pendingAnchorRef.current !== pending) {
+        if (pendingV1AnchorRef.current !== pending) {
           return;
         }
         if (
           actualOffset != null &&
           Math.abs(actualOffset - pending.offsetFromViewportTop) <= 8
         ) {
-          cancelPendingAnchor();
+          cancelV1PendingAnchor();
           return;
         }
         if (Date.now() >= pending.deadlineMs || pending.attempts >= 80) {
-          cancelPendingAnchor();
+          cancelV1PendingAnchor();
           return;
         }
-        pendingAnchorRef.current = {
+        pendingV1AnchorRef.current = {
           ...pending,
           attempts: pending.attempts + 1,
         };
@@ -280,10 +390,10 @@ function DependencyFlatListInner<TItem>(
               viewPosition: 0,
             });
           }
-          clearAnchorTimer();
-          anchorTimerRef.current = setTimeout(() => {
-            anchorTimerRef.current = null;
-            retryAnchorRef.current();
+          clearV1AnchorTimer();
+          v1AnchorTimerRef.current = setTimeout(() => {
+            v1AnchorTimerRef.current = null;
+            retryV1AnchorRef.current();
           }, 50);
           return;
         }
@@ -301,26 +411,40 @@ function DependencyFlatListInner<TItem>(
           ),
           animated: false,
         });
-        clearAnchorTimer();
-        anchorTimerRef.current = setTimeout(() => {
-          anchorTimerRef.current = null;
-          retryAnchorRef.current();
-        }, pending.attempts === 0 ? 100 : 50);
+        clearV1AnchorTimer();
+        v1AnchorTimerRef.current = setTimeout(
+          () => {
+            v1AnchorTimerRef.current = null;
+            retryV1AnchorRef.current();
+          },
+          pending.attempts === 0 ? 100 : 50
+        );
       });
     });
   }, [
-    cancelPendingAnchor,
-    clearAnchorTimer,
+    cancelV1PendingAnchor,
+    clearV1AnchorTimer,
     indexByKey,
     inverted,
     measureItemViewportOffset,
   ]);
-  retryAnchorRef.current = retryAnchor;
+  retryV1AnchorRef.current = retryV1Anchor;
   React.useEffect(() => {
-    if (pendingAnchorRef.current) {
-      retryAnchorRef.current();
+    if (anchorStrategy === "mobile-anchor-v1" && pendingV1AnchorRef.current) {
+      retryV1AnchorRef.current();
     }
-  }, [rows]);
+    if (anchorStrategy === "single-flight-anchor") {
+      singleFlightAnchorController.notifyLayoutChanged();
+    }
+  }, [anchorStrategy, rows, singleFlightAnchorController]);
+  React.useEffect(() => {
+    if (anchorStrategy !== "mobile-anchor-v1") {
+      cancelV1PendingAnchor();
+    }
+    if (anchorStrategy !== "single-flight-anchor") {
+      singleFlightAnchorController.cancel("strategyChanged");
+    }
+  }, [anchorStrategy, cancelV1PendingAnchor, singleFlightAnchorController]);
   const handleViewableItemsChanged = React.useRef(
     (info: { viewableItems: ViewToken[] }) => {
       visibleMessageKeysRef.current = info.viewableItems
@@ -360,9 +484,7 @@ function DependencyFlatListInner<TItem>(
           );
           return measured
             .filter(
-              (
-                item
-              ): item is { key: string; offsetFromViewportTop: number } =>
+              (item): item is { key: string; offsetFromViewportTop: number } =>
                 item.offsetFromViewportTop != null
             )
             .sort(
@@ -374,22 +496,36 @@ function DependencyFlatListInner<TItem>(
           key: string;
           offsetFromViewportTop: number;
         }) => {
-          cancelPendingAnchor();
-          pendingAnchorRef.current = {
-            key: request.key,
-            offsetFromViewportTop: request.offsetFromViewportTop,
-            attempts: 0,
-            deadlineMs: Date.now() + 15000,
-          };
-          retryAnchorRef.current();
+          cancelPendingAnchor("replaced");
+          if (anchorStrategy === "simple-reload") {
+            return;
+          }
+          if (anchorStrategy === "mobile-anchor-v1") {
+            pendingV1AnchorRef.current = {
+              key: request.key,
+              offsetFromViewportTop: request.offsetFromViewportTop,
+              attempts: 0,
+              deadlineMs: Date.now() + 15000,
+            };
+            retryV1AnchorRef.current();
+            return;
+          }
+          singleFlightFallbackOffsetRef.current =
+            scrollMetricsRef.current.offsetY;
+          singleFlightAnchorController.start(request);
         },
-        cancelMessageAnchor: cancelPendingAnchor,
-      }) as any,
-    [cancelPendingAnchor, measureItemViewportOffset]
+        cancelMessageAnchor: () => cancelPendingAnchor("cancelled"),
+      } as any),
+    [
+      anchorStrategy,
+      cancelPendingAnchor,
+      measureItemViewportOffset,
+      singleFlightAnchorController,
+    ]
   );
   const handleScrollBeginDragWithAnchorCancellation = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      cancelPendingAnchor();
+      cancelPendingAnchor("userNavigation");
       onScrollBeginDrag?.(event);
     },
     [cancelPendingAnchor, onScrollBeginDrag]
@@ -398,7 +534,9 @@ function DependencyFlatListInner<TItem>(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       scrollMetricsRef.current = {
         offsetY: Number(event.nativeEvent?.contentOffset?.y ?? 0),
-        viewportHeight: Number(event.nativeEvent?.layoutMeasurement?.height ?? 0),
+        viewportHeight: Number(
+          event.nativeEvent?.layoutMeasurement?.height ?? 0
+        ),
         contentHeight: Number(event.nativeEvent?.contentSize?.height ?? 0),
       };
       onScroll?.(event);
@@ -427,26 +565,45 @@ function DependencyFlatListInner<TItem>(
       highestMeasuredFrameIndex: number;
       averageItemLength: number;
     }) => {
-      const pending = pendingAnchorRef.current;
-      if (pending) {
-        const index = indexByKey.get(pending.key) ?? info.index;
+      const pendingV1 = pendingV1AnchorRef.current;
+      if (anchorStrategy === "mobile-anchor-v1" && pendingV1) {
+        const index = indexByKey.get(pendingV1.key) ?? info.index;
         flatListRef.current?.scrollToOffset({
           offset: Math.max(0, info.averageItemLength * index),
           animated: false,
         });
-        clearAnchorTimer();
-        anchorTimerRef.current = setTimeout(() => {
-          anchorTimerRef.current = null;
-          retryAnchorRef.current();
+        clearV1AnchorTimer();
+        v1AnchorTimerRef.current = setTimeout(() => {
+          v1AnchorTimerRef.current = null;
+          retryV1AnchorRef.current();
         }, 100);
+      }
+      if (anchorStrategy === "single-flight-anchor") {
+        const pending = singleFlightAnchorController.getPending();
+        if (pending) {
+          const index = indexByKey.get(pending.key) ?? info.index;
+          flatListRef.current?.scrollToOffset({
+            offset: Math.max(0, info.averageItemLength * index),
+            animated: false,
+          });
+          singleFlightAnchorController.notifyLayoutChanged();
+        }
       }
       onScrollToIndexFailed?.(info);
     },
-    [clearAnchorTimer, indexByKey, onScrollToIndexFailed]
+    [
+      anchorStrategy,
+      clearV1AnchorTimer,
+      indexByKey,
+      onScrollToIndexFailed,
+      singleFlightAnchorController,
+    ]
   );
 
   return (
     <NativeFlatList<DependencyFlatListRow>
+      keyboardDismissMode={keyboardDismissMode}
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       style={style}
       ref={flatListRef}
       contentContainerStyle={contentContainerStyle}

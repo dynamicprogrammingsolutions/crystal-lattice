@@ -511,6 +511,8 @@ class AgentCore:
             "content": content,
             "metadata": dict(target_dict.get("metadata") or {}),
         }
+        if "multipartContent" in target_dict:
+            core_msg["multipartContent"] = target_dict["multipartContent"]
 
         native_suffix = self._core_messages_to_native_for_config(
             [core_msg], config or {}, context=context
@@ -802,9 +804,10 @@ class AgentCore:
         """Modify message content and return an updated session.
 
         Only `system`, `user`, and `assistant` messages are supported. The
-        message role and metadata remain unchanged. When provider-native
-        history is present and safely mappable via `native_indices`, the
-        corresponding native messages are updated. Otherwise, native history
+        message role, metadata, and multipart content remain unchanged. When
+        provider-native history is present and safely mappable via
+        `native_indices`, the corresponding native messages are updated.
+        Otherwise, native history
         is dropped and will be reconstructed on the next request.
 
         Args:
@@ -1552,6 +1555,20 @@ class AgentCore:
         return matches[0]
 
     # Model and tag result normalization is handled by plugin adapters.
+
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Discover models through the configured provider, extensions, and features.
+
+        Uses the same normalized descriptors and model-discovery cache as the
+        UI and request pipeline. Each descriptor contains a non-empty ``id``;
+        plugin-defined order and additional metadata are preserved. Plugins
+        may perform catalog I/O, but this method does not send an inference
+        request or create a session.
+        """
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        provider = self._select_provider_for_config(config)
+        return self._get_models_for_config(provider, config)
 
     def _get_models_for_config(
         self,

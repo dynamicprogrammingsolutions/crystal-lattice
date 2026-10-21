@@ -11,6 +11,9 @@ from typing import Any
 
 import pytest
 
+from application.python.tests.fixtures.headless_runtime_plugins import (
+    write_model_catalog_config,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -43,6 +46,61 @@ def _write_config(path: Path, *, delay_ms: int = 0) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def test_models_command_preserves_json_and_prints_readable_rows(tmp_path: Path) -> None:
+    config = write_model_catalog_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+    result = _run(
+        tmp_path, config, sessions, "models", "--agent", "alpha", "--format", "json"
+    )
+    assert result.returncode == 0, result.stderr
+    payload = _json_stdout(result)
+    assert payload == {
+        "agent_id": "alpha",
+        "models": [
+            {
+                "id": "model-z",
+                "name": "Model Z",
+                "description": "Fast\tmodel\nfor reviews",
+                "capabilities": {"reasoning": True},
+            },
+            {"id": "model-a"},
+        ],
+    }
+    assert "Model catalog discovery diagnostic" in result.stderr
+    assert "must-not-appear" not in result.stdout
+    text = _run(tmp_path, config, sessions, "models", "--agent", "alpha")
+    assert text.returncode == 0, text.stderr
+    assert text.stdout.splitlines() == [
+        "model-z\tModel Z\tFast model for reviews",
+        "model-a\t\t",
+    ]
+    beta = _run(
+        tmp_path, config, sessions, "models", "--agent", "beta", "--format", "json"
+    )
+    assert beta.returncode == 0, beta.stderr
+    assert _json_stdout(beta)["models"] == [{"id": "beta-model", "name": "Beta"}]
+    empty = _run(
+        tmp_path, config, sessions, "models", "--agent", "empty", "--format", "json"
+    )
+    assert empty.returncode == 0, empty.stderr
+    assert _json_stdout(empty) == {"agent_id": "empty", "models": []}
+    assert not list(sessions.glob("*.json"))
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [(), ("--agent", "unknown"), ("--agent", "alpha", "--format", "csv")],
+)
+def test_models_command_reports_usage_errors(
+    tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    config = write_model_catalog_config(tmp_path / "config.json")
+    result = _run(tmp_path, config, tmp_path / "sessions", "models", *arguments)
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr
 
 
 def _write_long_tool_config(path: Path) -> Path:
@@ -251,6 +309,103 @@ def test_agents_and_json_run_follow_up_and_history(tmp_path: Path) -> None:
     assert full_payload["message"]["content"] == "SYS= | USER=follow-up CLI task"
 
 
+def test_agent_details_and_ephemeral_run_with_request_settings(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+
+    agents = _run(
+        tmp_path,
+        config,
+        sessions,
+        "agents",
+        "--details",
+        "--format",
+        "json",
+    )
+    assert agents.returncode == 0, agents.stderr
+    descriptors = _json_stdout(agents)["agent_descriptors"]
+    assert [item["id"] for item in descriptors] == ["alpha", "beta"]
+    assert descriptors[0]["provider_route"] == "deterministic"
+    assert descriptors[0]["provider_plugin"] == "deterministic_stream"
+    assert descriptors[0]["effective_settings"]["model"] == "cli-test"
+
+    text_agents = _run(
+        tmp_path,
+        config,
+        sessions,
+        "agents",
+        "--details",
+    )
+    assert text_agents.returncode == 0, text_agents.stderr
+    assert text_agents.stdout.splitlines() == [
+        "alpha\tdeterministic\tcli-test\t",
+        "beta\tdeterministic\tcli-test\t",
+    ]
+
+    result = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--ephemeral",
+        "--set",
+        "model=temporary-model",
+        "--prompt",
+        "inspect safely",
+        "--format",
+        "json",
+    )
+    assert result.returncode == 0, result.stderr
+    payload = _json_stdout(result)
+    assert payload["status"] == "succeeded"
+    assert payload["persistence"] == "ephemeral"
+    assert isinstance(payload["session_id"], str)
+    assert payload["session_id"]
+    assert payload["output_text"] == "SYS= | USER=inspect safely"
+    assert "(ephemeral)" not in result.stdout
+    assert not list(sessions.glob("*.json"))
+
+
+def test_ephemeral_cli_rejects_follow_up_and_malformed_setting(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+
+    follow_up = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--session",
+        "session-id",
+        "--ephemeral",
+        "--prompt",
+        "follow up",
+    )
+    assert follow_up.returncode == 2
+    assert "--ephemeral cannot be combined with --session" in follow_up.stderr
+
+    malformed = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--set",
+        "model",
+        "--prompt",
+        "inspect",
+    )
+    assert malformed.returncode == 2
+    assert "--set must use KEY=VALUE" in malformed.stderr
+
+
 def test_sessions_and_messages_commands_chain_text_and_json(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "config.json")
     sessions = tmp_path / "sessions"
@@ -417,6 +572,72 @@ def test_run_accepts_each_prompt_source(tmp_path: Path, source: str) -> None:
     assert result.returncode == 0, result.stderr
     assert result.stdout == f"SYS= | USER={prompt}\n"
     assert "[session]" in result.stderr
+
+
+def test_run_resend_retries_without_appending_a_user_message(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    sessions = tmp_path / "sessions"
+    first = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--agent",
+        "alpha",
+        "--prompt",
+        "resend task",
+        "--format",
+        "json",
+    )
+    assert first.returncode == 0, first.stderr
+    session_id = _json_stdout(first)["session_id"]
+
+    resent = _run(
+        tmp_path,
+        config,
+        sessions,
+        "run",
+        "--session",
+        session_id,
+        "--resend",
+        "--format",
+        "json",
+    )
+    assert resent.returncode == 0, resent.stderr
+    assert _json_stdout(resent)["output_text"] == "SYS= | USER=resend task"
+
+    history = _run(
+        tmp_path,
+        config,
+        sessions,
+        "history",
+        "--session",
+        session_id,
+        "--format",
+        "json",
+    )
+    assert history.returncode == 0, history.stderr
+    rows = _json_stdout(history)["messages"]
+    assert [row["role"] for row in rows] == ["user", "assistant", "assistant"]
+    assert [row["content"] for row in rows if row["role"] == "user"] == ["resend task"]
+
+
+def test_run_resend_requires_a_persisted_session(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "config.json")
+    result = _run(
+        tmp_path,
+        config,
+        tmp_path / "sessions",
+        "run",
+        "--agent",
+        "alpha",
+        "--resend",
+    )
+
+    assert result.returncode == 2
+    assert "--resend requires --session" in result.stderr
 
 
 def test_json_timeout_has_stable_result_and_exit_code(tmp_path: Path) -> None:

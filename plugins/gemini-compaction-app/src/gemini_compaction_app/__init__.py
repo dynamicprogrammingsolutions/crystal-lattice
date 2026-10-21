@@ -42,7 +42,9 @@ def _collect_final_messages_from_stream(
     """Run an internal request via the streaming path and return final messages."""
 
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
+    for event in core.send_request_stream(
+        session, config, request_id=request_id, context=context
+    ):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -584,7 +586,9 @@ class GeminiCompactionAppPlugin:
         start_raw = params.get("start")
         end_raw = params.get("end")
         instructions = params.get("instructions")
-        end_inclusive = params.get("end_inclusive", False)  # Default to exclusive (Python slice)
+        end_inclusive = params.get(
+            "end_inclusive", False
+        )  # Default to exclusive (Python slice)
         start_int = start_raw if isinstance(start_raw, int) else None
         end_int = end_raw if isinstance(end_raw, int) else None
         instructions_str = (
@@ -721,20 +725,32 @@ class GeminiCompactionAppPlugin:
         # Check for previous <state_snapshot> BEFORE adding compression prompt.
         # The compression prompt template contains '<state_snapshot>' which would
         # incorrectly trigger the detection if we checked after adding it.
-        has_previous_snapshot = self._has_previous_snapshot(session_for_compact.messages)
+        has_previous_snapshot = self._has_previous_snapshot(
+            session_for_compact.messages
+        )
         anchor_instruction = self._build_anchor_instruction(has_previous_snapshot)
 
         # Inject the compression prompt as a system message.
         # This overrides the agent's normal system message for the compaction request.
         # Feature plugins that add system messages check for existing system messages
         # in native history and respect them (they don't add a new one if one exists).
-        compression_prompt = compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+        compression_prompt = (
+            compaction_config.get("prompt") or _GEMINI_COMPRESSION_PROMPT
+        )
+        # The handoff context carries the session asset store so providers
+        # that expand session assets during native-history rebuilds (for
+        # example the OpenAI Responses provider) can resolve attachments.
+        add_context = app.build_core_handoff_context(
+            base_config=base_config_compact,
+            config=config_for_add,
+        )
         session_with_system = core_compact.add_message(
             session_for_compact,
             "system",
             compression_prompt,
             metadata={"source": "compaction"},
             config=config_for_add,
+            context=add_context,
         )
 
         # Build the compaction instruction with anchor instruction
@@ -748,6 +764,7 @@ class GeminiCompactionAppPlugin:
             compaction_instruction,
             metadata=None,
             config=config_for_add,
+            context=add_context,
         )
 
         # Run the compaction request
@@ -808,6 +825,7 @@ class GeminiCompactionAppPlugin:
                 initial_snapshot,
                 metadata=None,
                 config=config_for_add,
+                context=add_context,
             )
             session_for_verify = core_compact.add_message(
                 session_for_verify,
@@ -815,6 +833,7 @@ class GeminiCompactionAppPlugin:
                 _VERIFICATION_PROMPT,
                 metadata=None,
                 config=config_for_add,
+                context=add_context,
             )
 
             try:
@@ -871,6 +890,12 @@ class GeminiCompactionAppPlugin:
             }
         }
 
+        # Pass the handoff context (with the session asset store) so the
+        # commit-phase native-history rebuild can expand session assets.
+        commit_context = app.build_core_handoff_context(
+            base_config=base_config_orig,
+            config=edit_config,
+        )
         session_with_user = core_orig.add_message(
             session_after_delete,
             "user",
@@ -878,6 +903,7 @@ class GeminiCompactionAppPlugin:
             metadata=snapshot_metadata,
             config=edit_config,
             after_index=insert_after,
+            context=commit_context,
         )
 
         insert_after_ack = insert_after + 1 if insert_after >= 0 else 0
@@ -888,6 +914,7 @@ class GeminiCompactionAppPlugin:
             metadata=None,
             config=edit_config,
             after_index=insert_after_ack,
+            context=commit_context,
         )
         session_final = app.save_session(
             session_final,
@@ -916,12 +943,24 @@ class GeminiCompactionAppPlugin:
 
         # Build debug info for verification
         compacted_messages_debug = [
-            {"index": i, "role": msg.role, "content_preview": msg.content[:100] if len(msg.content) > 100 else msg.content}
+            {
+                "index": i,
+                "role": msg.role,
+                "content_preview": (
+                    msg.content[:100] if len(msg.content) > 100 else msg.content
+                ),
+            }
             for i, msg in enumerate(session_orig.messages)
             if i in remove_indices
         ]
         preserved_tail_debug = [
-            {"index": i, "role": msg.role, "content_preview": msg.content[:100] if len(msg.content) > 100 else msg.content}
+            {
+                "index": i,
+                "role": msg.role,
+                "content_preview": (
+                    msg.content[:100] if len(msg.content) > 100 else msg.content
+                ),
+            }
             for i, msg in enumerate(session_orig.messages)
             if i >= end_idx and i < message_count
         ]

@@ -236,6 +236,45 @@ def test_cloud_plugin_exposes_validate_cloud_command_binding() -> None:
     }
 
 
+def test_validate_cloud_public_help_remains_compatible(tmp_path: Path) -> None:
+    transfer_script = _write_script(tmp_path / "transfer.sh")
+    config = _write_config(tmp_path, transfer_script)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [
+            str(_repo_root() / "application" / "python"),
+            str(_repo_root() / "core" / "python"),
+            str(PLUGIN_SRC),
+            env.get("PYTHONPATH", ""),
+        ]
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_terminal_app",
+            "--config",
+            str(config),
+            "--sessions-dir",
+            str(tmp_path / "sessions"),
+            "validate-cloud",
+            "--help",
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Validate the current workspace" in completed.stdout
+    assert "--workspace-dir" in completed.stdout
+    assert "--keep-temp-dir" in completed.stdout
+
+
 def test_cloud_start_session_default_wait_timeout_is_short() -> None:
     plugin = CloudAgentAppPlugin()
 

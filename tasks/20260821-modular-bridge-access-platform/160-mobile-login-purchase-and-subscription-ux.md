@@ -18,8 +18,8 @@ replaceable hosted contracts.
 - [ ] **P1** — Manage-subscription, logout, and account-deletion UX is
   platform-correct.
 - [ ] **P1** — Direct and self-hosted connections remain available without a
-  subscription, while hosted access requires current login, entitlement,
-  policy, and E2EE.
+  subscription, while commercial hosted access requires current login,
+  entitlement, policy, and E2EE.
 
 ### Non-functional requirements
 
@@ -32,7 +32,27 @@ Depends On:
 
 - `tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md`
 - `tasks/20260821-modular-bridge-access-platform/140-hosted-access-grant-enforcement.md`
+- `tasks/20260821-modular-bridge-access-platform/170-mixed-transport-access-e2ee-and-metering-alignment.md`
 - Production store/control-plane contracts supplied through the public API
+
+## Approved ownership clarification — October 7, 2026
+
+The requirement checklist remains intact. Base login/logout/account-switch
+and identity-link UI is owned by
+`tasks/20260821-modular-bridge-access-platform/080-authentik-client-identity-and-account-linking-contracts.md`.
+Credit it here only after that task supplies evidence. This task owns the
+additional purchase, restore, subscription management, paywall and associated
+account-deletion presentation. It stays pending; scope approval is not delivery.
+
+The free hosted demo is owned by
+`tasks/20260821-modular-bridge-access-platform/175-hosted-demo-and-invited-tester-release.md`
+and does not wait for this purchase implementation. Public commercial trial
+presentation remains gated by 230.
+
+The dependency revision approved on October 7, 2026 keeps commercial E2EE and
+production-metering acceptance gated by 170 after base grant enforcement in
+140 is brought forward. The limited free demo uses its own approved HTTPS/WSS
+and allowance policy.
 
 ## Required reading
 
@@ -45,10 +65,11 @@ Depends On:
 
 Status: Draft
 
-Add account and subscription screens/services behind public interfaces, then
-connect native StoreKit/Play Billing purchase results to server-side
-verification. Keep hosted paywall behavior separate from free direct and
-self-hosted connection choices.
+Reuse the base account/session UI and OIDC clients delivered by 080. Add
+subscription screens/services behind public interfaces and connect native
+StoreKit/Play Billing results to server verification. Keep commercial paywall
+behavior separate from the authenticated free demo and direct/self-hosted
+choices.
 
 ### Implementation decisions and open questions
 
@@ -65,8 +86,8 @@ self-hosted connection choices.
 
 ### Task checklist
 
-- [ ] Add account/session service and screens.
-- [ ] Add Apple/Google login/linking UX.
+- [ ] Verify and credit the base account/session service and screens from 080.
+- [ ] Verify and credit Apple/Google login/linking UX from 080.
 - [ ] Add StoreKit and Play Billing clients.
 - [ ] Add purchase association, verification, restore, and refresh.
 - [ ] Add subscription/paywall/status/management UI.

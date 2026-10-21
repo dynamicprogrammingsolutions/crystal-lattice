@@ -11,10 +11,35 @@ The website is progressively improved as product, market, community, and
 early-user evidence develops. A planned later rewrite does not justify leaving
 the currently deployed website confusing, inaccurate, or visibly unfinished.
 
+## First User Website Release
+
+The first complete user website includes owner-reviewed launch positioning,
+all six approved homepage visual stories, a usable first-success path and
+three public compatibility views: product/application features, provider
+support and model-family tools.
+
+Use the accepted canonical website projection and real reviewed product
+proof. Preserve material capability states, limitations, default/optional
+distinctions and source/version traceability while refining presentation.
+Refresh changed claims rather than repeating the complete product audit.
+
+A short product-based review may select the launch proposition, audience
+emphasis and primary action. Extensive search, community, competitor,
+interview and proposition-experiment research is not a prerequisite, and this
+bounded review does not establish market validation.
+
+The accepted site is published before repository visibility changes.
+Source availability is truthful during that interval; public source/clone
+controls are promoted and verified after publication of the repository.
+The final integrated website and waitlist use one accepted publishing artifact
+and their respective real production checks.
+
 ## Current Product Baseline
 
-Until an evidence-backed content decision replaces this baseline, the website
-should present Crystal Lattice primarily as a coding-agent product.
+Until an owner-approved product-based content decision replaces this baseline,
+the website should present Crystal Lattice primarily as a coding-agent product.
+The first-release positioning pass can propose a revised direction without
+waiting for the later market-research program.
 
 Crystal Lattice runs as an ordinary process on the user's computer in the
 working directory where the agent should operate. Desktop, mobile, terminal,
@@ -31,8 +56,10 @@ Qwen, Kimi, Grok, or other coding-agent products. These are Crystal Lattice
 profiles and sessions, not sessions owned by the official upstream
 applications.
 
-Broader general-purpose agent behavior is a product and positioning hypothesis
-until research and delivered defaults support a clearer claim.
+Broader general-purpose claims must be supported by actual delivered behavior
+and approved product proof. The bounded launch review may use that evidence;
+market-fit or validated positioning claims still require appropriate later
+research.
 
 ## Visitor Groups
 
@@ -291,7 +318,9 @@ The public website must not render:
 
 The website uses progressive releases:
 
-1. a release-safe early-user baseline based on current product truth;
+1. a complete early-user release with bounded owner-reviewed positioning,
+   all six visual stories and three public compatibility views based on
+   current product truth;
 2. a first update based on built-in feature, search, community, and competitor
    evidence;
 3. an update based on early-user and remote-access findings;

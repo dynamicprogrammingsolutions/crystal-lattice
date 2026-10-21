@@ -54,6 +54,7 @@ export function MobileHomeHarness(): React.JSX.Element {
                 }}
                 onNewConnectionRequested={() => setLastAction("newConnection")}
                 renderConnectionWizard={() => null}
+                onCloseConnectionWizard={() => {}}
                 onDeleteConnectionRecord={() => {}}
                 activeConnectionId={null}
                 sessionsCache={{

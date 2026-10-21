@@ -12,10 +12,10 @@ This guide explains how to build provider, provider extension, feature, and tool
   - Shared provider state: provider, provider extensions, and features receive and may update the same per-request state dict (tools keep their own state).
 
 See also
-- Reference → [Types & Protocols](/reference/agent_core/types/)
-- Reference → [Provider Wrapper](/reference/agent_core/plugin/provider/)
-- Reference → [AgentCore](/reference/agent_core/core/)
-- Reference → [OpenAI-Compatible Provider](/reference/providers/openai_provider/)
+- Reference → [Types & Protocols](/packages/core-python/reference/types/)
+- Reference → [Provider Wrapper](/packages/core-python/reference/plugin/provider/)
+- Reference → [AgentCore](/packages/core-python/reference/core/)
+- Reference → [OpenAI-Compatible Provider](/built-in-plugins/reference-openai-compatible-provider/docs/reference/provider/)
 
 - [Provider plugins](provider-plugins.md)
 - [Tool plugins](tool-plugins.md)
@@ -763,5 +763,5 @@ session, finals = core.send_request(session, config)
 - Lint/format/typecheck: `ruff`, `black`, `pyright` per AGENTS.md
 
 For full method details and signatures, see the
-[Types & Protocols](/reference/agent_core/types/) and
-[Provider Wrapper](/reference/agent_core/plugin/provider/) references.
+[Types & Protocols](/packages/core-python/reference/types/) and
+[Provider Wrapper](/packages/core-python/reference/plugin/provider/) references.

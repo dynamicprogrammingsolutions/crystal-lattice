@@ -19,7 +19,14 @@ the user’s control.
 - [ ] Unit, shared-component, native bridge, CLI contract, HTTP identity, persistence, and realistic integration tests cover the flow.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/110-desktop-landing-distribution-options.md
+Depends On: tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md
+
+## Reconciliation — October 7, 2026
+
+Progress: pending. Onboarding no longer waits for marketing publication in 110.
+Working DMG/PKG automation remains its prerequisite so the complete flow can be
+verified in both actual distribution paths. Detailed UX/runtime-contract
+planning may proceed earlier, but the retained execution plan remains Draft.
 
 ## Known starting state
 
@@ -27,7 +34,9 @@ Depends On: tasks/20260820-macos-desktop-distribution/110-desktop-landing-distri
 - The CLI has no general workspace runtime-status file.
 - The bridge PID lock exists only for bridge-enabled processes and is not a general runtime signal.
 - `/api/hello` is generic and cannot prove that a server is the expected workspace process.
-- Desktop connections currently support manual, discovery, bridge, and cloud records; manual records already carry host and port.
+- Shared SDK records include manual, discovery, bridge and cloud kinds. The
+  current Desktop editor/runtime host supports manual direct HTTP; SDK types
+  alone do not establish Desktop bridge/cloud/Bonjour UX.
 - The desktop package has native window/attachment picker patterns that can inform a workspace directory picker.
 
 ## Execution plan
@@ -54,7 +63,7 @@ normal manual connection for existing backend behavior.
 
 - Add workspace onboarding and CLI prerequisite instructions to desktop user documentation.
 - Document the runtime status/identity contract in the owning CLI and desktop development documentation, with one authoritative schema location.
-- Update landing `/desktop` copy only if the delivered onboarding prerequisites differ from the already published distinction.
+- Update the landing Desktop download section if delivered onboarding prerequisites change its installation guidance.
 
 ### Task checklist
 

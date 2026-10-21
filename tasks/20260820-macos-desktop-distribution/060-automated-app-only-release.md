@@ -5,16 +5,38 @@ notarizes, and publishes the retained app-only DMG.
 
 ## Requirements checklist
 
-- [ ] A manually triggerable GitHub Actions workflow produces the same verified DMG as the local release path.
-- [ ] The workflow installs pinned Node, Ruby, CocoaPods, and Xcode dependencies and runs required verification before signing.
-- [ ] Signing uses a temporary keychain and read-only signing-repository access.
-- [ ] Notarization uses protected secrets and fails with accessible diagnostic logs when rejected.
+- [x] A manually triggerable GitHub Actions workflow produces the same verified DMG as the local release path.
+- [x] The workflow installs pinned Node, Ruby, CocoaPods, and Xcode dependencies and runs required verification before signing.
+- [x] Signing uses a temporary keychain and read-only signing-repository access.
+- [x] Notarization uses protected secrets and fails with accessible diagnostic logs when rejected.
 - [ ] Successful runs publish the DMG, checksum, and release metadata to a controlled GitHub Release and configured download storage.
-- [ ] Workflow permissions, action pins, environment protections, concurrency, retention, and secret redaction follow repository policy.
+- [x] Workflow permissions, action pins, environment protections, concurrency, retention, and secret redaction follow repository policy.
 - [ ] The DMG workflow remains independently runnable after PKG automation is later added.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md
+Historical dependency (retired):
+tasks/20260820-macos-desktop-distribution/050-app-only-dmg.md
+
+## Supersession — October 7, 2026
+
+Disposition: done by user-approved supersession on October 7, 2026.
+
+SUPERSEDED BY: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+This closes the task as historical work; it does not mark its unmet original
+requirements fulfilled. Its former execution dependency is retired.
+
+The approved replacement delivered local Fastlane parity, clean hosted
+build-only run `36633536807` and exact-candidate CDN publication run
+`36685765746`. Publication is an explicit manual dispatch from main, with
+read-only signing retrieval and publication-scoped AWS credentials.
+
+The original GitHub Release publication condition was not delivered: the
+approved public hosting uses the existing CLI download CDN. Required-reviewer
+protection was explicitly declined; the replacement documents the accepted
+manual publication boundary. Future independence from PKG automation remains
+owned by `tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md`.
+Unmet conditions above remain unchecked. The Draft plan below is historical.
 
 ## Execution plan
 Status: Draft

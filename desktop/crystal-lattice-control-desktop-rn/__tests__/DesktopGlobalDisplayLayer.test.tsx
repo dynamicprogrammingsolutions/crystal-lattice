@@ -1,4 +1,24 @@
 import React from 'react';
+
+jest.mock('../src/windows/desktopWindowManager', () => {
+  const emitter = new (require('events').EventEmitter)();
+  return {
+    DesktopWindowManager: {
+      openReactWindow: jest.fn(),
+      closeReactWindow: jest.fn(),
+      closeApplicationActionDialogPopover: jest.fn(),
+      closeApplicationActionDialogWindow: jest.fn(),
+    },
+    desktopWindowEvents: {
+      addListener: (event: string, listener: (...args: any[]) => void) => {
+        emitter.on(event, listener);
+        return { remove: () => emitter.removeListener(event, listener) };
+      },
+      emit: (event: string, payload: any) => emitter.emit(event, payload),
+    },
+  };
+});
+
 import {
   act,
   fireEvent,
@@ -23,6 +43,11 @@ import {
   clearActiveActionDisplayWindow,
   getActiveActionDisplayWindow,
 } from '../src/windows/actionDisplayWindowCoordinator';
+import { ActionDisplayWindow } from '../src/windows/ActionDisplayWindow';
+import {
+  desktopWindowEvents,
+  DesktopWindowManager,
+} from '../src/windows/desktopWindowManager';
 
 function createBackend(): AgentBackend {
   return {
@@ -35,6 +60,79 @@ function createBackend(): AgentBackend {
     }),
   } as unknown as AgentBackend;
 }
+
+test.each(['Close button', 'window close'])(
+  'reopens a duration report with the same display ID after %s',
+  async closeMethod => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    const backend = createBackend();
+    const rendered = render(
+      <ThemeProvider theme={buildDesktopTheme(null)}>
+        <DesktopGlobalDisplayLayer
+          openConnectionsById={{
+            local: {
+              status: 'open',
+              baseUrl: 'http://local',
+              backend: backend as any,
+            },
+          }}
+          connectionNameById={{ local: 'Local project' }}
+        >
+          <ActionDisplayWindow />
+        </DesktopGlobalDisplayLayer>
+      </ThemeProvider>,
+    );
+    const present = (body: string) => {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          source: 'action_response',
+          connectionId: 'local',
+          sessionId: 'session-1',
+          display: {
+            display_id: 'duration-tracking-report',
+            title: 'Duration report',
+            format: 'text',
+            body,
+            presentation: 'modal',
+            dismissible: true,
+          },
+        }),
+      );
+    };
+    await act(async () => {});
+
+    for (const body of ['First report', 'Updated report', 'Updated report']) {
+      act(() => present(body));
+      expect(screen.getByText(body)).toBeTruthy();
+      expect(getActiveActionDisplayWindow()?.state.display.body).toBe(body);
+      expect(DesktopWindowManager?.openReactWindow).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          windowKey: 'actionDisplay',
+          title: 'Duration report',
+        }),
+      );
+
+      act(() => {
+        if (closeMethod === 'Close button') {
+          fireEvent.press(screen.getByText('Close'));
+        } else {
+          desktopWindowEvents?.emit('reactWindowCancelled', {
+            windowKey: 'actionDisplay',
+          });
+        }
+      });
+      expect(getActiveActionDisplayWindow()).toBeNull();
+      expect(screen.queryByText(body)).toBeNull();
+    }
+
+    expect(DesktopWindowManager?.openReactWindow).toHaveBeenCalledTimes(3);
+    rendered.unmount();
+    clearActiveActionDisplayWindow();
+    jest.useRealTimers();
+  },
+);
 
 test('aggregates connection displays and routes direct modals to the action window', () => {
   jest.useFakeTimers();

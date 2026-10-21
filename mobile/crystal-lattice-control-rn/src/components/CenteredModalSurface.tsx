@@ -53,15 +53,21 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
       visible
       transparent
       animationType="fade"
+      supportedOrientations={["portrait", "landscape"]}
       onRequestClose={onRequestClose}
     >
       {keyboardAvoiding ? (
         <KeyboardAvoidingView
-          style={styles.overlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={0}
         >
-          {content}
+          <View
+            testID={testID ? `${testID}-viewport` : undefined}
+            style={styles.overlay}
+          >
+            {content}
+          </View>
         </KeyboardAvoidingView>
       ) : (
         <View style={styles.overlay}>{content}</View>
@@ -72,6 +78,9 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
+    keyboardContainer: {
+      flex: 1,
+    },
     overlay: {
       flex: 1,
       backgroundColor: theme.modalBackdrop,

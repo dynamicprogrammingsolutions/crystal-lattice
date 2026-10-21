@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { RestAgentBackend } from '../../backend/restBackend';
 import { FetchTransport } from '../../transport/fetchTransport';
 import { runApplicationAction } from '../../plugins/actionRunner';
+import { buildDisplayFollowupActionElement } from '../../plugins/displayFollowupAction';
 import type {
   ActionDisplayRunActionAction,
   ActionUiElement,
@@ -41,6 +42,35 @@ describe('action display embedded forms against a real backend', () => {
       started = null;
     }
   });
+
+  it('submits a neutral follow-up dialog through the public backend', async () => {
+    started = await startBackendServer({ config: SERVER_CONFIG, startupTimeoutMs: 30000 });
+    const backend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl: started.baseUrl }),
+    });
+    const created = await backend.createSession({ agentId: 'default' });
+    const sessionId = created.session.session_id;
+    const actions = actionsById(await backend.listApplicationActions());
+    const schema = await backend.getSessionApplicationUiSchema(sessionId, {
+      pluginId: 'dummy_action_display_form_app',
+    });
+    const shown = await runApplicationAction({
+      backend, actionsById: actions, context: { sessionId },
+      element: schema.find((item: any) => item.id === 'dummy_show_followup_dialog') as ActionUiElement,
+    });
+    const action = shown.display!.actions![0] as ActionDisplayRunActionAction;
+    expect(action.dialog?.kind).toBe('form');
+    const submitted = await runApplicationAction({
+      backend, actionsById: actions,
+      element: buildDisplayFollowupActionElement(action, shown.display!),
+      context: { sessionId, dialogValues: { value: 'neutral value', note: '' } },
+    });
+    expect(submitted.ok).toBe(true);
+    expect(submitted.response?.result.submitted_values).toEqual({
+      source: 'followup_dialog', value: 'neutral value', note: '',
+    });
+    expect(submitted.display?.title).toBe('Follow-up submitted');
+  }, 60000);
 
   it('executes a display form follow-up action through the SDK runner', async () => {
     started = await startBackendServer({

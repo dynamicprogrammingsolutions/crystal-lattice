@@ -2,6 +2,7 @@ import type { BridgeServer } from './bridgeTransport';
 import type { BridgeConnectionTransportOptions } from './bridgeConnectionTransport';
 import type { HttpMethod, TransportTimeoutRule } from './transport';
 import { resolveTransportTimeoutMs } from './transport';
+import { normalizeBridgeAddress } from './bridgeAddress';
 
 function generateUuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
@@ -16,7 +17,7 @@ function generateUuid(): string {
 export function deriveBridgeHttpBaseUrl(bridgeUrl: string): string {
   // React Native's ambient URL declaration is intentionally minimal even
   // though its runtime implementation exposes the standard mutable fields.
-  const parsed = new URL(bridgeUrl) as unknown as {
+  const parsed = new URL(normalizeBridgeAddress(bridgeUrl)) as unknown as {
     protocol: string;
     pathname: string;
     search: string;
@@ -102,14 +103,22 @@ export class HttpBridgeTransport {
   }
 
   async connect(): Promise<void> {
-    await this.controlRequest<{ protocol_version?: number }>({
-      method: 'GET',
-      path: '/bridge/v1/capabilities',
-    }).then((data) => {
-      if (data?.protocol_version !== 1) {
+    let capability: { protocol_version?: number };
+    try {
+      capability = await this.controlRequest({
+        method: 'GET',
+        path: '/bridge/v1/capabilities',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('HTTP 404 ') || message.includes('HTTP 405 ')) {
         throw new Error('Bridge does not support HTTP transport protocol v1');
       }
-    });
+      throw error;
+    }
+    if (capability?.protocol_version !== 1) {
+      throw new Error('Bridge does not support HTTP transport protocol v1');
+    }
 
     if (this.pairingToken && this.serverId) {
       await this.resumePairing();

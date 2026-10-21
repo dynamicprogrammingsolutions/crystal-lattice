@@ -1,10 +1,15 @@
 # Mobile development
 
+## Release
+
+- [Cross-package release quick reference](../../../../docs/development/releases.md)
+- [iOS TestFlight with Fastlane](../../README.md#testflight-with-fastlane)
+
 ## Connectivity and navigation
 
 - [Bridge connection integration](bridge-connection-integration.md) — pairing,
   saved-record reconstruction, transport modes, and foreground recovery.
-- [Connections screen](connections-screen.md) — cards, actions, navigation,
+- [Connections on Home](connections-screen.md) — cards, actions, navigation,
   responsive headers, and settings presentation.
 - [Connection lifecycle specification](specifications/connection-lifecycle/index.md)
 
@@ -18,6 +23,8 @@
   polling, retry, and cross-layer verification.
 - [Markdown display](markdown-display.md) — display preferences, renderer
   selection, capability fallback, and typography.
+- [Action forms and results](action-forms-and-results.md) — viewport sizing,
+  keyboard handling, native tests, and real-plugin manual checkpoints.
 - [Website visual capture](website-visual-capture.md) — deterministic product
   states, real action-display fixtures, sanitization, and capture boundaries.
 

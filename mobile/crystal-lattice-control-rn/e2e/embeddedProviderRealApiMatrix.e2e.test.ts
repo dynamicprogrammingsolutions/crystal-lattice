@@ -144,13 +144,13 @@ async function waitForMatrixReady(timeoutMs: number): Promise<void> {
 }
 
 async function openEmbeddedConnection(): Promise<void> {
-  await tapById("connections-tab");
+  await tapById("home-tab");
   await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
     .toBeVisible()
     .withTimeout(30000);
   await tapById("connection-card-embedded-ios-runtime");
   await waitFor(element(by.id("sessions-screen-title")))
-    .toHaveText("On-device Python agents")
+    .toHaveText("Local agent")
     .withTimeout(120000);
   await new Promise<void>((resolve) => setTimeout(resolve, 3000));
 }
@@ -208,10 +208,25 @@ async function configureProfile(options: {
   tlsCaBundle?: string;
 }): Promise<void> {
   await tapById("home-tab");
-  await waitFor(element(by.id("home-embedded-settings")))
+  if (options.profileId === "reviewer") {
+    await tapById("home-menu");
+    await waitFor(element(by.id("home-menu-global-settings")))
+      .toBeVisible().withTimeout(30000);
+    await element(by.id("home-menu-global-settings")).performAccessibilityAction("activate");
+    await waitFor(element(by.id("global-settings-modal")))
+      .toBeVisible().withTimeout(30000);
+    await settleAfterModalTransition();
+    await waitForEnabled("global-settings-reviewer-visible");
+    await element(by.id("global-settings-reviewer-visible"))
+      .performAccessibilityAction("activate");
+    await tapById("global-settings-modal-close");
+    await settleAfterModalTransition();
+  }
+  await tapById("home-menu");
+  await waitFor(element(by.id("home-menu-embedded-settings")))
     .toBeVisible()
     .withTimeout(30000);
-  await tapById("home-embedded-settings");
+  await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
   await waitFor(element(by.id("embedded-runtime-settings")))
     .toBeVisible()
     .withTimeout(30000);
@@ -220,9 +235,10 @@ async function configureProfile(options: {
   const scroll = by.id(scrollId);
   const prefix = `embedded-provider-${options.profileId}`;
   if (options.profileId === "reviewer") {
-    await scrollUntilVisible(scrollId, "embedded-reviewer-visible");
-    await tapById("embedded-reviewer-visible");
-    await scrollUntilVisible(scrollId, prefix);
+    await scrollUntilVisible(scrollId, `${prefix}-enabled`);
+    await detoxExpect(element(by.id(`${prefix}-base-url`))).not.toExist();
+    await detoxExpect(element(by.id(`${prefix}-model`))).not.toExist();
+    await detoxExpect(element(by.id(`${prefix}-tls-ca-bundle`))).not.toExist();
   }
   if (options.profileId === "openai" && options.authMode === "chatgpt") {
     await scrollUntilVisible(
@@ -268,10 +284,6 @@ async function configureProfile(options: {
     await scrollUntilVisible(scrollId, `${prefix}-enabled`, "down");
     await ensureToggleOn(`${prefix}-enabled`);
   }
-  await scrollUntilVisible(scrollId, `${prefix}-default`, "down");
-  await element(by.id(`${prefix}-default`)).performAccessibilityAction(
-    "activate"
-  );
   await new Promise<void>((resolve) => setTimeout(resolve, 900));
   await waitFor(element(by.text("Provider settings saved.")))
     .toBeVisible()
@@ -328,6 +340,7 @@ describe("embedded provider real API matrix", () => {
       delete: false,
       launchArgs: {
         clcEmbeddedProviderMatrixHarness: "1",
+        clcEmbeddedMatrixAgent: agentId,
         detoxEnableSynchronization: "0",
       },
     });
@@ -391,6 +404,7 @@ describe("embedded provider real API matrix", () => {
       delete: false,
       launchArgs: {
         clcEmbeddedProviderMatrixHarness: "1",
+        clcEmbeddedMatrixAgent: agentId,
         clcEmbeddedInspectionOnly: "1",
         detoxEnableSynchronization: "0",
       },

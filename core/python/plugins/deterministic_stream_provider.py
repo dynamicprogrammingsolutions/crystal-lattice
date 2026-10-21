@@ -26,6 +26,9 @@ class DeterministicStreamProvider(ProviderPlugin):
     name: str = "deterministic_stream"
     version: str = "0.1.0"
 
+    def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [{"id": config.get("model", "deterministic-test")}]
+
     def get_config_schema(self) -> Dict[str, Any]:
         return {
             "model": {"type": "string", "required": True},

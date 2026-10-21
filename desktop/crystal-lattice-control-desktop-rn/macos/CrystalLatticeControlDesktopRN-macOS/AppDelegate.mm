@@ -112,6 +112,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
       EnvironmentFlagEnabled(@"CLC_ENABLE_WEBSITE_VISUAL_HARNESS") ||
       LaunchArgumentPresent(@"--website-visual-harness");
   BOOL enableAnyTestHarness =
+      LaunchArgumentPresent(@"--chat-operations-native-test") ||
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
       enableTranscriptRangeNavigationHarness ||
@@ -186,7 +187,11 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"transcriptTextSurfaceScenario" :
         [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_TEXT_SURFACE_SCENARIO"] ?: @"none",
   } mutableCopy];
-  if (LaunchArgumentPresent(@"--human-time-native-test")) {
+  if (LaunchArgumentPresent(@"--chat-operations-native-test")) {
+    initialProps[@"initialMarkdownBaseFontSize"] = @17;
+  }
+  if (LaunchArgumentPresent(@"--human-time-native-test") ||
+      LaunchArgumentPresent(@"--chat-operations-native-test")) {
     NSString *fixtureJson =
         [NSProcessInfo processInfo].environment[@"CLC_HUMAN_TIME_NATIVE_FIXTURE_JSON"];
     NSData *fixtureData = [fixtureJson dataUsingEncoding:NSUTF8StringEncoding];
@@ -224,6 +229,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
         window.appearance = [NSAppearance appearanceNamed:[captureTheme isEqualToString:@"dark"]
             ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
       }
+      [window center];
+    }
+    if (LaunchArgumentPresent(@"--chat-operations-native-test")) {
+      [window setContentSize:NSMakeSize(900, 600)];
       [window center];
     }
     window.title = enableWebsiteVisualHarness ? @"Crystal Lattice Desktop" : self.moduleName;
@@ -476,6 +485,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (NSURL *)bundleURL
 {
   if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") ||
+      LaunchArgumentPresent(@"--chat-operations-native-test") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_RANGE_NAVIGATION_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||

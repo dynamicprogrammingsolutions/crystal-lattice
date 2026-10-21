@@ -2,7 +2,8 @@
 
 Crystal Lattice can run a configured agent without starting the interactive
 terminal or HTTP server. A run creates or continues an ordinary persisted
-session, reports bounded progress, and returns the final result directly.
+session by default, or executes one non-retained turn when requested. Both
+modes report bounded progress and return the final result directly.
 
 Use this workflow for scripts, local automation, parallel investigations, and
 follow-up prompts whose sessions should remain visible in other Crystal
@@ -34,14 +35,107 @@ crystal-lattice agents --format json
 {"agents":["claude-openrouter","codex-openai"]}
 ```
 
+Add `--details` to inspect safe effective defaults and configurable fields
+without making a provider request:
+
+```bash
+crystal-lattice agents --details --format json
+```
+
+Python callers use `runtime.list_agent_descriptors()` or
+`runtime.describe_agent(agent_id)`. Descriptors contain display metadata, the
+provider route and plugin, safe effective model/reasoning values, and the
+flattened plugin config schema. They do not contain credentials.
+
 Global options precede the standalone command. For example:
 
 ```bash
 crystal-lattice \
   --config ~/.crystal/config.json \
-  --sessions-dir ~/.crystal/sessions \
+  --sessions-dir ./.crystal/sessions \
   agents
 ```
+
+## Discover available models
+
+Select a configured agent to discover models through its provider, extensions,
+and features:
+
+```bash
+crystal-lattice models --agent codex-openai --format json
+```
+
+JSON preserves complete plugin-provided descriptors and their order:
+
+```json
+{
+  "agent_id": "codex-openai",
+  "models": [
+    {
+      "id": "gpt-6-luna",
+      "name": "GPT-6-Luna",
+      "description": "Fast and affordable model for easier tasks."
+    }
+  ]
+}
+```
+
+Each descriptor has a non-empty `id`. `name`, `description`, and additional
+metadata depend on the plugins. The example shows one possible catalog entry;
+the command returns the selected agent's discovered catalog.
+
+The default text format prints tab-separated ID, name, and description, with
+one model per line and empty columns for absent display fields. Tabs and
+newlines inside fields become spaces. For example:
+
+```bash
+crystal-lattice models --agent codex-openai | grep -i luna
+```
+
+Python callers use the same discovery path:
+
+```python
+from agent_terminal_app import open_runtime
+
+with open_runtime() as runtime:
+    models = runtime.list_models(agent_id="codex-openai")
+    for model in models:
+        print(model["id"], model.get("description", ""))
+```
+
+Discovery uses the agent's effective configured defaults and the existing
+model cache. Plugins may fetch catalogs internally. The call does not create
+a session or send an inference request. An empty tuple in Python, or
+`"models": []` in JSON, follows the existing plugin contract when no models
+are returned; it does not prove that the provider cannot run a manually
+specified model.
+
+## Discover runtime and plugin capabilities
+
+Treat the active runtime as authoritative before reading implementation
+documentation:
+
+1. Use `agents --details --format json` to inspect the selected agent's safe
+   effective defaults and flattened provider/plugin configuration schema.
+2. Use `models --agent ID --format json` for the model catalog. In the
+   interactive terminal, use `/action` to list applicable action-oriented UI
+   elements; a one-shot headless action discovery/execution command is not yet
+   available.
+3. If those runtime descriptors do not explain a field or behavior, read the
+   owning plugin's README and package documentation under the runtime-provided
+   `BUILTIN_PLUGINS` directory. Inspect plugin source there only when the
+   documentation and descriptors leave an implementation detail unresolved.
+
+The opt-in external-project guidance renders the active built-in plugin path
+as `Built-in plugin docs and source`. This path follows the selected source,
+archive, or installed runtime rather than assuming a repository checkout.
+General application documentation remains available through
+`CRYSTAL_LATTICE_DOCS` and `CRYSTAL_LATTICE_DOCS_URL`.
+
+Application actions and UI schemas are already available to frontends through
+the HTTP API. Adding equivalent one-shot CLI and `LocalAgentRuntime` discovery
+and execution is a separate follow-up; agents should not infer that every
+plugin procedure is currently callable through the headless commands.
 
 ## Python first run
 
@@ -101,9 +195,10 @@ notification and snapshot-selection adapters.
 
 ```python
 result.status          # succeeded, failed, cancelled, or interrupted
-result.session_id      # persisted Crystal Lattice session
+result.session_id      # persisted session or ephemeral correlation identity
 result.request_id      # request cancellation and diagnostic identity
 result.agent_id        # configured agent used by the session
+result.persistence     # persisted or ephemeral
 result.output_text     # final assistant text
 result.final_messages  # final response messages
 result.error           # bounded RunError or None
@@ -116,6 +211,25 @@ enter a calling script merely because it needs the final answer.
 An error contains a stable category and bounded message without a traceback or
 complete provider response. Use configured logs or the lower-level event API
 when deeper diagnostics are necessary.
+
+## Request-scoped settings
+
+Python callers pass provider/plugin settings through `overrides`:
+
+```python
+result = runtime.run(
+    "Inspect the project.",
+    agent_id="codex-openai",
+    overrides={
+        "model": "gpt-5.6-luna",
+        "reasoning_effort": "high",
+    },
+)
+```
+
+Use `runtime.describe_agent(...)` to discover the selected agent's flattened
+config schema. Overrides apply only to that request and do not mutate the
+source config or a persisted session's stored settings.
 
 ## Progress
 
@@ -170,6 +284,44 @@ to the session. It does not silently switch agents.
 Message append and request admission are one operation. If the session already
 has an active request in this application process, the follow-up is rejected
 and its proposed message is not appended.
+
+## Resend after a recoverable failure
+
+Retry the current persisted history without appending another user message:
+
+```bash
+crystal-lattice run --session SESSION_ID --resend
+```
+
+Python callers use `runtime.resend(session_id)`. Resend is intended for
+recoverable provider failures or a tool-loop limit after completed tool
+results have already been saved. It starts a new request from the exact
+persisted conversation; it does not duplicate the last user prompt. Resend is
+available only for persisted sessions and cannot be combined with `--agent`,
+another prompt source, or `--ephemeral`.
+
+## Non-retained runs
+
+Use an ephemeral run when one answer is needed and no child session should
+remain visible in Crystal Lattice:
+
+```python
+with open_runtime() as runtime:
+    result = runtime.run(
+        "Inspect these files and return a concise finding.",
+        agent_id="codex-openai",
+        persistence="ephemeral",
+    )
+```
+
+The request uses the same configured agent, tool loop, progress, timeout,
+cancellation, and result contracts. Session checkpoints remain in memory and
+no canonical session file is written. `result.session_id` is a request-scoped
+correlation identity, not a reusable persisted session. Ephemeral runs cannot
+be continued by `session_id`.
+
+Operational logs and separately configured provider usage/cost stores are not
+session storage and may still retain their normal bounded records.
 
 ## Parallel Python runs
 
@@ -257,6 +409,24 @@ crystal-lattice run \
   --prompt "Inspect the package tests."
 ```
 
+Inspect agent defaults, apply request-scoped settings, and avoid retaining a
+session:
+
+```bash
+crystal-lattice agents --details --format json
+crystal-lattice run \
+  --agent codex-openai \
+  --set model=gpt-5.6-luna \
+  --set reasoning_effort=high \
+  --ephemeral \
+  --prompt-file investigation.md \
+  --format json
+```
+
+`--set` may be repeated. JSON values such as `true`, `42`, arrays, and objects
+are decoded; other values remain strings. Settings use the same generic config
+keys exposed by the selected agent's schema.
+
 For multiline or sensitive input, prefer a file or stdin over a shell argument:
 
 ```bash
@@ -274,6 +444,9 @@ crystal-lattice run \
 Exactly one of `--agent` and `--session`, and exactly one of `--prompt`,
 `--prompt-file`, and `--stdin`, is required.
 
+The opt-in agent guidance also calls out these multiline forms so a parent
+agent does not need to discover shell quoting limits through trial and error.
+
 Continue a completed session:
 
 ```bash
@@ -283,7 +456,8 @@ crystal-lattice run \
 ```
 
 Text mode prints only final assistant text to stdout. Progress and the
-persisted session/request identity go to stderr.
+session/request identity go to stderr. An ephemeral text run labels the
+identity as request-scoped and does not advertise it for follow-up.
 
 ## JSON output
 
@@ -306,6 +480,7 @@ Stdout contains exactly one JSON document:
   "session_id": "<session-id>",
   "request_id": "<request-id>",
   "agent_id": "codex-openai",
+  "persistence": "persisted",
   "output_text": "<assistant response>",
   "final_messages": [
     {
@@ -414,9 +589,16 @@ setting remains visible as **Include Crystal Lattice Access Guidance
 invalid values. A previously stored true override cannot compile either
 section in that state.
 
-The guidance describes ordinary synchronous persisted sessions. It does not
-turn them into parent-linked persistent subagents and does not add mid-run
-input, detached lifetime, or restart recovery.
+The config owns a separate parent-only delegation section after the access
+mechanics. It tells the parent agent that a child receives the selected
+agent's own configured system/developer message while the parent supplies a
+self-contained child user prompt. The parent is told not to copy its system
+message, hidden reasoning, or transcript into that prompt. It also explains
+request-scoped settings, persisted follow-ups, and non-retained one-shot runs.
+
+The guidance does not turn ordinary runs into parent-linked persistent
+subagents and does not add mid-run input, detached lifetime, or restart
+recovery.
 
 ### Adopt the section in an existing config
 
@@ -433,8 +615,8 @@ Copy the bundled default config's `mixins.crystal_lattice_access` definition
 and its `system_messages/helpers/crystal_lattice_access.py` file into the
 corresponding active config directory, then add `"crystal_lattice_access"` as
 the last `mixin_refs` entry for the agent. That one mixin contains the complete
-inspectable Markdown for both variants, the named runtime-value placeholders,
-and the mutually exclusive conditions.
+inspectable Markdown for both access variants and the separate parent-only
+delegation section, plus the named runtime-value placeholders and conditions.
 
 The runtime owns `CRYSTAL_LATTICE_SYSTEM_MESSAGES` in the same way it owns
 `BUILTIN_PLUGINS`. The helper contributes availability, conditions, and the
@@ -442,6 +624,8 @@ session checkbox; the configuration owns every line of agent guidance.
 
 The other runtime-owned values are:
 
+- `BUILTIN_PLUGINS`, the active built-in plugin source, README, and package
+  documentation root;
 - `CRYSTAL_LATTICE_CLI_ARGV_JSON`;
 - `CRYSTAL_LATTICE_CLI_COMMAND`;
 - `CRYSTAL_LATTICE_CONFIG`;
@@ -484,8 +668,10 @@ result exists leave JSON stdout empty and write diagnostics to stderr.
 
 ## Persistence and security
 
-Runs use ordinary filesystem sessions. They remain available to terminal,
-HTTP, mobile, and desktop frontends that use the same session root.
+Persisted runs use ordinary filesystem sessions. They remain available to
+terminal, HTTP, mobile, and desktop frontends that use the same session root.
+Ephemeral runs do not write a canonical session and cannot be resumed after
+the call returns.
 
 Direct execution loads provider credentials and tools from the selected
 configuration. Apply the same trust and plugin-policy rules as an interactive

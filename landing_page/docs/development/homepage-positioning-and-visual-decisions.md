@@ -10,6 +10,23 @@ The maintained implementation plan is tracked under
 must not present target-only visuals or product improvements as available until
 they are implemented and verified.
 
+## Approved First-Release Direction — October 7, 2026
+
+The owner approved a complete first user website with all six reviewed visual
+stories, three public compatibility views and a short product-based launch
+positioning review. Extensive market research remains a later input.
+
+The existing selections and alternatives below are retained as decision
+history. The bounded review may propose changes to the primary audience,
+benefit, category, hero or CTA, but no new final wording is selected by this
+scope approval. Record the accepted choice and its rationale here when the
+review is performed.
+
+Use actual product/release evidence and preserve compatibility limitations.
+Coordinate one integrated site/form publication, followed by live website and
+waitlist checks. Describe source availability truthfully before repository
+visibility changes and verify the public source controls afterward.
+
 ## Baseline Before Copy Revision
 
 Commit `89883b92` (`Build homepage structure`) is the durable baseline before

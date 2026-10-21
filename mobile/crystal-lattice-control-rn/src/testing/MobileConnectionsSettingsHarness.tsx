@@ -137,6 +137,7 @@ export function MobileConnectionsSettingsHarness(): React.JSX.Element {
                 }}
                 onNewConnectionRequested={() => setLastAction('newConnection')}
                 renderConnectionWizard={() => null}
+                onCloseConnectionWizard={() => {}}
                 onDeleteConnectionRecord={(record) => setLastAction(`deleted:${record.id}`)}
                 activeConnectionId={activeConnectionId}
                 sessionsCache={{}}

@@ -14,9 +14,11 @@ import { MobileSelectableCodeBlockHarness } from "./src/testing/MobileSelectable
 import { MobileOrderedListMarkdownHarness } from "./src/testing/MobileOrderedListMarkdownHarness";
 import { MobileNotificationUiEffectsHarness } from "./src/testing/MobileNotificationUiEffectsHarness";
 import { MobileConnectionsSettingsHarness } from "./src/testing/MobileConnectionsSettingsHarness";
+import { MobileActionFormsHarness } from "./src/testing/MobileActionFormsHarness";
 import { MobileHomeHarness } from "./src/testing/MobileHomeHarness";
 import { MobileWebsiteVisualHarness } from "./src/testing/MobileWebsiteVisualHarness";
 import { MobileRichSessionUiHarness } from "./src/testing/MobileRichSessionUiHarness";
+import { MobileChatOperationsHarness } from "./src/testing/MobileChatOperationsHarness";
 import { EmbeddedPythonRuntimeDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonRuntimeDiagnosticsScreen";
 import { EmbeddedPythonWebFetchDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedPythonWebFetchDiagnosticsScreen";
 import { EmbeddedProviderMatrixDiagnosticsScreen } from "./src/embeddedRuntime/EmbeddedProviderMatrixDiagnosticsScreen";
@@ -24,7 +26,9 @@ import { name as appName } from "./app.json";
 
 const RootComponent = (props) => {
   let Component = App;
-  if (props?.clcTranscriptScrollHarness === "1") {
+  if (props?.clcChatOperationsBaseUrl) {
+    Component = MobileChatOperationsHarness;
+  } else if (props?.clcTranscriptScrollHarness === "1") {
     Component = MobileTranscriptScrollHarness;
   } else if (props?.clcTranscriptRangeNavigationHarness === "1") {
     Component = MobileTranscriptRangeNavigationHarness;
@@ -42,6 +46,8 @@ const RootComponent = (props) => {
     Component = MobileWebsiteVisualHarness;
   } else if (props?.clcConnectionsSettingsHarness === "1") {
     Component = MobileConnectionsSettingsHarness;
+  } else if (props?.clcActionFormsHarness === "1") {
+    Component = MobileActionFormsHarness;
   } else if (props?.clcHomeHarness === "1") {
     Component = MobileHomeHarness;
   } else if (props?.clcRichSessionUiHarness === "1") {
@@ -58,6 +64,7 @@ const MobileSessionListLargestPresetHarness = () =>
   });
 
 AppRegistry.registerComponent(appName, () => RootComponent);
+AppRegistry.registerComponent("MobileChatOperationsHarness", () => MobileChatOperationsHarness);
 AppRegistry.registerComponent(
   "MobileTranscriptScrollHarness",
   () => MobileTranscriptScrollHarness
@@ -98,6 +105,7 @@ AppRegistry.registerComponent(
   "MobileConnectionsSettingsHarness",
   () => MobileConnectionsSettingsHarness
 );
+AppRegistry.registerComponent("MobileActionFormsHarness", () => MobileActionFormsHarness);
 AppRegistry.registerComponent("MobileHomeHarness", () => MobileHomeHarness);
 AppRegistry.registerComponent(
   "MobileRichSessionUiHarness",

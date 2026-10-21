@@ -92,9 +92,7 @@ async function launchRealApp(): Promise<void> {
 }
 
 async function connectToServer(port: number): Promise<void> {
-  // A fresh install has no saved connections: the wizard opens from the
-  // Connections tab's "New connection" action.
-  await element(by.id('connections-tab')).tap();
+  await element(by.id('home-tab')).tap();
   await waitFor(element(by.id('connections-new-connection')))
     .toBeVisible()
     .withTimeout(10000);
@@ -120,8 +118,6 @@ async function connectToServer(port: number): Promise<void> {
   await device.disableSynchronization();
   await element(by.id('manual-connect-button')).tap();
   await waitFor(element(by.id('home-tab'))).toBeVisible().withTimeout(30000);
-  // The wizard was opened from the Connections tab; return to Home where
-  // the global settings entry lives.
   await element(by.id('home-tab')).tap();
   await waitFor(element(by.id('home-menu'))).toBeVisible().withTimeout(10000);
 }

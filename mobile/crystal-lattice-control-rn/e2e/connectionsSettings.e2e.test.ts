@@ -47,13 +47,21 @@ async function launchHarness(deleteData: boolean): Promise<void> {
     .withTimeout(30000);
 }
 
+async function openGlobalSettings() {
+  await element(by.id('home-menu')).tap();
+  await waitFor(element(by.id('home-menu-global-settings'))).toBeVisible().withTimeout(10000);
+  await element(by.id('home-menu-global-settings')).performAccessibilityAction('activate');
+  await waitFor(element(by.id('global-settings-modal'))).toBeVisible().withTimeout(10000);
+}
+
 describe('mobile Connections and markdown settings', () => {
   it('uses production actions, modals, persistence, and native geometry', async () => {
     const platform = device.getPlatform();
     await launchHarness(true);
-    await element(by.id('connections-tab')).tap();
+    await waitFor(element(by.id('connections-screen-title'))).toBeVisible().withTimeout(10000);
 
-    await detoxExpect(element(by.id('connections-global-settings'))).toBeVisible();
+    await detoxExpect(element(by.id('connections-global-settings'))).not.toExist();
+    await detoxExpect(element(by.id('connections-actions-menu'))).not.toExist();
     await detoxExpect(element(by.id('connections-new-connection'))).toBeVisible();
     await detoxExpect(element(by.id('connection-status-active'))).toHaveText('Open');
     await detoxExpect(element(by.id('connection-status-closed'))).toHaveText('Closed');
@@ -76,19 +84,19 @@ describe('mobile Connections and markdown settings', () => {
 
     await element(by.id('connection-card-closed')).tap();
     await detoxExpect(
-      element(by.text('No sessions loaded yet. Open the Connections tab to connect to a server.')),
+      element(by.text('No sessions loaded yet. Open a connection from Home to connect to a server.')),
     ).toBeVisible();
     await detoxExpect(element(by.id('connections-harness-last-action'))).toHaveText('opened:closed');
-    await element(by.id('connections-tab')).tap();
+    await element(by.id('home-tab')).tap();
 
     await element(by.id('connection-disconnect')).tap();
     await detoxExpect(element(by.id('connections-harness-last-action'))).toHaveText('disconnected');
     await element(by.id('connection-card-active')).tap();
     await detoxExpect(
-      element(by.text('No sessions loaded yet. Open the Connections tab to connect to a server.')),
+      element(by.text('No sessions loaded yet. Open a connection from Home to connect to a server.')),
     ).toBeVisible();
     await detoxExpect(element(by.id('connections-harness-last-action'))).toHaveText('opened:active');
-    await element(by.id('connections-tab')).tap();
+    await element(by.id('home-tab')).tap();
 
     const rootFrame = frameFrom(
       await element(by.id('connections-settings-harness-ready')).getAttributes(),
@@ -124,7 +132,7 @@ describe('mobile Connections and markdown settings', () => {
       ),
     ).toExist();
 
-    await element(by.id('connections-global-settings')).tap();
+    await openGlobalSettings();
     await waitFor(element(by.id('global-settings-modal'))).toBeVisible().withTimeout(10000);
     await detoxExpect(
       element(by.id('global-settings-markdown-renderer-value')),
@@ -149,7 +157,7 @@ describe('mobile Connections and markdown settings', () => {
     );
     jestExpect(footerAt16Frame.height).toBeGreaterThan(initialFooterFrame.height);
 
-    await element(by.id('connections-global-settings')).tap();
+    await openGlobalSettings();
     await element(by.id('global-settings-base-font-size')).tap();
     await element(by.id('options-picker-declared-17')).tap();
     await element(by.id('global-settings-markdown-headers')).tap();
@@ -169,7 +177,7 @@ describe('mobile Connections and markdown settings', () => {
     jestExpect(smallHeadingFrame.width).toBeLessThanOrEqual(previewFrame.width);
     jestExpect(largeBodyFrame.width).toBeLessThanOrEqual(previewFrame.width);
 
-    await element(by.id('connections-global-settings')).tap();
+    await openGlobalSettings();
     await element(by.id('global-settings-markdown-renderer')).tap();
     await element(
       by.id('options-picker-declared-react-native-enriched-markdown'),
@@ -227,9 +235,9 @@ describe('mobile Connections and markdown settings', () => {
     await detoxExpect(element(by.label('Delete')).atIndex(0)).toBeVisible();
 
     await launchHarness(false);
-    await element(by.id('connections-tab')).tap();
+    await element(by.id('home-tab')).tap();
     await detoxExpect(element(by.label('Delete')).atIndex(0)).toBeVisible();
-    await element(by.id('connections-global-settings')).tap();
+    await openGlobalSettings();
     await detoxExpect(element(by.id('global-settings-base-font-size-value'))).toHaveText('17');
     await detoxExpect(element(by.id('global-settings-markdown-headers-value'))).toHaveText('Small');
     await detoxExpect(

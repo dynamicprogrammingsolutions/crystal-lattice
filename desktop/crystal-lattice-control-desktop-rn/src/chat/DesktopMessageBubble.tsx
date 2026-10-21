@@ -4,13 +4,15 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
-import type { ApiMessage, UiSchemaElement } from '@crystal-lattice/frontend-sdk';
+import type {
+  ApiMessage,
+  UiSchemaElement,
+} from '@crystal-lattice/frontend-sdk';
 import {
   extractByPath,
   formatValueForElement,
@@ -18,26 +20,29 @@ import {
   selectDisplayContent,
   selectSingleLineContent,
 } from '@crystal-lattice/frontend-sdk';
-import { MacTextView } from '@crystal-lattice/react-native-mac-text-view';
 import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
 
-import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
+import {
+  AttachmentThumbnailStrip,
+  type AttachmentLike,
+} from './AttachmentThumbnailStrip';
 
-import type { MessageActionKey, MessageActionDefinition } from './messageActions';
+import type {
+  MessageActionKey,
+  MessageActionDefinition,
+} from './messageActions';
 import { PinnedMessageActionsBar } from './PinnedMessageActionsBar';
 import MarkdownMessageContent from './MarkdownMessageContent';
 
 export interface DesktopMessageBubbleProps {
   index: number;
   message: ApiMessage;
-  onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
+  onAction?: (
+    action: MessageActionKey,
+    index: number,
+    message: ApiMessage,
+  ) => void;
   allowedActions?: MessageActionKey[];
-  isEditing?: boolean;
-  editingInitialText?: string;
-  editingText?: string;
-  onChangeEditingText?: (text: string) => void;
-  onSubmitEdit?: (index: number, message: ApiMessage, newText: string) => void;
-  onCancelEdit?: () => void;
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
   pluginActionDefs?: MessageActionDefinition[];
@@ -52,12 +57,16 @@ function toSingleLinePreview(text: string, maxLen = 160): string {
 
 const EMPTY_TOOL_CALLS: any[] = [];
 
-function buildMessageAttachments(message: ApiMessage, prefix: string): AttachmentLike[] {
+function buildMessageAttachments(
+  message: ApiMessage,
+  prefix: string,
+): AttachmentLike[] {
   const parts = Array.isArray((message as any).multipartContent)
-    ? (((message as any).multipartContent as any[]) ?? [])
+    ? ((message as any).multipartContent as any[]) ?? []
     : [];
   const metadata = (message as any).metadata;
-  const display = metadata && typeof metadata === 'object' ? (metadata as any).display : null;
+  const display =
+    metadata && typeof metadata === 'object' ? (metadata as any).display : null;
   const allParts =
     display && typeof display === 'object' && display.type === 'image'
       ? [
@@ -75,7 +84,10 @@ function buildMessageAttachments(message: ApiMessage, prefix: string): Attachmen
       if (!part || typeof part !== 'object') {
         return null;
       }
-      const type = typeof (part as any).type === 'string' ? (part as any).type : 'attachment';
+      const type =
+        typeof (part as any).type === 'string'
+          ? (part as any).type
+          : 'attachment';
       const attachment: AttachmentLike = {
         id: `${prefix}:${idx}:${type}`,
         type,
@@ -94,11 +106,7 @@ const MessageAttachmentsStrip: React.FC<{
   message: ApiMessage;
   idPrefix: string;
   onPress?: (attachment: AttachmentLike) => void;
-}> = ({
-  message,
-  idPrefix,
-  onPress,
-}) => {
+}> = ({ message, idPrefix, onPress }) => {
   const attachments = useMemo(
     () => buildMessageAttachments(message, idPrefix),
     [idPrefix, message],
@@ -108,7 +116,9 @@ const MessageAttachmentsStrip: React.FC<{
     return null;
   }
 
-  return <AttachmentThumbnailStrip attachments={attachments} onPress={onPress} />;
+  return (
+    <AttachmentThumbnailStrip attachments={attachments} onPress={onPress} />
+  );
 };
 
 const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
@@ -116,12 +126,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   footerElements,
   pluginActionDefs,
 }) => {
@@ -132,52 +136,21 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
-    elements.forEach((el) => {
+    elements.forEach(el => {
       if (!el || el.ui_type !== 'message_footer') return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
-      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      if (
+        valueForTemplate === null ||
+        valueForTemplate === undefined ||
+        valueForTemplate === ''
+      )
+        return;
       const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={[styles.headerText, styles.userHeaderText]}>
-            {`[${index}] User`}
-          </Text>
-          <MacTextView
-            style={[styles.editInput, styles.editInputOnBlue]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            addToHeight={8}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.row}>
@@ -186,19 +159,16 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
           <Text style={[styles.headerText, styles.userHeaderText]}>
             {`[${index}] User`}
           </Text>
-	          {onAction ? (
-	            <PinnedMessageActionsBar
-	              role={role}
-	              onAction={(action) => onAction(action, index, message)}
-	              availableActions={allowedActions}
-	              extraActions={pluginActionDefs}
-	            />
-	          ) : null}
+          {onAction ? (
+            <PinnedMessageActionsBar
+              role={role}
+              onAction={action => onAction(action, index, message)}
+              availableActions={allowedActions}
+              extraActions={pluginActionDefs}
+            />
+          ) : null}
         </View>
-        <MessageAttachmentsStrip
-          message={message}
-          idPrefix={`user:${index}`}
-        />
+        <MessageAttachmentsStrip message={message} idPrefix={`user:${index}`} />
         {content ? (
           <Text style={[styles.contentText, styles.userContentText]} selectable>
             {content}
@@ -206,7 +176,7 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={[styles.footerText, styles.userFooterText]}>
+            <Text style={[styles.footerText, styles.userFooterText]} selectable>
               {footerParts.join('   ')}
             </Text>
           </View>
@@ -221,82 +191,47 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   footerElements,
   pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [editHeight, setEditHeight] = useState(60);
   const content = selectDisplayContent(message);
   const role = 'system';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
-    elements.forEach((el) => {
+    elements.forEach(el => {
       if (!el || el.ui_type !== 'message_footer') return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
-      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      if (
+        valueForTemplate === null ||
+        valueForTemplate === undefined ||
+        valueForTemplate === ''
+      )
+        return;
       const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
   }, [footerElements, message]);
 
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-          <Text style={styles.headerText}>{`[${index}] System`}</Text>
-          <MacTextView
-            style={[styles.editInput, { height: editHeight }]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            addToHeight={16}
-            onHeightChange={setEditHeight}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.row}>
-      <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
+      <View
+        style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}
+      >
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] System`}</Text>
-	          {onAction ? (
-	            <PinnedMessageActionsBar
-	              role={role}
-	              onAction={(action) => onAction(action, index, message)}
-	              availableActions={allowedActions}
-	              extraActions={pluginActionDefs}
-	            />
-	          ) : null}
+          {onAction ? (
+            <PinnedMessageActionsBar
+              role={role}
+              onAction={action => onAction(action, index, message)}
+              availableActions={allowedActions}
+              extraActions={pluginActionDefs}
+            />
+          ) : null}
         </View>
         <MessageAttachmentsStrip
           message={message}
@@ -309,7 +244,9 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -339,11 +276,16 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
-    elements.forEach((el) => {
+    elements.forEach(el => {
       if (!el || el.ui_type !== 'message_footer') return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
-      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      if (
+        valueForTemplate === null ||
+        valueForTemplate === undefined ||
+        valueForTemplate === ''
+      )
+        return;
       const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
@@ -352,52 +294,56 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
   return (
     <View style={styles.row}>
-      <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
+      <View
+        style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}
+      >
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>
             {`[${index}] Tool`}
             {toolName && ` (${toolName})`}
           </Text>
           <View style={styles.headerIconsRow}>
-	            {onAction ? (
-	              <PinnedMessageActionsBar
-	                role={role}
-	                onAction={(action) => onAction(action, index, message)}
-	                availableActions={allowedActions}
-	                extraActions={pluginActionDefs}
-	              />
-	            ) : null}
+            {onAction ? (
+              <PinnedMessageActionsBar
+                role={role}
+                onAction={action => onAction(action, index, message)}
+                availableActions={allowedActions}
+                extraActions={pluginActionDefs}
+              />
+            ) : null}
           </View>
         </View>
 
-        <MessageAttachmentsStrip
-          message={message}
-          idPrefix={`tool:${index}`}
-        />
+        <MessageAttachmentsStrip message={message} idPrefix={`tool:${index}`} />
 
         {hasContent && (
           <View>
-		    <TouchableOpacity
-		      style={styles.disclosureRow}
-		      activeOpacity={0.85}
-		      testID={`tool-result-disclosure-${index}`}
-		      onPress={() => setExpanded((prev) => !prev)}
-		    >
-		      <Text
-		        style={[styles.collapsedHintText, styles.disclosureText]}
-		        selectable
-		        numberOfLines={1}
-		      >
-		        {singleLine || 'Tool result hidden (tap to expand).'}
-		      </Text>
-		      <View style={[styles.collapseIconButton, styles.disclosureChevronButton]}>
-		        <Icon
-		          name={expanded ? 'chevron-up' : 'chevron-down'}
-		          size={14}
-		          color={theme.textSecondary}
-		        />
-		      </View>
-		    </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.disclosureRow}
+              activeOpacity={0.85}
+              testID={`tool-result-disclosure-${index}`}
+              onPress={() => setExpanded(prev => !prev)}
+            >
+              <Text
+                style={[styles.collapsedHintText, styles.disclosureText]}
+                selectable
+                numberOfLines={1}
+              >
+                {singleLine || 'Tool result hidden (tap to expand).'}
+              </Text>
+              <View
+                style={[
+                  styles.collapseIconButton,
+                  styles.disclosureChevronButton,
+                ]}
+              >
+                <Icon
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
             {expanded && (
               <View style={styles.collapsibleContainerTool}>
                 <ScrollView
@@ -405,19 +351,15 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
                   nestedScrollEnabled
                   testID={`tool-result-scroll-${index}`}
                 >
-                  <MacTextView
-                    style={styles.readOnlyBoundedText}
-                    initialText={content}
-                    editable={false}
-                    autoGrow
-                    minHeight={theme.typography.lineHeight.message}
-                    textColor={theme.text}
-                    fontSize={theme.typography.fontSize.message}
-                    fontFamily="Menlo"
-                    lineHeight={theme.typography.lineHeight.message}
-                    textContainerInset={0}
+                  <View
+                    accessible
+                    accessibilityLabel={`tool-result-${index}`}
                     testID={`tool-result-${index}`}
-                  />
+                  >
+                    <Text style={styles.contentText} selectable>
+                      {content}
+                    </Text>
+                  </View>
                 </ScrollView>
               </View>
             )}
@@ -432,7 +374,9 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -445,19 +389,12 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const [editHeight, setEditHeight] = useState(60);
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const content = selectDisplayContent(message);
@@ -478,67 +415,41 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
       if (typeof tc === 'object' && tc !== null) {
         const func = (tc as any).function || {};
         const name =
-          typeof func === 'object' && func !== null && typeof func.name === 'string'
+          typeof func === 'object' &&
+          func !== null &&
+          typeof func.name === 'string'
             ? func.name
             : typeof (tc as any).type === 'string'
-              ? (tc as any).type
-              : 'tool';
+            ? (tc as any).type
+            : 'tool';
         names.push(name);
       }
     }
     return names;
   }, [toolCalls]);
-  const distinctToolCallNames = useMemo(() => Array.from(new Set(toolCallNames)), [toolCallNames]);
+  const distinctToolCallNames = useMemo(
+    () => Array.from(new Set(toolCallNames)),
+    [toolCallNames],
+  );
   const role = 'assistant';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
     const parts: string[] = [];
-    elements.forEach((el) => {
+    elements.forEach(el => {
       if (!el || el.ui_type !== 'message_footer') return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
-      if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
+      if (
+        valueForTemplate === null ||
+        valueForTemplate === undefined ||
+        valueForTemplate === ''
+      )
+        return;
       const text = renderTemplate(el.template ?? '{{data}}', valueForTemplate);
       if (text) parts.push(text);
     });
     return parts;
   }, [footerElements, message]);
-
-  if (isEditing && onChangeEditingText && onSubmitEdit && onCancelEdit) {
-    return (
-      <View style={styles.row}>
-        <View style={[styles.bubble, styles.otherBubble]}>
-          <View style={styles.headerRow}>
-            <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
-          </View>
-          <MacTextView
-            style={[styles.editInput, { height: editHeight }]}
-            initialText={editingInitialText ?? editingText ?? ''}
-            autoGrow
-            minHeight={60}
-            maxHeight={140}
-            onHeightChange={setEditHeight}
-            onChangeText={onChangeEditingText}
-            onSubmit={(text) => onSubmitEdit(index, message, text)}
-          />
-          <View style={styles.editButtonsRow}>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonSecondary]}
-              onPress={onCancelEdit}
-            >
-              <Text style={styles.editButtonTextSecondary}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.editButton, styles.editButtonPrimary]}
-              onPress={() => onSubmitEdit(index, message, editingText ?? '')}
-            >
-              <Text style={styles.editButtonTextPrimary}>Save</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.row}>
@@ -546,14 +457,14 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
           <View style={styles.headerIconsRow}>
-	            {onAction ? (
-	              <PinnedMessageActionsBar
-	                role={role}
-	                onAction={(action) => onAction(action, index, message)}
-	                availableActions={allowedActions}
-	                extraActions={pluginActionDefs}
-	              />
-	            ) : null}
+            {onAction ? (
+              <PinnedMessageActionsBar
+                role={role}
+                onAction={action => onAction(action, index, message)}
+                availableActions={allowedActions}
+                extraActions={pluginActionDefs}
+              />
+            ) : null}
           </View>
         </View>
 
@@ -567,16 +478,23 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
             style={styles.disclosureRow}
             activeOpacity={0.85}
             testID={`assistant-reasoning-disclosure-${index}`}
-            onPress={() => setReasoningExpanded((prev) => !prev)}
+            onPress={() => setReasoningExpanded(prev => !prev)}
           >
             <Text
               style={[styles.collapsedHintText, styles.disclosureText]}
               selectable
               numberOfLines={1}
             >
-              {reasoningSingleLine ? `Reasoning: ${reasoningSingleLine}` : 'Reasoning'}
+              {reasoningSingleLine
+                ? `Reasoning: ${reasoningSingleLine}`
+                : 'Reasoning'}
             </Text>
-            <View style={[styles.collapseIconButton, styles.disclosureChevronButton]}>
+            <View
+              style={[
+                styles.collapseIconButton,
+                styles.disclosureChevronButton,
+              ]}
+            >
               <Icon
                 name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
                 size={14}
@@ -593,39 +511,33 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
               nestedScrollEnabled
               testID={`assistant-reasoning-scroll-${index}`}
             >
-              <MacTextView
-                style={styles.readOnlyBoundedText}
-                initialText={reasoning}
-                editable={false}
-                autoGrow
-                minHeight={theme.typography.lineHeight.small}
-                textColor={theme.textSecondary}
-                fontSize={theme.typography.fontSize.small}
-                fontFamily="Menlo"
-                lineHeight={theme.typography.lineHeight.small}
-                italic
-                textContainerInset={0}
+              <View
+                accessible
+                accessibilityLabel={`assistant-reasoning-${index}`}
                 testID={`assistant-reasoning-${index}`}
-              />
+              >
+                <Text style={styles.reasoningText} selectable>
+                  {reasoning}
+                </Text>
+              </View>
             </ScrollView>
           </View>
         )}
 
         {content ? (
           renderMode === 'raw' ? (
-            <MacTextView
-              style={styles.rawReadonlyInput}
-              initialText={content}
-              editable={false}
-              autoGrow
-              minHeight={theme.typography.lineHeight.message}
-              textColor={theme.text}
-              fontSize={theme.typography.fontSize.message}
-              fontFamily="Menlo"
-              lineHeight={theme.typography.lineHeight.message}
-              textContainerInset={0}
+            <View
+              accessible
+              accessibilityLabel={`assistant-raw-message-${index}`}
               testID={`assistant-raw-message-${index}`}
-            />
+            >
+              <Text
+                style={[styles.contentText, styles.rawReadonlyText]}
+                selectable
+              >
+                {content}
+              </Text>
+            </View>
           ) : (
             <MarkdownMessageContent text={content} variant="assistant" />
           )
@@ -636,17 +548,23 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
             style={styles.disclosureRow}
             activeOpacity={0.85}
             testID={`assistant-tool-calls-disclosure-${index}`}
-            onPress={() => setToolCallsExpanded((prev) => !prev)}
+            onPress={() => setToolCallsExpanded(prev => !prev)}
           >
             <Text
               style={[styles.collapsedHintText, styles.disclosureText]}
               selectable
               numberOfLines={1}
             >
-              {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}:{' '}
+              {toolCallNames.length} tool call
+              {toolCallNames.length !== 1 ? 's' : ''}:{' '}
               {distinctToolCallNames.join(', ')}
             </Text>
-            <View style={[styles.collapseIconButton, styles.disclosureChevronButton]}>
+            <View
+              style={[
+                styles.collapseIconButton,
+                styles.disclosureChevronButton,
+              ]}
+            >
               <Icon
                 name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
                 size={14}
@@ -666,17 +584,23 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
               {toolCalls.map((tc: any, idx: number) => {
                 const func = tc.function || {};
                 const toolName =
-                  typeof func === 'object' && func !== null && typeof func.name === 'string'
+                  typeof func === 'object' &&
+                  func !== null &&
+                  typeof func.name === 'string'
                     ? func.name
                     : typeof tc.type === 'string'
-                      ? tc.type
-                      : 'tool';
+                    ? tc.type
+                    : 'tool';
                 const callId = tc.id || tc.tool_call_id;
 
-                const toolCallPreviews = Array.isArray((message.metadata as any)?.tool_call_previews)
+                const toolCallPreviews = Array.isArray(
+                  (message.metadata as any)?.tool_call_previews,
+                )
                   ? (message.metadata as any).tool_call_previews
                   : [];
-                const previewObj = toolCallPreviews.find((p: any) => p && p.id === callId);
+                const previewObj = toolCallPreviews.find(
+                  (p: any) => p && p.id === callId,
+                );
                 const preview = previewObj?.preview || '';
 
                 const displayText =
@@ -686,25 +610,19 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
                       ? func.arguments
                       : JSON.stringify(func.arguments, null, 2)
                     : typeof tc.arguments === 'string'
-                      ? tc.arguments
-                      : JSON.stringify(tc.arguments || {}, null, 2));
+                    ? tc.arguments
+                    : JSON.stringify(tc.arguments || {}, null, 2));
 
                 return (
                   <View key={callId || idx} style={styles.toolCallItem}>
                     <Text style={styles.toolCallName}>{toolName}</Text>
-                    <MacTextView
-                      style={styles.toolCallArgsReadOnly}
-                      initialText={displayText}
-                      editable={false}
-                      autoGrow
-                      minHeight={theme.typography.lineHeight.tiny}
-                      textColor={theme.textSecondary}
-                      fontSize={theme.typography.fontSize.tiny}
-                      fontFamily="Menlo"
-                      lineHeight={theme.typography.lineHeight.tiny}
-                      textContainerInset={0}
+                    <Text
+                      style={styles.toolCallArgs}
+                      selectable
                       testID={`assistant-tool-call-${index}-${idx}`}
-                    />
+                    >
+                      {displayText}
+                    </Text>
                   </View>
                 );
               })}
@@ -714,7 +632,9 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
 
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <Text style={styles.footerText} selectable>
+              {footerParts.join('   ')}
+            </Text>
           </View>
         )}
       </View>
@@ -727,12 +647,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   message,
   onAction,
   allowedActions,
-  isEditing,
-  editingInitialText,
-  editingText,
-  onChangeEditingText,
-  onSubmitEdit,
-  onCancelEdit,
   renderMode,
   footerElements,
   pluginActionDefs,
@@ -748,12 +662,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -767,12 +675,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -799,12 +701,6 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         message={message}
         allowedActions={allowedActions}
         onAction={onAction}
-        isEditing={isEditing}
-        editingInitialText={editingInitialText}
-        editingText={editingText}
-        onChangeEditingText={onChangeEditingText}
-        onSubmitEdit={onSubmitEdit}
-        onCancelEdit={onCancelEdit}
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
@@ -897,10 +793,6 @@ const createStyles = (theme: Theme) =>
       fontFamily: Platform.OS === 'macos' ? 'Menlo' : 'Courier',
       marginLeft: 8,
     },
-    toolCallArgsReadOnly: {
-      width: '98%',
-      marginLeft: 8,
-    },
     contentText: {
       fontSize: theme.typography.fontSize.message,
       lineHeight: theme.typography.lineHeight.message,
@@ -931,9 +823,6 @@ const createStyles = (theme: Theme) =>
     collapsibleScroll: {
       paddingHorizontal: 4,
       paddingVertical: 4,
-    },
-    readOnlyBoundedText: {
-      width: '100%',
     },
     collapsedHintText: {
       marginTop: 2,
@@ -1013,9 +902,8 @@ const createStyles = (theme: Theme) =>
       lineHeight: theme.typography.lineHeight.normal,
       fontWeight: '600',
     },
-    rawReadonlyInput: {
+    rawReadonlyText: {
       marginTop: 2,
-      width: '100%',
     },
   });
 

@@ -6,7 +6,7 @@ and installation instructions.
 
 ## Requirements checklist
 
-- [ ] A public `/desktop` route presents two primary choices: `Desktop app only` and `Desktop app + CLI`.
+- [ ] A public desktop download surface presents two primary choices: `Desktop app only` and `Desktop app + CLI`.
 - [ ] The app-only choice downloads the retained DMG and explains that a compatible `crystal-lattice` terminal command must be installed separately for workspace startup.
 - [ ] The app-plus-CLI choice offers clearly labeled Apple Silicon and Intel PKGs and explains that the installer adds the terminal command.
 - [ ] Version, supported macOS version, architecture, file type, file size where available, checksums, release notes, installation, Gatekeeper, upgrade, support, privacy, license, and source links are accurate.
@@ -16,6 +16,19 @@ and installation instructions.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
 Depends On: tasks/20260820-macos-desktop-distribution/100-automated-combined-installer-release.md
+
+## Reconciliation — October 7, 2026
+
+Progress: pending. The current homepage already publishes the verified
+app-only DMG from `landing_page/src/content/releases/desktop.yaml`; PKG choices
+and the complete combined-distribution guidance remain undelivered.
+
+The user-approved simpler presentation retains the two-product outcome and
+uses the reviewed homepage Desktop section. A separate `/desktop` route is
+not required. Broad research task
+`tasks/20260825-crystal-lattice-product-positioning-and-website/090-first-evidence-informed-website-update.md`
+does not gate factual download publication. This task still reviews its actual
+copy/layout and published links.
 
 ## Approved presentation
 
@@ -27,11 +40,11 @@ Depends On: tasks/20260820-macos-desktop-distribution/100-automated-combined-ins
 ## Execution plan
 Status: Draft
 
-Add an authored Astro desktop page using the existing section/content system
-and design language. Integrate release metadata or stable download endpoints,
-add navigation/footer routes, provide architecture guidance, and update
-privacy/support wording for the desktop client. Verify local builds and the
-production deployment/download path.
+Extend the authored homepage Desktop download section using the existing
+content system and design language. Integrate maintained release metadata,
+provide the two choices and architecture guidance, and update privacy/support
+wording for delivered desktop behavior. Verify local builds and the production
+deployment/download path. A separate page requires a later explicit decision.
 
 ### Implementation decisions and open questions
 
@@ -49,7 +62,7 @@ production deployment/download path.
 
 ### Task checklist
 
-- [ ] Add `/desktop` route and content/components.
+- [ ] Extend the reviewed homepage Desktop download content/components.
 - [ ] Add the two approved distribution choices and architecture-specific PKG links.
 - [ ] Add version/support/checksum/release metadata integration.
 - [ ] Update navigation and footer discoverability.

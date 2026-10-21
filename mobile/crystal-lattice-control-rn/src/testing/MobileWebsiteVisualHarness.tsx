@@ -1,17 +1,28 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, Settings, StyleSheet, Text, View } from "react-native";
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-} from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import type { AgentBackend, IndexedMessage, SessionSummary } from "@crystal-lattice/frontend-sdk";
+import type {
+  AgentBackend,
+  ConnectionRecord,
+  IndexedMessage,
+  KeyValueStore,
+  SessionRequestStatus,
+  SessionSummary,
+} from "@crystal-lattice/frontend-sdk";
 
 import { ApplicationPluginsProvider } from "../ApplicationPluginsContext";
+import type { SessionsCache } from "../../App";
+import HomeScreen from "../HomeScreen";
 import { PinnedActionsProvider } from "../PinnedActionsContext";
 import SessionChatScreen from "../SessionChatScreen";
 import SessionsScreen from "../SessionsScreen";
 import { HomeWorkspaceProvider } from "../HomeWorkspaceContext";
+import {
+  HOME_WATCHLIST_STORAGE_KEY,
+  MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY,
+  SESSION_NOTES_STORAGE_KEY,
+} from "../homeWorkspaceState";
 import ActionResultModal from "../components/ActionResultModal";
 import GlobalDisplayLayer from "../components/GlobalDisplayLayer";
 import SessionPluginsModal from "../components/SessionPluginsModal";
@@ -39,8 +50,7 @@ const PROVIDER_USAGE_MESSAGE =
 const MOBILE_HERO_MESSAGES =
   runtimeUiFixture.mobile_hero_messages as IndexedMessage[];
 const MOBILE_HERO_UI_SCHEMA = runtimeUiFixture.mobile_hero_ui_schema;
-const COMPILED_ACTION_FIXTURE =
-  actionDisplayFixture.compiled_system_message;
+const COMPILED_ACTION_FIXTURE = actionDisplayFixture.compiled_system_message;
 const COST_ACTION_FIXTURE = actionDisplayFixture.cost_report;
 
 const PROVIDER_SETTINGS_SCHEMA = [
@@ -133,26 +143,70 @@ const VIBE_SESSION_SUMMARY: SessionSummary = {
   },
 };
 
+const SYSTEM_TEMPLATE_MESSAGES: IndexedMessage[] = [
+  {
+    index: 0,
+    message: {
+      role: "system",
+      content:
+        "You are {{AGENT_TITLE}}. Follow the project guidance below before acting.\n\n{{PROJECT_GUIDANCE}}\n\nUse the enabled {{TOOLSET_NAME}} tools and report assumptions explicitly.",
+      metadata: {},
+    },
+  },
+  {
+    index: 1,
+    message: {
+      role: "user",
+      content:
+        "Review the release notes and propose the smallest safe validation plan.",
+      metadata: {},
+    },
+  },
+];
+
+const SYSTEM_TEMPLATE_SUMMARY: SessionSummary = {
+  session_id: SESSION_ID,
+  modified: SESSION_SUMMARY.modified,
+  preview: SYSTEM_TEMPLATE_MESSAGES[1].message.content,
+  metadata: {
+    agent_id: "codex-openai",
+    status: "in_progress",
+  },
+  presentation: {
+    title: "Validate a release plan",
+    subtitle: "Authored instructions remain visible",
+    meta: "Status: In progress",
+  },
+};
+
+const FIXTURE_NOW_SECONDS = Math.floor(Date.now() / 1000);
+const WORKSPACE_PRIMARY_SESSION_ID = "starlette-compatibility";
+
 const WORKSPACE_SESSIONS: SessionSummary[] = [
   {
-    session_id: "launch-research",
-    modified: 30,
-    preview: "Compare launch approaches and define the validation plan.",
+    session_id: WORKSPACE_PRIMARY_SESSION_ID,
+    modified: FIXTURE_NOW_SECONDS - 30,
+    preview: SESSION_SUMMARY.preview,
     metadata: {
-      title: "Launch strategy research",
-      subtitle: "Sources, assumptions, and validation plan",
+      agent_id: "codex-openai",
+      title: SESSION_SUMMARY.presentation?.title,
+      subtitle: SESSION_SUMMARY.presentation?.subtitle,
       status: "in_progress",
       pinned: true,
     },
     presentation: {
-      title: "Launch strategy research",
-      subtitle: "Sources, assumptions, and validation plan",
+      title:
+        SESSION_SUMMARY.presentation?.title ??
+        "Plan a Starlette compatibility fix",
+      subtitle:
+        SESSION_SUMMARY.presentation?.subtitle ??
+        "Coding session · OpenAI Responses",
       meta: "Status: In progress",
     },
   },
   {
     session_id: "customer-signals",
-    modified: 20,
+    modified: FIXTURE_NOW_SECONDS - 120,
     preview: "Synthesize the latest customer interview notes.",
     metadata: {
       title: "Customer signal synthesis",
@@ -168,7 +222,7 @@ const WORKSPACE_SESSIONS: SessionSummary[] = [
   },
   {
     session_id: "release-brief",
-    modified: 10,
+    modified: FIXTURE_NOW_SECONDS - 360,
     preview: "Final launch brief ready for review.",
     metadata: {
       title: "Release readiness brief",
@@ -184,15 +238,117 @@ const WORKSPACE_SESSIONS: SessionSummary[] = [
   },
 ];
 
+const WORKSPACE_REQUEST_STATUSES: Record<string, SessionRequestStatus> = {
+  [WORKSPACE_PRIMARY_SESSION_ID]: {
+    session_id: WORKSPACE_PRIMARY_SESSION_ID,
+    request_id: "request-starlette-compatibility",
+    state: "running",
+    basis: "active_request",
+    session_modified: 30,
+  },
+  "customer-signals": {
+    session_id: "customer-signals",
+    request_id: null,
+    state: "not_started",
+    basis: "session_tail",
+    session_modified: 20,
+  },
+  "release-brief": {
+    session_id: "release-brief",
+    request_id: "request-release-brief",
+    state: "succeeded",
+    basis: "session_tail",
+    session_modified: 10,
+  },
+};
+
+const HOME_CONNECTIONS: ConnectionRecord[] = [
+  {
+    id: "local-workspace",
+    kind: "manual",
+    name: "Local workspace",
+    host: "127.0.0.1",
+    port: 9000,
+    lastUsedAt: 2,
+  },
+  {
+    id: "remote-workspace",
+    kind: "bridge",
+    name: "Remote workspace",
+    bridgeUrl: "wss://bridge.example/ws/websocket",
+    serverId: "review-runtime",
+    serverName: "Review runtime",
+    pairingToken: "website-review-token",
+    lastUsedAt: 1,
+  },
+];
+
+const HOME_SESSIONS_CACHE: SessionsCache = {
+  "local-workspace": {
+    connectionId: "local-workspace",
+    lastLoadedAt: Date.now(),
+    sessions: WORKSPACE_SESSIONS.slice(0, 2),
+  },
+  "remote-workspace": {
+    connectionId: "remote-workspace",
+    lastLoadedAt: Date.now(),
+    sessions: [WORKSPACE_SESSIONS[2]],
+  },
+};
+
+const HOME_STATUSES: Record<string, Record<string, SessionRequestStatus>> = {
+  "local-workspace": {
+    [WORKSPACE_PRIMARY_SESSION_ID]:
+      WORKSPACE_REQUEST_STATUSES[WORKSPACE_PRIMARY_SESSION_ID],
+    "customer-signals": WORKSPACE_REQUEST_STATUSES["customer-signals"],
+  },
+  "remote-workspace": {
+    "release-brief": WORKSPACE_REQUEST_STATUSES["release-brief"],
+  },
+};
+
+const HOME_VISUAL_STORE: KeyValueStore = {
+  get: async (key: string) => {
+    if (key === HOME_WATCHLIST_STORAGE_KEY) {
+      return JSON.stringify([
+        {
+          connectionId: "local-workspace",
+          sessionId: WORKSPACE_PRIMARY_SESSION_ID,
+        },
+        { connectionId: "local-workspace", sessionId: "customer-signals" },
+        { connectionId: "remote-workspace", sessionId: "release-brief" },
+      ]);
+    }
+    if (key === SESSION_NOTES_STORAGE_KEY) {
+      return JSON.stringify({
+        [WORKSPACE_PRIMARY_SESSION_ID]:
+          "Compare the evidence before recommending a launch.",
+      });
+    }
+    if (key === MOBILE_GLOBAL_PREFERENCES_STORAGE_KEY) {
+      return JSON.stringify({
+        recentSessionsWindow: "1w",
+        timeTrackingEnabled: false,
+        timeTrackingPluginId: "human_time",
+      });
+    }
+    return null;
+  },
+  set: async () => {},
+  delete: async () => {},
+};
+
 function createHarnessBackend(kind: string): AgentBackend {
   const displayedMessages =
     kind === "usage" || kind === "cost"
       ? [PROVIDER_USAGE_MESSAGE]
+      : kind === "system-template"
+      ? SYSTEM_TEMPLATE_MESSAGES
       : kind === "vibe"
-          ? VIBE_MESSAGES
+      ? VIBE_MESSAGES
       : kind === "hero"
-        ? MOBILE_HERO_MESSAGES
-        : MESSAGES;
+      ? MOBILE_HERO_MESSAGES
+      : MESSAGES;
   return {
     kind: "inProcess",
     getCapabilities: () => ({
@@ -203,7 +359,7 @@ function createHarnessBackend(kind: string): AgentBackend {
       applicationActions: true,
       applicationConfig: false,
     }),
-    listAgents: async () => kind === "vibe" ? ["zai"] : ["codex-openai"],
+    listAgents: async () => (kind === "vibe" ? ["zai"] : ["codex-openai"]),
     listAgentDescriptors: async () =>
       kind === "vibe"
         ? [
@@ -225,18 +381,21 @@ function createHarnessBackend(kind: string): AgentBackend {
           ],
     listSessions: async () => [SESSION_SUMMARY],
     getSessionSummary: async () =>
-      kind === "vibe" ? VIBE_SESSION_SUMMARY : SESSION_SUMMARY,
-    getSessionAgent: async () => kind === "vibe" ? "zai" : "codex-openai",
+      kind === "vibe"
+        ? VIBE_SESSION_SUMMARY
+        : kind === "system-template"
+        ? SYSTEM_TEMPLATE_SUMMARY
+        : SESSION_SUMMARY,
+    getSessionAgent: async () => (kind === "vibe" ? "zai" : "codex-openai"),
     switchSessionAgent: async () => {},
     listApplicationActions: async () =>
-      kind === "cost"
-        ? [COST_ACTION_FIXTURE.action_definition]
-        : [],
+      kind === "cost" ? [COST_ACTION_FIXTURE.action_definition] : [],
     listApplicationUiSchema: async () => [],
     listMessages: async () => ({
       messages: displayedMessages,
       cursorEventId: "0",
-      activeRequestId: null,
+      activeRequestId:
+        kind === "composer-active" ? "website-active-request" : null,
     }),
     getLatestEventId: async () => "0",
     listEvents: async () => ({
@@ -252,20 +411,18 @@ function createHarnessBackend(kind: string): AgentBackend {
         : kind === "usage" || kind === "cost"
         ? MESSAGE_FOOTER_ELEMENTS
         : kind === "provider-settings"
-          ? PROVIDER_SETTINGS_SCHEMA
+        ? PROVIDER_SETTINGS_SCHEMA
         : kind === "hero"
-          ? MOBILE_HERO_UI_SCHEMA
-          : SESSION_UI_SCHEMA,
+        ? MOBILE_HERO_UI_SCHEMA
+        : SESSION_UI_SCHEMA,
     getSessionApplicationUiSchema: async () =>
       kind === "hero"
         ? []
         : kind === "cost"
-          ? [COST_ACTION_FIXTURE.ui_element]
-          : SESSION_APPLICATION_UI_SCHEMA,
+        ? [COST_ACTION_FIXTURE.ui_element]
+        : SESSION_APPLICATION_UI_SCHEMA,
     getSessionOverrides: async () =>
-      kind === "provider-settings"
-        ? {}
-        : SESSION_OVERRIDES,
+      kind === "provider-settings" ? {} : SESSION_OVERRIDES,
     getSessionConfigSchema: async () =>
       kind === "provider-settings"
         ? [
@@ -304,7 +461,7 @@ function createHarnessBackend(kind: string): AgentBackend {
     patchSessionOverrides: async () => {},
     deleteSessionOverride: async () => {},
     executeAction: async (
-      params: Parameters<AgentBackend["executeAction"]>[0],
+      params: Parameters<AgentBackend["executeAction"]>[0]
     ) => {
       if (params.actionId === "show_cost_report") {
         return COST_ACTION_FIXTURE.response as any;
@@ -312,9 +469,7 @@ function createHarnessBackend(kind: string): AgentBackend {
       throw new Error(`Unexpected website fixture action: ${params.actionId}`);
     },
     executeSessionAction: async (
-      params: Parameters<
-        NonNullable<AgentBackend["executeSessionAction"]>
-      >[0],
+      params: Parameters<NonNullable<AgentBackend["executeSessionAction"]>>[0]
     ) => {
       if (params.actionId === "show_compiled_system_message") {
         return COMPILED_ACTION_FIXTURE.response as any;
@@ -336,7 +491,12 @@ function createWorkspaceBackend(): AgentBackend {
       icon: "clock",
       tone: "primary",
     },
-    { value: "blocked", label: "Blocked", icon: "alert-circle", tone: "danger" },
+    {
+      value: "blocked",
+      label: "Blocked",
+      icon: "alert-circle",
+      tone: "danger",
+    },
     { value: "done", label: "Done", icon: "check-circle", tone: "success" },
   ];
   return {
@@ -352,7 +512,7 @@ function createWorkspaceBackend(): AgentBackend {
     listAgents: async () => ["codex-openai"],
     listSessions: async () => WORKSPACE_SESSIONS,
     getSessionSummary: async (sessionId: string) =>
-      WORKSPACE_SESSIONS.find(session => session.session_id === sessionId) ??
+      WORKSPACE_SESSIONS.find((session) => session.session_id === sessionId) ??
       WORKSPACE_SESSIONS[0],
     listApplicationActions: async () => [
       {
@@ -480,11 +640,7 @@ function createWorkspaceBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
-function MobileWorkspaceVisual({
-  theme,
-}: {
-  theme: Theme;
-}): React.JSX.Element {
+function MobileWorkspaceVisual({ theme }: { theme: Theme }): React.JSX.Element {
   const backend = useMemo(() => createWorkspaceBackend(), []);
   return (
     <ThemeProvider theme={theme}>
@@ -505,11 +661,37 @@ function MobileWorkspaceVisual({
                 cachedSessions={WORKSPACE_SESSIONS}
                 lastLoadedAt={1}
                 isActive
+                requestStatuses={WORKSPACE_REQUEST_STATUSES}
                 onUpdateCache={() => {}}
                 onSelectSession={() => {}}
               />
             </View>
           </ApplicationPluginsProvider>
+        </HomeWorkspaceProvider>
+      </PinnedActionsProvider>
+    </ThemeProvider>
+  );
+}
+
+function MobileHomeVisual({ theme }: { theme: Theme }): React.JSX.Element {
+  return (
+    <ThemeProvider theme={theme}>
+      <PinnedActionsProvider>
+        <HomeWorkspaceProvider store={HOME_VISUAL_STORE}>
+          <View
+            style={[styles.root, { backgroundColor: theme.background }]}
+            testID="website-home-ready"
+          >
+            <HomeScreen
+              connections={HOME_CONNECTIONS}
+              sessionsCache={HOME_SESSIONS_CACHE}
+              statusesByConnection={HOME_STATUSES}
+              onOpenGlobalSettings={() => {}}
+              onOpenEmbeddedSettings={() => {}}
+              onNewConnection={() => {}}
+              onSelectSession={() => {}}
+            />
+          </View>
         </HomeWorkspaceProvider>
       </PinnedActionsProvider>
     </ThemeProvider>
@@ -529,17 +711,18 @@ export function MobileWebsiteVisualHarness({
   const configuredTheme =
     clcWebsiteVisualTheme ?? Settings.get("clcWebsiteVisualTheme");
   const configuredKind =
-    clcWebsiteVisualKind ??
-    Settings.get("clcWebsiteVisualKind") ??
-    "settings";
+    clcWebsiteVisualKind ?? Settings.get("clcWebsiteVisualKind") ?? "settings";
   const backend = useMemo(
     () => createHarnessBackend(configuredKind),
-    [configuredKind],
+    [configuredKind]
   );
   const theme: Theme = configuredTheme === "dark" ? darkTheme : lightTheme;
 
   if (configuredKind === "workspaces") {
     return <MobileWorkspaceVisual theme={theme} />;
+  }
+  if (configuredKind === "home") {
+    return <MobileHomeVisual theme={theme} />;
   }
 
   if (!visualOpen) {
@@ -581,50 +764,73 @@ export function MobileWebsiteVisualHarness({
               backend={backend}
               connectionId="website-visual"
             >
-              <GlobalDisplayLayer backend={backend} connectionId="website-visual">
+              <GlobalDisplayLayer
+                backend={backend}
+                connectionId="website-visual"
+              >
                 <View style={styles.screen}>
                   <SessionChatScreen
-                  backend={backend}
-                  connectionId="website-visual"
-                  isActive={
-                    configuredKind === "actions" ||
-                    configuredKind === "usage" ||
-                    configuredKind === "cost" ||
-                    configuredKind === "hero" ||
-                    configuredKind === "compiled" ||
-                    configuredKind === "vibe"
-                  }
-                  sessionId={SESSION_ID}
-                  sessionSummary={
-                    configuredKind === "vibe"
-                      ? VIBE_SESSION_SUMMARY
-                      : SESSION_SUMMARY
-                  }
-                  cachedMessages={
-                    configuredKind === "usage" || configuredKind === "cost"
-                      ? [PROVIDER_USAGE_MESSAGE]
-                      : configuredKind === "vibe"
-                          ? VIBE_MESSAGES
-                      : configuredKind === "hero"
+                    backend={backend}
+                    connectionId="website-visual"
+                    isActive={
+                      configuredKind === "actions" ||
+                      configuredKind === "message-actions" ||
+                      configuredKind === "usage" ||
+                      configuredKind === "cost" ||
+                      configuredKind === "hero" ||
+                      configuredKind === "compiled" ||
+                      configuredKind === "vibe" ||
+                      configuredKind === "composer-active" ||
+                      configuredKind === "system-template"
+                    }
+                    sessionId={SESSION_ID}
+                    sessionSummary={
+                      configuredKind === "vibe"
+                        ? VIBE_SESSION_SUMMARY
+                        : configuredKind === "system-template"
+                        ? SYSTEM_TEMPLATE_SUMMARY
+                        : SESSION_SUMMARY
+                    }
+                    cachedMessages={
+                      configuredKind === "usage" || configuredKind === "cost"
+                        ? [PROVIDER_USAGE_MESSAGE]
+                        : configuredKind === "vibe"
+                        ? VIBE_MESSAGES
+                        : configuredKind === "system-template"
+                        ? SYSTEM_TEMPLATE_MESSAGES
+                        : configuredKind === "hero"
                         ? MOBILE_HERO_MESSAGES
-                      : MESSAGES
-                  }
-                  lastLoadedAt={1}
-                  cachedEventsCursorId="0"
-                  cachedActiveRequestId={null}
-                  onUpdateCache={() => {}}
-                  onUpdateSessionSummaries={() => {}}
-                  onBack={() => {}}
-                  onNavigateToSession={() => {}}
-                  initialComposeText=""
-                  initialScrollAnchor={null}
-                  initialRangeStartText={configuredKind === "vibe" ? "0" : "-50"}
-                  initialRangeEndText=""
-                  onSaveComposeText={() => {}}
-                  onSaveScrollAnchor={() => {}}
-                  onSaveHistoryRange={() => {}}
-                  debugTimeline={[]}
-                  onAppendDebugTimelineEntry={() => {}}
+                        : MESSAGES
+                    }
+                    lastLoadedAt={1}
+                    cachedEventsCursorId="0"
+                    cachedActiveRequestId={
+                      configuredKind === "composer-active"
+                        ? "website-active-request"
+                        : null
+                    }
+                    onUpdateCache={() => {}}
+                    onUpdateSessionSummaries={() => {}}
+                    onBack={() => {}}
+                    onNavigateToSession={() => {}}
+                    initialComposeText={
+                      configuredKind === "composer-active"
+                        ? "Append a validation note while the current request finishes."
+                        : ""
+                    }
+                    initialScrollAnchor={null}
+                    initialRangeStartText={
+                      configuredKind === "vibe" ||
+                      configuredKind === "system-template"
+                        ? "0"
+                        : "-50"
+                    }
+                    initialRangeEndText=""
+                    onSaveComposeText={() => {}}
+                    onSaveScrollAnchor={() => {}}
+                    onSaveHistoryRange={() => {}}
+                    debugTimeline={[]}
+                    onAppendDebugTimelineEntry={() => {}}
                   />
                   {configuredKind === "compiled" ||
                   configuredKind === "cost" ? (
@@ -641,40 +847,45 @@ export function MobileWebsiteVisualHarness({
                     />
                   ) : null}
                   {configuredKind === "actions" ||
+                  configuredKind === "message-actions" ||
                   configuredKind === "usage" ||
                   configuredKind === "cost" ||
                   configuredKind === "hero" ||
                   configuredKind === "compiled" ||
-                  configuredKind === "vibe" ? null : configuredKind === "snapshots" ? (
-                  <SessionSnapshotsModal
-                    visible
-                    snapshotsLoading={false}
-                    snapshotItems={SNAPSHOTS}
-                    selectedSnapshotId="automatic-compaction"
-                    onRequestClose={() => {}}
-                    onCreateSnapshot={() => {}}
-                    onClearSelectedSnapshot={() => {}}
-                    onSelectSnapshot={() => {}}
-                    onRestoreSnapshot={() => {}}
-                    onDeleteSnapshot={() => {}}
-                  />
-                ) : configuredKind === "plugins" ? (
-                  <SessionPluginsModal
-                    backend={backend}
-                    sessionId={SESSION_ID}
-                    visible
-                    onRequestClose={() => {}}
-                  />
-                ) : (
-                  <SessionSettingsModal
-                    backend={backend}
-                    cacheKey={`website-visual-${
-                      configuredTheme === "dark" ? "dark" : "light"
-                    }`}
-                    sessionId={SESSION_ID}
-                    visible
-                    onRequestClose={() => {}}
-                  />
+                  configuredKind === "vibe" ||
+                  configuredKind === "composer-active" ||
+                  configuredKind ===
+                    "system-template" ? null : configuredKind ===
+                    "snapshots" ? (
+                    <SessionSnapshotsModal
+                      visible
+                      snapshotsLoading={false}
+                      snapshotItems={SNAPSHOTS}
+                      selectedSnapshotId="automatic-compaction"
+                      onRequestClose={() => {}}
+                      onCreateSnapshot={() => {}}
+                      onClearSelectedSnapshot={() => {}}
+                      onSelectSnapshot={() => {}}
+                      onRestoreSnapshot={() => {}}
+                      onDeleteSnapshot={() => {}}
+                    />
+                  ) : configuredKind === "plugins" ? (
+                    <SessionPluginsModal
+                      backend={backend}
+                      sessionId={SESSION_ID}
+                      visible
+                      onRequestClose={() => {}}
+                    />
+                  ) : (
+                    <SessionSettingsModal
+                      backend={backend}
+                      cacheKey={`website-visual-${
+                        configuredTheme === "dark" ? "dark" : "light"
+                      }`}
+                      sessionId={SESSION_ID}
+                      visible
+                      onRequestClose={() => {}}
+                    />
                   )}
                 </View>
               </GlobalDisplayLayer>

@@ -236,7 +236,7 @@ describe('desktop human-time upload with a real backend', () => {
     expect(warning).toHaveBeenCalledTimes(1);
   });
 
-  it('isolates a rejected span and uploads valid neighbors', async () => {
+  it('stores opaque session ids without loading their sessions', async () => {
     const server = await startServer();
     const backend = new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: server.baseUrl }),
@@ -258,10 +258,9 @@ describe('desktop human-time upload with a real backend', () => {
 
     await expect(
       makeUploader(backend, store, 'duration_tracking_app', warning).flush(),
-    ).resolves.toBe('partial-failure');
+    ).resolves.toBe('flushed');
     const retained = await loadHumanTimeSpans(CONNECTION_ID, store);
-    expect(retained).toHaveLength(1);
-    expect(retained[0].sessionId).toBe('missing-session');
+    expect(retained).toHaveLength(0);
     expect(warning).not.toHaveBeenCalled();
 
     const assistant = await runChatRequest(

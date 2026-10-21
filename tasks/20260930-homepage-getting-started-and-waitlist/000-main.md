@@ -70,6 +70,31 @@ confirmation and integrate its real form into the mobile-download step.
   the reviewed website.
 - Production publication is completed through subtask `020` after the service
   and final integrated website have both passed human review.
+- `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+  owns the complete website's bounded positioning review, compatibility
+  presentation, integrated content acceptance and live website checks.
+  Its accepted candidate is consumed by `020`'s publishing step; both record
+  evidence from the same artifact and publishing push.
+
+## Approved shared website checkpoint — October 7, 2026
+
+The group 1 outcome includes the published complete user website with all
+six reviewed visual stories, three public compatibility views and rethought
+owner-approved launch positioning. The existing product evidence supports
+that bounded review; broad market research remains later.
+
+Service/form work in 020 stays independent of final copy/proof readiness.
+Before the single integrated publishing push, website 030 supplies its accepted
+content candidate and 020 supplies its verified service/form and approved
+privacy policy. After the push, 030 verifies live pages/assets/tables and 020
+verifies the production signup/receipt/withdrawal flow. These are stage
+checkpoints, not mutual whole-task completion dependencies.
+
+Website 030's published-site acceptance gates open-source visibility in
+`tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`.
+Its anonymous-user validation follows in
+`tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`.
+No actual AWS/site/source publication is authorized by this tracking approval.
 
 ## Supporting facts
 
@@ -90,19 +115,29 @@ confirmation and integrate its real form into the mobile-download step.
   and a visual-asset lifecycle. Several approved images can be reused, but the
   revised themes require new proof for the configured-agent, cross-device, and
   non-development-workflow stories.
-- Local unpushed landing-page changes already add the verified macOS header
-  download icon and its maintained release metadata. The redesign must retain
-  or deliberately supersede those changes without losing the direct download
-  contract.
+- The production homepage has the verified macOS header download icon and
+  maintained release metadata, confirmed on October 7, 2026. The redesign
+  retains that direct-download contract; technical publication does not
+  establish unrecorded human review.
 - A push touching `landing_page/**` automatically invokes the protected
   production static-site workflow, so local review must precede the publishing
   push.
+- On October 5, 2026, the user authorized planning subtask `020` alongside
+  ongoing `015`/`018` work and confirmed that nothing remaining in those tasks
+  blocks it. Service and form implementation may proceed independently after
+  `020` plan approval. Final publication still reviews the integrated website.
+- On October 6, 2026, the user selected reuse of
+  `support@dynamicprogrammingsolutions.com` for SES receipts in `us-west-2`.
+  SES production sending is enabled in the inspected region. Subtask `020`
+  owns sender-authentication preflight and a waitlist-specific configuration
+  set without changing shared sending defaults. Public task text contains
+  only non-sensitive configuration and authenticated discovery instructions.
 
 ## Subtasks
 
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
-- [x] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
+- [ ] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
@@ -111,8 +146,16 @@ confirmation and integrate its real form into the mobile-download step.
 
 Status: Draft
 
-The work is deliberately ordered structure first, content/assets/layout
-second, and service integration last.
+Tracking reconciliation on October 7: 010 is done; 015's original copy
+delivery is complete but its remaining Getting Started requirement is in
+review; 018 is in progress; 020 remains pending with a Draft plan. The original
+015 Completion Notes remain intact and its follow-up is recorded separately.
+
+The structure and integration slot already exist. Under the October 5, 2026
+instruction, service/form work in `020` can proceed alongside remaining
+content/visual work in `015`/`018`; their completion is not a prerequisite for
+that implementation. Final integrated-site publication remains gated by human
+review.
 
 Subtask `010` establishes only the page information architecture, component
 contracts, placeholder states, responsive baseline, and integration boundary.
@@ -131,11 +174,14 @@ Subtask `019` then uses those product/capture foundations to teach the product
 through its real UI, finish the remaining proof, revise Getting Started, and
 produce the reviewed local publish candidate.
 
-Subtask `020` then deploys the minimal AWS service, verifies confirmation and
-withdrawal behavior, and adds the actual form to the reviewed mobile-download
+Subtask `020` independently deploys the minimal AWS service, verifies
+confirmation and withdrawal behavior, and adds the actual form to the mobile-download
 step. This keeps the public form contract driven by a real backend rather than
 a placeholder endpoint. The final integrated site is reviewed again before
-one protected production publication.
+one protected production publication. Include website 030's accepted launch
+positioning, all six 018 visual stories and all three compatibility views in
+that candidate. After the same push, run both 030's live website checks and
+020's production form checks.
 
 The staged subtask structure also keeps personal-data handling separate from
 general website content. Website components must not gain direct AWS
@@ -161,7 +207,11 @@ repository files, or application logs.
 
 ### Implementation decisions and open questions
 
-- Decision: implement the website redesign before the waitlist service.
+- Decision: under the October 5 instruction, implement the waitlist service
+  alongside remaining 015/018 work; review the final integrated site together.
+- Decision: website 030 owns complete content acceptance; 020 retains the
+  single publishing push. Use stage checkpoints rather than circular
+  whole-task completion dependencies.
 - Decision: make structural implementation independently approvable while
   copy, assets, ordering, and final layout remain Draft.
 - Decision: the waitlist subtask adds the actual form; the website subtask
@@ -181,8 +231,9 @@ repository files, or application logs.
 - Decision: do not add a public admin UI, bulk campaign sender, tracking
   pixels, custom email analytics, segmentation, names, company fields, or
   free-form profile data.
-- Open human decisions owned by subtask `020`: public sender address,
-  consent wording, and retention/deletion period.
+- Sender/SES region selected: `support@dynamicprogrammingsolutions.com`,
+  `us-west-2`. Remaining human decisions owned by subtask `020`: waitlist
+  data location, consent wording, and retention/deletion period.
 
 ### Documentation
 
@@ -218,10 +269,10 @@ repository files, or application logs.
       ordering, and visual layout.
 - [ ] **AGENT:** Complete and verify the AWS service plus integrated form in
       subtask `020`.
-- [ ] **HUMAN — MANDATORY:** Complete any SES identity or production-access
-      action that requires the AWS account owner.
-- [ ] **HUMAN JUDGMENT:** Approve consent copy, sender identity, retention,
-      and final integrated website presentation.
+- [ ] **AGENT + HUMAN if needed:** Complete effective SES sender verification
+      and DKIM preflight; production access is already enabled and is rechecked.
+- [ ] **HUMAN JUDGMENT:** Approve waitlist data location, consent copy,
+      retention, and final integrated website presentation.
 - [ ] **HUMAN — MANDATORY:** Approve AWS and production website publication.
 - [ ] **AGENT:** Deploy through the approved paths and verify the production
       page, signup, confirmation, withdrawal, and downloads.

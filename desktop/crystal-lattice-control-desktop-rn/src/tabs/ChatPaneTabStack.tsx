@@ -5,7 +5,10 @@ import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import type { SessionSummary } from '@crystal-lattice/frontend-sdk';
 import type { SessionRequestStatus } from '@crystal-lattice/frontend-sdk';
 
-import { ApplicationPluginsProvider } from '@crystal-lattice/frontend-sdk-react';
+import {
+  ApplicationPluginsProvider,
+  ChatWorkspaceProvider,
+} from '@crystal-lattice/frontend-sdk-react';
 
 import type {
   MessagesCache,
@@ -146,6 +149,8 @@ const TabFrame = React.memo(function TabFrame(
         isActive ? styles.active : styles.inactive,
       ]}
       pointerEvents={isVisible ? 'auto' : 'none'}
+      accessibilityElementsHidden={!isVisible}
+      importantForAccessibility={isVisible ? 'auto' : 'no-hide-descendants'}
     >
       <ApplicationPluginsProvider backend={backend} connectionId={connectionId}>
         <ChatPane
@@ -187,6 +192,16 @@ export function ChatPaneTabStackPlaceholder(
 }
 
 export function ChatPaneTabStack(
+  props: ChatPaneTabStackProps,
+): React.JSX.Element {
+  return (
+    <ChatWorkspaceProvider>
+      <ChatPaneTabStackContent {...props} />
+    </ChatWorkspaceProvider>
+  );
+}
+
+function ChatPaneTabStackContent(
   props: ChatPaneTabStackProps,
 ): React.JSX.Element {
   const {
@@ -254,7 +269,7 @@ export function ChatPaneTabStack(
           ) ?? null;
         const cachedEntry =
           messagesCache[tab.connectionId]?.[tab.sessionId] ?? null;
-        const isVisible = tab.tabId === activeTabId;
+        const isVisible = workspaceVisible && tab.tabId === activeTabId;
         const isActive = isVisible || warmSet.has(tab.tabId);
         const watched =
           isSessionWatched?.(tab.connectionId, tab.sessionId) ?? false;
@@ -325,9 +340,8 @@ const styles = StyleSheet.create({
     //zIndex: 1,
   },
   hidden: {
-    //display: 'none'
+    display: 'none',
     opacity: 0,
-    //zIndex: 0,
   },
   active: {},
   inactive: {

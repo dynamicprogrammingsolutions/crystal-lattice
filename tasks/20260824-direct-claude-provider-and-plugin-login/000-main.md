@@ -8,10 +8,10 @@ terminal while preserving the existing OpenRouter Claude option.
 
 ### Functional requirements
 
-- [ ] The `anthropic` provider can execute ordinary and tool-enabled requests
+- [x] The `anthropic` provider can execute ordinary and tool-enabled requests
   against the official Anthropic API and supported Anthropic-compatible
   endpoints without routing through OpenRouter.
-- [ ] API-key authentication uses the resolved provider configuration as its
+- [x] API-key authentication uses the resolved provider configuration as its
   primary credential input.
 - [ ] A separate Anthropic OAuth application plugin exposes login, status,
   cancellation, refresh, and logout actions.
@@ -23,8 +23,8 @@ terminal while preserving the existing OpenRouter Claude option.
   interactive terminal commands.
 - [ ] Missing, expired, revoked, cancelled, and invalid authentication states
   produce actionable plugin-owned results.
-- [ ] Existing `claude-tools` work with the direct provider.
-- [ ] Existing OpenRouter-based Claude agents remain available and are not
+- [x] Existing `claude-tools` work with the direct provider.
+- [x] Existing OpenRouter-based Claude agents remain available and are not
   silently replaced.
 - [x] Application configuration can select model-specific Anthropic settings
   through reusable configuration variants without requiring separate direct
@@ -42,18 +42,18 @@ terminal while preserving the existing OpenRouter Claude option.
 
 - [ ] Credentials use configurable secure persistence and are excluded from
   ordinary logs, notifications, session records, and diagnostics.
-- [ ] Direct-provider selection and fallback behavior are explicit and do not
+- [x] Direct-provider selection and fallback behavior are explicit and do not
   silently route a failed request through another paid provider.
-- [ ] Provider request retries remain provider-owned.
+- [x] Provider request retries remain provider-owned.
 - [ ] OAuth state, PKCE, refresh, supersession, and cancellation are safe.
 - [ ] Anthropic-specific behavior remains in provider/auth plugins rather than
   generic application, terminal, or frontend code.
 - [ ] Deterministic provider/auth tests, local Ollama compatibility tests, and
   selective hosted verification cover the supported credential modes and tool
   loop.
-- [ ] Public documentation distinguishes direct Anthropic access,
+- [x] Public documentation distinguishes direct Anthropic access,
   Anthropic-compatible endpoints, and OpenRouter-hosted Claude access.
-- [ ] Batch processing and structured outputs are outside this task group.
+- [x] Batch processing and structured outputs are outside this task group.
 
 ## Open requirement questions
 
@@ -65,7 +65,7 @@ terminal while preserving the existing OpenRouter Claude option.
 
 ## Subtasks
 
-- [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
+- [x] `tasks/20260824-direct-claude-provider-and-plugin-login/010-direct-claude-provider-runtime.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/011-anthropic-server-web-tools.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/012-anthropic-fast-mode-and-service-tiers.md`
 - [ ] `tasks/20260824-direct-claude-provider-and-plugin-login/013-anthropic-native-compaction-and-context-editing.md`
@@ -82,9 +82,20 @@ terminal while preserving the existing OpenRouter Claude option.
 
 ## Workstreams
 
-- Baseline provider delivery: subtask 010.
+- Baseline provider delivery: subtask 010, completed.
+- Subscription-login and native-search milestone:
+  - generic contributed command support in
+    `tasks/20260824-plugin-driven-cli-and-interactive-terminal-commands.md`;
+  - Codex browser/device parity and provider login UX in
+    `tasks/20261016-provider-login-experience/`;
+  - Anthropic OAuth lifecycle in subtask 020;
+  - Anthropic-native server web search in subtask 011;
+  - final cross-entrypoint convergence and combined OAuth-plus-search
+    acceptance in subtask 030.
 - Provider-specific follow-ups: subtasks 011 through 018; each depends on 010
-  or a documented provider boundary but is not a prerequisite for OAuth.
+  or a documented provider boundary. Subtask 011 is milestone-critical;
+  subtasks 012 through 018 are not prerequisites for subscription login and
+  native search.
 - Portable request errors: subtask 019; this revisits the provider/application
   error boundary without moving retry or login ownership out of plugins.
 - OAuth lifecycle: subtask 020.
@@ -95,6 +106,10 @@ terminal while preserving the existing OpenRouter Claude option.
   dropdowns, config-owned rich controls, chat placements, and frontend
   rendering without requiring one application plugin per setting.
 - Client and terminal integration: subtask 030.
+- Provider-auth global attention is a later enhancement owned by
+  `tasks/20261016-provider-login-experience/030-provider-auth-global-attention.md`;
+  it does not gate OAuth, callbacks, commands, owning notifications, or
+  subtask 030 acceptance.
 
 ## Supporting facts
 
@@ -115,11 +130,15 @@ terminal while preserving the existing OpenRouter Claude option.
 
 Status: Draft
 
-Implement the work through independently reviewable provider, feature, OAuth,
-and client stages. Establish the API-key provider and compatibility contract
-first. Add provider-specific features as separate subtasks. Implement OAuth
-against the provider credential contract, then expose the shared actions
-through terminal and React Native frontends.
+Continue from the completed API-key provider and compatibility contract.
+Complete the generic command platform and Codex browser/device flow, then
+implement Anthropic OAuth and adopt the shared provider login/owning
+notification UX. Implement native Anthropic server web search before using
+subtask 030 as the final convergence gate across terminal, mobile, desktop,
+credential reload, citations, and provider-native follow-up history.
+
+Keep global attention outside this critical path. It may be added after
+functional login as a cross-connection presentation enhancement.
 
 Do not change the default Claude agent until the direct provider, OAuth
 refresh, tool behavior, and hosted smoke evidence are complete. Stop for user
@@ -136,6 +155,15 @@ or materially different security boundaries.
   provider behavior as the protocol authority.
 - Decision: provider transport and authentication UI are separate plugins
   joined by a documented credential contract.
+- Decision: a normal terminal login is one foreground command operation even
+  when the auth plugin uses multiple internal lifecycle actions.
+- Decision: app frontends invoke actions and generic deep links; they do not
+  host provider protocol or token exchange logic.
+- Decision: native Anthropic server search is distinct from the existing
+  Gemini/Tavily-backed `claude-tools` client search.
+- Decision: subtask 030 depends on subtask 011 and proves one saved-subscription
+  OAuth-to-native-search flow with citations and reload.
+- Decision: provider-auth global attention does not gate usable login.
 - Decision: the package is named Anthropic-compatible, while runtime provider
   and class names use the shorter `anthropic` form.
 - Decision: `claude-tools` remains provider-independent where its current
@@ -163,6 +191,10 @@ or materially different security boundaries.
   tool, and troubleshooting documentation when implementation is delivered.
 - Add Anthropic OAuth login, status, logout, storage, and callback
   documentation with subtask 020.
+- Document one complete terminal login command flow rather than requiring
+  separate start and status commands.
+- Distinguish Anthropic-native server search from client-side Gemini/Tavily
+  search.
 - Update default-agent and terminal/mobile guidance only when behavior is
   delivered.
 
@@ -170,14 +202,19 @@ or materially different security boundaries.
 
 - [x] Resolve the baseline credential mode and provider/package naming.
 - [x] Define the package-owned and portable specification structures.
-- [ ] Execute and verify direct provider runtime subtask 010.
-- [ ] Execute selected provider-feature subtasks 011 through 018.
+- [x] Execute and verify direct provider runtime subtask 010.
+- [ ] Execute native server web-tools subtask 011 for the subscription/search
+  milestone.
+- [ ] Execute optional provider-feature subtasks 012 through 018 separately
+  from the subscription/search milestone.
 - [ ] Execute the portable request-error follow-up 019 when the standard
   request-error work is planned.
 - [ ] Execute and verify OAuth authentication subtask 020.
 - [x] Execute and verify configuration composition subtask 021.
 - [x] Execute and verify portable rich session-settings subtask 022.
 - [ ] Execute and verify frontend/terminal integration subtask 030.
+- [ ] Complete the provider-login experience tasks required before subtask
+  030; defer provider-auth global attention until after functional acceptance.
 - [ ] Run selective local-compatible, real-provider, and saved-login smoke
   tests.
 - [ ] Reconcile documentation and requirement evidence.
@@ -191,8 +228,13 @@ or materially different security boundaries.
   Ollama's Anthropic-compatible API.
 - OAuth login/status/logout and credential refresh behave consistently across
   application actions and terminal bindings.
+- One contributed top-level command and one slash command can each complete
+  login without requiring a separate user-issued status command.
 - Mobile and desktop can complete the supported OAuth flow and use the saved
   credential on a subsequent provider request.
+- A saved subscription OAuth credential can execute Anthropic-native server
+  web search, render citations, survive reload, and support a provider-native
+  follow-up request.
 - OpenRouter Claude behavior remains available and unchanged unless explicitly
   selected otherwise.
 

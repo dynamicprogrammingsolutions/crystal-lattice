@@ -54,9 +54,9 @@ A fatal request error clears the matching active-request UI state immediately;
 the later completion event remains idempotent. Live controller state,
 including an explicit null request ID, takes precedence over cached state so
 Resend becomes available without a manual refresh. Draft text does not disable
-Resend. An unconfirmed send acknowledgement remains under the existing
-status-check/retry recovery guard until reconciliation establishes whether a
-request exists.
+Resend. An unconfirmed send acknowledgement keeps its original payload under
+the Resend/Cancel recovery guard. Current request status alone does not prove
+whether that unacknowledged operation was accepted.
 
 The top Session actions also expose Resend, hard Cancel, and Soft cancel.
 These entries reuse the same handlers and request-state eligibility as their
@@ -90,11 +90,75 @@ and frontend SDK
 [rich session UI implementation](../../../../packages/frontend-sdk/docs/development/rich-session-ui.md)
 for portable component and normalized-control behavior.
 
+## Editing and progress
+
+Modify uses the same inline or expanded main composer. Warning-colored
+**Editing message [index]** context uses the canonical zero-based message
+index, and the primary control visibly reads **Save edit**. Save modifies the
+selected user, assistant, or system message and confirms the updated transcript;
+it does not start a model response. Ordinary draft text and attachment drafts
+remain separate and return after saving or Cancel edit. A failed save retains
+the edit buffer. Edit identity and attachments stay scoped to the
+connection/session across navigation in the connected workspace.
+
+Append, Append as, Resend, and attachment mutations are disabled during
+editing. Cancellation of existing model work and unrelated controls retain
+their ordinary eligibility. The Save control spins during modification, and
+the compact top status row identifies the message being saved.
+
+Both composer sizes expose **Hide keyboard**. The inline control appears while
+the keyboard is visible and clears after native dismissal. Both editors use
+keyboard avoidance on Android's fullscreen activity. Dragging the transcript also
+dismisses the keyboard. The normal composer keeps its bounded input height
+when editing long messages.
+
+The inline iOS keyboard offset uses the measured chat viewport position in the
+window, including the app's top safe area and navigation padding. The device's
+top safe-area inset supplies the initial offset before measurement. A zero
+offset inside the app's safe-area wrapper underestimates keyboard overlap.
+
+While the keyboard is visible, the inline composer uses a compact input and
+keeps its actions in the overflow menu. Edit context shares that toolbar row.
+Hiding the keyboard restores the pinned controls and ordinary attachment
+previews. Ordinary attachment previews stay separate from message editing.
+
+The compact status row above the transcript also shows ordinary request
+submission and generation. Application actions track independent operation
+identities and leave unrelated actions usable; finishing one does not hide
+another's progress.
+
+## Transcript range navigation strategies
+
+Home → Development Settings exposes three diagnostic strategies for loading
+older and newer transcript ranges:
+
+- **Single-flight anchor** is the product default. It preserves the visible
+  message with one bounded retry operation. Replacement, user navigation,
+  strategy changes, and unmount cancel outstanding work. The operation stops
+  after five seconds or 30 attempts and leaves the newly loaded range at its
+  natural FlatList position if it cannot converge.
+- **Simple reload** is the pre-anchor baseline. It loads the requested range
+  without explicit viewport capture or restoration.
+- **Mobile anchor v1** retains the original mobile retry implementation for
+  controlled comparison only.
+
+The single-flight controller serializes native measurement work and rejects
+row/layout notifications while a frame, measurement, or retry is already
+scheduled. Debug timeline entries record operation start, bounded progress,
+completion, cancellation, and stop reasons. Long memory stress runs use
+process RSS sampling; Allocations tracing remains short and explicitly opt-in.
+The visual-top helper also keeps only one scheduled retry, uses `scrollToEnd`
+plus the measured maximum offset to converge, and stops after five seconds or
+20 attempts.
+
 ## Verification and entry points
 
 Maintainer entry points:
 
 - `src/SessionChatScreen.tsx`
+- `src/components/DependencyFlatList.tsx`
+- `src/components/transcriptAnchorRetry.ts`
+- `src/transcriptAnchorStrategy.ts`
 - `src/composerPrimaryAction.ts`
 - `src/components/SessionSettingsModal.tsx`
 - `src/testing/MobileRichSessionUiHarness.tsx`
@@ -102,6 +166,32 @@ Maintainer entry points:
 Focused coverage includes:
 
 - `__tests__/composerPrimaryAction.test.ts`
+- `__tests__/transcriptAnchorRetry.test.ts`
+- `__tests__/developmentSettings.test.tsx`
 - `__tests__/RichSessionUi.test.tsx`
 - Session Chat component tests
 - `e2e/richSessionUi.e2e.test.ts`
+
+The focused production Chat HTTP integration is:
+
+```bash
+npm run test:integration -- --runTestsByPath __integration__/ChatOperations.realBackend.integration.test.tsx
+```
+
+The native request, edit, and recovery workflows use a real backend, the
+production connected navigation/screens, and a forwarding acknowledgement
+proxy. After building the native apps, run:
+
+```bash
+npx detox test -c ios.sim.release e2e/chatOperations.e2e.test.ts --cleanup
+scripts/prepare_android_detox_emulator.sh
+npx detox test -c android.emu.e2e e2e/chatOperations.e2e.test.ts --cleanup
+```
+
+The suite uses the largest current typography preset, actual transcript
+gestures, keyboard controls, and native frame measurements. It verifies that
+the transcript retains at least 30% of the usable chat height and that status
+and recovery stay above it. Its connected harness includes the app's top
+safe-area wrapper, and iOS checks that both the input and the complete composer
+remain above the visible native keyboard. Continuous production polling requires
+explicit bounded UI readiness checks with Detox synchronization disabled.

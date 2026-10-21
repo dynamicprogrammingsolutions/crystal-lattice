@@ -57,7 +57,7 @@ describe('generic action deep links against a real backend', () => {
     expect(copyAction).toBeTruthy();
     const url = copyAction.text;
     expect(url).toBe(
-      `crystal-lattice://action/test-connection/${sessionId}/complete_external_flow` +
+      `crystal-lattice://action/test-connection/${sessionId}/generic_callback_complete_external_flow` +
         '?result=approved&nonce=n-123',
     );
 
@@ -66,20 +66,15 @@ describe('generic action deep links against a real backend', () => {
     expect(parsed).toEqual({
       connectionId: 'test-connection',
       sessionId,
-      actionId: 'complete_external_flow',
-      inputs: {
-        result: 'approved',
-        nonce: 'n-123',
-        redirect_url: url,
-      },
+      callbackElementId: 'generic_callback_complete_external_flow',
       redirectUrl: url,
     });
 
-    const response = await backend.executeSessionAction!({
+    const response = await backend.executeSessionActionCallback!({
       sessionId: parsed!.sessionId,
       pluginId: parsed!.pluginId,
-      actionId: parsed!.actionId,
-      inputs: parsed!.inputs,
+      callbackElementId: parsed!.callbackElementId,
+      redirectUrl: parsed!.redirectUrl,
     });
 
     expect(response.status).toBe('ok');

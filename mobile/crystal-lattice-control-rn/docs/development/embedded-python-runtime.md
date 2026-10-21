@@ -23,16 +23,19 @@ credential-free smoke agent so existing session summaries and runtime
 diagnostics remain accessible.
 
 The `local` agent remains registered after real profiles are enabled so
-sessions created before configuration remain loadable. A successfully tested
-real profile becomes the default for subsequent sessions.
+sessions created before configuration remain loadable. New sessions use the
+agent selected in the ordinary agent picker. Provider Test does not change
+agent selection, enablement, or saved settings.
 
-Editable provider URLs, models, enabled flags, and the default agent are stored in a
+Editable provider URLs, default models, and enabled flags are stored in a
 versioned iOS preference document. Version 3 splits the old overloaded
 reviewer profile into generic-compatible and dedicated Responses reviewer
 profiles. Each provider API key is stored as a
 separate iOS Keychain generic-password item. JavaScript receives only
 `hasApiKey`; keys are not written to connection records or AsyncStorage. The
 old single reviewer key is migrated from `UserDefaults` to Keychain.
+The stored default-agent field is retained for legacy callers that omit an
+agent; provider settings no longer offers Make default.
 
 The provider/agent/plugin graph is maintained by the Python application in
 `agent_terminal_app/default_config/embedded-ios/config.json`. Runtime
@@ -88,17 +91,21 @@ history, and relevant tool inputs/results to the selected external service.
 
 The reusable OpenAI Responses provider supports `api`, `auto`, and `chatgpt`
 authentication modes. The embedded mobile profile deliberately exposes only
-**API key** and **ChatGPT** in On-device Provider Settings. Existing mobile
-`auto` values migrate to `api`. The ordinary session/plugin auth selector is
-suppressed for embedded agents so one session cannot accidentally switch away
-from the saved on-device choice.
+**API key** and **ChatGPT** in Local provider settings. Existing mobile
+`auto` values migrate to `api`. This is a provider default: sessions can choose
+API or ChatGPT independently in Session Settings, and removing that override
+restores the default. Reviewer remains API-only.
 
 The bundle includes `chatgpt-auth-app` and the Responses ChatGPT auth feature.
-The OpenAI authentication card in On-device Provider Settings invokes the
+The OpenAI card's Authentication section shows **Default authentication**,
+**API key**, then **ChatGPT account**, with both credential paths always
+available. API does not disable ChatGPT login, and ChatGPT does not hide the
+key. The account section invokes the
 plugin's ordinary **Sign in**, **Check status**, **Cancel**, and **Log out**
 actions. The generic action display renders the returned login URL, user code,
 Open-link, Copy-code, and follow-up status action. React Native does not
-implement the authorization protocol itself.
+implement the authorization protocol itself. Account actions do not change
+the saved default authentication method.
 
 ChatGPT HTTPS calls use the bundled Certifi roots with verification enabled.
 OpenAI's device-auth endpoint can return a Cloudflare route error to
@@ -107,9 +114,12 @@ OpenAI's device-auth endpoint can return a Cloudflare route error to
 iOS. The same verified CA setup covers login polling, token exchange,
 credential refresh, and ChatGPT/Codex discovery requests.
 
-The Reviewer profile is globally hidden by default. Enabling **Reviewer
-access** adds it at the bottom of the provider list and makes it available to
-the runtime once its caller key is present. Its Ireland HTTPS URL,
+The Reviewer profile is initially hidden and disabled. Enable **Show reviewer
+sample provider** in **Global Settings**, then enter the supplied caller key
+in **Local provider settings**. First global opt-in activates the profile, so
+this setup needs no third step. Reviewer appears last and has its own enable
+switch. Later global hide/show changes preserve explicit provider enablement.
+Its Ireland HTTPS URL,
 `gpt-5.6-luna` model, provider protocol, tool family, and CA path are fixed by
 the maintained Python configuration and are not editable in the app. The App
 Review build includes the
@@ -220,18 +230,18 @@ Add `--delay-ms 2000` when exercising background continuation.
 
 On iOS:
 
-1. The **On-device Python agents** connection is already present under
+1. The **Local agent** connection is already present under
    **Connections**.
-2. From Home, open **On-device providers** in the Home actions bar or
-   **On-device Provider Settings** in the Home menu.
-3. For ordinary OpenAI Responses, choose **API key** or **ChatGPT** in the
-   OpenAI authentication card. API-key mode uses the profile's key field.
-   ChatGPT mode enables the plugin-driven login/status controls in the same
-   settings window.
-4. Enable a profile and set its URL, model, and credentials when required.
-   Choose the default agent used when callers do not specify one. To use the
-   Reviewer, enable **Reviewer access** and enter only its private caller key.
-5. Every edit saves automatically after a short debounce. The status line
+2. From Home, open **Local providers** in the actions bar or
+   **Local provider settings** in the menu.
+3. In the **OpenAI** card, choose **Default authentication**, enter an API key,
+   or use ChatGPT login/status controls. Both credential paths stay available;
+   sessions can override the default in **Session settings**.
+4. Enable a profile and set its URL, **Default model**, and credentials.
+   For Reviewer, enable **Show reviewer sample provider** in Global Settings,
+   then enter the supplied key in Local provider settings.
+5. Every edit saves automatically after a short debounce; closing the window
+   flushes pending edits. The status line
    reports saving, success, or failure. **Test** validates the current
    candidate without changing settings by itself.
 6. Open the built-in connection, create a session with an available agent, and
@@ -331,6 +341,16 @@ recoverable `interrupted` state. It does not automatically repeat the provider
 request. Actual background duration remains controlled by iOS and is not a
 product guarantee.
 
+This bounded request background task is not evidence that a mobile-owned OAuth
+localhost listener can survive an external-browser sign-in or MFA interval.
+The iOS host has no durable listener background mode for that flow, and the
+Android app has no corresponding native listener service. Deterministic
+callback routing can prove opaque forwarding to a
+`session_action_callback`, but it cannot prove OS suspension behavior or an
+automatic secret-free return from the browser. Browser login is therefore not
+productized for mobile; Codex device code remains the supported mobile method.
+No embedded WebView or public callback relay is used.
+
 ## Focused verification
 
 Run source-level checks:
@@ -421,7 +441,14 @@ and bundled public CA. Local proxy development should use the generic
 OpenAI-compatible profile; the production Reviewer settings UI intentionally
 has no URL, model, or CA override.
 
-The default ChatGPT simulator command starts a real device-code login, proves
+The credential-free native settings regression is:
+
+```bash
+npm run test:ios:local-provider-settings
+```
+
+The default ChatGPT simulator command starts a real device-code login while
+API remains the default, proves
 that the plugin-driven URL/code actions are displayed, and cancels the
 attempt. It does not require a human account:
 
@@ -437,8 +464,9 @@ plugin returns them. Open that URL on your computer, enter the code printed
 for this run, approve authorization in the browser, and return to the app.
 The same details remain visible in the simulator's **ChatGPT Login** card. The
 **ChatGPT status** line updates from `pending` to `authenticated` when the
-plugin completes login; the test then sends a real tool request and checks
-relaunch persistence. If no one completes the browser step, the test fails
+plugin completes login; the test retains API as the saved default, sends a
+real tool request with a ChatGPT session override, and checks persistence.
+If no one completes the browser step, the test fails
 with the last observed status; that is not evidence of a completed login.
 The ungated start/cancel test checks the values without printing its
 short-lived code.
@@ -448,12 +476,15 @@ CRYSTAL_RUN_CHATGPT_LOGIN_E2E=1 \
   npm run test:ios:embedded-providers:detox:chatgpt
 ```
 
+The gated case also needs `OPENAI_API_KEY` from the repository environment to
+retain a usable API default while exercising a ChatGPT session override.
 Each gated run starts a fresh login. After autosave succeeds, it closes the
-settings modal before relaunching the app. Detox cleanup removes the installed
-simulator app and its saved credentials between runs.
+settings modal before relaunching the app. A new Detox invocation reinstalls
+the simulator app by default and clears its saved login; restarting a failed
+run therefore requires a new browser authorization.
 
-For the focused physical-device check, open On-device Provider Settings,
-select **ChatGPT**, and press **Sign in with ChatGPT**. Acceptance for that
+For the focused physical-device check, open Local provider settings and press
+**Sign in with ChatGPT**, regardless of the default. Acceptance for that
 check is the **ChatGPT Login** display with an Open-link and Copy-code action;
 `CERTIFICATE_VERIFY_FAILED` must not appear. The broader capability acceptance
 remains the Release simulator flow.

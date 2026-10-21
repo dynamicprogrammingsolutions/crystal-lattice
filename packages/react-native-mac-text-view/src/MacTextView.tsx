@@ -33,13 +33,10 @@ export interface MacTextViewProps extends Omit<ViewProps, 'onLayout'> {
   initialText?: string;
   placeholder?: string;
   editable?: boolean;
+  submitOnEnter?: boolean;
   textColor?: string;
   placeholderTextColor?: string;
   fontSize?: number;
-  fontFamily?: string;
-  lineHeight?: number;
-  italic?: boolean;
-  textContainerInset?: number;
   addToHeight?: number;
   autoGrow?: boolean;
   minHeight?: number;
@@ -124,8 +121,7 @@ export const MacTextView = forwardRef<MacTextViewHandle, MacTextViewProps>(funct
       autoCorrect: false,
       spellCheck: false,
       style: [style as any, autoHeightStyle as any],
-      contextMenuHidden: props.editable === false,
-      scrollEnabled: props.editable !== false,
+      blurOnSubmit: props.submitOnEnter !== false,
     };
 
     return <TextInput {...fallbackProps} />;

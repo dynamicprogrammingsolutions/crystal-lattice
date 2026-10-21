@@ -36,6 +36,18 @@ from .reader_engine import (
     validate_path_within_directories,
 )
 from .editor_engine import replace_edits, replace_literal_text, write_text_file
+from .interactive_process_engine import (
+    DEFAULT_MAX_SESSIONS,
+    DEFAULT_SESSION_TTL_SECONDS,
+    InteractiveProcessError,
+    InteractiveProcessManager,
+    InteractiveProcessSession,
+    InteractiveSpawnSpec,
+    SessionLimitError,
+    SessionStats,
+    StdinClosedError,
+    get_default_manager,
+)
 from .search_engine import (
     MAX_QWEN_GLOB_RESULTS,
     format_gemini_glob_result,
@@ -82,7 +94,17 @@ __all__ = [
     "DEFAULT_BACKGROUND_SHUTDOWN_POLICY",
     "DEFAULT_QWEN_CHAR_LIMIT",
     "DEFAULT_QWEN_LINE_LIMIT",
+    "DEFAULT_MAX_SESSIONS",
+    "DEFAULT_SESSION_TTL_SECONDS",
     "FilesystemBackgroundProcessStore",
+    "InteractiveProcessError",
+    "InteractiveProcessManager",
+    "InteractiveProcessSession",
+    "InteractiveSpawnSpec",
+    "SessionLimitError",
+    "SessionStats",
+    "StdinClosedError",
+    "get_default_manager",
     "MEDIA_SNIFF_BYTES",
     "SVG_MAX_SIZE_BYTES",
     "MediaFileType",

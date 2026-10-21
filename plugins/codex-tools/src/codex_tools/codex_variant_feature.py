@@ -3,10 +3,11 @@
 This feature detects when the configured model belongs to the shell-command
 family used by Codex CLI and emits the ``codex-variant`` tag.
 
-The tag is used by shell tool selection to choose the appropriate
-shell tool:
-- codex-variant tag present → shell_command (string-based)
-- codex-variant tag absent → shell (array-based)
+The tag no longer drives shell tool selection: since the move to the
+unified exec surface as the model-agnostic default (matching current
+upstream Codex), every model gets ``exec_command`` + ``write_stdin`` under
+``shell_tool_mode: "auto"``. The tag is kept for compatibility with
+plugins or tooling that consume it.
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ class CodexVariantFeature(FeaturePlugin):
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Return codex-variant tag if the model auto-selects shell_command."""
+        """Return codex-variant tag for shell-command-family models."""
         model = config.get("model", "")
         if not isinstance(model, str):
             return []

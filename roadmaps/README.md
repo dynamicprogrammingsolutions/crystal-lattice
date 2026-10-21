@@ -4,6 +4,11 @@ Roadmaps are repository work-tracking documents that place selected tasks in a
 useful priority order while preserving the dependencies needed to interpret
 that order.
 
+Maintain and synchronize authored roadmaps from the `develop` worktree.
+Accepted tracking updates on `develop` take precedence over older copies on
+`main`. Release evidence may come from `main`; reconcile that evidence into
+the current develop tracking before synchronizing the configured Sheets.
+
 Each roadmap has two files:
 
 - `<name>.csv` is the authored source of truth and may be edited by people or
@@ -41,8 +46,10 @@ Set these values in `roadmaps/.env`:
 ```dotenv
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
-ROADMAP_PRODUCT_SPREADSHEET_ID=your-google-spreadsheet-id
 ```
+
+The configured spreadsheet stores the release roadmap in `Sheet1` and the
+product roadmap in `Sheet4`.
 
 Then regenerate the `release` Markdown roadmap and update its configured Google
 Sheet:
@@ -102,6 +109,26 @@ tasks as context without reproducing every historical prerequisite. When an
 older dependency is already complete and omitted from the CSV, record that fact
 in an arbitrary context field such as `notes`. Every dependency retained after
 normalization must refer to an earlier row.
+
+## Delivery groups and retained history
+
+The authored roadmaps include an arbitrary `delivery_group` column. It groups
+work by the delivery being prioritized while `main_task` retains task ownership.
+Group order is a priority recommendation; independent groups may proceed in
+parallel.
+
+Completed rows remain visible with evidence and completion dates. Retain
+superseded rows near their replacement with explicit `SUPERSEDED BY` links in
+`notes`. User-approved closure by supersession uses `done` and records the
+closure date; this does not mean unmet original requirements were fulfilled.
+Keep those requirement records intact and distinguish closure from verified
+delivery in the notes.
+
+Closed superseded tasks have no active execution dependencies. Preserve any
+former dependency as historical context in the task file. Active rows point
+to the current owner instead of depending on retired rows. Partially completed
+tasks retain their active status and outstanding scope even when displayed
+before the release that supplied their completed portion.
 
 ## CSV format
 

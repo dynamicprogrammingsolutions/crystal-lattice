@@ -1,86 +1,134 @@
 # Tool Host Protocol (NDJSON)
 
-This repo supports out-of-process tool plugins executed by external “tool hosts”. The first implementation is the Node.js tool host used for JavaScript/TypeScript tools.
+This is the cross-package wire contract for out-of-process tool plugins. The
+Python Core client and Node.js tool host jointly implement the contract;
+neither implementation is authoritative on its own.
+
+Version 1 hosts JavaScript and TypeScript tools through the Node.js
+implementation. It remains object-arguments-based even though the in-process
+Python tool API also supports raw-text and other payload forms.
 
 ## Transport
 
 - A tool host is a subprocess.
-- The client writes newline-delimited JSON (NDJSON) to the host’s stdin.
+- The client writes newline-delimited JSON (NDJSON) to the host's stdin.
 - The host writes NDJSON to stdout.
-- Stdout is reserved for protocol messages; tool hosts/plugins should write logs to stderr.
+- Each line is one complete protocol record.
+- Stdout is reserved for protocol records. Hosts and plugins write logs to
+  stderr.
+- Values crossing the boundary must be JSON-compatible.
 
 ## Message shapes
 
-All messages include a protocol version field:
-
-```
-{ "v": 1, "id": "uuid", "method": "execute_tool", "params": { ... } }
-```
-
 ### Request
 
-```
+```json
 { "v": 1, "id": "uuid", "method": "<method>", "params": { ... } }
 ```
 
-- `v`: protocol version (currently `1`).
-- `id`: request id (string).
-- `method`: RPC method name (snake_case).
-- `params`: JSON object.
+- `v`: protocol version, currently `1`.
+- `id`: non-empty request identifier.
+- `method`: RPC method name in snake case.
+- `params`: JSON object; an omitted or non-object value is treated as `{}` by
+  the Node host.
+
+The Node host rejects unsupported versions, missing identifiers, and missing
+method names with a protocol error.
 
 ### Response
 
-```
+```json
 { "v": 1, "id": "uuid", "ok": true, "result": { "value": <any>, "state": <object?> } }
 { "v": 1, "id": "uuid", "ok": false, "error": { "type": "Error", "detail": "...", "stack": "..." } }
 ```
 
-When a request includes `params.state` (or when calling `init`), the host should also include an updated `result.state` so the client can round-trip tool state.
+Responses repeat the request `id`. When a request contains `params.state`, the
+response includes `result.state`; `init` responses also include it. Node
+plugins update state by mutating the supplied object. The Python proxy replaces
+its working state with the returned object.
 
 ### Streaming events
 
 Tool execution can emit streaming events before the final response:
 
-```
+```json
 { "v": 1, "id": "uuid", "event": { "type": "part", "payload": { ... } } }
 ```
 
-For Node.js tools, events are produced by calling the `emit(event)` callback.
+Node tools produce events through the `emit(event)` callback. The host forwards
+object-shaped events with the active request identifier.
 
-The Python core maps `event.type == "part"` into partial chunks yielded as:
+The Python proxy maps `event.type == "part"` to:
 
-```
+```json
 { "part": <payload> }
 ```
 
-## Required methods (v1)
+Other event types are not emitted as tool-stream chunks by the current Python
+proxy.
 
-- `init({"config": <object>}) -> state`
+## Host methods
+
+### Handshake
+
+The host implements `handshake` without calling the plugin:
+
+```json
+{ "v": 1, "id": "uuid", "method": "handshake", "params": {} }
+```
+
+The response value reports the protocol version, host identity, Node version,
+and loaded plugin name/version. The current Python proxy does not require a
+handshake before ordinary calls.
+
+### Tool lifecycle and execution
+
 - `get_tool_schemas({"state": <object>}) -> [schema]`
 - `execute_tool({"tool_name": "...", "arguments": <object>, "state": <object>}) -> result`
 
-Note: the in-process Python tool API is now payload-first and can execute raw text / freeform tool calls. The v1 host protocol remains object-arguments-based for compatibility with existing Node-hosted tools. If host-side freeform/custom tool execution is added later, this page should be updated as part of that protocol change.
+These correspond to `getToolSchemas(state)` and
+`executeTool(toolName, arguments, state, emit)` in camel-case Node plugins.
+Snake-case plugin methods are also accepted. They are the two required plugin
+operations checked by the Node SDK for object exports.
 
-The `execute_tool` result is expected to be the same shape as a Python tool result:
+`init({"config": <object>}) -> state` is supported but optional. When the
+plugin does not implement it, the host returns `{"config": config}` as state.
 
-```
+The `execute_tool` value uses the Python tool-result shape:
+
+```json
 { "success": true, "result": <any> }
 { "success": false, "error": "..." }
 ```
 
-## Optional methods
+### Optional plugin methods
 
 - `get_config_schema() -> object`
 - `get_ui_elements() -> [object]`
 - `get_tags({"config": <object>, "models": [object]}) -> [string]`
 - `required_tags() -> [string]`
 - `format_tool_result({"result": <object>, "state": <object>}) -> string | provider-native envelope`
-
-`format_tool_result` should normally return a string. A tool host may opt into structured provider-native tool output by returning an explicit JSON object with `type: "provider_native_tool_result"` and a supported `format`, such as `openai.chat_completions` or `openai.responses`. The Python host preserves only that explicit envelope shape as structured model-facing content; ordinary objects are compatibility text.
-
 - `format_tool_call_preview({"tool_name": "...", "arguments": <object>, "state": <object>}) -> string`
 - `to_display_format({"text": "...", "result": <object>, "state": <object>}) -> object`
 
-## Node.js implementation
+`format_tool_result` should normally return a string. A tool host may opt into
+structured provider-native output by returning an explicit object with
+`type: "provider_native_tool_result"` and a supported `format`, such as
+`openai.chat_completions` or `openai.responses`. The Python proxy preserves
+only that explicit envelope as structured model-facing content; other objects
+fall back to compatibility text.
 
-The tool host runner lives at `packages/tool-host-node/host.mjs`. The Python proxy tool plugin lives at `core/python/agent_core/tool_hosts/node_tool_plugin.py`.
+The host supplies empty-object, empty-list, empty-string, or `null` defaults
+for omitted optional methods as appropriate. An unknown method without a
+defined default returns a protocol error.
+
+## Implementations and verification
+
+- [Python proxy](https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main/core/python/agent_core/tool_hosts/node_tool_plugin.py)
+- [Node host](https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main/packages/tool-host-node/host.mjs)
+- [Node plugin SDK helper](https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main/packages/tool-host-node/sdk.mjs)
+- [Cross-process tests](https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main/core/python/tests/test_node_tool_plugins.py)
+
+Changes to versioning, message shapes, method names, state round-tripping,
+stream events, or error behavior must be coordinated across both
+implementations and this contract.

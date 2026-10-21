@@ -17,6 +17,10 @@ Supports:
 
 Reasoning, tools, and usage are provider- and model-dependent.
 
+Generated API reference:
+
+- [OpenAI-compatible provider](docs/reference/provider.md)
+
 ## Quickstart (Ollama example)
 
 Prerequisites:

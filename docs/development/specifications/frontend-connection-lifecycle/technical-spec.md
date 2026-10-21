@@ -240,7 +240,7 @@ The detailed cache and draft contract is in
 Existing `ConnectionRecord` IDs remain cache identities. Existing manual,
 discovery, bridge, and cloud records remain readable.
 
-An absent bridge transport mode continues to mean WebSocket according to the
+An absent bridge transport mode selects HTTP according to the
 bridge-connectivity specification. Lifecycle extraction does not change
 bridge request routing or add fallback/replay.
 

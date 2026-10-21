@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { type ActionDisplayFollowupAction } from '@crystal-lattice/frontend-sdk';
 import {
@@ -7,9 +7,9 @@ import {
   useTheme,
 } from '@crystal-lattice/frontend-rn-components';
 
-import { MacSelect } from '../native/MacSelect';
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 import { ActionDisplayCard } from '../ui/ActionDisplayCard';
+import { useDesktopApplicationActionFieldRenderers } from '../ui/useDesktopApplicationActionFieldRenderers';
 import {
   clearActiveActionDisplayWindow,
   useActiveActionDisplayWindow,
@@ -39,26 +39,7 @@ function ActionDisplayWindowInner(): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
-  const fieldRenderers = useMemo(
-    () => ({
-      select: (params: any) => (
-        <View style={styles.selectGroup}>
-          <Text style={styles.selectLabel}>{params.label}</Text>
-          {params.description ? (
-            <Text style={styles.selectDescription}>{params.description}</Text>
-          ) : null}
-          <MacSelect
-            style={styles.select}
-            options={params.options}
-            selectedValue={params.value}
-            placeholder={params.placeholder || 'Select…'}
-            onValueChange={params.onChange}
-          />
-        </View>
-      ),
-    }),
-    [styles],
-  );
+  const fieldRenderers = useDesktopApplicationActionFieldRenderers();
 
   const closeWindow = useCallback(() => {
     DesktopWindowManager?.closeReactWindow({ windowKey: WINDOW_KEY });
@@ -118,23 +99,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       flex: 1,
       padding: 16,
       backgroundColor: theme.backgroundAlt,
-    },
-    selectGroup: {
-      marginBottom: 14,
-    },
-    selectLabel: {
-      color: theme.text,
-      fontSize: 12,
-      fontWeight: '600',
-      marginBottom: 5,
-    },
-    selectDescription: {
-      color: theme.textSecondary,
-      fontSize: 11,
-      marginBottom: 5,
-    },
-    select: {
-      minHeight: 28,
     },
   });
 }

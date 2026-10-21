@@ -61,6 +61,7 @@ import {
   useHydrateControllerFromCache,
   useSessionListFilters,
   useSessionsController,
+  useDisplayFollowupDialog,
 } from "@crystal-lattice/frontend-sdk-react";
 import { useTheme, type Theme } from "./theme";
 import SessionSettingsModal from "./components/SessionSettingsModal";
@@ -100,6 +101,7 @@ interface SessionsScreenProps {
   onSelectSession: (sessionId: string) => void;
   requestStatuses?: Readonly<Record<string, SessionRequestStatus>>;
   newSessionRequestToken?: number;
+  onNewSessionRequestHandled?: (token: number) => void;
 }
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = "clc_pinned_session_list_actions_v1";
@@ -172,6 +174,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   onSelectSession,
   requestStatuses = {},
   newSessionRequestToken = 0,
+  onNewSessionRequestHandled,
 }) => {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -508,6 +511,29 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     ]
   );
 
+  const displayFollowupDialog = useDisplayFollowupDialog<ActionDisplayEntry>(
+    async (element, { action, source: entry, formValues }, dialogValues) => {
+      if (
+        (entry.display.presentation ?? "modal") !== "inline" &&
+        action.preserve_display !== true
+      ) {
+        setActionResultDisplay((current) =>
+          current?.key === entry.key ? null : current
+        );
+      }
+      setActiveDisplayActionId(action.id);
+      try {
+        await executePluginAction(element, {
+          ...entry.context,
+          formValues,
+          dialogValues,
+        });
+      } finally {
+        setActiveDisplayActionId(null);
+      }
+    }
+  );
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -549,41 +575,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         return;
       }
       if (action.kind === "run_action") {
-        if (
-          (entry.display.presentation ?? "modal") !== "inline" &&
-          action.preserve_display !== true
-        ) {
-          setActionResultDisplay((current) =>
-            current?.key === entry.key ? null : current
-          );
-        }
-        setActiveDisplayActionId(action.id);
-        try {
-          await executePluginAction(
-            {
-              ui_type: "action_result_followup",
-              plugin: action.plugin,
-              id: action.id,
-              label: action.label,
-              action_id: action.action_id,
-              action_owner: action.action_owner,
-              fixed_params: action.fixed_params as
-                | Record<string, any>
-                | undefined,
-              param_map: action.param_map,
-              form: entry.display.form,
-            },
-            {
-              ...entry.context,
-              formValues,
-            }
-          );
-        } finally {
-          setActiveDisplayActionId(null);
-        }
+        displayFollowupDialog.openForAction(action, entry.display, entry, formValues);
       }
     },
-    [backend, executePluginAction]
+    [backend, displayFollowupDialog.openForAction]
   );
 
   const {
@@ -613,11 +608,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const closeAllOverlays = useCallback(() => {
     closeNonPluginOverlays();
     handleCancelPluginDialog();
+    displayFollowupDialog.handleCancel();
     setSettingsSessionId(null);
     setAgentSwitchSessionId(null);
     setAgentSwitchCurrentId(null);
     setPluginsSessionId(null);
-  }, [closeNonPluginOverlays, handleCancelPluginDialog]);
+  }, [closeNonPluginOverlays, handleCancelPluginDialog, displayFollowupDialog.handleCancel]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -694,16 +690,18 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
-  const handledNewSessionRequestToken = useRef(newSessionRequestToken);
+  const handledNewSessionRequestToken = useRef(0);
   useEffect(() => {
     if (
       !isActive ||
+      newSessionRequestToken === 0 ||
       newSessionRequestToken === handledNewSessionRequestToken.current
     ) {
       return;
     }
     handledNewSessionRequestToken.current = newSessionRequestToken;
     void handleNewSession();
+    onNewSessionRequestHandled?.(newSessionRequestToken);
   }, [isActive, newSessionRequestToken]);
 
   const handleBuiltinSessionAction = useCallback(
@@ -1331,7 +1329,35 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           handleDisplayFollowupAction(actionResultDisplay, action, formValues);
         }}
         fieldRenderers={actionDialogFieldRenderers}
+        onOverlayRequestClose={displayFollowupDialog.handleCancel}
+        overlayChildren={displayFollowupDialog.activeElement ? (
+          <ApplicationActionDialog
+            presentationMode="overlay"
+            visible={!!displayFollowupDialog.activeElement}
+            dialog={displayFollowupDialog.activeElement?.dialog}
+            titleFallback={displayFollowupDialog.activeElement?.label}
+            prefillContext={{
+              session: displayFollowupDialog.context?.source.context.sessionSummary,
+            }}
+            fieldRenderers={actionDialogFieldRenderers}
+            onSubmit={displayFollowupDialog.handleSubmit}
+            onCancel={displayFollowupDialog.handleCancel}
+          />
+        ) : null}
       />
+      {!actionResultDisplay ? (
+        <ApplicationActionDialog
+          visible={!!displayFollowupDialog.activeElement}
+          dialog={displayFollowupDialog.activeElement?.dialog}
+          titleFallback={displayFollowupDialog.activeElement?.label}
+          prefillContext={{
+            session: displayFollowupDialog.context?.source.context.sessionSummary,
+          }}
+          fieldRenderers={actionDialogFieldRenderers}
+          onSubmit={displayFollowupDialog.handleSubmit}
+          onCancel={displayFollowupDialog.handleCancel}
+        />
+      ) : null}
 
       {settingsSessionId && (
         <SessionSettingsModal

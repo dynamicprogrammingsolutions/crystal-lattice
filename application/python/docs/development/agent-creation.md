@@ -6,8 +6,9 @@ a model update needs (model catalog, pricing, docs, tests).
 
 The bundled default configuration lives in
 `agent_terminal_app/default_config/`. `config.json` is the maintained source;
-`docs/reference/default-config.md` is a generated snapshot of it and must be
-regenerated after config changes.
+site preparation generates `/reference/default-config/` from it. Run the
+documentation preparation and build after config changes when documentation
+output is in scope.
 
 ## Agent entries
 
@@ -158,7 +159,8 @@ auth). See
 
 - Update `default_config/codex/README.md` with the import commit, dates, and
   family notes.
-- Regenerate `docs/reference/default-config.md` after `config.json` changes.
+- Run documentation preparation and the normal MkDocs build after
+  `config.json` changes when generated documentation is in scope.
 - Add unit tests for model selection (model regex, `openai/` prefix,
   personality fallback, content distinctions, older-model regressions) under
   `application/python/tests/`.

@@ -70,18 +70,14 @@ class ShellArrayTool(BaseCodexShellTool):
         """Determine if this tool should be enabled based on shell_tool_mode config.
 
         Selection logic:
-        - shell_tool_mode == "shell": Always enabled
-        - shell_tool_mode == "shell_command": Always disabled
-        - shell_tool_mode == "auto" (default): Enabled unless codex-variant tag present
+        - shell_tool_mode == "shell": Enabled (legacy opt-in; historical
+          upstream tool, removed upstream 2026-05-13)
+        - any other mode, including "auto" (default): Disabled. ``auto``
+          selects the unified exec tools for every model.
         """
         mode = config.get("shell_tool_mode", "auto")
 
-        if mode == "shell":
-            return True
-        if mode == "shell_command":
-            return False
-        # mode == "auto"
-        return "codex-variant" not in tags
+        return mode == "shell"
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return tool schema matching Codex CLI shell (array-based)."""

@@ -1,5 +1,12 @@
 # `shell_command`
 
+**Historical:** upstream Codex CLI removed `shell_command` on 2026-08-20
+(`8a40095e`, #39757, "Standardize shell execution on unified exec") and now
+ships `exec_command` + `write_stdin`; see `../exec_command/`. This snapshot
+preserves the final pre-removal contract, which the platform still serves
+via the explicit `shell_tool_mode: "shell_command"` (under `auto` the
+shell-command family now selects unified exec).
+
 ## JSON tool spec
 
 - `schema.with_request_permissions.json` includes `additional_permissions` (feature gated).

@@ -1,13 +1,13 @@
 # Bridge connectivity
 
-Status: Implemented and verified opt-in baseline; permanent default rollout deferred
+Status: Transport baseline verified; HTTP product-default follow-up in progress
 
 The bridge-connectivity specification defines how a remote Crystal Lattice
 frontend discovers, pairs with, and sends HTTP-shaped requests to a registered
 local server through the distributed bridge service.
 
 It covers the complete current subsystem, including the compatibility
-WebSocket path and the opt-in HTTP and hybrid frontend paths:
+WebSocket path and the HTTP product path with explicit legacy diagnostics:
 
 - [Product behavior](product-spec.md)
 - [Technical architecture](technical-spec.md)

@@ -423,3 +423,18 @@ Follow-up evidence:
   archive action smoke, TypeScript, and 56 Jest suites / 290 tests.
 - Public documentation preparation completed successfully with
   `docs_site/scripts/prepare_mkdocs_site.py`.
+
+### 2026-10-06 — Local provider settings usability
+
+The user's subsequent settings corrections and proposed execution plan are
+recorded in
+`tasks/20260910-ios-embedded-runtime-poc/027-local-agent-provider-settings-usability.md`.
+That task permits independent session API/ChatGPT overrides, replacing this
+task's earlier global-only authentication policy. The original requirements
+and implementation evidence above retain the historical behavior.
+
+Subtask `027` also records the requested Local-agent/OpenAI/Default-model
+labels, always-available API-key and ChatGPT controls, separate Global
+Settings Reviewer exposure and provider enablement, and removal of
+Make-default controls. Its OpenAI card grouping remains an open decision and
+its execution plan is Draft; creating the task does not start implementation.

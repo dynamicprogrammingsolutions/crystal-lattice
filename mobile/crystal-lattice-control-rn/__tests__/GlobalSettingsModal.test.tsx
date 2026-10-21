@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Text } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import {
   MarkdownDisplayPreferencesProvider,
   useMarkdownDisplayPreferences,
@@ -8,6 +8,23 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import GlobalSettingsModal from '../src/components/GlobalSettingsModal';
+import {
+  configureEmbeddedPythonRuntime,
+  getEmbeddedPythonRuntimeConfiguration,
+  isEmbeddedPythonRuntimeAvailable,
+  type EmbeddedRuntimePublicConfiguration,
+} from '../src/embeddedRuntime/embeddedPythonRuntime';
+
+jest.mock('../src/embeddedRuntime/embeddedPythonRuntime', () => ({
+  configureEmbeddedPythonRuntime: jest.fn(),
+  getEmbeddedPythonRuntimeConfiguration: jest.fn(),
+  isEmbeddedPythonRuntimeAvailable: jest.fn(() => false),
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.mocked(isEmbeddedPythonRuntimeAvailable).mockReturnValue(false);
+});
 
 function PreferenceProbe() {
   const { preferences } = useMarkdownDisplayPreferences();
@@ -54,4 +71,46 @@ test('updates markdown typography and renderer preferences from the settings mod
   expect(screen.getByTestId('preference-probe').props.children).toContain(
     '"codeBlockRenderer":"syntax-highlighter"',
   );
+});
+
+test('loads reviewer exposure and saves only the global flag', async () => {
+  const configuration: EmbeddedRuntimePublicConfiguration = {
+    version: 3,
+    defaultAgent: 'local',
+    reviewerVisible: false,
+    profileOrder: [],
+    providers: {} as EmbeddedRuntimePublicConfiguration['providers'],
+    proxyUrl: '',
+    model: '',
+    hasApiKey: false,
+  };
+  jest.mocked(isEmbeddedPythonRuntimeAvailable).mockReturnValue(true);
+  jest.mocked(getEmbeddedPythonRuntimeConfiguration).mockResolvedValue(configuration);
+  const saved = { ...configuration, reviewerVisible: true };
+  jest.mocked(configureEmbeddedPythonRuntime).mockResolvedValue(saved);
+  const onSaved = jest.fn();
+  const screen = render(
+    <GlobalSettingsModal
+      visible
+      onRequestClose={() => {}}
+      onEmbeddedSettingsChanged={onSaved}
+    />
+  );
+  await waitFor(() => expect(
+    screen.getByTestId('global-settings-reviewer-visible').props.accessibilityState
+  ).toEqual({ disabled: false, checked: false }));
+
+  fireEvent(
+    screen.getByTestId('global-settings-reviewer-visible-control'), 'valueChange', true,
+  );
+  await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
+  expect(configureEmbeddedPythonRuntime).toHaveBeenCalledWith({
+    version: 3,
+    reviewerVisible: true,
+  });
+  expect(screen.getByTestId('global-settings-reviewer-visible').props.accessibilityState.checked)
+    .toBe(true);
+  expect(screen.getByText(
+    'Enter the supplied reviewer API key in Local provider settings.',
+  )).toBeTruthy();
 });

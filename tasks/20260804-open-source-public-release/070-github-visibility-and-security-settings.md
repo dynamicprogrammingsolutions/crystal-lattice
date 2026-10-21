@@ -7,6 +7,9 @@ development.
 
 ## Requirements checklist
 
+- [ ] The complete user website from
+  `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+  is published and accepted before repository visibility changes.
 - [ ] The tested readiness-baseline changes are integrated into the actual
   current `main`, and every remote ref added or changed since the baseline has
   passed the required delta review.
@@ -25,7 +28,24 @@ development.
 - [ ] No unexpected workflow runs or infrastructure deployments occur during the transition.
 
 Parent Task: tasks/20260804-open-source-public-release/000-main.md
-Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-gate.md
+Depends On:
+
+- tasks/20260804-open-source-public-release/060-publication-readiness-gate.md
+- tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md
+
+## Approved website-before-visibility gate — October 7, 2026
+
+Website 030's live acceptance is now a mandatory publication input. Its scope
+covers all six visuals, the three public compatibility views and bounded
+owner-reviewed positioning without extensive research. Together with 080,
+this task ends delivery group 1.
+
+Preserve completed private-side preparation and the existing approved
+execution plan. Recheck the actual current publishable `main` and remote-ref
+deltas before visibility instead of treating old evidence as current. This
+tracking approval does not perform or newly authorize the visibility operation.
+After visibility, promote/verify truthful public source and clone controls
+with 080; the website must not wait for visibility before its own acceptance.
 
 ## Responsibility split
 
@@ -44,7 +64,8 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 
 ### Owner-required work
 
-- Explicitly approve execution of this Draft plan and the publication timing.
+- Explicitly approve publication timing and any new mutation outside the
+  existing execution approval.
 - Complete or explicitly authorize the final repository visibility change.
 - Complete any GitHub owner re-authentication, confirmation prompt, or required
   environment approval.
@@ -148,6 +169,10 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
 
 ### Change visibility
 
+Before this operation, verify 030's production website acceptance and refresh
+the current-tip, remote-ref, workflow and security delta evidence. Existing
+owner visibility confirmation remains required.
+
 1. Open repository **Settings → General**.
 2. Scroll to **Danger Zone**.
 3. Choose **Change repository visibility**.
@@ -198,6 +223,9 @@ Depends On: tasks/20260804-open-source-public-release/060-publication-readiness-
    `130`; do not delete or recreate secret values during this transition.
 
 ### Complete repository presentation
+
+Promote and verify website source/clone controls against the actual public
+repository, coordinating any required site metadata change with 080.
 
 1. Set a concise description.
 2. Set the homepage to the Crystal Lattice landing page.
@@ -273,6 +301,7 @@ environments remains required post-publication hardening in task `130`.
 
 ### Task checklist
 
+- [ ] Confirm website 030's accepted production content before visibility.
 - [x] Integrate applicable readiness-baseline changes into current private
   `main`.
 - [x] Apply pre-visibility Actions settings.

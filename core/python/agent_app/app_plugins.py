@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Application-level plugin protocol and wrappers.
 
 This module defines the :class:`ApplicationPlugin` protocol and a lightweight
@@ -12,8 +10,18 @@ server, terminal, mobile) can use to build flows such as copy/fork/delete or
 session summarization.
 """
 
+from __future__ import annotations
+
 import inspect
-from typing import Any, Dict, List, Optional, Protocol, TYPE_CHECKING, cast, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - imported only for type checking
     from .application_future import AgentApplication
@@ -65,12 +73,11 @@ class ApplicationPlugin(Protocol):
         """
 
     def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return CLI/slash command bindings contributed by this plugin.
+        """Return legacy top-level CLI command bindings.
 
-        Commands are frontend bindings to existing application actions rather
-        than a second execution surface. Each command definition is an opaque
-        dictionary that higher-level frontends can interpret to expose a real
-        CLI command, a slash command, or both.
+        New plugins should contribute action-backed ``cli_command`` and
+        ``slash_command`` UI elements. This compatibility hook is adapted only
+        to top-level CLI commands and never creates slash commands.
         """
 
     # Lifecycle -----------------------------------------------------------------

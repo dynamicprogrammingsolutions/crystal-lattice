@@ -38,7 +38,10 @@ Its remaining product scope is superseded by:
 
 - `tasks/20260824-plugin-driven-cli-and-interactive-terminal-commands.md`
 - `tasks/20260824-direct-claude-provider-and-plugin-login/000-main.md`
-- `tasks/20260824-provider-login-notifications-and-deep-link-ux.md`
+- `tasks/20261016-provider-login-experience/000-main.md`
+- `tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+- `tasks/20261016-provider-login-experience/020-provider-login-notifications-and-anthropic-adoption.md`
+- `tasks/20261016-provider-login-experience/030-provider-auth-global-attention.md`
 
 Provider-specific evidence and useful supporting facts remain historical input.
 Copilot work remains deferred until a concrete provider implementation is

@@ -441,6 +441,7 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_base_url`: optional, defaults to `https://chatgpt.com/backend-api/codex`
 - `chatgpt_credentials_path`: optional path to saved ChatGPT credentials
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
+- `chatgpt_originator`: optional `Originator` header value for ChatGPT-authenticated requests; missing or blank values omit the header
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
 - `enable_openai_automatic_compaction`: optional, defaults to `false`; enables request-time context compaction
@@ -804,6 +805,10 @@ and the implementation classes registered by the bundle.
 - Native compaction action is missing:
   make sure the active provider is `openai_responses` and the bundle was loaded
   from `path:/absolute/path/to/plugins/openai_responses` or equivalent.
+- Native compaction reports `Missing required parameter: 'input[...].status'`:
+  older plugin versions removed required `status` and `id` fields from native
+  web-search history. Update the plugin and retry compaction; existing stored
+  web-search items retain these fields.
 
 ## Tests
 

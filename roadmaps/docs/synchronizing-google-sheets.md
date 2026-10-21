@@ -63,8 +63,10 @@ Fill:
 ```dotenv
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ROADMAP_RELEASE_SPREADSHEET_ID=your-google-spreadsheet-id
-ROADMAP_PRODUCT_SPREADSHEET_ID=your-google-spreadsheet-id
 ```
+
+The configured spreadsheet stores the release roadmap in `Sheet1` and the
+product roadmap in `Sheet4`.
 
 The real `.env` is ignored and must not be committed.
 

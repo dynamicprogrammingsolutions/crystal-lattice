@@ -181,7 +181,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     if placeholder_enabled
                     else "Collapse compacted messages"
                 ),
-                "icon": "rows-3",
+                "icon": "maximize-2" if placeholder_enabled else "minimize-2",
                 "order": 45,
                 "action_id": "toggle_compaction_transcript_mode",
                 "action_owner": "provider_extension",
@@ -333,7 +333,13 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 compacted["id"] = sanitized["id"]
             return compacted
 
-        for key in ("id", "status", "namespace", "phase"):
+        # Compaction replays web-search results under the same input schema.
+        response_only_fields = (
+            ("namespace", "phase")
+            if item_type == "web_search_call"
+            else ("id", "status", "namespace", "phase")
+        )
+        for key in response_only_fields:
             sanitized.pop(key, None)
 
         content = sanitized.get("content")

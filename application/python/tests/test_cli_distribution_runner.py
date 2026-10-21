@@ -291,6 +291,69 @@ def test_headless_access_jsonpath_survives_powershell_file_forwarding() -> None:
     assert '"' not in selector
 
 
+def test_headless_smoke_accepts_directory_aliases_but_rejects_another_environment(
+    tmp_path: Path,
+) -> None:
+    environment = tmp_path / "environment"
+    environment.mkdir()
+    python = environment / "python"
+    python.write_bytes(b"interpreter fixture")
+    alias = tmp_path / "alias"
+    alias.symlink_to(environment, target_is_directory=True)
+    advertised = alias / "python"
+    config = tmp_path / "config.json"
+    config.write_text("{}")
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    (sessions / "smoke-session.json").write_text("{}")
+    argv = [
+        str(advertised),
+        "-m",
+        "agent_terminal_app",
+        "--config",
+        str(config.resolve()),
+        "--sessions-dir",
+        str(sessions.resolve()),
+    ]
+    output = "\n".join(
+        [
+            "# Crystal Lattice Access (CLI and Python SDK)",
+            "# Delegating work through Crystal Lattice",
+            "SMOKE_MARKER",
+            f"Programmatic CLI argv: `{json.dumps(argv)}`",
+            f"For the Python SDK, execute it with `{advertised}`:",
+            "from agent_terminal_app import open_runtime",
+            f"Local documentation: `{ROOT / 'application/python/docs'}`",
+            f"Built-in plugin docs and source: `{ROOT / 'plugins'}`",
+            "https://docs.crystallattice.dev/",
+        ]
+    )
+    result = {
+        "status": "succeeded",
+        "session_id": "smoke-session",
+        "output_text": output,
+    }
+    headless_access_smoke._assert_access_result(
+        result,
+        marker="SMOKE_MARKER",
+        python=python,
+        config_path=config,
+        session_root=sessions,
+    )
+    another = tmp_path / "another-environment"
+    another.mkdir()
+    other_python = another / "python"
+    other_python.symlink_to(python)
+    with pytest.raises(RuntimeError, match="another Python environment"):
+        headless_access_smoke._assert_access_result(
+            result,
+            marker="SMOKE_MARKER",
+            python=other_python,
+            config_path=config,
+            session_root=sessions,
+        )
+
+
 def test_real_access_acceptance_requires_method_evidence_in_tool_calls() -> None:
     marker = smoke_agent_access.CLI_MARKER
     worker = Session(

@@ -7,6 +7,7 @@ import { renderWithMobileProviders } from "../src/testUtils/renderWithMobileProv
 
 const mockScrollToIndex = jest.fn();
 const mockScrollToOffset = jest.fn();
+const mockScrollToEnd = jest.fn();
 
 jest.mock("../src/components/DependencyFlatList", () => {
   const ReactModule = require("react");
@@ -16,6 +17,7 @@ jest.mock("../src/components/DependencyFlatList", () => {
       ReactModule.useImperativeHandle(ref, () => ({
         scrollToIndex: mockScrollToIndex,
         scrollToOffset: mockScrollToOffset,
+        scrollToEnd: mockScrollToEnd,
       }));
       return ReactModule.createElement(MockView, props);
     }),
@@ -27,6 +29,7 @@ describe("InvertedTranscriptViewport", () => {
     jest.useFakeTimers();
     mockScrollToIndex.mockReset();
     mockScrollToOffset.mockReset();
+    mockScrollToEnd.mockReset();
   });
 
   afterEach(() => {
@@ -61,11 +64,21 @@ describe("InvertedTranscriptViewport", () => {
     });
 
     fireEvent.press(screen.getByLabelText("Scroll to top"));
-    expect(mockScrollToIndex).toHaveBeenCalledWith({
-      index: 299,
+    expect(mockScrollToEnd).toHaveBeenCalledWith({
       animated: true,
-      viewPosition: 0,
     });
+    act(() => {
+      for (let index = 0; index < 20; index += 1) {
+        list.props.onScroll({
+          nativeEvent: {
+            contentOffset: { y: index * 10 },
+            layoutMeasurement: { height: 500 },
+            contentSize: { height: 5000 },
+          },
+        });
+      }
+    });
+    expect(jest.getTimerCount()).toBeLessThanOrEqual(1);
 
     act(() => {
       list.props.onScrollToIndexFailed({

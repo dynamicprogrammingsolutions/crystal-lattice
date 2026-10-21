@@ -18,17 +18,22 @@ import { DesktopWindowManager } from './desktopWindowManager';
 
 function togglePinnedKey(pinned: readonly string[], key: string): string[] {
   if (pinned.includes(key)) {
-    return pinned.filter((k) => k !== key);
+    return pinned.filter(k => k !== key);
   }
   return [...pinned, key];
 }
 
 export function ActionsPopoverView({
   captureAppearance,
-}: { captureAppearance?: 'light' | 'dark' }): React.JSX.Element {
+}: {
+  captureAppearance?: 'light' | 'dark';
+}): React.JSX.Element {
   const systemTheme = useDesktopTheme();
   const theme = useMemo(
-    () => captureAppearance ? buildDesktopCaptureTheme(captureAppearance) : systemTheme,
+    () =>
+      captureAppearance
+        ? buildDesktopCaptureTheme(captureAppearance)
+        : systemTheme,
     [captureAppearance, systemTheme],
   );
   return (
@@ -50,7 +55,11 @@ function ActionsPopoverViewInner(): React.JSX.Element {
   const [contentSize, setContentSize] = useState({ menuId: '', height: 0 });
 
   useEffect(() => {
-    if (activeMenuId && contentSize.menuId === activeMenuId && headerHeight > 0) {
+    if (
+      activeMenuId &&
+      contentSize.menuId === activeMenuId &&
+      headerHeight > 0
+    ) {
       DesktopWindowManager?.resizeActionsPopover?.({
         menuId: activeMenuId,
         height: headerHeight + contentSize.height,
@@ -81,7 +90,7 @@ function ActionsPopoverViewInner(): React.JSX.Element {
     <View style={styles.root}>
       <View
         style={styles.header}
-        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+        onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}
       >
         <Text style={styles.headerTitle} numberOfLines={2}>
           {state.data.title}
@@ -90,9 +99,12 @@ function ActionsPopoverViewInner(): React.JSX.Element {
           accessibilityRole="button"
           accessibilityLabel={`Close ${state.data.title}`}
           testID="actions-popover-close"
-          style={(pressState) => {
+          style={pressState => {
             const hovered = (pressState as any).hovered as boolean | undefined;
-            return [styles.closeButton, (hovered || pressState.pressed) && styles.closeButtonHovered];
+            return [
+              styles.closeButton,
+              (hovered || pressState.pressed) && styles.closeButtonHovered,
+            ];
           }}
           onPress={() => actionsPopoverRequestClose()}
         >
@@ -111,16 +123,20 @@ function ActionsPopoverViewInner(): React.JSX.Element {
         <ActionsMenuContent
           actions={state.data.actions}
           pinnedKeys={pinnedLocal}
-          onAction={(key) => actionsPopoverInvokeAction(key)}
-          onTogglePinned={(key) => {
-            setPinnedLocal((prev) => togglePinnedKey(prev, key));
+          onAction={key => actionsPopoverInvokeAction(key)}
+          onTogglePinned={key => {
+            setPinnedLocal(prev => togglePinnedKey(prev, key));
             actionsPopoverTogglePinned(key);
           }}
-          isActionDisabled={(key) => disabledKeys.has(key)}
-          getIconName={(action) =>
-            typeof (action as any).iconName === 'string' ? (action as any).iconName : null
+          isActionDisabled={key => disabledKeys.has(key)}
+          getIconName={action =>
+            typeof (action as any).iconName === 'string'
+              ? (action as any).iconName
+              : null
           }
-          renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
           iconSize={16}
           pinIconSize={14}
           renderItem={state.data.renderItem}

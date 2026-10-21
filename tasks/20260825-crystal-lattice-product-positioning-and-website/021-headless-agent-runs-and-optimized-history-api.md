@@ -1520,6 +1520,95 @@ CLI and Python runs, shared-runtime parallel investigation, model/effort
 calibration, phased evidence packets, cost/time guards, cross-session queries,
 and direct read-only inspection of immutable session snapshots.
 
+#### Immediate follow-up: naturally bounded output and observable run activity
+
+Create a separately approved implementation task for the ordinary headless
+runtime and CLI. It must not require callers or model agents to know host-tool
+line limits, choose character budgets, or interpret unrestricted raw events.
+
+- **Naturally bounded command output:** Agent-facing CLI defaults return a
+  concise result with product-owned per-value, per-record, and total bounds.
+  Oversized values report their original size, truncation/omission state, and
+  a stable retrieval reference. Exact canonical data remains available only
+  through an explicit full-data operation, targeted message lookup, output
+  file, or the lower-level SDK/API contract.
+- **Physical line bounds:** JSON and especially JSONL/NDJSON rendering must
+  not place an unrestricted assistant message, tool argument, tool result, or
+  nested object on one physical line. Every line-oriented record has a fixed
+  implementation-owned maximum and remains parseable after truncation or
+  projection.
+- **Structured run activity:** Extend the convenience progress contract with
+  ordered bounded records for completed intermediary assistant messages,
+  tool calls, tool results, and terminal request state. Do not emit hidden
+  reasoning or token-level assistant deltas.
+- **Assistant observation:** A completed intermediary assistant message
+  carries bounded display text plus its canonical message index when
+  checkpointed. The complete message remains retrievable separately by
+  session ID and canonical index.
+- **Tool observation:** A tool call carries tool name, call ID, and a safe
+  one-line summary when available. A tool result carries the existing
+  plugin-provided `metadata.display.single_line` or another bounded safe
+  display fallback plus its canonical message index. Never fall back to
+  unrestricted raw arguments or the complete tool result because either may
+  be large or sensitive.
+- **Live consumption:** Python callbacks receive the same structured activity
+  records. The CLI gains a bounded machine-readable progress mode, such as
+  JSONL on stderr, while preserving human progress and final-result stdout
+  separation. A cursor or sequence identity lets a consumer resume without
+  replaying the complete activity stream.
+- **Compact final result:** CLI JSON avoids duplicating unrestricted
+  `output_text` inside unrestricted `final_messages`. It reports bounded
+  output, original length, truncation state, status/error, and the session or
+  message reference needed for focused retrieval.
+- **Compatibility decision:** Before implementation, decide whether existing
+  unqualified CLI queries become bounded with an explicit `--full` escape
+  hatch or whether new agent-facing commands own concise defaults while
+  current low-level commands remain exact. Preserve exact Python/HTTP
+  contracts unless they are separately changed and versioned.
+
+Verification should include long multiline assistant messages, large and
+sensitive tool arguments, long tool results with and without display
+metadata, repeated progress reads, concurrent distinct sessions, JSONL line
+bounds, final-output truncation references, and retrieval of each referenced
+canonical message in full.
+
+This is generic headless-run behavior. It must not add or constrain
+vendor-compatible persistent-subagent tools, whose model-facing observation
+and waiting behavior remains owned by their upstream-parity tasks.
+
+#### Immediate follow-up: explicit live and snapshot read views
+
+Promote read-only snapshot access from the later evidence/safety list into a
+separately approved implementation task.
+
+- Add local Python and CLI snapshot enumeration with snapshot ID, creation
+  time, reason, structured metadata, canonical message count, and selected
+  state.
+- Add explicit live and snapshot selectors to projected messages, compact
+  history, and single-message retrieval. Suggested CLI forms are `--live` and
+  `--snapshot SNAPSHOT_ID`; equivalent SDK calls use one shared typed source
+  selector.
+- Preserve the current selected view as the compatibility default, but every
+  result identifies whether its effective source is the live session, the
+  currently selected snapshot, or an explicitly requested snapshot. Include
+  `snapshot_id` and `readonly` where applicable.
+- Explicit reads never select, restore, clear, or delete a snapshot and never
+  change active-session write eligibility or frontend state.
+- Add exact local session-summary lookup so a caller with one session ID does
+  not enumerate every session.
+- Add an optional canonical timestamp to compact message rows when current
+  message metadata contains one; document the exact metadata path without
+  claiming that every plugin or historical message supplies a timestamp.
+- Keep full snapshot messages and provider-native state out of inventory and
+  compact responses. Retrieve one canonical message explicitly when its
+  complete fields are required.
+
+Verification should compare selected-snapshot, explicit-snapshot, and
+explicit-live reads in one process; prove selected state is unchanged; verify
+source provenance through Python and real CLI subprocesses; and cover a large
+snapshot containing long assistant/tool metadata without returning those
+fields in inventory or compact defaults.
+
 #### Priority 1: direct delegation ergonomics
 
 - **Effective run context:** Expose the current effective agent ID, provider
@@ -1595,10 +1684,9 @@ subagent work.
   tests, dependency installation, network calls, hosted providers, Docker,
   native devices, external search, and writes outside an assigned output
   directory are allowed.
-- **Snapshot reads:** Add read-only snapshot enumeration and projected
-  history/message retrieval by `snapshot_id` to the local Python and CLI APIs,
-  without selecting or restoring the snapshot. Reading a snapshot must not
-  affect active-session write eligibility or selected-snapshot state.
+- **Snapshot reads:** Promoted to the immediate explicit live/snapshot read
+  view follow-up above. Keep storage-level projection work separate from that
+  public source-selection and provenance contract.
 - **Storage-level projections:** Continue the already-recorded investigation
   into avoiding complete message/tool-result materialization before
   projection. A smaller response is not necessarily a cheaper storage read.
@@ -1795,3 +1883,121 @@ When this outline is converted into executable follow-up work, group it as:
 Persistent child relationships and restart recovery remain owned by the
 separate persistent-subagent work. Storage-level projection optimization may
 remain a separate performance workstream.
+
+### Session-root guidance correction (2026-10-04)
+
+Status: Complete. The implementation was already delivered in `6df88bd0`;
+this note records its correction and the prior personal-config migration.
+
+- **Finding:** The runtime default session root is
+  `./.crystal/sessions`, resolved from the process working directory. The
+  earlier `~/.crystal/sessions` value was not a product default.
+- **Cause:** The headless-run guide showed `~/.crystal/sessions` as an
+  explicit example, and the personal-config migration validation reused that
+  example as its test session root. This made the home path appear
+  authoritative even though the access mixin itself uses the runtime-provided
+  `CRYSTAL_LATTICE_SESSIONS` value.
+- **Correction:** Commit `6df88bd0` adds one concise
+  `Active session root: {{CRYSTAL_LATTICE_SESSIONS_VALUE}}` line to both
+  access variants, changes the guide example to `./.crystal/sessions`,
+  corrects root and application `AGENTS.md` guidance, and adds focused
+  regression assertions. It deliberately does not add routine direct-file or
+  snapshot-inspection instructions.
+- **Personal migration:** The corresponding access text was copied to the
+  existing `~/.crystal/config.json` without enabling it by default or changing
+  personal agents and overrides. A dated backup was created before the
+  migration.
+- **Verification:** The focused access-system-message and runtime-layout
+  suites passed 20 tests. Both maintained and personal access variants contain
+  the active-root line exactly once, contain no hardcoded
+  `~/.crystal/sessions`, and preserve default-off behavior.
+- **Scope:** This is a documentation, guidance, and personal-config migration
+  correction. It does not change session-root resolution, headless API
+  behavior, or the completed task requirements.
+
+### Generic delegation follow-up (2026-10-06)
+
+Status: Complete for the user-approved generic delegation slice. Implementation
+commit `84aed17f` was merged into `develop` in `757cff2a`. The larger
+2026-10-02 further-development outline remains partially implemented; the
+completed original task and native-access follow-up remain complete.
+
+The user narrowed this slice to generic parent prompting and natural Python
+SDK/CLI delegation. The parent receives reusable delegation guidance; the
+child receives its selected agent's configured system/developer message plus
+a self-contained user assignment constructed by the parent. Task-file
+guidance and compatibility-audit orchestration terminology are separate.
+
+#### Delivered scope
+
+- [x] Config-owned parent guidance explains how to supply the child's
+      objective, relevant context and inputs, scope, constraints, and expected
+      result without copying the parent's system message, hidden reasoning, or
+      transcript. It covers requested settings, progress, result checks,
+      persistence, and follow-ups.
+- [x] Python `list_agent_descriptors()` / `describe_agent(...)` and CLI
+      `agents --details` expose safe configured defaults and config schemas.
+      Python `overrides` and repeated CLI `--set KEY=VALUE` apply request-scoped
+      settings through the existing provider/plugin configuration pipeline.
+- [x] Python `persistence="ephemeral"` and CLI `--ephemeral` execute the
+      coordinated request/tool loop without saving a canonical child session.
+      Persisted runs remain the default and support follow-ups. Ephemeral
+      session IDs correlate progress but cannot be continued from the store.
+- [x] A sparse real-model review verifies a `gpt-5.6-luna` parent delegating
+      to `gpt-6-luna` through the same config, with separate child instructions,
+      a self-contained read-only assignment, the correct result, unchanged
+      inputs, and no child session saves or snapshots.
+- [x] Python plugin installation sends pip diagnostics to stderr, preserving
+      clean CLI JSON stdout. A real plugin-installation regression assertion
+      covers that boundary.
+
+#### Verification and documentation
+
+- The explicitly enabled real ChatGPT test
+  `test_luna_parent_delegates_ephemeral_self_contained_review` passed on macOS
+  in 144.94 seconds. The parent chose the production CLI with
+  `--ephemeral --set model=gpt-6-luna`. Provider observers forwarded actual
+  requests/events unchanged and recorded bounded prompt/answer evidence,
+  model identities, and instruction fingerprints without credentials or
+  reasoning. Store observers detected writes throughout the run.
+- The child and parent correctly reported the only planted discrepancy:
+  `index.csv` listed `alpha.md` as `draft`, while `notes/alpha.md` said
+  `approved`. Only the parent session was retained.
+- Before merging, the Core default suite passed 636 tests with 27 deselected
+  and one expected failure; the application default suite passed 579 tests
+  with one skipped and 114 deselected. The later installation-output fix was
+  followed by another successful 636-test Core run.
+- On the merged `develop` tree, 53 focused runtime, access-guidance,
+  runtime-layout, and effective-default-config tests passed, followed by all
+  16 CLI subprocess integration tests and 15 documentation-preparation tests.
+  Changed-file Ruff, targeted Pyright, and whitespace checks also passed
+  before the merge.
+- Maintained documentation is under
+  `application/python/docs/headless-agent-runs.md`,
+  `application/python/docs/configuration-system-messages.md`, and
+  `application/python/docs/development/specifications/headless-agent-runs/`.
+  The specification records the real-provider gate and requirement
+  `HLR-064`. The generated default-config reference was refreshed through its
+  generator after the merge to preserve current `develop` configuration.
+- The native installation smoke helper now exercises ephemeral CLI and SDK
+  runs, but native archive/installer scenarios were not rerun for this slice.
+  The new GLM ephemeral-review gate was not run. Earlier native persisted
+  delegation evidence remains recorded in the preceding completion notes.
+
+#### Remaining outline scope
+
+The broad follow-up is not complete. Remaining items include current effective
+parent context and automatic inheritance; headless compiled-instruction
+inspection and child-only instruction composition; schema-aware setting
+validation and effective-setting result reporting; result telemetry and config
+overlays; batch runners, budgets, and additional checkpoint/output contracts;
+tool/mutation policy enforcement; one-runtime CLI cross-session search;
+snapshot APIs and storage-level projection optimization; environment
+diagnostics; and the full advanced investigation recipe.
+
+Configured-agent discovery reports defaults, not a running parent's complete
+effective context. A prompt's read-only constraint is guidance, not a tool
+sandbox. Ephemeral execution prevents canonical session persistence; it does
+not suppress provider usage journals or ordinary runtime diagnostics.
+Persistent parent-child relationships and restart recovery remain outside
+this completed slice.

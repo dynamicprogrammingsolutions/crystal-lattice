@@ -1207,3 +1207,15 @@ request refactoring, and live active-request migration remain conditional.
   errors in `ChatPane.tsx` and `ActionResultInlineCard.tsx`; the new desktop
   integration directory is excluded consistently with the mobile integration
   directory, and no new source/harness TypeScript errors remain.
+
+## Completion Notes
+
+### October 6, 2026: accepted Stage 1 completion
+
+- The Google Sheet marks this task done, and that status is preserved.
+- The implemented and manually accepted reload, configuration, notification,
+  action, persistence, and frontend behavior is accepted as the completed
+  Stage 1 outcome.
+- The unchecked credential-action production-hardening requirement remains a
+  known non-blocking follow-up. It is not represented as completed by this
+  closure note.

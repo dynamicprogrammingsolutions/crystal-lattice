@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from logging import Logger
+import shlex
 import sys
+import webbrowser
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast, Tuple
 
 from prompt_toolkit import PromptSession
@@ -12,6 +14,8 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from agent_app.utils.ui_condition import evaluate_condition
+from agent_app.notifications import notification_revision_token
+from .action_rendering import is_local_interactive_output, render_action_result
 from .event_rendering import (
     TerminalRenderContext,
     _render_terminal_exception,
@@ -109,6 +113,34 @@ def iter_shortcuts() -> List[Shortcut]:
     return sorted(_SHORTCUTS.values(), key=lambda s: s.keys)
 
 
+def _static_slash_names() -> List[str]:
+    return sorted(_SLASH_COMMANDS)
+
+
+def _dynamic_slash_commands(app: TerminalApplication) -> List[Dict[str, Any]]:
+    try:
+        return app.slash_command_elements(reserved_names=_static_slash_names())
+    except Exception:
+        return []
+
+
+def _command_argument_names(element: Dict[str, Any]) -> List[str]:
+    dialog = element.get("dialog")
+    inputs = (
+        dialog.get("inputs")
+        if isinstance(dialog, dict) and dialog.get("kind") == "form"
+        else []
+    )
+    return [
+        field["name"]
+        for field in (inputs if isinstance(inputs, list) else [])
+        if isinstance(field, dict)
+        and isinstance(field.get("name"), str)
+        and field["name"]
+        and field.get("type") not in {"secret", "password"}
+    ]
+
+
 class SlashCommandCompleter(Completer):
     """Autocomplete for slash commands and their arguments.
 
@@ -141,13 +173,98 @@ class SlashCommandCompleter(Completer):
                             display=f"/{cmd.name}",
                             display_meta=cmd.description,
                         )
+                app = self._get_app()
+                seen: set[str] = set()
+                for element in _dynamic_slash_commands(app):
+                    for route in [
+                        element.get("path"),
+                        *(element.get("aliases") or []),
+                    ]:
+                        if not isinstance(route, list) or not route:
+                            continue
+                        name = route[0]
+                        if not isinstance(name, str) or name in seen:
+                            continue
+                        if not prefix or name.startswith(prefix):
+                            seen.add(name)
+                            yield Completion(
+                                name,
+                                start_position=-len(prefix),
+                                display=f"/{name}",
+                                display_meta=str(
+                                    element.get("description") or ""
+                                ),
+                            )
                 return
 
             cmd_name, _, rest = body.partition(" ")
             rest = rest.lstrip()
 
             cmd = get_slash_command(cmd_name)
-            if cmd is None or cmd.completer is None:
+            if cmd is None:
+                app = self._get_app()
+                try:
+                    tokens = shlex.split(body)
+                except ValueError:
+                    return
+                elements = _dynamic_slash_commands(app)
+                token_prefix = tokens[-1] if body and not body.endswith(" ") else ""
+                complete_tokens = tokens[:-1] if token_prefix else tokens
+                seen: set[str] = set()
+                for element in elements:
+                    for route in [
+                        element.get("path"),
+                        *(element.get("aliases") or []),
+                    ]:
+                        if not isinstance(route, list):
+                            continue
+                        if list(route[: len(complete_tokens)]) != complete_tokens:
+                            continue
+                        if len(route) <= len(complete_tokens):
+                            continue
+                        candidate = route[len(complete_tokens)]
+                        if (
+                            isinstance(candidate, str)
+                            and candidate.startswith(token_prefix)
+                            and candidate not in seen
+                        ):
+                            seen.add(candidate)
+                            yield Completion(
+                                candidate,
+                                start_position=-len(token_prefix),
+                                display=candidate,
+                                display_meta=str(
+                                    element.get("description") or "plugin command"
+                                ),
+                            )
+                try:
+                    element, remaining = app.match_slash_command(
+                        tokens,
+                        reserved_names=_static_slash_names(),
+                    )
+                except Exception:
+                    element, remaining = None, []
+                if element is not None and len(remaining) <= 1:
+                    argument_prefix = remaining[0] if remaining else ""
+                    candidates = [
+                        f"{name}=" for name in _command_argument_names(element)
+                    ]
+                    if isinstance(element.get("browser"), dict):
+                        candidates.append("--no-open")
+                    for candidate in candidates:
+                        if (
+                            candidate.startswith(argument_prefix)
+                            and candidate not in seen
+                        ):
+                            seen.add(candidate)
+                            yield Completion(
+                                candidate,
+                                start_position=-len(argument_prefix),
+                                display=candidate,
+                                display_meta="plugin command argument",
+                            )
+                return
+            if cmd.completer is None:
                 return
 
             app = self._get_app()
@@ -380,6 +497,525 @@ def _resolve_setting_current_value(
     return False, None
 
 
+def _action_path_value(context: Dict[str, Any], source: Any) -> Tuple[bool, Any]:
+    if not isinstance(source, str) or not source.startswith("$") or "." not in source:
+        return False, None
+    prefix, _, path = source[1:].partition(".")
+    root = context.get(prefix)
+    current: Any = root
+    for part in [piece for piece in path.split(".") if piece]:
+        if not isinstance(current, dict) or part not in current:
+            return False, None
+        current = current[part]
+    return True, current
+
+
+def _coerce_action_value(raw: Any, field: Dict[str, Any]) -> Any:
+    field_type = str(field.get("type") or "text")
+    if field_type == "integer":
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return raw
+        try:
+            return int(str(raw))
+        except ValueError as exc:
+            raise TerminalUserError(
+                f"{field.get('name')}: expected an integer"
+            ) from exc
+    if field_type == "number":
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            return raw
+        try:
+            return float(str(raw))
+        except ValueError as exc:
+            raise TerminalUserError(
+                f"{field.get('name')}: expected a number"
+            ) from exc
+    if field_type in {"boolean", "checkbox"}:
+        if isinstance(raw, bool):
+            return raw
+        normalized = str(raw).strip().lower()
+        if normalized in {"true", "yes", "y", "1", "on"}:
+            return True
+        if normalized in {"false", "no", "n", "0", "off"}:
+            return False
+        raise TerminalUserError(
+            f"{field.get('name')}: expected true/false or yes/no"
+        )
+    if field_type in {"select", "dropdown"}:
+        options = field.get("options")
+        allowed: List[Any] = []
+        for option in options if isinstance(options, list) else []:
+            allowed.append(option.get("value") if isinstance(option, dict) else option)
+        candidate = raw
+        if candidate not in allowed:
+            raise TerminalUserError(
+                f"{field.get('name')}: expected one of "
+                + ", ".join(str(item) for item in allowed)
+            )
+        return candidate
+    return str(raw)
+
+
+async def _action_prompt(
+    ui_state: Dict[str, Any],
+    *,
+    prompt: str,
+    default: Any = None,
+    secret: bool = False,
+    multiline: bool = False,
+) -> str | None:
+    callback = ui_state.get("action_prompt")
+    if not callable(callback):
+        responses = ui_state.get("action_responses")
+        if isinstance(responses, list) and responses:
+            value = responses.pop(0)
+            return None if value is None else str(value)
+        raise TerminalUserError("interactive input is required for this action")
+    value = callback(
+        {
+            "prompt": prompt,
+            "default": default,
+            "secret": secret,
+            "multiline": multiline,
+        }
+    )
+    if asyncio.iscoroutine(value):
+        value = await value
+    return None if value is None else str(value)
+
+
+def _action_initial_value(
+    field: Dict[str, Any],
+    context: Dict[str, Any],
+) -> Tuple[bool, Any]:
+    if field.get("type") in {"secret", "password"}:
+        return False, None
+    found, value = _action_path_value(context, field.get("prefill_from"))
+    if found and value is not None and value != "":
+        return True, value
+    if "default" in field:
+        return True, field.get("default")
+    return False, None
+
+
+async def _collect_action_form(
+    form: Any,
+    *,
+    context: Dict[str, Any],
+    inline_values: Dict[str, str] | None,
+    ui_state: Dict[str, Any],
+) -> Dict[str, Any]:
+    if not isinstance(form, dict):
+        return {}
+    kind = form.get("kind", "none")
+    if kind == "none":
+        if inline_values:
+            raise TerminalUserError("this action has no form inputs")
+        return {}
+    if kind == "confirm":
+        if inline_values:
+            raise TerminalUserError("confirmation actions do not accept inline values")
+        answer = await _action_prompt(
+            ui_state,
+            prompt=f"{form.get('title') or 'Confirm'} [yes/no]",
+        )
+        if answer is None or answer.strip().lower() not in {"yes", "y"}:
+            raise TerminalUserError("action cancelled")
+        return {}
+    if kind != "form":
+        raise TerminalUserError(f"unsupported action dialog kind {kind!r}")
+
+    inputs = form.get("inputs")
+    fields = [field for field in (inputs or []) if isinstance(field, dict)]
+    known_names = {
+        field.get("name")
+        for field in fields
+        if isinstance(field.get("name"), str) and field.get("name")
+    }
+    unknown = sorted(set(inline_values or {}) - known_names)
+    if unknown:
+        raise TerminalUserError(
+            "unknown inline form fields: " + ", ".join(unknown)
+        )
+
+    values: Dict[str, Any] = {}
+    for field in fields:
+        name = field.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        field_type = str(field.get("type") or "text")
+        secret = field_type in {"secret", "password"}
+        if secret and inline_values and name in inline_values:
+            raise TerminalUserError(
+                f"{name}: secret/password values cannot be supplied inline"
+            )
+        has_initial, initial = _action_initial_value(field, context)
+        inline = bool(inline_values and name in inline_values)
+        label = str(field.get("label") or name)
+        options = field.get("options")
+        option_suffix = ""
+        if field_type in {"select", "dropdown"} and isinstance(options, list):
+            labels = [
+                str(option.get("label") or option.get("value"))
+                if isinstance(option, dict)
+                else str(option)
+                for option in options
+            ]
+            option_suffix = f" ({', '.join(labels)})"
+        validation_suffix = ""
+        while True:
+            if inline:
+                raw: Any = inline_values[name]  # type: ignore[index]
+            else:
+                raw = await _action_prompt(
+                    ui_state,
+                    prompt=f"{label}{option_suffix}{validation_suffix}",
+                    default=initial if has_initial and not secret else None,
+                    secret=secret,
+                    multiline=field_type == "multiline",
+                )
+                if raw is None:
+                    raise TerminalUserError("action cancelled")
+                if raw == "" and has_initial:
+                    raw = initial
+
+            if raw == ":skip":
+                if field.get("required") is True:
+                    if inline:
+                        raise TerminalUserError(
+                            f"{name}: required fields cannot be skipped"
+                        )
+                    validation_suffix = " [required]"
+                    continue
+                if field.get("submit_empty") is True:
+                    values[name] = ""
+                break
+            if raw == "":
+                if field.get("required") is True:
+                    if inline:
+                        raise TerminalUserError(f"{name}: a value is required")
+                    validation_suffix = " [required]"
+                    continue
+                if field.get("submit_empty") is True:
+                    values[name] = ""
+                break
+            try:
+                values[name] = _coerce_action_value(raw, field)
+            except TerminalUserError as exc:
+                if inline:
+                    raise
+                validation_suffix = f" [{exc}]"
+                continue
+            break
+    return values
+
+
+def _inline_assignments(tokens: List[str]) -> Dict[str, str]:
+    values: Dict[str, str] = {}
+    for token in tokens:
+        if "=" not in token:
+            raise TerminalUserError("inline action values must use NAME=VALUE")
+        name, value = token.split("=", 1)
+        if not name:
+            raise TerminalUserError("inline action value name must not be empty")
+        if name in values:
+            raise TerminalUserError(f"duplicate inline action value {name!r}")
+        values[name] = value
+    return values
+
+
+def _result_path(result: Dict[str, Any], path: Any) -> Any:
+    if not isinstance(path, str) or not path:
+        return None
+    current: Any = result
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+def _sensitive_form_values(
+    form: Any,
+    values: Dict[str, Any],
+) -> List[str]:
+    if not isinstance(form, dict) or form.get("kind") != "form":
+        return []
+    inputs = form.get("inputs")
+    sensitive_names = {
+        field.get("name")
+        for field in (inputs or [])
+        if isinstance(field, dict)
+        and field.get("type") in {"secret", "password"}
+        and isinstance(field.get("name"), str)
+    }
+    return [
+        str(value)
+        for name, value in values.items()
+        if name in sensitive_names and value is not None and str(value)
+    ]
+
+
+def _redact_sensitive_text(text: str, sensitive_values: List[str]) -> str:
+    redacted = text
+    for value in sorted(set(sensitive_values), key=len, reverse=True):
+        redacted = redacted.replace(value, "[redacted]")
+    return redacted
+
+
+def _execute_ui_element_redacted(
+    app: TerminalApplication,
+    element: Dict[str, Any],
+    *,
+    context: Dict[str, Any],
+    dialog_values: Dict[str, Any] | None = None,
+    form_values: Dict[str, Any] | None = None,
+    sensitive_values: List[str],
+) -> Dict[str, Any]:
+    try:
+        return app.execute_ui_element(
+            element,
+            context=context,
+            dialog_values=dialog_values,
+            form_values=form_values,
+        )
+    except Exception as exc:
+        message = _redact_sensitive_text(str(exc), sensitive_values)
+        if message != str(exc):
+            raise TerminalUserError(message) from exc
+        raise
+
+
+def _render_action_result(
+    app: TerminalApplication,
+    result: Dict[str, Any],
+    write: Callable[[str], None],
+    *,
+    context: Dict[str, Any],
+    notification: Dict[str, Any] | None = None,
+    sensitive_values: List[str] | None = None,
+) -> None:
+    display = result.get("display")
+    if notification is None and isinstance(display, dict):
+        app.begin_action_display(display)
+
+    def _register(action: Any) -> str:
+        if not isinstance(display, dict):
+            raise TerminalUserError("action result display is unavailable")
+        return app.register_run_action_followup(
+            action,
+            display,
+            context,
+            notification=notification,
+        )
+
+    known_sensitive_values = sensitive_values or []
+
+    def _write_redacted(line: str) -> None:
+        write(_redact_sensitive_text(line, known_sensitive_values))
+
+    render_action_result(result, _write_redacted, register_run_action=_register)
+
+
+def _maybe_open_command_url(
+    element: Dict[str, Any],
+    result: Dict[str, Any],
+    *,
+    no_open: bool,
+) -> None:
+    browser = element.get("browser")
+    if (
+        no_open
+        or not isinstance(browser, dict)
+        or browser.get("auto_open_local") is not True
+        or (
+            isinstance(browser.get("when"), dict)
+            and _result_path(
+                result,
+                browser["when"].get("result_path"),
+            )
+            != browser["when"].get("equals")
+        )
+        or not is_local_interactive_output()
+    ):
+        return
+    display = result.get("display")
+    actions = display.get("actions") if isinstance(display, dict) else None
+    url = next(
+        (
+            action.get("url")
+            for action in (actions or [])
+            if isinstance(action, dict)
+            and action.get("kind") == "open_url"
+            and isinstance(action.get("url"), str)
+            and action.get("url")
+        ),
+        None,
+    )
+    if isinstance(url, str):
+        try:
+            webbrowser.open(url)
+        except Exception:
+            return
+
+
+def _foreground_step_element(
+    command: Dict[str, Any],
+    step: Dict[str, Any],
+    attempt_id: Any,
+) -> Dict[str, Any]:
+    fixed = step.get("fixed_params")
+    fixed_params = dict(fixed) if isinstance(fixed, dict) else {}
+    attempt_param = step.get("attempt_param")
+    if isinstance(attempt_param, str) and attempt_param:
+        fixed_params[attempt_param] = attempt_id
+    return {
+        "ui_type": "command_foreground_step",
+        "plugin": step.get("plugin") or command.get("plugin"),
+        "id": f"{command.get('id')}:{step.get('action_id')}",
+        "label": step.get("label") or step.get("action_id"),
+        "action_id": step.get("action_id"),
+        "action_owner": step.get("action_owner") or command.get("action_owner"),
+        "fixed_params": fixed_params,
+    }
+
+
+async def _execute_command_element(
+    app: TerminalApplication,
+    element: Dict[str, Any],
+    inline_values: Dict[str, str],
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+    *,
+    no_open: bool = False,
+) -> None:
+    if element.get("disabled") is True:
+        reason = element.get("disabled_reason") or element.get("description")
+        raise TerminalUserError(
+            "command is disabled"
+            + (f": {reason}" if isinstance(reason, str) and reason else "")
+        )
+    context = app.action_context()
+    dialog_values = await _collect_action_form(
+        element.get("dialog"),
+        context=context,
+        inline_values=inline_values,
+        ui_state=ui_state,
+    )
+    sensitive_values = _sensitive_form_values(
+        element.get("dialog"),
+        dialog_values,
+    )
+    result = _execute_ui_element_redacted(
+        app,
+        element,
+        context=context,
+        dialog_values=dialog_values,
+        sensitive_values=sensitive_values,
+    )
+    _render_action_result(
+        app,
+        result,
+        write,
+        context=context,
+        sensitive_values=sensitive_values,
+    )
+    _maybe_open_command_url(element, result, no_open=no_open)
+
+    foreground = element.get("foreground")
+    if not isinstance(foreground, dict):
+        return
+    state_path = foreground.get("state_path")
+    attempt_id = _result_path(result, foreground.get("attempt_id_path"))
+    pending = set(foreground.get("pending_states") or ["pending"])
+    terminal = set(
+        (foreground.get("success_states") or [])
+        + (foreground.get("failure_states") or [])
+        + (foreground.get("cancelled_states") or [])
+        + (foreground.get("expired_states") or [])
+    )
+    poll_interval = foreground.get("poll_interval_seconds", 0.5)
+    if not isinstance(poll_interval, (int, float)) or poll_interval <= 0:
+        poll_interval = 0.5
+    poll_interval = min(float(poll_interval), 5.0)
+    state = _result_path(result, state_path)
+    try:
+        while state in pending:
+            await asyncio.sleep(poll_interval)
+            status_step = foreground.get("status")
+            if not isinstance(status_step, dict):
+                raise TerminalUserError("foreground command is missing status action")
+            status_element = _foreground_step_element(
+                element,
+                status_step,
+                attempt_id,
+            )
+            result = _execute_ui_element_redacted(
+                app,
+                status_element,
+                context=context,
+                sensitive_values=sensitive_values,
+            )
+            next_state = _result_path(result, state_path)
+            if next_state != state or next_state in terminal:
+                _render_action_result(
+                    app,
+                    result,
+                    write,
+                    context=context,
+                    sensitive_values=sensitive_values,
+                )
+            state = next_state
+        if terminal and state not in terminal:
+            raise TerminalUserError(
+                f"foreground command returned undeclared state {state!r}"
+            )
+    except asyncio.CancelledError:
+        cancel_step = foreground.get("cancel")
+        if isinstance(cancel_step, dict):
+            cancel_element = _foreground_step_element(
+                element,
+                cancel_step,
+                attempt_id,
+            )
+            cancel_result = _execute_ui_element_redacted(
+                app,
+                cancel_element,
+                context=context,
+                sensitive_values=sensitive_values,
+            )
+            _render_action_result(
+                app,
+                cancel_result,
+                write,
+                context=context,
+                sensitive_values=sensitive_values,
+            )
+        raise
+    except KeyboardInterrupt:
+        cancel_step = foreground.get("cancel")
+        if isinstance(cancel_step, dict):
+            cancel_element = _foreground_step_element(
+                element,
+                cancel_step,
+                attempt_id,
+            )
+            cancel_result = _execute_ui_element_redacted(
+                app,
+                cancel_element,
+                context=context,
+                sensitive_values=sensitive_values,
+            )
+            _render_action_result(
+                app,
+                cancel_result,
+                write,
+                context=context,
+                sensitive_values=sensitive_values,
+            )
+        raise TerminalUserError("foreground command cancelled")
+
+
 async def _poll_events(
     app: TerminalApplication,
     write: Callable[[str], None],
@@ -419,6 +1055,39 @@ async def _poll_events(
                 if active is None or active == rid:
                     ui_state["active_request_id"] = None
 
+        poll_notifications = getattr(app, "poll_notification_updates", None)
+        if callable(poll_notifications):
+            try:
+                notification_updates = poll_notifications(limit=100)
+            except Exception as exc:
+                notification_updates = []
+                write(f"[notifications] unable to refresh: {exc}")
+        else:
+            notification_updates = []
+        for update in notification_updates:
+            notification = update.get("notification")
+            if not isinstance(notification, dict):
+                continue
+            display = notification.get("display")
+            if not isinstance(display, dict):
+                continue
+            try:
+                context = app.action_context()
+            except Exception:
+                context = {}
+            _render_action_result(
+                app,
+                {"display": display},
+                write,
+                context=context,
+                notification={
+                    "scope": update.get("scope"),
+                    "session_id": update.get("session_id"),
+                    "notification_id": notification.get("id"),
+                    "revision": notification_revision_token(notification),
+                },
+            )
+
         await asyncio.sleep(poll_interval)
 
 
@@ -456,6 +1125,197 @@ async def _cmd_ui_schema(
 
     # Print directly so that the raw schema is visible for debugging.
     print(schema)
+
+
+def _action_completion(app: TerminalApplication, text: str) -> List[Completion]:
+    try:
+        tokens = shlex.split(text)
+    except ValueError:
+        return []
+    prefix = ""
+    if text and not text.endswith(" ") and tokens:
+        prefix = tokens[-1]
+    if not tokens or (len(tokens) == 1 and prefix):
+        return [
+            Completion(
+                str(element["id"]),
+                start_position=-len(prefix),
+                display=str(element["id"]),
+                display_meta=f"{element.get('scope')} {element.get('plugin')}",
+            )
+            for element in app.action_elements()
+            if str(element.get("id") or "").startswith(prefix)
+        ]
+    return []
+
+
+def _write_action_inventory(
+    elements: List[Dict[str, Any]],
+    write: Callable[[str], None],
+    *,
+    message_index: int | None = None,
+) -> None:
+    if not elements:
+        write("[action] no applicable actions")
+        return
+    write("[action] applicable actions:")
+    for element in elements:
+        scope = str(element.get("scope") or "session")
+        plugin = str(element.get("plugin") or "")
+        element_id = str(element.get("id") or "")
+        label = str(element.get("label") or element_id)
+        disabled = element.get("disabled") is True
+        reason = element.get("disabled_reason") or element.get("description")
+        if message_index is not None:
+            command = (
+                f"/action --message {message_index} --plugin {plugin} {element_id}"
+            )
+        else:
+            command = (
+                f"/action --scope {scope} --plugin {plugin} {element_id}"
+            )
+        suffix = ""
+        if disabled:
+            suffix = " [disabled"
+            if isinstance(reason, str) and reason:
+                suffix += f": {reason}"
+            suffix += "]"
+        write(f"  {label}{suffix}")
+        if not disabled:
+            write(f"    {command}")
+
+
+@slash_command(
+    "action",
+    "List or run applicable plugin actions",
+    completer=_action_completion,
+)
+async def _cmd_action(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    try:
+        tokens = shlex.split(arg or "")
+    except ValueError as exc:
+        raise TerminalUserError(f"invalid /action arguments: {exc}") from exc
+
+    if tokens[:1] == ["--ref"]:
+        if len(tokens) != 2:
+            raise TerminalUserError("usage: /action --ref REFERENCE")
+        reference = tokens[1]
+        entry = app.get_action_reference(reference)
+        context = dict(entry.get("context") or {})
+        element = dict(entry.get("element") or {})
+        form_values = await _collect_action_form(
+            element.get("form"),
+            context=context,
+            inline_values=None,
+            ui_state=ui_state,
+        )
+        dialog_values = await _collect_action_form(
+            element.get("dialog"),
+            context=context,
+            inline_values=None,
+            ui_state=ui_state,
+        )
+        sensitive_values = [
+            *_sensitive_form_values(element.get("form"), form_values),
+            *_sensitive_form_values(element.get("dialog"), dialog_values),
+        ]
+        try:
+            result, _element, result_context = app.execute_action_reference(
+                reference,
+                dialog_values=dialog_values,
+                form_values=form_values,
+            )
+        except Exception as exc:
+            message = _redact_sensitive_text(str(exc), sensitive_values)
+            if message != str(exc):
+                raise TerminalUserError(message) from exc
+            raise
+        _render_action_result(
+            app,
+            result,
+            write,
+            context=result_context,
+            sensitive_values=sensitive_values,
+        )
+        return
+
+    message_index: int | None = None
+    plugin: str | None = None
+    scope: str | None = None
+    position = 0
+    while position < len(tokens) and tokens[position].startswith("--"):
+        option = tokens[position]
+        if option not in {"--message", "--plugin", "--scope"}:
+            raise TerminalUserError(f"unknown /action option {option!r}")
+        if position + 1 >= len(tokens):
+            raise TerminalUserError(f"{option} requires a value")
+        value = tokens[position + 1]
+        position += 2
+        if option == "--message":
+            try:
+                message_index = int(value)
+            except ValueError as exc:
+                raise TerminalUserError("--message requires an integer") from exc
+        elif option == "--plugin":
+            plugin = value
+        else:
+            if value not in {"application", "session", "session-list"}:
+                raise TerminalUserError(
+                    "--scope must be application, session, or session-list"
+                )
+            scope = value
+
+    remaining = tokens[position:]
+    if not remaining:
+        elements = app.action_elements(message_index=message_index)
+        canonical_index = None
+        if message_index is not None:
+            canonical_index, _message = app.show_message(message_index)
+        _write_action_inventory(
+            elements,
+            write,
+            message_index=canonical_index,
+        )
+        return
+
+    element_id = remaining[0]
+    inline_values = _inline_assignments(remaining[1:])
+    element = app.resolve_action_element(
+        element_id,
+        plugin=plugin,
+        scope=scope,
+        message_index=message_index,
+    )
+    context = app.action_context(message_index=message_index)
+    dialog_values = await _collect_action_form(
+        element.get("dialog"),
+        context=context,
+        inline_values=inline_values,
+        ui_state=ui_state,
+    )
+    sensitive_values = _sensitive_form_values(
+        element.get("dialog"),
+        dialog_values,
+    )
+    result = _execute_ui_element_redacted(
+        app,
+        element,
+        context=context,
+        dialog_values=dialog_values,
+        sensitive_values=sensitive_values,
+    )
+    _render_action_result(
+        app,
+        result,
+        write,
+        context=context,
+        sensitive_values=sensitive_values,
+    )
 
 
 def _agent_completion(app: TerminalApplication, text: str) -> List[Completion]:
@@ -1080,6 +1940,31 @@ async def _cmd_help(
     write("\nCommands:")
     for cmd in iter_slash_commands():
         write(f"  /{cmd.name:10s} - {cmd.description}")
+    for element in _dynamic_slash_commands(app):
+        path = element.get("path")
+        if not isinstance(path, list) or not path:
+            continue
+        command = "/" + " ".join(str(token) for token in path)
+        write(
+            f"  {command:10s} - "
+            f"{element.get('description') or element.get('label') or ''}"
+        )
+        aliases = [
+            "/" + " ".join(str(token) for token in alias)
+            for alias in (element.get("aliases") or [])
+            if isinstance(alias, list) and alias
+        ]
+        if aliases:
+            write(f"    aliases: {', '.join(aliases)}")
+        arguments = [f"{name}=VALUE" for name in _command_argument_names(element)]
+        if isinstance(element.get("browser"), dict):
+            arguments.append("--no-open")
+        if arguments:
+            write(f"    arguments: {' '.join(arguments)}")
+        if element.get("disabled") is True:
+            reason = element.get("disabled_reason") or element.get("description")
+            if isinstance(reason, str) and reason:
+                write(f"    disabled: {reason}")
 
     write("\nShortcuts (while typing):")
     for sc in iter_shortcuts():
@@ -1917,7 +2802,33 @@ async def _handle_slash_command(
 
     cmd = get_slash_command(name)
     if cmd is None:
-        write(f"[commands] unknown command: /{name}")
+        try:
+            tokens = shlex.split(raw[1:].strip())
+            element, remaining = app.match_slash_command(
+                tokens,
+                reserved_names=_static_slash_names(),
+            )
+            if element is None:
+                write(f"[commands] unknown command: /{name}")
+                return
+            no_open = False
+            if "--no-open" in remaining:
+                if not isinstance(element.get("browser"), dict):
+                    raise TerminalUserError(
+                        "--no-open is only valid for browser commands"
+                    )
+                remaining = [token for token in remaining if token != "--no-open"]
+                no_open = True
+            await _execute_command_element(
+                app,
+                element,
+                _inline_assignments(remaining),
+                write,
+                ui_state,
+                no_open=no_open,
+            )
+        except Exception as exc:
+            _render_terminal_exception(name, exc, write)
         return
 
     try:
@@ -2228,6 +3139,35 @@ async def _run_terminal(
         erase_when_done=True,
     )
     key_bindings = _build_key_bindings(app, write, ui_state)
+
+    async def prompt_action(request: Dict[str, Any]) -> str | None:
+        label = str(request.get("prompt") or "Value")
+        default = request.get("default")
+        multiline = bool(request.get("multiline"))
+        action_key_bindings = KeyBindings()
+
+        @action_key_bindings.add("escape")
+        def _cancel_action_prompt(event: Any) -> None:
+            event.app.exit(result=None)
+
+        if multiline:
+
+            @action_key_bindings.add("c-d")
+            def _submit_multiline_action_prompt(event: Any) -> None:
+                event.app.exit(result=event.current_buffer.text)
+
+        try:
+            return await prompt_session.prompt_async(
+                f"{label}: ",
+                default="" if default is None else str(default),
+                is_password=bool(request.get("secret")),
+                multiline=multiline,
+                key_bindings=action_key_bindings,
+            )
+        except (EOFError, KeyboardInterrupt):
+            return None
+
+    ui_state["action_prompt"] = prompt_action
 
     def invalidate_prompt() -> None:
         try:

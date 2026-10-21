@@ -1,6 +1,11 @@
 # Frontend App-Link Routing And Action Resume
 If the Codex redirect POC works, add frontend deep-link handling so the app can capture the redirect and resume the login flow by calling the right action on the right connection and session.
 
+SUPERSEDED BY:
+
+- `tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+- `tasks/20261016-provider-login-experience/020-provider-login-notifications-and-anthropic-adoption.md`
+
 ## Requirements checklist
 
 - [ ] Define the deep-link or app-link format that the mobile app will receive.

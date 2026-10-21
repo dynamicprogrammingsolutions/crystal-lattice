@@ -11,6 +11,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { ActionDisplayCard } from './ActionDisplayCard';
+import { useDesktopApplicationActionFieldRenderers } from './useDesktopApplicationActionFieldRenderers';
 
 export interface ActionResultInlineCardProps {
   display: ActionDisplayPayload;
@@ -42,6 +43,7 @@ export function ActionResultInlineCard({
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const variant = display.variant ?? 'info';
+  const defaultFieldRenderers = useDesktopApplicationActionFieldRenderers();
 
   return (
     <View style={styles.wrapper}>
@@ -52,7 +54,7 @@ export function ActionResultInlineCard({
         activeActionId={activeActionId}
         variantLabel={VARIANT_LABELS[variant]}
         compact
-        fieldRenderers={fieldRenderers}
+        fieldRenderers={fieldRenderers ?? defaultFieldRenderers}
         contextLabel={contextLabel}
       />
     </View>

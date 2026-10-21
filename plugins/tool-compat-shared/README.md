@@ -45,6 +45,22 @@ optional hard-cancellation signal and reports cancellation separately from
 timeout. Once a background command is successfully handed off, request
 cancellation no longer owns that process.
 
+### `background_processes.py`
+
+Filesystem-backed background process records for start-then-poll tool
+semantics (used by `claude-tools`): spawn metadata, output files, and
+completion records under a runtime state root.
+
+### `interactive_process_engine.py`
+
+Interactive (unified exec) process sessions: spawn a shell command as a
+long-lived pipe- or PTY-backed session with monotonically increasing
+integer ids, drain accumulated output without blocking, write to PTY stdin,
+interrupt, and terminate the process tree. A manager enforces a
+concurrent-session cap, reaps idle sessions by TTL, and terminates live
+sessions on interpreter exit. POSIX only (PTY support); the engine returns
+structured data only.
+
 ### `web_search_engine.py`
 
 Web search infrastructure: data models, provider protocol, and reusable search provider

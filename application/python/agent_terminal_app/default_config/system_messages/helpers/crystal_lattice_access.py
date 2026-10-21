@@ -82,6 +82,10 @@ def include_crystal_lattice_cli_access() -> bool:
     return _requested() and not _missing_cli_values() and bool(_missing_full_values())
 
 
+def include_crystal_lattice_delegation_guidance() -> bool:
+    return _requested() and not _missing_cli_values()
+
+
 def get_ui_elements() -> list[dict]:
     cli_missing = _missing_cli_values()
     full_missing = _missing_full_values()

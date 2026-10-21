@@ -22,7 +22,7 @@ def test_start_external_flow_returns_open_and_copy_link_display() -> None:
 
     expected_url = (
         "crystal-lattice://action/test-connection/session-123/"
-        "complete_external_flow?result=approved&nonce=n-123"
+        "generic_callback_complete_external_flow?result=approved&nonce=n-123"
     )
     assert result["callback_url"] == expected_url
     display = result["display"]
@@ -60,7 +60,7 @@ def test_start_external_flow_can_include_plugin_id() -> None:
 
     assert result["callback_url"] == (
         "crystal-lattice://action/test-connection/session-123/"
-        "generic_callback_app/complete_external_flow?result=approved&nonce=n-123"
+        "generic_callback_app/generic_callback_complete_external_flow?result=approved&nonce=n-123"
     )
 
 
@@ -86,7 +86,7 @@ def test_complete_external_flow_echoes_inputs_and_session_context() -> None:
         {
             "result": "approved",
             "nonce": "n-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved&nonce=n-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/generic_callback_complete_external_flow?result=approved&nonce=n-123",
         },
         {"session_id": "session-123"},
         {},
@@ -99,7 +99,7 @@ def test_complete_external_flow_echoes_inputs_and_session_context() -> None:
         "inputs": {
             "result": "approved",
             "nonce": "n-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved&nonce=n-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/generic_callback_complete_external_flow?result=approved&nonce=n-123",
         },
         "context": {"session_id": "session-123"},
     }

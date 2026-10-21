@@ -19,6 +19,7 @@ from .runtime_layout import RuntimeLayout, load_runtime_layout
 
 
 RunStatus = Literal["succeeded", "failed", "cancelled", "interrupted"]
+RunPersistence = Literal["persisted", "ephemeral"]
 RunProgressKind = Literal[
     "request_started",
     "assistant_started",
@@ -72,6 +73,7 @@ class AgentRunResult:
     session_id: str
     request_id: str
     agent_id: str
+    persistence: RunPersistence
     output_text: str
     final_messages: tuple[Mapping[str, Any], ...]
     error: RunError | None = None
@@ -82,6 +84,7 @@ class AgentRunResult:
             "session_id": self.session_id,
             "request_id": self.request_id,
             "agent_id": self.agent_id,
+            "persistence": self.persistence,
             "output_text": self.output_text,
             "final_messages": list(self.final_messages),
             "error": self.error.to_dict() if self.error is not None else None,
@@ -307,6 +310,28 @@ class LocalAgentRuntime:
         self._require_open()
         return tuple(self._application.list_agents())
 
+    def list_agent_descriptors(self) -> tuple[Mapping[str, Any], ...]:
+        """Return ordered configured-agent display and effective run metadata."""
+
+        self._require_open()
+        return tuple(self._application.list_agent_run_descriptors())
+
+    def describe_agent(self, agent_id: str) -> Mapping[str, Any]:
+        """Return safe effective run metadata for one configured agent."""
+
+        self._require_open()
+        return self._application.describe_agent_run(agent_id)
+
+    def list_models(self, agent_id: str) -> tuple[Mapping[str, Any], ...]:
+        """Discover model descriptors for a configured agent.
+
+        Reuses generic plugin discovery and caching. Model IDs, order, and
+        additional plugin metadata are preserved; discovery may fetch a
+        catalog but does not create a session or send an inference request.
+        """
+        self._require_open()
+        return tuple(self._application.list_agent_models(agent_id))
+
     def run(
         self,
         prompt: str,
@@ -319,12 +344,20 @@ class LocalAgentRuntime:
         stream: bool = True,
         timeout: float | None = None,
         on_progress: ProgressCallback | None = None,
+        persistence: RunPersistence = "persisted",
     ) -> AgentRunResult:
         self._require_open()
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be a non-empty string")
         if bool(agent_id) == bool(session_id):
             raise ValueError("exactly one of agent_id or session_id is required")
+        if persistence not in {"persisted", "ephemeral"}:
+            raise ValueError("persistence must be 'persisted' or 'ephemeral'")
+        if session_id is not None and persistence == "ephemeral":
+            raise ValueError(
+                "ephemeral runs cannot continue a persisted session; "
+                "use persistence='persisted'"
+            )
         if timeout is not None and (
             isinstance(timeout, bool)
             or not isinstance(timeout, (int, float))
@@ -333,8 +366,15 @@ class LocalAgentRuntime:
         ):
             raise ValueError("timeout must be a finite positive number")
 
+        core: Any | None = None
+        base_config: Dict[str, Any] | None = None
         if agent_id is not None:
-            _core, _base_config, session = self._application.create_session(agent_id)
+            if persistence == "ephemeral":
+                core, base_config, session = self._application.create_session_ephemeral(
+                    agent_id
+                )
+            else:
+                core, base_config, session = self._application.create_session(agent_id)
             selected_agent_id = agent_id
         else:
             assert session_id is not None
@@ -365,21 +405,41 @@ class LocalAgentRuntime:
                 on_progress(progress)
 
         try:
-            result = self._application.run_session_request_with_message(
-                session.session_id,
-                role="user",
-                content=prompt,
-                metadata=dict(metadata) if metadata is not None else None,
-                multipart_content=(
-                    [dict(part) for part in multipart_content]
-                    if multipart_content is not None
-                    else None
-                ),
-                overrides=dict(overrides) if overrides is not None else None,
-                stream=stream,
-                on_event=observe,
-                timeout=timeout,
+            normalized_metadata = dict(metadata) if metadata is not None else None
+            normalized_multipart = (
+                [dict(part) for part in multipart_content]
+                if multipart_content is not None
+                else None
             )
+            normalized_overrides = dict(overrides) if overrides is not None else None
+            if persistence == "ephemeral":
+                assert core is not None
+                assert base_config is not None
+                result = self._application.run_ephemeral_request_with_message(
+                    core,
+                    base_config,
+                    session,
+                    role="user",
+                    content=prompt,
+                    metadata=normalized_metadata,
+                    multipart_content=normalized_multipart,
+                    overrides=normalized_overrides,
+                    stream=stream,
+                    on_event=observe,
+                    timeout=timeout,
+                )
+            else:
+                result = self._application.run_session_request_with_message(
+                    session.session_id,
+                    role="user",
+                    content=prompt,
+                    metadata=normalized_metadata,
+                    multipart_content=normalized_multipart,
+                    overrides=normalized_overrides,
+                    stream=stream,
+                    on_event=observe,
+                    timeout=timeout,
+                )
         except KeyboardInterrupt:
             if active_request_id is not None:
                 self._application.cancel_request(active_request_id)
@@ -398,9 +458,86 @@ class LocalAgentRuntime:
             session_id=result.session_id,
             request_id=result.request_id,
             agent_id=selected_agent_id,
+            persistence=persistence,
             output_text=output_text,
             final_messages=tuple(result.final_messages),
             error=error,
+        )
+
+    def resend(
+        self,
+        session_id: str,
+        *,
+        overrides: Mapping[str, Any] | None = None,
+        stream: bool = True,
+        timeout: float | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> AgentRunResult:
+        """Retry a persisted session request without appending a user message."""
+
+        self._require_open()
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        if timeout is not None and (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(float(timeout))
+            or float(timeout) <= 0
+        ):
+            raise ValueError("timeout must be a finite positive number")
+
+        session = self._application.load_session_record(session_id)
+        if session is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        raw_agent_id = (
+            session.metadata.get("agent_id")
+            if isinstance(session.metadata, dict)
+            else None
+        )
+        if not isinstance(raw_agent_id, str) or not raw_agent_id:
+            raise ValueError(f"Session {session_id!r} has no configured agent identity")
+
+        active_request_id: str | None = None
+
+        def observe(event: Dict[str, Any]) -> None:
+            nonlocal active_request_id
+            request_id = event.get("request_id")
+            if isinstance(request_id, str) and request_id:
+                active_request_id = request_id
+            if on_progress is None:
+                return
+            for progress in normalize_run_progress(event):
+                on_progress(progress)
+
+        try:
+            result = self._application.run_session_request(
+                session_id,
+                dict(overrides) if overrides is not None else None,
+                stream=stream,
+                on_event=observe,
+                timeout=timeout,
+            )
+        except KeyboardInterrupt:
+            if active_request_id is not None:
+                self._application.cancel_request(active_request_id)
+            raise
+
+        output_text = "\n".join(
+            message.get("content", "")
+            for message in result.final_messages
+            if message.get("role") == "assistant"
+            and isinstance(message.get("content"), str)
+            and message.get("content")
+        )
+        return AgentRunResult(
+            status=result.status,
+            session_id=result.session_id,
+            request_id=result.request_id,
+            agent_id=raw_agent_id,
+            persistence="persisted",
+            output_text=output_text,
+            final_messages=tuple(result.final_messages),
+            error=self._convert_error(result.error),
         )
 
     @staticmethod
@@ -530,6 +667,7 @@ __all__ = [
     "AgentRunResult",
     "LocalAgentRuntime",
     "RunError",
+    "RunPersistence",
     "RunProgress",
     "RunProgressKind",
     "RunStatus",

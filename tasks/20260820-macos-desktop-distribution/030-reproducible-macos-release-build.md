@@ -6,15 +6,22 @@ introduced.
 
 ## Requirements checklist
 
-- [ ] Node, Ruby, Bundler, CocoaPods, and relevant build-tool versions are pinned or otherwise reproducible.
-- [ ] A clean checkout can install dependencies and build the shared macOS scheme in Release configuration.
-- [ ] The Release app bundles production JavaScript and does not depend on Metro.
-- [ ] The resulting app contains both `arm64` and `x86_64` slices for required native executables.
-- [ ] TypeScript, Jest, selected integration/native checks, archive inspection, and failure diagnostics are part of the verification path.
-- [ ] Generated archives, DerivedData, Pods, logs, and release outputs are ignored appropriately.
+- [x] Node, Ruby, Bundler, CocoaPods, and relevant build-tool versions are pinned or otherwise reproducible.
+- [x] A clean checkout can install dependencies and build the shared macOS scheme in Release configuration.
+- [x] The Release app bundles production JavaScript and does not depend on Metro.
+- [x] The resulting app contains both `arm64` and `x86_64` slices for required native executables.
+- [x] TypeScript, Jest, selected integration/native checks, archive inspection, and failure diagnostics are part of the verification path.
+- [x] Generated archives, DerivedData, Pods, logs, and release outputs are ignored appropriately.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/020-production-identity-metadata-branding.md
+COMPLETED VIA: tasks/20260928-universal-macos-desktop-fastlane-release.md
+
+## Reconciled status
+
+Progress: done. Delivery date: September 29, 2026. The historical identity
+predecessor 020 was superseded; it is not an active dependency for this
+completed outcome. The original starting state and Draft approach below are
+retained, while execution evidence comes from the approved replacement plan.
 
 ## Known starting state
 
@@ -46,13 +53,13 @@ dependencies, and absence of development-only assumptions.
 
 ### Task checklist
 
-- [ ] Pin and lock compatible Ruby/build dependencies.
-- [ ] Define clean Node and CocoaPods installation commands.
-- [ ] Add Release verification/build commands.
-- [ ] Build a clean Release archive without production credentials.
-- [ ] Inspect architectures, JavaScript bundle, metadata, privacy manifest, resources, and dependencies.
-- [ ] Run desktop unit/component and selected native tests.
-- [ ] Verify ignored/generated output policy.
+- [x] Pin and lock compatible Ruby/build dependencies.
+- [x] Define clean Node and CocoaPods installation commands.
+- [x] Add Release verification/build commands.
+- [x] Build a clean Release archive without production credentials.
+- [x] Inspect architectures, JavaScript bundle, metadata, privacy manifest, resources, and dependencies.
+- [x] Run desktop unit/component and selected native tests.
+- [x] Verify ignored/generated output policy.
 
 ### Requirement verification
 
@@ -65,3 +72,20 @@ dependencies, and absence of development-only assumptions.
 
 - Run `lipo -archs` or `file` across the main executable and bundled native libraries.
 - Run `otool -L` checks for unexpected absolute non-system dependency paths.
+
+## Completion Notes
+
+Recorded during the approved October 7, 2026 reconciliation; delivery occurred
+through `tasks/20260928-universal-macos-desktop-fastlane-release.md`.
+
+- The replacement established locked Ruby/Fastlane/CocoaPods dependencies,
+  clean Node/Pod setup, credential-free verification/build lanes and ignored
+  build outputs.
+- Its September 29 record includes TypeScript/Jest verification and seven
+  selected native tests. Archive/bundle inspection covers JavaScript,
+  metadata, privacy resources, native dependency paths and both architectures.
+- Clean-source GitHub Actions run `36633536807` succeeded on
+  `1a04b8689eab0821727be2c3efc9213e57ebafe7` on September 29, 2026. The
+  resulting `0.9.0 (4)` archive/DMG is the decisive clean-checkout evidence.
+- This credits the delivered baseline. It does not certify later source
+  changes or close human installation acceptance.

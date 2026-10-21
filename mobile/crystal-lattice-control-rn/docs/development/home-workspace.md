@@ -5,10 +5,13 @@ interaction for Home, Watchlist, Recent Sessions, and local notes. The shared
 React Native package owns portable normalization, derivation, status
 presentation, and reorder geometry.
 
-`ConnectedRoot` keeps Home, Connections, Sessions, and Messages mounted. Home
+`ConnectedRoot` keeps Home, Sessions, and Messages mounted. Home
 is selected after hydration. It consumes cached summaries without constructing
 transports and delegates connection opening plus session/navigation selection
-through one application command guarded by current user intent.
+through one application command guarded by current user intent. Its first
+scroll section composes existing connection cards through
+`HomeConnectionsSection`, with three visible by default and a footer toggle.
+New setup appears in a modal over the shell.
 
 Portable Watchlist/recent selectors, note normalization, request-status
 presentation, and measured reorder helpers are owned by

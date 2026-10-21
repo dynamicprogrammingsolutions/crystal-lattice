@@ -10,6 +10,7 @@ def test_can_import_tools() -> None:
     from codex_tools.shell_tool import ShellArrayTool
     from codex_tools.shell_command_tool import ShellCommandTool
     from codex_tools.shell_tool_legacy import ShellTool
+    from codex_tools.unified_exec_tool import ExecCommandTool, WriteStdinTool
     from codex_tools.codex_variant_feature import CodexVariantFeature
     from codex_tools.view_image_tool import ViewImageTool
 
@@ -18,6 +19,8 @@ def test_can_import_tools() -> None:
     assert ShellArrayTool.name
     assert ShellCommandTool.name
     assert ShellTool.name
+    assert ExecCommandTool.name
+    assert WriteStdinTool.name
     assert CodexVariantFeature.name
     assert ViewImageTool.name
 
@@ -30,10 +33,14 @@ def test_descriptor_is_present() -> None:
     assert "codex_tools.shell_tool.ShellArrayTool" in data["entries"]
     assert "codex_tools.shell_command_tool.ShellCommandTool" in data["entries"]
     assert "codex_tools.shell_tool_legacy.ShellTool" in data["entries"]
+    assert "codex_tools.unified_exec_tool.ExecCommandTool" in data["entries"]
+    assert "codex_tools.unified_exec_tool.WriteStdinTool" in data["entries"]
     assert "codex_tools.apply_patch_tool.ApplyPatchTool" in data["entries"]
     assert "codex_tools.codex_skills_feature.CodexSkillsFeature" in data["entries"]
     assert "codex_tools.view_image_tool.ViewImageTool" in data["entries"]
     assert "codex_tools.codex_variant_feature.CodexVariantFeature" in data["entries"]
+    assert data["kinds"]["codex_tools.unified_exec_tool.ExecCommandTool"] == "tools"
+    assert data["kinds"]["codex_tools.unified_exec_tool.WriteStdinTool"] == "tools"
     assert data["kinds"]["codex_tools.view_image_tool.ViewImageTool"] == "tools"
     assert data["kinds"]["codex_tools.codex_skills_feature.CodexSkillsFeature"] == "features"
     assert data["kinds"]["codex_tools.codex_variant_feature.CodexVariantFeature"] == "features"

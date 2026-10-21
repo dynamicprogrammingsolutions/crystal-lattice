@@ -83,6 +83,7 @@ class _PreparedSessionRequest:
     request_id: str
     baseline_file_state: SessionFileState | None
     operation: ApplicationOperationLease
+    persist_session: bool
 
 
 class SessionRequestAlreadyRunningError(RuntimeError):
@@ -206,8 +207,6 @@ class SessionRequestCoordinator:
         normalized_timeout = self._normalize_timeout(timeout)
         operation = self._acquire_application_operation()
         prepared: _PreparedSessionRequest | None = None
-        timer: threading.Timer | None = None
-        timeout_fired = threading.Event()
         try:
             prepared, existing_request_id = self._prepare(
                 session_id,
@@ -217,9 +216,73 @@ class SessionRequestCoordinator:
             if existing_request_id is not None:
                 raise SessionRequestAlreadyRunningError(session_id, existing_request_id)
             assert prepared is not None
-            if normalized_timeout is not None:
+            return self._execute_with_timeout(
+                prepared,
+                stream=bool(stream),
+                on_checkpoint=on_checkpoint,
+                on_event=on_event,
+                timeout=normalized_timeout,
+            )
+        finally:
+            if prepared is not None:
+                self._clear_active(prepared.session.session_id, prepared.request_id)
+                prepared.operation.release()
+            self._release_operation(operation)
+
+    def run_ephemeral(
+        self,
+        core: Any,
+        base_config: Dict[str, Any],
+        session: Session,
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+        on_event: Callable[[Dict[str, Any]], None] | None = None,
+        message: Dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> SessionRequestResult:
+        """Run one coordinated request without persisting its session."""
+
+        normalized_timeout = self._normalize_timeout(timeout)
+        application_operation = self._acquire_application_operation()
+        prepared: _PreparedSessionRequest | None = None
+        try:
+            prepared = self._prepare_ephemeral(
+                core,
+                base_config,
+                session,
+                overrides,
+                message=message,
+            )
+            return self._execute_with_timeout(
+                prepared,
+                stream=bool(stream),
+                on_checkpoint=on_checkpoint,
+                on_event=on_event,
+                timeout=normalized_timeout,
+            )
+        finally:
+            if prepared is not None:
+                self._clear_active(prepared.session.session_id, prepared.request_id)
+                prepared.operation.release()
+            self._release_operation(application_operation)
+
+    def _execute_with_timeout(
+        self,
+        prepared: _PreparedSessionRequest,
+        *,
+        stream: bool,
+        on_checkpoint: Callable[[Session], None] | None,
+        on_event: Callable[[Dict[str, Any]], None] | None,
+        timeout: float | None,
+    ) -> SessionRequestResult:
+        timer: threading.Timer | None = None
+        timeout_fired = threading.Event()
+        try:
+            if timeout is not None:
                 timer = threading.Timer(
-                    normalized_timeout,
+                    timeout,
                     self._cancel_timed_out_request,
                     args=(prepared.request_id, timeout_fired),
                 )
@@ -227,30 +290,26 @@ class SessionRequestCoordinator:
                 timer.start()
             result = self._execute(
                 prepared,
-                stream=bool(stream),
+                stream=stream,
                 on_checkpoint=on_checkpoint,
                 on_event=on_event,
             )
-            if timeout_fired.is_set():
-                return replace(
-                    result,
-                    status="cancelled",
-                    error=SessionRequestError(
-                        category="timeout",
-                        message=(
-                            "Agent request exceeded the configured timeout and "
-                            "was cancelled"
-                        ),
+            if not timeout_fired.is_set():
+                return result
+            return replace(
+                result,
+                status="cancelled",
+                error=SessionRequestError(
+                    category="timeout",
+                    message=(
+                        "Agent request exceeded the configured timeout and "
+                        "was cancelled"
                     ),
-                )
-            return result
+                ),
+            )
         finally:
             if timer is not None:
                 timer.cancel()
-            if prepared is not None:
-                self._clear_active(prepared.session.session_id, prepared.request_id)
-                prepared.operation.release()
-            self._release_operation(operation)
 
     @staticmethod
     def _normalize_timeout(timeout: float | None) -> float | None:
@@ -387,8 +446,81 @@ class SessionRequestCoordinator:
                 request_id=request_id,
                 baseline_file_state=baseline_file_state,
                 operation=operation,
+                persist_session=True,
             ),
             None,
+        )
+
+    def _prepare_ephemeral(
+        self,
+        core: Any,
+        base_config: Dict[str, Any],
+        session: Session,
+        overrides: Optional[Dict[str, Any]],
+        *,
+        message: Dict[str, Any] | None,
+    ) -> _PreparedSessionRequest:
+        if not isinstance(session.session_id, str) or not session.session_id:
+            raise ValueError("session_id must be a non-empty string")
+
+        request_overrides = dict(overrides or {})
+        request_id = self._new_request_id()
+        operation: ApplicationOperationLease | None = None
+
+        with self._app.acquire_session_lock(session.session_id):
+            try:
+                operation = self._operations.reserve(
+                    operation_id=request_id,
+                    owner_id="agent_app.session_request",
+                    session_id=session.session_id,
+                    exclusivity_keys=(
+                        session_operation_exclusivity_key(session.session_id),
+                    ),
+                )
+            except ApplicationOperationBusyError as exc:
+                current = exc.current
+                if current.owner_id == "agent_app.session_request":
+                    raise SessionRequestAlreadyRunningError(
+                        session.session_id,
+                        current.operation_id,
+                    ) from exc
+                raise SessionOperationBusyError(
+                    session.session_id,
+                    current.to_dict(),
+                ) from exc
+
+            with self._lock:
+                if self._closed:
+                    operation.release()
+                    raise SessionRequestCoordinatorClosedError(
+                        "Session request coordinator is closed"
+                    )
+                self._active_by_session[session.session_id] = request_id
+
+            try:
+                if message is not None:
+                    session = self._append_message_locked(
+                        core=core,
+                        base_config=base_config,
+                        session=session,
+                        overrides=request_overrides,
+                        message=message,
+                        persist_session=False,
+                    )
+            except Exception:
+                self._clear_active(session.session_id, request_id)
+                operation.release()
+                raise
+
+        return _PreparedSessionRequest(
+            core=core,
+            base_config=base_config,
+            session=session,
+            overrides=request_overrides,
+            request_id=request_id,
+            baseline_file_state=None,
+            operation=operation,
+            persist_session=False,
         )
 
     def _append_message_locked(
@@ -399,6 +531,7 @@ class SessionRequestCoordinator:
         session: Session,
         overrides: Dict[str, Any],
         message: Dict[str, Any],
+        persist_session: bool = True,
     ) -> Session:
         role = message.get("role")
         content = message.get("content")
@@ -430,13 +563,19 @@ class SessionRequestCoordinator:
                 config=effective_config,
             ),
         )
-        persisted = self._app.save_session(new_session, acquire_lock=False)
-        last_message = persisted.messages[-1] if persisted.messages else None
-        last_index = len(persisted.messages) - 1
+        updated_session = (
+            self._app.save_session(new_session, acquire_lock=False)
+            if persist_session
+            else new_session
+        )
+        last_message = (
+            updated_session.messages[-1] if updated_session.messages else None
+        )
+        last_index = len(updated_session.messages) - 1
         stored = self._app.publish_event(
             {
                 "type": "message_appended",
-                "session_id": persisted.session_id,
+                "session_id": updated_session.session_id,
                 "index": last_index,
                 "role": role,
                 "content": content,
@@ -446,18 +585,19 @@ class SessionRequestCoordinator:
                 ),
             }
         )
-        try:
-            self._app.record_checkpoint(
-                persisted.session_id,
-                stored.get("request_id"),
-            )
-        except Exception as exc:
-            self._logger.warning(
-                "request_message_checkpoint_failed",
-                session_id=persisted.session_id,
-                error=str(exc),
-            )
-        return persisted
+        if persist_session:
+            try:
+                self._app.record_checkpoint(
+                    updated_session.session_id,
+                    stored.get("request_id"),
+                )
+            except Exception as exc:
+                self._logger.warning(
+                    "request_message_checkpoint_failed",
+                    session_id=updated_session.session_id,
+                    error=str(exc),
+                )
+        return updated_session
 
     def _run_background(
         self,
@@ -505,14 +645,19 @@ class SessionRequestCoordinator:
         request_error: SessionRequestError | None = None
         observer_error: Exception | None = None
 
+        send_options: Dict[str, Any] = {
+            "stream": stream,
+            "request_id": prepared.request_id,
+            "baseline_file_state": prepared.baseline_file_state,
+        }
+        if not prepared.persist_session:
+            send_options["persist_session"] = False
         for event in self._app.send_request(
             prepared.core,
             prepared.session,
             prepared.base_config,
             prepared.overrides,
-            stream=stream,
-            request_id=prepared.request_id,
-            baseline_file_state=prepared.baseline_file_state,
+            **send_options,
         ):
             event_type = event.get("type")
             if event_type == "session_checkpoint":

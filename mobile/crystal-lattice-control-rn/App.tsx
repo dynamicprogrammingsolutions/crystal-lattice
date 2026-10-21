@@ -4,15 +4,11 @@ import {
   AppState,
   Linking,
   Platform,
-  ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
   useColorScheme,
   Alert,
-  TextInput,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -22,6 +18,8 @@ import {
   CloudTransport,
   FetchTransport,
   createBridgeConnectionTransport,
+  deriveBridgeHttpBaseUrl,
+  normalizeBridgeAddress,
   invalidateAgentsCache,
   parseCloudConnectionLink,
   type KeyValueStore,
@@ -72,15 +70,16 @@ import {
   noteEmbeddedPythonRuntimeAppState,
   type EmbeddedRuntimePublicConfiguration,
 } from './src/embeddedRuntime/embeddedPythonRuntime';
-
-type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud' | 'embedded';
-
-interface Service {
-  name: string;
-  host: string;
-  port: number;
-  addresses: string[];
-}
+import {
+  CloudConnectionStep, ConnectionMethodStep, DiscoveryConnectionStep,
+  EmbeddedConnectionStep, ManualConnectionStep,
+  type ConnectionMethod, type DiscoveredService as Service,
+} from './src/connections/ConnectionWizardSteps';
+import BridgeConnectionStep from './src/connections/BridgeConnectionStep';
+import { useConnectionSetup } from './src/connections/useConnectionSetup';
+import { useSavedBridgeUrls } from './src/connections/useSavedBridgeUrls';
+import { useDevelopmentSettings } from './src/settings/useDevelopmentSettings';
+import { bridgeConnectionErrorMessage } from './src/connections/bridgeErrors';
 
 const connectionsStore: KeyValueStore = {
   get: (key) => AsyncStorage.getItem(key),
@@ -100,7 +99,7 @@ function embeddedConnectionRecord(
   return {
     id: EMBEDDED_CONNECTION_ID,
     kind: 'embedded',
-    name: 'On-device Python agents',
+    name: 'Local agent',
     proxyUrl: selectedProfile?.baseUrl ?? configuration.proxyUrl,
     model: selectedProfile?.model ?? configuration.model,
     lastUsedAt,
@@ -131,15 +130,6 @@ const EVENTS_TIMEOUT_MS = 10_000;
 const BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
 const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
 const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
-const PRIVACY_POLICY_URL = 'https://crystallattice.dev/privacy';
-const SUPPORT_URL = 'https://crystallattice.dev/support';
-
-function openExternalUrl(url: string): void {
-  void Linking.openURL(url).catch(() => {
-    Alert.alert('Unable to Open Link', `Please open ${url} in your browser.`);
-  });
-}
-
 const TRANSPORT_TIMEOUT_RULES: TransportTimeoutRule[] = [
   { method: 'GET', pathPrefix: '/events', timeoutMs: EVENTS_TIMEOUT_MS },
   {
@@ -258,13 +248,14 @@ function App(): React.JSX.Element {
   const [manualPort, setManualPort] = useState('8080');
 
   const [bridgeUrl, setBridgeUrl] = useState('');
-  const [bridgeTransportMode, setBridgeTransportMode] =
-    useState<BridgeTransportMode>(DEFAULT_BRIDGE_TRANSPORT_MODE);
+  const developmentSettings = useDevelopmentSettings(connectionsStore);
+  const savedBridgeUrls = useSavedBridgeUrls(connectionsStore);
   const [bridgeServers, setBridgeServers] = useState<BridgeServer[]>([]);
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
   const [connectingBridgeTransport, setConnectingBridgeTransport] =
     useState<BridgeConnectionTransport | null>(null);
+  const repairingBridgeRecordRef = useRef<BridgeConnectionRecord | null>(null);
   const [cloudConnectionLink, setCloudConnectionLink] = useState('');
   const [embeddedProxyUrl, setEmbeddedProxyUrl] = useState(
     'http://127.0.0.1:3000/v1',
@@ -360,7 +351,7 @@ function App(): React.JSX.Element {
         appendDebugNote({
           scope: 'app',
           title: 'Action link queued',
-          detail: outcome.parsed.actionId,
+          detail: outcome.parsed.callbackElementId,
           meta: {
             connectionId: outcome.parsed.connectionId,
             sessionId: outcome.parsed.sessionId,
@@ -378,7 +369,7 @@ function App(): React.JSX.Element {
         appendDebugNote({
           scope: 'app',
           title: 'Action link execution succeeded',
-          detail: outcome.parsed.actionId,
+          detail: outcome.parsed.callbackElementId,
           meta: {
             connectionId: outcome.parsed.connectionId,
             sessionId: outcome.parsed.sessionId,
@@ -405,7 +396,7 @@ function App(): React.JSX.Element {
           connectionId: outcome.parsed?.connectionId ?? null,
           sessionId: outcome.parsed?.sessionId ?? null,
           pluginId: outcome.parsed?.pluginId ?? null,
-          actionId: outcome.parsed?.actionId ?? null,
+          callbackElementId: outcome.parsed?.callbackElementId ?? null,
           errorType: outcome.errorType,
         },
       });
@@ -582,12 +573,34 @@ function App(): React.JSX.Element {
     });
   }, []);
 
+  const connectionSetup = useConnectionSetup({
+    transport,
+    onConnected: (next, record, nextBackend) => {
+      setTransport(next);
+      setBackend(nextBackend ?? new RestAgentBackend({ transport: next }));
+      upsertConnection(record);
+      setSelectedConnectionId(record.id);
+      if (isSearching) stopDiscovery();
+      Keyboard.dismiss();
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
+      setConnectingBridgeTransport(null);
+      setBridgeServers([]);
+      setSelectedBridgeServer(null);
+      setPairingCode('');
+      repairingBridgeRecordRef.current = null;
+      setIsLoading(false);
+    },
+  });
 
   const openBridgeRepairFlow = useCallback(
     async (
       bridgeRecord: BridgeConnectionRecord,
       reasonCode: 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null,
     ) => {
+      if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return;
+      connectionSetup.start();
+      const ticket = connectionSetup.ticket();
       appendDebugNote({
         scope: 'app',
         title: 'Bridge repair flow opened',
@@ -600,19 +613,20 @@ function App(): React.JSX.Element {
 
       const bridge = createBridgeTransport({
         bridgeUrl: bridgeRecord.bridgeUrl,
-        mode: resolveBridgeTransportMode(bridgeRecord),
+        mode: resolveBridgeTransportMode(bridgeRecord, developmentSettings.mode),
         debug: true,
       });
+      if (!connectionSetup.track(ticket, bridge)) return;
       await bridge.connect();
       const servers = await bridge.listServers();
+      if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(bridgeRecord.bridgeUrl);
+      if (!connectionSetup.isCurrent(ticket)) return;
       const preferredServer =
         servers.find((server) => server.server_id === bridgeRecord.serverId) ?? null;
 
-      setTransport(null);
-      setBackend(null);
-      setSelectedConnectionId(null);
+      repairingBridgeRecordRef.current = bridgeRecord;
       setBridgeUrl(bridgeRecord.bridgeUrl);
-      setBridgeTransportMode(resolveBridgeTransportMode(bridgeRecord));
       setBridgeServers(servers);
       setConnectingBridgeTransport(bridge);
       setPairingCode('');
@@ -621,6 +635,7 @@ function App(): React.JSX.Element {
 
       if (preferredServer) {
         await bridge.requestPairing(preferredServer.server_id);
+        if (!connectionSetup.isCurrent(ticket)) return;
         setSelectedBridgeServer(preferredServer);
         Alert.alert(
           'Bridge Re-pair Required',
@@ -637,7 +652,8 @@ function App(): React.JSX.Element {
         'The saved bridge session could not be resumed. Select an available server and pair again.',
       );
     },
-    [appendDebugNote],
+    [appendDebugNote, developmentSettings.hydrated, developmentSettings.mode,
+      savedBridgeUrls.hydrated, savedBridgeUrls.remember],
   );
 
   const handleAppForeground = useCallback(async () => {
@@ -844,6 +860,11 @@ function App(): React.JSX.Element {
   };
 
   const cancelConnectionWizard = () => {
+    Keyboard.dismiss();
+    connectionSetup.cancel();
+    repairingBridgeRecordRef.current = null;
+    setIsLoading(false);
+    setConnectingBridgeTransport(null);
     if (isSearching) {
       stopDiscovery();
     }
@@ -875,6 +896,7 @@ function App(): React.JSX.Element {
       return;
     }
 
+    const ticket = connectionSetup.ticket();
     setIsLoading(true);
     try {
       appendDebugNote({
@@ -885,9 +907,8 @@ function App(): React.JSX.Element {
       const port = parseInt(manualPort, 10);
       const baseUrl = `http://${manualHost}:${port}`;
       const nextTransport = createHttpTransport(baseUrl);
+      if (!connectionSetup.track(ticket, nextTransport)) return;
       await nextTransport.request({ method: 'GET', path: '/api/data' });
-      setTransport(nextTransport);
-      setBackend(new RestAgentBackend({ transport: nextTransport }));
       const id = generateId();
       const record: ManualConnectionRecord = {
         id,
@@ -897,16 +918,15 @@ function App(): React.JSX.Element {
         port,
         lastUsedAt: Date.now(),
       };
-      upsertConnection(record);
-      setSelectedConnectionId(id);
-      setShowConnectionWizard(false);
-      setConnectionMethod(null);
+      if (!connectionSetup.complete(ticket, nextTransport, record)) return;
       appendDebugNote({
         scope: 'app',
         title: 'Manual connection succeeded',
         detail: `${manualHost}:${manualPort}`,
       });
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
+      connectionSetup.fail(ticket);
       appendDebugNote({
         scope: 'app',
         title: 'Manual connection failed',
@@ -914,7 +934,7 @@ function App(): React.JSX.Element {
       });
       Alert.alert('Connection Error', error.message);
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
@@ -930,6 +950,7 @@ function App(): React.JSX.Element {
       return;
     }
 
+    const ticket = connectionSetup.ticket();
     setIsLoading(true);
     try {
       appendDebugNote({
@@ -944,27 +965,23 @@ function App(): React.JSX.Element {
         ...(embeddedApiKey ? { apiKey: embeddedApiKey } : {}),
       });
       const embedded = createEmbeddedRuntimeBackend();
+      if (!connectionSetup.track(ticket, embedded.transport)) return;
       await embedded.transport.request({
         method: 'POST',
         path: '/embedded/runtime/validate',
       });
       await embedded.backend.listAgents();
-      setTransport(embedded.transport);
-      setBackend(embedded.backend);
       const record: EmbeddedConnectionRecord = {
         id: EMBEDDED_CONNECTION_ID,
         kind: 'embedded',
-        name: 'On-device Python agent',
+        name: 'Local agent',
         proxyUrl: configuration.proxyUrl,
         model: configuration.model,
         lastUsedAt: Date.now(),
       };
-      upsertConnection(record);
-      setSelectedConnectionId(record.id);
+      if (!connectionSetup.complete(ticket, embedded.transport, record, embedded.backend)) return;
       setEmbeddedApiKey('');
       setEmbeddedHasSavedApiKey(configuration.hasApiKey);
-      setShowConnectionWizard(false);
-      setConnectionMethod(null);
       appendDebugNote({
         scope: 'app',
         title: 'Embedded runtime connection succeeded',
@@ -972,6 +989,8 @@ function App(): React.JSX.Element {
         meta: { proxyUrl: configuration.proxyUrl },
       });
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
+      connectionSetup.fail(ticket);
       appendDebugNote({
         scope: 'app',
         title: 'Embedded runtime connection failed',
@@ -982,11 +1001,12 @@ function App(): React.JSX.Element {
         error?.message || 'Could not start the embedded runtime',
       );
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
   const connectToService = async (service: Service) => {
+    const ticket = connectionSetup.ticket();
     setIsLoading(true);
     try {
       appendDebugNote({
@@ -996,10 +1016,8 @@ function App(): React.JSX.Element {
       });
       const baseUrl = `http://${service.host}:${service.port}`;
       const nextTransport = createHttpTransport(baseUrl);
+      if (!connectionSetup.track(ticket, nextTransport)) return;
       await nextTransport.request({ method: 'GET', path: '/api/data' });
-      setTransport(nextTransport);
-      setBackend(new RestAgentBackend({ transport: nextTransport }));
-      stopDiscovery();
       const id = generateId();
       const record: DiscoveryConnectionRecord = {
         id,
@@ -1010,16 +1028,15 @@ function App(): React.JSX.Element {
         serviceName: service.name,
         lastUsedAt: Date.now(),
       };
-      upsertConnection(record);
-      setSelectedConnectionId(id);
-      setShowConnectionWizard(false);
-      setConnectionMethod(null);
+      if (!connectionSetup.complete(ticket, nextTransport, record)) return;
       appendDebugNote({
         scope: 'app',
         title: 'Discovery connection succeeded',
         detail: service.name,
       });
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
+      connectionSetup.fail(ticket);
       appendDebugNote({
         scope: 'app',
         title: 'Discovery connection failed',
@@ -1027,41 +1044,51 @@ function App(): React.JSX.Element {
       });
       Alert.alert('Connection Error', error.message);
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
-  const connectToBridge = async () => {
-    if (!bridgeUrl) {
-      Alert.alert('Error', 'Please enter bridge URL');
+  const connectToBridge = async (input = bridgeUrl) => {
+    const url = input.trim();
+    if (!url) {
+      Alert.alert('Error', 'Please enter a bridge address');
       return;
     }
 
-    if (!bridgeUrl.startsWith('ws://') && !bridgeUrl.startsWith('wss://')) {
-      Alert.alert('Invalid URL', 'Bridge URL must start with ws:// or wss://');
+    try {
+      normalizeBridgeAddress(url);
+    } catch (error) {
+      Alert.alert('Invalid Bridge Address', error instanceof Error ? error.message : String(error));
       return;
     }
 
+    const ticket = connectionSetup.ticket();
+    if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return;
+    setBridgeUrl(url);
     setIsLoading(true);
     try {
       console.log('🚀 Starting bridge connection...');
       appendDebugNote({
         scope: 'app',
         title: 'Bridge connection started',
-        detail: bridgeUrl,
+        detail: url,
       });
       
       const bridge = createBridgeTransport({
-        bridgeUrl,
-        mode: bridgeTransportMode,
+        bridgeUrl: url,
+        mode: developmentSettings.mode,
         debug: true,
       });
+      if (!connectionSetup.track(ticket, bridge)) return;
       await bridge.connect();
+      if (!connectionSetup.isCurrent(ticket)) return;
       console.log('✅ Bridge connected, fetching servers...');
       
-      setConnectingBridgeTransport(bridge);
-      
       const servers = await bridge.listServers();
+      if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(url);
+      if (!connectionSetup.isCurrent(ticket)) return;
+      setConnectingBridgeTransport(bridge);
       console.log(`📋 Found ${servers.length} servers:`, servers);
       setBridgeServers(servers);
       
@@ -1074,6 +1101,8 @@ function App(): React.JSX.Element {
         detail: `${servers.length} server(s) discovered`,
       });
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
+      connectionSetup.fail(ticket);
       console.log('❌ Bridge connection failed:', error);
       appendDebugNote({
         scope: 'app',
@@ -1082,31 +1111,34 @@ function App(): React.JSX.Element {
       });
       Alert.alert(
         'Bridge Connection Error',
-        error.message,
+        bridgeConnectionErrorMessage(error),
         [{ text: 'OK' }]
       );
       setConnectingBridgeTransport(null);
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
   const requestPairing = async (server: BridgeServer) => {
     if (!connectingBridgeTransport) return;
 
+    const ticket = connectionSetup.ticket();
     setSelectedBridgeServer(server);
     setIsLoading(true);
     try {
       await connectingBridgeTransport.requestPairing(server.server_id);
+      if (!connectionSetup.isCurrent(ticket)) return;
       Alert.alert(
         'Pairing Requested',
         'Check the server terminal for the 6-digit pairing code',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
       Alert.alert('Pairing Error', error.message);
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
@@ -1116,6 +1148,7 @@ function App(): React.JSX.Element {
       return;
     }
 
+    const ticket = connectionSetup.ticket();
     setIsLoading(true);
     try {
       await connectingBridgeTransport.submitPairingCode(
@@ -1123,9 +1156,8 @@ function App(): React.JSX.Element {
         pairingCode
       );
 
-      setTransport(connectingBridgeTransport);
-      setBackend(new RestAgentBackend({ transport: connectingBridgeTransport }));
-      const id = generateId();
+      const repaired = repairingBridgeRecordRef.current;
+      const id = repaired?.serverId === selectedBridgeServer.server_id ? repaired.id : generateId();
       const record: BridgeConnectionRecord = {
         id,
         kind: 'bridge',
@@ -1134,19 +1166,17 @@ function App(): React.JSX.Element {
         serverId: selectedBridgeServer.server_id,
         serverName: selectedBridgeServer.display_name,
         pairingToken: connectingBridgeTransport.getPairingToken(),
-        transportMode: bridgeTransportMode,
+        transportMode: DEFAULT_BRIDGE_TRANSPORT_MODE,
         lastUsedAt: Date.now(),
       };
-      upsertConnection(record);
-      setSelectedConnectionId(id);
-      setShowConnectionWizard(false);
-      setConnectionMethod(null);
-      setPairingCode('');
-      setConnectingBridgeTransport(null);
+      if (!connectionSetup.isCurrent(ticket)) return;
+      await savedBridgeUrls.remember(bridgeUrl);
+      connectionSetup.complete(ticket, connectingBridgeTransport, record);
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
       Alert.alert('Pairing Failed', error.message);
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
@@ -1156,6 +1186,7 @@ function App(): React.JSX.Element {
       return;
     }
 
+    const ticket = connectionSetup.ticket();
     setIsLoading(true);
     try {
       const parsed = parseCloudConnectionLink(cloudConnectionLink.trim());
@@ -1167,9 +1198,8 @@ function App(): React.JSX.Element {
         defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
         timeoutRules: TRANSPORT_TIMEOUT_RULES,
       });
+      if (!connectionSetup.track(ticket, nextTransport)) return;
       await nextTransport.request({ method: 'GET', path: '/api/data' });
-      setTransport(nextTransport);
-      setBackend(new RestAgentBackend({ transport: nextTransport }));
 
       const id = generateId();
       const record: CloudConnectionRecord = {
@@ -1184,15 +1214,14 @@ function App(): React.JSX.Element {
         token: parsed.token,
         lastUsedAt: Date.now(),
       };
-      upsertConnection(record);
-      setSelectedConnectionId(id);
-      setShowConnectionWizard(false);
-      setConnectionMethod(null);
+      if (!connectionSetup.complete(ticket, nextTransport, record)) return;
       setCloudConnectionLink('');
     } catch (error: any) {
+      if (!connectionSetup.isCurrent(ticket)) return;
+      connectionSetup.fail(ticket);
       Alert.alert('Cloud Connection Error', error?.message || 'Could not connect to cloud agent');
     } finally {
-      setIsLoading(false);
+      if (connectionSetup.isCurrent(ticket)) setIsLoading(false);
     }
   };
 
@@ -1240,219 +1269,42 @@ function App(): React.JSX.Element {
   };
 
   const renderMethodSelection = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Select Connection Method</Text>
-
-      <TouchableOpacity
-        testID="connection-method-manual"
-        style={[styles.button, styles.methodButton]}
-        onPress={() => selectMethod('manual')}>
-        <Text style={styles.buttonText}>Manual Address</Text>
-        <Text style={styles.methodDescription}>Enter IP address and port</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.methodButton]}
-        onPress={() => selectMethod('discovery')}>
-        <Text style={styles.buttonText}>Automatic Discovery</Text>
-        <Text style={styles.methodDescription}>Find services via Bonjour</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        testID="connection-method-bridge"
-        style={[styles.button, styles.methodButton]}
-        onPress={() => selectMethod('bridge')}>
-        <Text style={styles.buttonText}>Bridge Service</Text>
-        <Text style={styles.methodDescription}>Connect via bridge server</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.methodButton]}
-        onPress={() => selectMethod('cloud')}>
-        <Text style={styles.buttonText}>Cloud Agent Link</Text>
-        <Text style={styles.methodDescription}>Paste a cloud session connection link</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Cancel</Text>
-      </TouchableOpacity>
-
-      <View style={styles.legalLinks}>
-        <TouchableOpacity
-          accessibilityRole="link"
-          testID="privacy-policy-link"
-          onPress={() => openExternalUrl(PRIVACY_POLICY_URL)}>
-          <Text style={styles.legalLinkText}>Privacy Policy</Text>
-        </TouchableOpacity>
-        <Text style={styles.legalLinkSeparator}>·</Text>
-        <TouchableOpacity
-          accessibilityRole="link"
-          testID="support-link"
-          onPress={() => openExternalUrl(SUPPORT_URL)}>
-          <Text style={styles.legalLinkText}>Support</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <ConnectionMethodStep onSelect={selectMethod} onCancel={cancelConnectionWizard} />
   );
 
   const renderEmbeddedConnection = () => (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>On-device Python Agent</Text>
-      <Text style={styles.infoText}>
-        Proof of concept: connect the embedded agent to an
-        API-key-protected OpenAI-compatible proxy.
-      </Text>
-
-      <TextInput
-        testID="embedded-proxy-url-input"
-        style={styles.input}
-        placeholder="Proxy URL"
-        value={embeddedProxyUrl}
-        onChangeText={setEmbeddedProxyUrl}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <TextInput
-        testID="embedded-model-input"
-        style={styles.input}
-        placeholder="Model"
-        value={embeddedModel}
-        onChangeText={setEmbeddedModel}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <TextInput
-        testID="embedded-api-key-input"
-        style={styles.input}
-        placeholder={
-          embeddedHasSavedApiKey
-            ? 'API key saved — leave blank to keep it'
-            : 'Proxy API key'
-        }
-        value={embeddedApiKey}
-        onChangeText={setEmbeddedApiKey}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        testID="embedded-connect-button"
-        style={[styles.button, styles.primaryButton]}
-        onPress={connectEmbedded}
-        disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Starting...' : 'Start On-device Agent'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Back</Text>
-      </TouchableOpacity>
-    </ScrollView>
+    <EmbeddedConnectionStep
+      proxyUrl={embeddedProxyUrl} model={embeddedModel} apiKey={embeddedApiKey}
+      hasKey={embeddedHasSavedApiKey} onProxyUrl={setEmbeddedProxyUrl}
+      onModel={setEmbeddedModel} onApiKey={setEmbeddedApiKey}
+      onConnect={connectEmbedded} onCancel={cancelConnectionWizard} loading={isLoading}
+    />
   );
 
   const renderManualConnection = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Manual Connection</Text>
-      
-      <TextInput
-        testID="manual-host-input"
-        style={styles.input}
-        placeholder="Host (e.g., 192.168.1.100)"
-        value={manualHost}
-        onChangeText={setManualHost}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <TextInput
-        testID="manual-port-input"
-        style={styles.input}
-        placeholder="Port (e.g., 8080)"
-        value={manualPort}
-        onChangeText={setManualPort}
-        keyboardType="number-pad"
-      />
-
-      <TouchableOpacity
-        testID="manual-connect-button"
-        style={[styles.button, styles.primaryButton]}
-        onPress={connectManual}
-        disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Connecting...' : 'Connect'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Back</Text>
-      </TouchableOpacity>
-    </View>
+    <ManualConnectionStep
+      host={manualHost} port={manualPort} onHost={setManualHost} onPort={setManualPort}
+      onConnect={connectManual} onCancel={cancelConnectionWizard} loading={isLoading}
+    />
   );
 
   const renderDiscoveryConnection = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Service Discovery</Text>
-
-      <View style={styles.statusContainer}>
-        <View style={[styles.statusDot, isSearching ? styles.statusSearching : styles.statusInactive]} />
-        <Text style={styles.statusText}>
-          {isSearching ? 'Searching...' : 'Not searching'}
-        </Text>
-      </View>
-
-      {discoveredServices.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Found {discoveredServices.length} service(s)
-          </Text>
-          <ScrollView style={styles.serviceList}>
-            {discoveredServices.map((service, index) => (
-              <TouchableOpacity
-                key={`${service.name}-${index}`}
-                style={styles.serviceItem}
-                onPress={() => connectToService(service)}
-                disabled={isLoading}>
-                <Text style={styles.serviceName}>{service.name}</Text>
-                <Text style={styles.serviceDetails}>
-                  {service.host}:{service.port}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {isSearching && discoveredServices.length === 0 && (
-        <Text style={styles.infoText}>Searching for services...</Text>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Back</Text>
-      </TouchableOpacity>
-    </View>
+    <DiscoveryConnectionStep
+      searching={isSearching} services={discoveredServices}
+      onConnect={connectToService} onCancel={cancelConnectionWizard} loading={isLoading}
+    />
   );
 
   const testBridgeConnectivity = async () => {
     if (!bridgeUrl) return;
 
-    const httpUrl = bridgeUrl
-      .replace('ws://', 'http://')
-      .replace('wss://', 'https://')
-      .replace('/ws/websocket', '/health');
+    let httpUrl: string;
+    try {
+      httpUrl = `${deriveBridgeHttpBaseUrl(bridgeUrl)}/health`;
+    } catch (error) {
+      Alert.alert('Invalid Bridge Address', error instanceof Error ? error.message : String(error));
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -1467,7 +1319,7 @@ function App(): React.JSX.Element {
         console.log('✅ Bridge HTTP reachable:', data);
         Alert.alert(
           'Bridge Reachable',
-          `Bridge is running!\n\nStatus: ${data.status || 'ok'}\n\nYou can now try connecting via WebSocket.`,
+          `Bridge is running!\n\nStatus: ${data.status || 'ok'}\n\nYou can now connect to the bridge.`,
           [{ text: 'OK' }]
         );
       } else {
@@ -1486,181 +1338,30 @@ function App(): React.JSX.Element {
   };
 
   const renderBridgeConnection = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Bridge Connection</Text>
-      
-      {!connectingBridgeTransport && (
-        <>
-          <Text style={styles.infoText}>
-            For testing on a physical device, use your computer's IP address (not localhost).
-          </Text>
-          
-          <Text style={[styles.infoText, { fontSize: 12, marginTop: 8 }]}>
-            Example: ws://192.168.1.100:4000/ws/websocket
-          </Text>
-
-          <TextInput
-            style={styles.input}
-            placeholder="Bridge URL (e.g., ws://192.168.1.100:4000/ws/websocket)"
-            value={bridgeUrl}
-            onChangeText={setBridgeUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Text style={styles.bridgeModeLabel}>Transport (experimental)</Text>
-          <View style={styles.bridgeModeSelector}>
-            {(
-              [
-                ['websocket', 'WebSocket'],
-                ['http', 'HTTP'],
-                ['hybrid', 'Hybrid'],
-              ] as const
-            ).map(([mode, label]) => (
-              <TouchableOpacity
-                key={mode}
-                testID={`bridge-transport-mode-${mode}`}
-                accessibilityRole="button"
-                accessibilityLabel={`${label} bridge transport${
-                  bridgeTransportMode === mode ? ' selected' : ''
-                }`}
-                accessibilityState={{
-                  selected: bridgeTransportMode === mode,
-                }}
-                style={[
-                  styles.bridgeModeButton,
-                  bridgeTransportMode === mode &&
-                    styles.bridgeModeButtonSelected,
-                ]}
-                onPress={() => setBridgeTransportMode(mode)}
-                disabled={isLoading}>
-                <Text
-                  style={[
-                    styles.bridgeModeButtonText,
-                    bridgeTransportMode === mode &&
-                      styles.bridgeModeButtonTextSelected,
-                  ]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.bridgeModeHint}>
-            WebSocket is the stable default. Hybrid keeps event polling on
-            WebSocket and sends all other requests over HTTP.
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={connectToBridge}
-            disabled={isLoading}>
-            <Text style={styles.buttonText}>
-              {isLoading ? 'Connecting...' : 'Connect to Bridge'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={testBridgeConnectivity}
-            disabled={isLoading || !bridgeUrl}>
-            <Text style={styles.buttonTextSecondary}>Test Connectivity</Text>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {connectingBridgeTransport && !selectedBridgeServer && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Available Servers ({bridgeServers.length})
-          </Text>
-          <ScrollView style={styles.serviceList}>
-            {bridgeServers.map((server) => (
-              <TouchableOpacity
-                key={server.server_id}
-                style={styles.serviceItem}
-                onPress={() => requestPairing(server)}
-                disabled={isLoading}>
-                <Text style={styles.serviceName}>{server.display_name}</Text>
-                <Text style={styles.serviceDetails}>{server.computer_name}</Text>
-                <Text style={styles.serviceDetails}>ID: {server.server_id}</Text>
-                {server.location && (
-                  <Text style={styles.serviceDetails}>{server.location}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {selectedBridgeServer && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pairing with {selectedBridgeServer.display_name}</Text>
-          <Text style={styles.infoText}>
-            Check the server terminal for the 6-digit pairing code
-          </Text>
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Enter 6-digit code"
-            value={pairingCode}
-            onChangeText={setPairingCode}
-            keyboardType="number-pad"
-            maxLength={6}
-          />
-
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={submitPairing}
-            disabled={isLoading}>
-            <Text style={styles.buttonText}>
-              {isLoading ? 'Pairing...' : 'Submit Code'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={() => setSelectedBridgeServer(null)}>
-            <Text style={styles.buttonTextSecondary}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Cancel</Text>
-      </TouchableOpacity>
-    </View>
+    <BridgeConnectionStep
+      url={bridgeUrl} savedBridges={savedBridgeUrls.bridges} servers={bridgeServers}
+      connected={connectingBridgeTransport !== null} selectedServer={selectedBridgeServer}
+      code={pairingCode}
+      loading={isLoading || !developmentSettings.hydrated || !savedBridgeUrls.hydrated}
+      storageError={savedBridgeUrls.error?.message ?? developmentSettings.error?.message}
+      onUrl={setBridgeUrl} onCode={setPairingCode}
+      onConnect={() => { void connectToBridge(); }} onTest={testBridgeConnectivity}
+      onSelectSaved={(url) => { void connectToBridge(url); }}
+      onRemoveSaved={(url) => {
+        void savedBridgeUrls.remove(url).catch((error) => {
+          Alert.alert('Saved Bridge Error', error.message);
+        });
+      }}
+      onPair={requestPairing} onSubmit={submitPairing}
+      onCancelPairing={() => setSelectedBridgeServer(null)} onCancel={cancelConnectionWizard}
+    />
   );
 
   const renderCloudConnection = () => (
-    <View style={styles.container}>
-      <Text style={styles.title}>Cloud Agent Link</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="crystal-lattice-cloud://connect?..."
-        value={cloudConnectionLink}
-        onChangeText={setCloudConnectionLink}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <TouchableOpacity
-        style={[styles.button, styles.primaryButton]}
-        onPress={connectCloud}
-        disabled={isLoading}>
-        <Text style={styles.buttonText}>
-          {isLoading ? 'Connecting...' : 'Connect to Cloud Agent'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, styles.secondaryButton]}
-        onPress={cancelConnectionWizard}>
-        <Text style={styles.buttonTextSecondary}>Back</Text>
-      </TouchableOpacity>
-    </View>
+    <CloudConnectionStep
+      link={cloudConnectionLink} onLink={setCloudConnectionLink}
+      onConnect={connectCloud} onCancel={cancelConnectionWizard} loading={isLoading}
+    />
   );
 
   const renderConnectingScreen = () => {
@@ -1676,9 +1377,9 @@ function App(): React.JSX.Element {
     record: ConnectionRecord,
   ): Promise<boolean> => {
     setIsLoading(true);
+    let nextTransport: Transport | null = null;
+    let nextBackend: AgentBackend | null = null;
     try {
-      disconnectIfPossible(transport);
-
       appendDebugNote({
         scope: 'app',
         title: 'Connection selected',
@@ -1688,9 +1389,6 @@ function App(): React.JSX.Element {
           name: record.name,
         },
       });
-
-      let nextTransport: Transport | null = null;
-      let nextBackend: AgentBackend | null = null;
 
       if (record.kind === 'embedded') {
         const embedded = createEmbeddedRuntimeBackend();
@@ -1703,18 +1401,20 @@ function App(): React.JSX.Element {
         await httpTransport.request({ method: 'GET', path: '/api/data' });
         nextTransport = httpTransport;
       } else if (record.kind === 'bridge') {
+        if (!developmentSettings.hydrated || !savedBridgeUrls.hydrated) return false;
         if (!record.pairingToken) {
           await openBridgeRepairFlow(record, null);
           return false;
         }
 
         const bridge = createBridgeTransport({
-          ...getSavedBridgeTransportOptions(record),
+          ...getSavedBridgeTransportOptions(record, developmentSettings.mode),
           debug: true,
         });
         try {
           await bridge.connect();
         } catch (error) {
+          bridge.disconnect();
           const reasonCode = getBridgeReconnectErrorCode(error);
           if (reasonCode) {
             if (reasonCode === 'invalid_pairing_token' || reasonCode === 'server_mismatch') {
@@ -1730,6 +1430,7 @@ function App(): React.JSX.Element {
           throw error;
         }
         nextTransport = bridge;
+        await savedBridgeUrls.remember(record.bridgeUrl);
       } else if (record.kind === 'cloud') {
         const cloud = createCloudTransport(record);
         await cloud.request({ method: 'GET', path: '/api/data' });
@@ -1741,6 +1442,7 @@ function App(): React.JSX.Element {
         setBackend(nextBackend ?? new RestAgentBackend({ transport: nextTransport }));
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
+        if (nextTransport !== transport) disconnectIfPossible(transport);
         appendDebugNote({
           scope: 'app',
           title: 'Connection activated',
@@ -1753,8 +1455,11 @@ function App(): React.JSX.Element {
       }
       return false;
     } catch (error: any) {
+      if (nextTransport !== transport) disconnectIfPossible(nextTransport);
       console.log('Failed to reconnect to saved connection', error);
-      Alert.alert('Connection Error', error?.message || 'Failed to reconnect');
+      Alert.alert('Connection Error', record.kind === 'bridge'
+        ? bridgeConnectionErrorMessage(error)
+        : error?.message || 'Failed to reconnect');
       return false;
     } finally {
       setIsLoading(false);
@@ -1773,7 +1478,9 @@ function App(): React.JSX.Element {
           >
           <PinnedActionsProvider>
           <HomeWorkspaceProvider>
-            {isAppLoading || !markdownDisplayPreferencesHydrated ? (
+            {isAppLoading || !markdownDisplayPreferencesHydrated ||
+              (!developmentSettings.hydrated && !developmentSettings.error) ||
+              (!savedBridgeUrls.hydrated && !savedBridgeUrls.error) ? (
               <AnimatedSplashScreen />
             ) : (
               <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -1783,6 +1490,7 @@ function App(): React.JSX.Element {
                 {(() => {
                   return (
                     <ConnectedRoot
+                      developmentSettings={developmentSettings}
                       backend={backend}
                       transport={transport}
                       onDisconnect={handleDisconnect}
@@ -1790,12 +1498,11 @@ function App(): React.JSX.Element {
                       connectionsLoading={connectionsLoading}
                       onSelectConnectionRecord={handleSelectSavedConnection}
                       onNewConnectionRequested={() => {
-                        if (backend) {
-                          handleDisconnect();
-                        }
+                        cancelConnectionWizard();
                         setConnectionMethod(null);
                         setShowConnectionWizard(true);
                       }}
+                      onCloseConnectionWizard={cancelConnectionWizard}
                       renderConnectionWizard={() => {
                         if (!showConnectionWizard) {
                           return null;
@@ -1853,225 +1560,6 @@ const createStyles = (theme: Theme) =>
     safeArea: {
       flex: 1,
       backgroundColor: theme.background,
-    },
-    scrollContent: {
-      flexGrow: 1,
-    },
-    container: {
-      flex: 1,
-      padding: 16,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: 'bold',
-      marginBottom: 24,
-      textAlign: 'center',
-      color: theme.text,
-    },
-    statusContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 12,
-      backgroundColor: theme.primaryMuted,
-      borderRadius: 8,
-      marginBottom: 16,
-    },
-    statusDot: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      marginRight: 8,
-    },
-    statusText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    button: {
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    methodButton: {
-      backgroundColor: theme.primary,
-      paddingVertical: 16,
-    },
-    primaryButton: {
-      backgroundColor: theme.primary,
-    },
-    secondaryButton: {
-      backgroundColor: theme.surfaceAlt,
-      marginTop: 8,
-    },
-    buttonText: {
-      color: theme.textOnPrimary,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    buttonTextSecondary: {
-      color: theme.text,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    methodDescription: {
-      color: theme.textOnPrimary,
-      fontSize: 12,
-      marginTop: 4,
-      opacity: 0.8,
-    },
-    legalLinks: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 10,
-      marginTop: 8,
-    },
-    legalLinkText: {
-      color: theme.primary,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    legalLinkSeparator: {
-      color: theme.textSecondary,
-      fontSize: 14,
-    },
-    input: {
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 12,
-      fontSize: 16,
-      color: theme.text,
-    },
-    bridgeModeLabel: {
-      color: theme.text,
-      fontSize: 13,
-      fontWeight: '600',
-      marginBottom: 8,
-    },
-    bridgeModeSelector: {
-      flexDirection: 'row',
-      gap: 8,
-      marginBottom: 8,
-    },
-    bridgeModeButton: {
-      flex: 1,
-      alignItems: 'center',
-      borderColor: theme.border,
-      borderRadius: 8,
-      borderWidth: 1,
-      paddingHorizontal: 8,
-      paddingVertical: 10,
-    },
-    bridgeModeButtonSelected: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    bridgeModeButtonText: {
-      color: theme.text,
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    bridgeModeButtonTextSelected: {
-      color: theme.textOnPrimary,
-    },
-    bridgeModeHint: {
-      color: theme.textSecondary,
-      fontSize: 11,
-      marginBottom: 12,
-    },
-    section: {
-      marginTop: 16,
-      flex: 1,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      marginBottom: 8,
-      color: theme.text,
-    },
-    serviceList: {
-      maxHeight: 300,
-    },
-    serviceItem: {
-      padding: 12,
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    serviceName: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 4,
-      color: theme.text,
-    },
-    serviceDetails: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    infoText: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      textAlign: 'center',
-      fontStyle: 'italic',
-      marginVertical: 16,
-    },
-    endpointItem: {
-      padding: 12,
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    endpointName: {
-      fontSize: 16,
-      fontWeight: '600',
-      marginBottom: 4,
-      color: theme.text,
-    },
-    endpointDescription: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    loadingContainer: {
-      alignItems: 'center',
-      marginTop: 16,
-    },
-    loadingText: {
-      marginTop: 8,
-      fontSize: 14,
-      color: theme.textSecondary,
-    },
-    responseContainer: {
-      backgroundColor: theme.surfaceAlt,
-      borderRadius: 8,
-      padding: 12,
-      maxHeight: 200,
-    },
-    responseText: {
-      fontSize: 12,
-      fontFamily: 'Courier',
-      color: theme.text,
-    },
-    statusSearching: {
-      backgroundColor: '#FF9500',
-    },
-    statusInactive: {
-      backgroundColor: theme.textSecondary,
-    },
-    statusConnected: {
-      backgroundColor: 'rgba(52, 199, 89, 0.1)',
-    },
-    statusConnectedDot: {
-      backgroundColor: theme.success,
     },
   });
 

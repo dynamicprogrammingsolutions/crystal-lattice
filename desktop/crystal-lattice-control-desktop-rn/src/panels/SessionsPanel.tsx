@@ -72,6 +72,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useDisplayFollowupDialog,
   useSessionListFilters,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
@@ -649,6 +650,37 @@ function SessionsPanelInner({
     [connectionId, executePluginAction],
   );
 
+  const displayFollowupDialog = useDisplayFollowupDialog<ActionDisplayEntry>(
+    async (element, { action, source: entry, formValues }, dialogValues) => {
+      if (action.preserve_display !== true) {
+        setInlineActionDisplays(current =>
+          current.filter(item => item.key !== entry.key),
+        );
+      }
+      setActiveDisplayActionId(action.id);
+      try {
+        await executePluginAction(element, {
+          ...entry.context,
+          formValues,
+          dialogValues,
+        });
+      } finally {
+        setActiveDisplayActionId(null);
+      }
+    },
+  );
+  const displayFollowupPrefill = useMemo(
+    () => ({ session: displayFollowupDialog.context?.source.context.sessionSummary }),
+    [displayFollowupDialog.context],
+  );
+  useMacOSApplicationActionDialog({
+    ownerId: 'sessions-display-followup',
+    activeElement: displayFollowupDialog.activeElement,
+    prefillContext: displayFollowupPrefill,
+    onCancel: displayFollowupDialog.handleCancel,
+    onSubmit: displayFollowupDialog.handleSubmit,
+  });
+
   const handleDisplayFollowupAction = useCallback(
     async (
       entry: ActionDisplayEntry,
@@ -672,38 +704,10 @@ function SessionsPanelInner({
         return;
       }
       if (action.kind === 'run_action') {
-        if (action.preserve_display !== true) {
-          setInlineActionDisplays(current =>
-            current.filter(item => item.key !== entry.key),
-          );
-        }
-        setActiveDisplayActionId(action.id);
-        try {
-          await executePluginAction(
-            {
-              ui_type: 'action_result_followup',
-              plugin: action.plugin,
-              id: action.id,
-              label: action.label,
-              action_id: action.action_id,
-              action_owner: action.action_owner,
-              fixed_params: action.fixed_params as
-                | Record<string, any>
-                | undefined,
-              param_map: action.param_map,
-              form: entry.display.form,
-            },
-            {
-              ...entry.context,
-              formValues,
-            },
-          );
-        } finally {
-          setActiveDisplayActionId(null);
-        }
+        displayFollowupDialog.openForAction(action, entry.display, entry, formValues);
       }
     },
-    [executePluginAction],
+    [displayFollowupDialog.openForAction],
   );
 
   const {

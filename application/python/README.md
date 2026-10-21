@@ -7,8 +7,9 @@ run:
   application actions
 - a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
 - local Python and one-shot CLI APIs for configured agent tasks, follow-ups,
-  bounded progress, compact history, plugin-filtered session enumeration, and
-  projected canonical message ranges
+  non-retained runs, request-scoped settings, bounded progress, compact
+  history, plugin-filtered session enumeration, and projected canonical
+  message ranges
 - both together, sharing the same session store and in-memory event stream
 - optional Bonjour/mDNS advertisement for LAN discovery
 - optional bridge registration for paired mobile access across networks
@@ -127,6 +128,21 @@ OPENROUTER_API_KEY=... \
 npm run test:cli:agent-access
 ```
 
+The source-level real delegation review uses saved ChatGPT login credentials,
+`gpt-5.6-luna` for the parent, and a requested ephemeral `gpt-6-luna` child:
+
+```bash
+RUN_CRYSTAL_LATTICE_OPENAI_EPHEMERAL_REVIEW_E2E=1 \
+PYTHONPATH="$PWD/core/python:$PWD/application/python" \
+pytest application/python/tests/test_crystal_lattice_access_openai_api.py \
+  -m "integration and api and openai" -q -s
+```
+
+It uses `~/.crystal/auth/chatgpt-auth.json` by default; set
+`CHATGPT_CREDENTIALS` to choose another saved login. See the
+[headless run acceptance specification](docs/development/specifications/headless-agent-runs/technical-spec.md)
+for the sparse prompt, actual provider-request evidence, and non-retention checks.
+
 The direct archive and applicable installer smokes use separate temporary
 homes, configurations, plugin caches, and pip caches. Each independently
 installs a packaged plugin that is deliberately absent from the preinstalled
@@ -160,7 +176,8 @@ Use `--format json` for machine-safe results and reuse the returned
 `session_id` with `crystal-lattice run --session ...` for a follow-up. Python
 callers can use `open_runtime()` from `agent_terminal_app`. See
 [Local headless agent runs](docs/headless-agent-runs.md) for progress,
-parallelism, compact history, cancellation, and output contracts.
+parallelism, effective agent discovery, request-scoped settings, non-retained
+execution, compact history, cancellation, and output contracts.
 
 ### Quick Start
 
@@ -806,7 +823,11 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
-- `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
+- `GET /application/ui-schema`, `POST /actions`, and
+  `POST /sessions/{session_id}/actions` - application UI/actions.
+- `POST /sessions/{session_id}/action-callbacks/{callback_element_id}` -
+  resolve one currently applicable `session_action_callback`, map only its
+  declared callback fields, and execute its bound action.
 
 Request admission and execution are application-layer behavior. FastAPI and
 the terminal delegate to the same `AgentApplication` session-request

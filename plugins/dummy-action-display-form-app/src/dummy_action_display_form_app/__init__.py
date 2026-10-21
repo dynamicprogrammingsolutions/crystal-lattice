@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Demo application plugin for action display embedded form validation."""
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -32,7 +32,15 @@ class DummyActionDisplayFormAppPlugin:
                 "order": 90,
                 "action_id": "show_display_form",
                 "dialog": {"kind": "none"},
-            }
+            },
+            {
+                "ui_type": "session_action",
+                "id": "dummy_show_followup_dialog",
+                "label": "Show follow-up dialog",
+                "order": 91,
+                "action_id": "show_followup_dialog",
+                "dialog": {"kind": "none"},
+            },
         ]
 
     def get_actions(self, state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -43,6 +51,18 @@ class DummyActionDisplayFormAppPlugin:
                 "label": "Show display form",
                 "description": "Return a generic action display with embedded form fields.",
                 "inputs": {},
+            },
+            {
+                "id": "show_followup_dialog",
+                "inputs": {},
+            },
+            {
+                "id": "submit_followup_dialog",
+                "inputs": {
+                    "value": {"type": "string", "required": True},
+                    "note": {"type": "string", "required": False},
+                    "source": {"type": "string", "required": False},
+                },
             },
             {
                 "id": "submit_display_form",
@@ -74,7 +94,64 @@ class DummyActionDisplayFormAppPlugin:
             return self._show_display_form()
         if action_id == "submit_display_form":
             return self._submit_display_form(params, state)
+        if action_id == "show_followup_dialog":
+            return self._show_followup_dialog()
+        if action_id == "submit_followup_dialog":
+            return {
+                "display": {
+                    "format": "text",
+                    "title": "Follow-up submitted",
+                    "body": f"Value: {params.get('value')}\nNote: {params.get('note')}",
+                    "display_id": "dummy-followup-dialog",
+                    "presentation": "inline",
+                },
+                "submitted_values": params,
+            }
         raise ValueError(f"Unknown action_id {action_id!r}")
+
+    def _show_followup_dialog(self) -> dict[str, Any]:
+        return {
+            "display": {
+                "format": "text",
+                "title": "Neutral result",
+                "body": "Open the follow-up dialog to enter a value.",
+                "display_id": "dummy-followup-dialog",
+                "presentation": "inline",
+                "actions": [
+                    {
+                        "kind": "run_action",
+                        "id": "dummy-open-followup-dialog",
+                        "label": "Enter value",
+                        "plugin": self.name,
+                        "action_id": "submit_followup_dialog",
+                        "preserve_display": True,
+                        "fixed_params": {"source": "followup_dialog"},
+                        "param_map": {
+                            "value": "$dialog.value",
+                            "note": "$dialog.note",
+                        },
+                        "dialog": {
+                            "kind": "form",
+                            "title": "Edit value",
+                            "inputs": [
+                                {
+                                    "name": "value",
+                                    "label": "Value",
+                                    "type": "string",
+                                    "required": True,
+                                },
+                                {
+                                    "name": "note",
+                                    "label": "Note",
+                                    "type": "string",
+                                    "submit_empty": True,
+                                },
+                            ],
+                        },
+                    }
+                ],
+            }
+        }
 
     def _show_display_form(self) -> dict[str, Any]:
         return {

@@ -1,4 +1,7 @@
-import type { ChatScrollEdge, ChatScrollOperationPurpose } from './chatScrollCoordinator';
+import type {
+  ChatScrollEdge,
+  ChatScrollOperationPurpose,
+} from './chatScrollCoordinator';
 
 export type ChatScrollMotionSample = {
   atMs: number;
@@ -24,7 +27,10 @@ export type ChatScrollAwayMotionDiagnostic =
     }
   | {
       kind: 'ignored';
-      reason: 'geometryChanged' | 'recentGeometryChange' | 'semanticContentPending';
+      reason:
+        | 'geometryChanged'
+        | 'recentGeometryChange'
+        | 'semanticContentPending';
       details: Record<string, unknown>;
     };
 
@@ -67,6 +73,65 @@ export function refreshChatScrollMotionGeometry(
     viewportHeight: geometry.viewportHeight ?? sample.viewportHeight,
     geometryRevision: geometry.geometryRevision,
   };
+}
+
+export function isLikelyUserScrollActivity(input: {
+  previous: ChatScrollMotionSample;
+  current: ChatScrollMotionSample;
+  minMovementPx: number;
+  geometryEpsilonPx: number;
+  lastGeometryChangeAtMs: number;
+  geometrySettleMs: number;
+  lastSemanticContentChangeAtMs: number;
+  semanticContentSettleMs: number;
+  recentProgrammaticWrite: ChatScrollProgrammaticWrite | null;
+  programmaticWriteWindowMs: number;
+  activeOperation: boolean;
+}): boolean {
+  const deltaOffsetY = input.current.offsetY - input.previous.offsetY;
+  if (Math.abs(deltaOffsetY) < Math.max(0, input.minMovementPx)) {
+    return false;
+  }
+
+  const contentHeightDelta =
+    input.current.contentHeight - input.previous.contentHeight;
+  const viewportHeightDelta =
+    input.current.viewportHeight - input.previous.viewportHeight;
+  const geometryEpsilonPx = Math.max(0, input.geometryEpsilonPx);
+  const geometryChanged =
+    input.current.geometryRevision !== input.previous.geometryRevision ||
+    Math.abs(contentHeightDelta) > geometryEpsilonPx ||
+    Math.abs(viewportHeightDelta) > geometryEpsilonPx;
+  const msSinceGeometryChange = Math.max(
+    0,
+    input.current.atMs - input.lastGeometryChangeAtMs,
+  );
+  const msSinceSemanticContentChange = Math.max(
+    0,
+    input.current.atMs - input.lastSemanticContentChangeAtMs,
+  );
+  const write = input.recentProgrammaticWrite;
+  const programmaticWriteAgeMs = write
+    ? Math.max(0, input.current.atMs - write.atMs)
+    : null;
+  const recentProgrammaticWrite =
+    write != null &&
+    programmaticWriteAgeMs != null &&
+    programmaticWriteAgeMs <= Math.max(0, input.programmaticWriteWindowMs);
+  const movementOpposesProgrammaticTarget =
+    recentProgrammaticWrite && write
+      ? write.edge === 'bottom'
+        ? deltaOffsetY < -geometryEpsilonPx
+        : deltaOffsetY > geometryEpsilonPx
+      : false;
+  return (
+    !geometryChanged &&
+    msSinceGeometryChange >= Math.max(0, input.geometrySettleMs) &&
+    msSinceSemanticContentChange >=
+      Math.max(0, input.semanticContentSettleMs) &&
+    !input.activeOperation &&
+    (!recentProgrammaticWrite || movementOpposesProgrammaticTarget)
+  );
 }
 
 export function classifyChatScrollAwayMotion(input: {
@@ -152,8 +217,7 @@ export function classifyChatScrollAwayMotion(input: {
     return { kind: 'ignored', reason: 'recentGeometryChange', details };
   }
   if (
-    msSinceSemanticContentChange <
-    Math.max(0, input.semanticContentSettleMs)
+    msSinceSemanticContentChange < Math.max(0, input.semanticContentSettleMs)
   ) {
     return { kind: 'ignored', reason: 'semanticContentPending', details };
   }

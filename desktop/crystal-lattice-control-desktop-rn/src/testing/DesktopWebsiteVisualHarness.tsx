@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Settings, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
-import { FetchTransport, RestAgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  FetchTransport,
+  RestAgentBackend,
+} from '@crystal-lattice/frontend-sdk';
 
 import type {
   AgentBackend,
@@ -64,10 +67,7 @@ const AGENT_DESCRIPTORS: AgentDescriptor[] = [
   },
 ];
 
-function tool(
-  id: string,
-  name: string,
-): SessionPluginEntry {
+function tool(id: string, name: string): SessionPluginEntry {
   return {
     id,
     kind: 'tools',
@@ -270,7 +270,10 @@ function DesktopSessionActionsVisual({
   showList?: boolean;
 }): React.JSX.Element {
   const backend = useMemo(
-    () => new RestAgentBackend({ transport: new FetchTransport({ baseUrl: backendUrl }) }),
+    () =>
+      new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: backendUrl }),
+      }),
     [backendUrl],
   );
   const [summary, setSummary] = useState<SessionSummary | null>(null);
@@ -278,68 +281,97 @@ function DesktopSessionActionsVisual({
   useEffect(() => {
     let active = true;
     backend.getSessionSummary(sessionId).then(
-      value => { if (active) setSummary(value); },
-      reason => { if (active) setError(String(reason)); },
+      value => {
+        if (active) setSummary(value);
+      },
+      reason => {
+        if (active) setError(String(reason));
+      },
     );
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [backend, sessionId]);
   return (
     <ThemeProvider theme={theme}>
       <DesktopGlobalDisplayLayer
         openConnectionsById={{
           'website-session-actions': {
-            status: 'open', baseUrl: backendUrl, backend,
+            status: 'open',
+            baseUrl: backendUrl,
+            backend,
           } as any,
         }}
         connectionNameById={{ 'website-session-actions': 'Local workspace' }}
       >
-      <ApplicationPluginsProvider backend={backend} connectionId="website-session-actions">
-        <View style={[styles.continuityRoot, { backgroundColor: theme.background }]}>
-          {summary ? (
-            showList ? (
-              <View style={{ flex: 1, flexDirection: 'row' }}>
-                <View style={{ width: 490 }}>
-                  <SessionsPanel
-                    focusedConnectionId="website-session-actions"
-                    focusedConnectionName="Local workspace"
-                    connectionBaseUrl={backendUrl}
+        <ApplicationPluginsProvider
+          backend={backend}
+          connectionId="website-session-actions"
+        >
+          <View
+            style={[
+              styles.continuityRoot,
+              { backgroundColor: theme.background },
+            ]}
+          >
+            {summary ? (
+              showList ? (
+                <View style={{ flex: 1, flexDirection: 'row' }}>
+                  <View style={{ width: 490 }}>
+                    <SessionsPanel
+                      focusedConnectionId="website-session-actions"
+                      focusedConnectionName="Local workspace"
+                      connectionBaseUrl={backendUrl}
+                      connectionId="website-session-actions"
+                      backend={backend}
+                      cachedSessions={[]}
+                      cachedLastLoadedAt={null}
+                      isOnline
+                      activeTabConnectionId="website-session-actions"
+                      activeTabSessionId={sessionId}
+                      localActionsEnabled={false}
+                      onUpdateCache={() => {}}
+                      onOpenSessionTab={() => {}}
+                    />
+                  </View>
+                  <ChatPane
+                    isVisible
+                    isActive
                     connectionId="website-session-actions"
+                    connectionName="Local workspace"
+                    sessionId={sessionId}
+                    sessionSummary={summary}
+                    title={
+                      summary.presentation?.title ?? 'Plan a community workshop'
+                    }
                     backend={backend}
-                    cachedSessions={[]}
-                    cachedLastLoadedAt={null}
-                    isOnline
-                    activeTabConnectionId="website-session-actions"
-                    activeTabSessionId={sessionId}
-                    localActionsEnabled={false}
+                    cachedEntry={null}
                     onUpdateCache={() => {}}
-                    onOpenSessionTab={() => {}}
                   />
                 </View>
+              ) : (
                 <ChatPane
-                  isVisible isActive connectionId="website-session-actions"
-                  connectionName="Local workspace" sessionId={sessionId}
-                  sessionSummary={summary} title={summary.presentation?.title ?? 'Plan a community workshop'}
-                  backend={backend} cachedEntry={null} onUpdateCache={() => {}}
+                  isVisible
+                  isActive
+                  connectionId="website-session-actions"
+                  connectionName="Local workspace"
+                  sessionId={sessionId}
+                  sessionSummary={summary}
+                  title={
+                    summary.presentation?.title ?? 'Plan a community workshop'
+                  }
+                  backend={backend}
+                  cachedEntry={null}
+                  onUpdateCache={() => {}}
                 />
-              </View>
-            ) :
-            <ChatPane
-              isVisible
-              isActive
-              connectionId="website-session-actions"
-              connectionName="Local workspace"
-              sessionId={sessionId}
-              sessionSummary={summary}
-              title={summary.presentation?.title ?? 'Plan a community workshop'}
-              backend={backend}
-              cachedEntry={null}
-              onUpdateCache={() => {}}
-            />
-          ) : (
-            <Text testID="website-session-actions-loading">{error || 'Loading session…'}</Text>
-          )}
-        </View>
-      </ApplicationPluginsProvider>
+              )
+            ) : (
+              <Text testID="website-session-actions-loading">
+                {error || 'Loading session…'}
+              </Text>
+            )}
+          </View>
+        </ApplicationPluginsProvider>
       </DesktopGlobalDisplayLayer>
     </ThemeProvider>
   );
@@ -365,7 +397,10 @@ export function DesktopWebsiteVisualHarness({
     () => createBackend(claude ? CLAUDE_TOOLS : CODEX_TOOLS),
     [claude],
   );
-  if (websiteVisualKind === 'session-actions' || websiteVisualKind === 'session-list') {
+  if (
+    websiteVisualKind === 'session-actions' ||
+    websiteVisualKind === 'session-list'
+  ) {
     return (
       <DesktopSessionActionsVisual
         theme={theme}

@@ -17,18 +17,15 @@ from .workdir import resolve_turn_cwd
 
 
 VIEW_IMAGE_DESCRIPTION = (
-    "View a local image from the filesystem (only use if given a full filepath "
-    "by the user, and the image isn't already attached to the thread context "
-    "within <image ...> tags)."
+    "View a local image file from the filesystem when visual inspection is "
+    "needed. Use this for images already available on disk."
 )
-PATH_DESCRIPTION = "Local filesystem path to an image file"
+PATH_DESCRIPTION = "Local filesystem path to an image file."
 DETAIL_DESCRIPTION = (
-    "Optional detail override. The only supported value is `original`; omit "
-    "this field for default resized behavior. Use `original` to preserve the "
-    "file's original resolution instead of resizing to fit. This is important "
-    "when high-fidelity image perception or precise localization is needed, "
-    "especially for CUA agents."
+    "Image detail level. Defaults to `high`; use `original` to preserve "
+    "exact resolution."
 )
+DETAIL_VALUES = ("high", "original")
 DEFAULT_IMAGE_DETAIL = "high"
 SESSION_ASSET_DOWNLOAD_PLUGIN_ID = "session_asset_attachments"
 
@@ -83,6 +80,7 @@ def _parameters_schema(*, include_detail: bool) -> Dict[str, Any]:
     if include_detail:
         properties["detail"] = {
             "type": "string",
+            "enum": list(DETAIL_VALUES),
             "description": DETAIL_DESCRIPTION,
         }
     return {
@@ -233,12 +231,13 @@ class ViewImageTool(ToolPlugin):
             return {"success": False, "error": "path must be a non-empty string"}
 
         raw_detail = payload.get("detail")
-        if raw_detail is not None and raw_detail != "original":
+        if raw_detail is not None and raw_detail not in DETAIL_VALUES:
             return {
                 "success": False,
                 "error": (
-                    "view_image.detail only supports `original`; omit `detail` "
-                    f"for default resized behavior, got `{raw_detail}`"
+                    "view_image.detail only supports `high` and `original`; "
+                    f"omit `detail` for default resized behavior, got "
+                    f"`{raw_detail}`"
                 ),
             }
 

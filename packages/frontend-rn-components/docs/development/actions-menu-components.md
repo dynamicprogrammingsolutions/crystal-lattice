@@ -16,6 +16,11 @@ set `maxPinnedActionsForBar` to limit only the compact representation. Actions
 beyond that limit remain pinned and available in the complete menu; pin
 persistence and menu star state always use the full pinned-key set.
 
+`showMenuButton={false}` renders only pinned controls and omits the ellipsis
+slot and menu surface. The default keeps the menu. Consumers using the option
+must supply the actions they want visible as pins; mobile uses it for the
+single New connection action.
+
 Consumers may set `pinnedRows={2}` and choose
 `secondPinnedRowPlacement="above" | "below"`. One row remains the default.
 Two-row bars wrap by available width, right-align both rows, retain the
@@ -91,3 +96,17 @@ Additional maintainer entry points:
 - `src/actions/RichConfigDropdown.tsx`
 - `src/actions/SessionListActionsBar.tsx`
 - `src/actions/SessionActionsBar.tsx`
+
+## Chat activity and editing context
+
+`ChatActivityRow` displays a single bounded row above the transcript. Hosts
+supply activity labels and optional local send-recovery callbacks. Activity
+text is limited to two lines. Recovery presents a short summary with Resend
+and Cancel; error details do not expand this row. Cancel remains available
+offline because it dismisses local recovery. The component does not execute
+requests or infer server cancellation.
+
+`ComposerEditContext` displays a single-line warning-colored canonical message
+index and Cancel edit control above the composer. Its optional identifier
+prefix supports the mobile expanded editor. Hosts own the separate edit buffer,
+ordinary draft restoration, action eligibility, and submission lifetime.

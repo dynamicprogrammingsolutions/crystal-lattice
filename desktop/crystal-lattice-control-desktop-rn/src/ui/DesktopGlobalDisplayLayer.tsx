@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Clipboard, Linking, View } from 'react-native';
+import { Alert, Clipboard, Linking, View } from 'react-native';
 
 import {
   ApplicationNotificationsController,
@@ -17,6 +17,7 @@ import {
   normalizeDisplayEnvelope,
   normalizeDisplayEnvelopeForHost,
   subscribeDisplayPresentation,
+  runApplicationAction,
   type ActionDisplayFollowupAction,
   type AgentBackend,
   type ApplicationNotification,
@@ -26,14 +27,20 @@ import {
   NotificationBannerHost,
   type NotificationBannerHostItem,
 } from '@crystal-lattice/frontend-rn-components';
+import { useDisplayFollowupDialog } from '@crystal-lattice/frontend-sdk-react';
+import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 
 import type { OpenConnectionsById } from '../connections/useOpenConnections';
 import {
   clearActiveActionDisplayWindow,
+  dismissActiveActionDisplayWindowFromSystem,
   getActiveActionDisplayWindow,
   setActiveActionDisplayWindow,
 } from '../windows/actionDisplayWindowCoordinator';
-import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import {
+  desktopWindowEvents,
+  DesktopWindowManager,
+} from '../windows/desktopWindowManager';
 import { ActionResultInlineCard } from './ActionResultInlineCard';
 
 const ACTION_DISPLAY_WINDOW_KEY = 'actionDisplay';
@@ -51,6 +58,7 @@ interface DesktopDisplayContextValue {
   followup: (
     action: ActionDisplayFollowupAction,
     envelope: DisplayEnvelope,
+    formValues?: Record<string, any>,
   ) => Promise<void>;
 }
 
@@ -112,6 +120,18 @@ export function DesktopGlobalDisplayLayer({
     Record<string, ApplicationNotificationsController>
   >({});
 
+  useEffect(() => {
+    const subscription = desktopWindowEvents?.addListener(
+      'reactWindowCancelled',
+      payload => {
+        if (payload?.windowKey === ACTION_DISPLAY_WINDOW_KEY) {
+          dismissActiveActionDisplayWindowFromSystem();
+        }
+      },
+    );
+    return () => subscription?.remove();
+  }, []);
+
   const upsert = useCallback((envelope: DisplayEnvelope) => {
     const normalized = normalizeDisplayEnvelopeForHost(envelope, 'desktop');
     const key = displayEnvelopeLifecycleKey(normalized);
@@ -139,9 +159,13 @@ export function DesktopGlobalDisplayLayer({
   const dismissLocally = useCallback((envelope: DisplayEnvelope) => {
     const revision = displayEnvelopeRevisionKey(envelope);
     const lifecycle = displayEnvelopeLifecycleKey(envelope);
-    setDismissedRevisions((current) =>
-      current.includes(revision) ? current : [...current, revision],
-    );
+    // A direct action result is removed when closed. Its next invocation may
+    // reuse the same display ID and revision and must be presented again.
+    if (envelope.source !== 'action_response') {
+      setDismissedRevisions((current) =>
+        current.includes(revision) ? current : [...current, revision],
+      );
+    }
     setTransientItems((current) =>
       current.filter((item) => displayEnvelopeLifecycleKey(item) !== lifecycle),
     );
@@ -227,8 +251,54 @@ export function DesktopGlobalDisplayLayer({
       ),
     );
 
+  const followupDialog = useDisplayFollowupDialog<{
+    envelope: DisplayEnvelope;
+    backend: AgentBackend;
+  }>(
+    async (element, { source: { envelope, backend }, formValues }, dialogValues) => {
+      const result = await runApplicationAction({
+        backend,
+        element,
+        actionsById: {},
+        context: {
+          connectionId: envelope.connectionId ?? undefined,
+          sessionId: envelope.sessionId ?? undefined,
+          formValues,
+          dialogValues,
+        },
+      });
+      if (!result.ok) {
+        Alert.alert('Action error', result.errorMessage || 'Action failed');
+        return;
+      }
+      if (result.display) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+            source: 'action_response',
+            ownershipScope: classifyDisplayEnvelope(envelope).scope,
+            connectionId: envelope.connectionId,
+            sessionId: envelope.sessionId,
+            display: result.display,
+          }),
+        );
+      }
+    },
+  );
+  useMacOSApplicationActionDialog({
+    ownerId: 'global-display-followup',
+    activeElement: followupDialog.activeElement,
+    presentation: 'window',
+    onSubmit: followupDialog.handleSubmit,
+    onCancel: followupDialog.handleCancel,
+  });
+
   const followup = useCallback(
-    async (action: ActionDisplayFollowupAction, envelope: DisplayEnvelope) => {
+    async (
+      action: ActionDisplayFollowupAction,
+      envelope: DisplayEnvelope,
+      formValues?: Record<string, any>,
+    ) => {
       if (action.kind === 'dismiss') {
         await dismiss(envelope);
       } else if (action.kind === 'open_url') {
@@ -238,44 +308,22 @@ export function DesktopGlobalDisplayLayer({
       } else if (action.kind === 'run_action') {
         const backend = backendFor(envelope);
         if (!backend) return;
-        const response =
-          envelope.sessionId && backend.executeSessionAction
-            ? await backend.executeSessionAction({
-                sessionId: envelope.sessionId,
-                pluginId: action.plugin,
-                actionId: action.action_id,
-                actionOwner: action.action_owner,
-                inputs: { ...(action.fixed_params ?? {}) },
-              })
-            : await backend.executeAction({
-                pluginId: action.plugin,
-                actionId: action.action_id,
-                actionOwner: action.action_owner,
-                inputs: { ...(action.fixed_params ?? {}) },
-              });
-        if (response.status === 'ok' && response.result.display) {
-          emitDisplayPresentation(
-            backend,
-            normalizeDisplayEnvelope({
-              source: 'action_response',
-              ownershipScope: classifyDisplayEnvelope(envelope).scope,
-              connectionId: envelope.connectionId,
-              sessionId: envelope.sessionId,
-              display: response.result.display,
-            }),
-          );
-        }
+        followupDialog.openForAction(
+          action, envelope.display, { envelope, backend }, formValues,
+        );
       }
     },
-    [backendFor, dismiss],
+    [backendFor, dismiss, followupDialog.openForAction],
   );
 
-  const modalItems = items.filter(
+  const modalKeys = new Set(items.filter(
     (item) =>
       item.source === 'action_response' &&
       item.display.presentation === 'modal',
-  );
-  const activeModal = modalItems[modalItems.length - 1] ?? null;
+  ).map(displayEnvelopeLifecycleKey));
+  const activeModal = transientItems.slice().reverse().find(
+    item => modalKeys.has(displayEnvelopeLifecycleKey(item)),
+  ) ?? null;
 
   useEffect(() => {
     if (!activeModal) {
@@ -300,7 +348,7 @@ export function DesktopGlobalDisplayLayer({
       },
       handlers: {
         onDismiss: () => dismiss(activeModal),
-        onFollowupAction: (action) => followup(action, activeModal),
+        onFollowupAction: (action, formValues) => followup(action, activeModal, formValues),
       },
     });
     DesktopWindowManager?.openReactWindow({
@@ -390,8 +438,8 @@ export function DesktopConnectionDisplayRail({
           onDismiss={() => {
             context.dismiss(envelope).catch(() => {});
           }}
-          onFollowupAction={(action) => {
-            context.followup(action, envelope).catch(() => {});
+          onFollowupAction={(action, formValues) => {
+            context.followup(action, envelope, formValues).catch(() => {});
           }}
         />
       ))}

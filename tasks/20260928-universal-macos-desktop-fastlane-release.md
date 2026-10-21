@@ -7,10 +7,11 @@ through manual GitHub Actions automation, and add a small accessible
 download icon to the public website only after the signed and notarized
 artifact is publicly available and independently verified.
 
-This is a deliberately narrow release task. It does not replace or modify
-`tasks/20260820-macos-desktop-distribution/000-main.md` or any of that task's
-subtasks. After this task is complete, its evidence can be used in a separate
-user-approved reconciliation of the broader macOS distribution task.
+This was a deliberately narrow first-release implementation. It left
+`tasks/20260820-macos-desktop-distribution/000-main.md` and its subtasks
+unchanged during that implementation. On October 7, 2026 the user approved a
+separate tracking reconciliation using this release evidence. Remaining
+human closeout here is recorded independently from that maintenance.
 
 ## Requirements checklist
 
@@ -45,14 +46,14 @@ user-approved reconciliation of the broader macOS distribution task.
       Universal Intel slices are verified automatically; real Intel hardware
       feedback is intentionally deferred to initial testers and is not a
       pre-release gate.
-- [ ] After release acceptance, the landing-page header contains a small,
+- [x] After release acceptance, the landing-page header contains a small,
       keyboard-accessible download icon whose accessible name identifies the
       macOS download and whose HTTPS target is the verified versioned DMG.
 - [x] Current desktop release documentation explains local and GitHub Actions
       release operation, required credentials, verification, recovery, and
       installation without exposing secret values.
-- [x] The existing broader macOS distribution task and subtasks remain
-      unchanged during this task.
+- [x] The existing broader macOS distribution task and subtasks remained
+      unchanged during the original release implementation.
 
 ## Scope
 
@@ -85,7 +86,8 @@ Excluded:
   subdomain. The first release reuses the existing CLI download
   infrastructure with a distinct `crystal-lattice-desktop` prefix.
 - A full `/desktop` marketing or download page.
-- Changes to `tasks/20260820-macos-desktop-distribution/`.
+- Changes to `tasks/20260820-macos-desktop-distribution/` during the original
+  release implementation; later tracking reconciliation is separately approved.
 
 ## Human-action legend
 
@@ -786,7 +788,7 @@ both architecture acceptance boundaries.
       `mac setup_signing`, and `mac release`.
 - [x] **HUMAN — MANDATORY:** Supply or authorize the Developer ID Application
       certificate boundary (G2 certificate created and paired private key
-      exported; encrypted match import remains pending).
+      exported; encrypted import and read-only retrieval subsequently verified).
 - [x] **AGENT:** Verify read-only signing retrieval and notarization
       authentication.
 - [x] **AGENT + HUMAN JUDGMENT:** Produce and accept the first local signed,
@@ -806,10 +808,10 @@ both architecture acceptance boundaries.
 - [x] **AGENT:** Add and test the website download metadata and header icon.
 - [ ] **HUMAN JUDGMENT:** Approve the icon placement and presentation.
 - [ ] **HUMAN — MANDATORY:** Approve production website publication.
-- [ ] **AGENT:** Deploy through the existing protected site workflow and
+- [x] **AGENT:** Deploy through the existing protected site workflow and
       verify the production download.
-- [ ] **AGENT:** Complete user/maintainer documentation and the future
-      reconciliation crosswalk without modifying the broader macOS task.
+- [x] **AGENT:** Complete release documentation and record the separately
+      approved reconciliation crosswalk while preserving first-release history.
 
 ### Requirement verification
 
@@ -857,8 +859,9 @@ both architecture acceptance boundaries.
   - The production link downloads the accepted versioned DMG and its checksum
     matches the displayed/maintained value.
 - Existing-task preservation requirement:
-  - `git diff` confirms no files under
-    `tasks/20260820-macos-desktop-distribution/` changed during this task.
+  - Original release commit scope confirms no files under
+    `tasks/20260820-macos-desktop-distribution/` changed during its
+    implementation. October 7 tracking maintenance is separately authorized.
 - Documentation requirement:
   - Package and landing builds pass and current documentation agrees with the
     released artifact and workflow.
@@ -1625,7 +1628,180 @@ UI automation investigation:
   accepts `PLAYWRIGHT_PORT` and
   `PLAYWRIGHT_REUSE_EXISTING_SERVER=false`, allowing a fresh production-like
   test server without stopping or altering that user process.
-- Website source changes remain local and unpushed. A push touching
+- At the September 30 checkpoint, website source changes were local and
+  unpushed. A push touching
   `landing_page/**` automatically invokes the protected production static-site
-  workflow, so the task remains paused for human icon-placement review and
-  explicit production website publication approval.
+  workflow. The October 7 verification below supersedes the unpublished-state
+  observation without inferring human review from deployment.
+
+## Post-completion follow-up
+
+### October 5, 2026 — Local signed DMG build
+
+Status: Completed for the approved build/delivery scope. The user approved the
+presented plan and requested tracking here. Installation and human interaction
+acceptance remain with the user. This follow-up does not reopen the historical
+website acceptance or change the broader distribution task.
+
+The newly added ad-hoc `desktop:macos:build` command did not meet the user's
+installation needs: the user reported a crash and a malware-verification
+warning. Signing and launch are separate acceptance boundaries. The existing
+main-worktree `0.9.0 (1)` review DMG still passes checksum, signature, and
+staple validation and must remain available.
+
+#### Approved requirements
+
+- [x] The root `npm run desktop:macos:build` command produces a universal,
+      Developer ID signed, notarized and stapled DMG through the same Fastlane
+      release lane as customer builds, with verification enabled and read-only
+      signing retrieval.
+- [x] Local credentials remain outside tracked files; prior review artifacts
+      are preserved and the new artifact's location, version/build, checksum,
+      notarization result and actual source cleanliness are available.
+- [x] The app extracted from the resulting DMG passes signature/Gatekeeper
+      checks and launches in ordinary mode without Metro. A runtime crash is
+      investigated rather than accepted on signing evidence alone.
+- [x] The command and installation instructions are documented. This work
+      does not install over the user's app, publish, push, merge, or commit.
+
+#### Approved approach and execution checklist
+
+Keep product work on `develop`. Another agent is editing the website in this
+same worktree; do not touch its files or reset unrelated changes. Reuse
+`fastlane mac release` and the existing Ruby wrapper rather than introduce a
+second release implementation. Use the existing local signing credentials in
+an ignored owner-only desktop configuration. Preserve previous release output
+before any new archive; the existing lane currently deletes that directory.
+Keep version `0.9.0` for this local review and explicitly select build `5`
+(the published candidate was build `4`). Local uncommitted changes are allowed
+and must be recorded as such; they are not eligible for public publication.
+
+- [x] **AGENT:** Replace the ad-hoc shortcut; validate credentials early,
+      preserve output, and print the completed DMG's location and metadata.
+- [x] **AGENT:** Add focused coverage for previous-artifact preservation and
+      run the existing release verification through the root command.
+- [x] **AGENT:** Build/sign/notarize the current universal DMG and independently
+      verify its checksum, ticket, mounted app, and ordinary launch.
+- [x] **AGENT:** Update the desktop README/release documentation and record
+      the artifact evidence and any unresolved runtime issue here.
+- **HUMAN — IF PROMPTED:** Supply Keychain or signing-repository credentials
+  only through a local secure prompt. No new certificate or signing repository
+  is planned.
+- **HUMAN — AFTER DELIVERY:** Quit the installed app and choose whether to
+  replace it using the validated DMG. Installation is outside agent execution.
+- **HUMAN JUDGMENT — ONLY IF NEEDED:** Decide any substantial runtime or
+  security change if crash diagnosis cannot be resolved by a clear in-scope
+  fix. Do not weaken Hardened Runtime or Gatekeeper to make a smoke test pass.
+
+Decisive evidence is the real root-command build followed by validation and
+launch of the app from that exact DMG. Helper tests support artifact-retention
+behavior but do not substitute for the signed build or launch. Retain the
+known-good main-worktree DMG throughout.
+
+#### Execution evidence
+
+- The root command started on October 5, 2026 at 12:48 CEST. The owner-only
+  run directory is `/tmp/crystal-lattice-signed-dmg.N3yBMmm9`, with
+  `build.log`, `pid`, and an `exit-code` file written on completion.
+- An owner-only, git-ignored desktop `fastlane/.env` was configured from the
+  existing main-worktree mobile signing configuration. No secret values were
+  displayed or added to tracked files. The Ruby/Bundler version check passed.
+- The root command's release verification passed build-number tests
+  (6 tests), notarization-key tests (2), output-retention tests (2), TypeScript,
+  all 46 Jest suites / 209 tests, and Xcode Release settings inspection.
+  Read-only match retrieval succeeded and the universal archive started.
+  Separately, all 6 public candidate-validator tests passed.
+- Crash-report inspection found two distinct failures on October 5: the
+  11:27:52 and 11:28:04 reports reject the embedded Hermes framework's code
+  signature at launch; the 11:36:08 report is an AppKit window-animation
+  `objc_release` segmentation fault in a DerivedData build. Do not conflate
+  these reports or claim either resolved without inspecting the new DMG's
+  app and launch.
+- `dwarfdump --uuid` matched the ad-hoc local build's arm64 executable
+  `ED7E5618-4FB9-3175-A705-3CAF98453CB3` and Hermes framework
+  `2CA494AE-A7D8-309F-8D53-748FDB755994` to both DYLD crash reports.
+  `codesign -d` reports ad-hoc signatures and no team identifier on that app
+  and framework. This identifies the failed artifact; the replacement uses
+  the existing Developer ID archive path without adding security exceptions.
+
+#### Follow-up completion evidence — October 5, 2026
+
+- `npm run desktop:macos:build` exited successfully at 12:54:59 CEST,
+  including verification, read-only match retrieval, universal archive,
+  Developer ID signing, Apple notarization, stapling, and signature/Gatekeeper
+  checks. No verification bypass was used.
+- The completed DMG is:
+  `/Users/ferenci84/Dev/Mine/ai-agent-platform/desktop/crystal-lattice-control-desktop-rn/build/macos-release/Crystal-Lattice-Desktop-v0.9.0-universal.dmg`.
+  Version/build: `0.9.0 (5)`; size: 10,295,615 bytes.
+  SHA-256:
+  `2c805699ecd46ff30c996d48392352419b1f713d9ad0b3ad4bdfb57c7c722985`.
+- Metadata records source HEAD
+  `c290601c04e3a54f0ad24c69adaac0336e5f41ee` and
+  `source_tree_clean = false`, accurately identifying a local working-tree
+  review build. Notarization
+  `e54f9480-65e7-4885-98f4-1428a7ccf426` is `Accepted`.
+- Independently verified checksum, DMG signature, staple, and Gatekeeper DMG
+  acceptance. A read-only mount contained only the app and Applications
+  shortcut. The mounted app passed the release-bundle verifier, strict deep
+  signature verification, and Gatekeeper (`Notarized Developer ID`).
+  Both native executables contain `arm64` and `x86_64`; the app and Hermes
+  framework have matching Developer ID team `73Q43R2PD4` and secure timestamps.
+  Hardened Runtime remains enabled on the application.
+- Launched the mounted app's ordinary production executable without any
+  harness flags. It remained running for 115 seconds, created a normal-sized
+  main window, had no TCP connection to Metro port 8081, emitted no matching
+  startup-failure diagnostics, and created no new crash report. The agent
+  terminated only that smoke-test PID and detached its temporary mount.
+  Evidence: `/tmp/crystal-lattice-signed-dmg.N3yBMmm9/launch-verification.json`.
+- **Verification limit:** Accessibility and screen-capture access were not
+  available to the verification process. Window creation and process survival
+  are launch evidence, not visual acceptance or full session-interaction
+  coverage. The separate AppKit window-animation report was not reproduced
+  during this smoke and is not claimed generally fixed.
+- The earlier main-worktree `0.9.0 (1)` DMG was rechecked against its existing
+  checksum and remains unchanged. Output-retention tests demonstrate that
+  future rebuilds preserve complete and partially failed prior attempts.
+- Updated the desktop README, release-maintenance guide, and identity-field
+  guidance. Final `git diff --check` passed. No website source was edited by
+  this follow-up; the other agent's concurrent edits were preserved.
+- No installation replacement, publication, tag, push, merge, or commit was
+  performed. **Remaining human action:** quit the installed app, open the
+  delivered DMG, choose whether to replace the app in Applications, and review
+  ordinary interaction. Intel hardware testing remains the original deferred
+  tester-feedback boundary.
+
+#### Subsequent commit authorization — October 5, 2026
+
+After delivery, the user explicitly requested a commit of this follow-up.
+That authorization covers the signed-DMG command, release-output preservation,
+focused tests, documentation, and this task record. It does not include the
+concurrent website/screenshot changes or authorize a push or publication.
+
+### October 7, 2026 tracking reconciliation
+
+Progress: review. The current public release metadata still reports
+`0.9.0 (4)`, source `1a04b8689eab0821727be2c3efc9213e57ebafe7`, both
+architectures and accepted notarization. Production HTML contains the header
+link named `Download Crystal Lattice Desktop for macOS`, targeting the
+maintained versioned DMG. The September local keyboard/responsive evidence is
+retained above. The website's technical delivery is credited.
+
+Apple Silicon public-artifact human acceptance, icon-placement acceptance and
+the explicit website-publication authorization record remain unchecked until
+confirmed. Workflow success or a live link does not establish those human
+observations.
+
+The user separately approved maintenance of the broader task tree:
+
+- COMPLETED VIA this task: 030 reproducible build and 050 app-only DMG.
+- PARTIALLY COMPLETED VIA this task: 010 app-contract/preflight and 040
+  Application signing/notarization; PKG/Installer scope remains.
+- SUPERSEDED BY this task: 020's former-name/SVG contract, 060's original
+  GitHub Release publication contract and 070's initial real-Intel gate.
+- Future scope remains 080–130: signed CLI payloads, combined installers,
+  automation, onboarding, two download choices and final acceptance.
+
+Subsequent reviewed product changes are tracked separately in
+`tasks/20261007-macos-desktop-tester-update.md`. Source/native capture proof is
+not evidence that those changes are present in this immutable public artifact.
+/var/folders/j5/g0_m7cb52q935c_px994vbp80000gn/T/crystal-roadmap-move-j8dazge7/23-theirs.txt

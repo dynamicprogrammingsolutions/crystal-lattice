@@ -2992,6 +2992,83 @@ def execute_session_action(
     )
 
 
+@app.post("/sessions/{session_id}/action-callbacks/{callback_element_id}")
+def execute_session_action_callback(
+    session_id: str,
+    callback_element_id: str,
+    payload: Dict[str, Any],
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an applicable session callback UI element."""
+
+    body = payload or {}
+    plugin_id = body.get("plugin")
+    redirect_url = body.get("redirect_url")
+    try:
+        if not isinstance(redirect_url, str) or not redirect_url:
+            raise ValueError("redirect_url must be a non-empty string")
+        executed = app_instance.execute_session_action_callback(
+            session_id,
+            callback_element_id,
+            redirect_url,
+            plugin_id=plugin_id if "plugin" in body else None,
+        )
+        return {
+            "status": "ok",
+            "plugin": executed.plugin_id,
+            "action_id": executed.action_id,
+            "action_owner": executed.action_owner,
+            "callback_element_id": callback_element_id,
+            "result": executed.result,
+        }
+    except AgentApplication._ApplicationActionResolutionError as exc:  # type: ignore[attr-defined]
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "callback_element_id": callback_element_id,
+            "error_type": getattr(exc, "error_type", "unknown_callback"),
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
+        }
+    except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "callback_element_id": callback_element_id,
+            "error_type": "validation",
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
+        }
+    except KeyError as exc:
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "callback_element_id": callback_element_id,
+            "error_type": "not_found",
+            "message": str(exc),
+            "details": {},
+        }
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "callback_element_id": callback_element_id,
+            "error_type": "validation",
+            "message": str(exc),
+            "details": {},
+        }
+    except Exception:
+        _log.exception("unexpected error executing session action callback")
+        return {
+            "status": "error",
+            "plugin": plugin_id,
+            "callback_element_id": callback_element_id,
+            "error_type": "internal",
+            "message": "Session action callback failed",
+            "details": {},
+        }
+
+
 # ---------------------------------------------------------------------------
 # Helper for running under uvicorn or from the CLI
 # ---------------------------------------------------------------------------

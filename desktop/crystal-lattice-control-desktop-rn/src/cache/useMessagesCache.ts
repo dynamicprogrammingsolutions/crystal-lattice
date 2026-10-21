@@ -129,8 +129,12 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
       sessionId: params.sessionId,
       messages: params.messages,
       lastLoadedAt: Date.now(),
-      cursorEventId: params.cursorEventId ?? existing?.cursorEventId ?? null,
-      activeRequestId: params.activeRequestId ?? existing?.activeRequestId ?? null,
+      cursorEventId: params.cursorEventId === undefined
+        ? existing?.cursorEventId ?? null
+        : params.cursorEventId,
+      activeRequestId: params.activeRequestId === undefined
+        ? existing?.activeRequestId ?? null
+        : params.activeRequestId,
       rangeStartText: params.rangeStartText ?? existing?.rangeStartText ?? null,
       rangeEndText: params.rangeEndText ?? existing?.rangeEndText ?? null,
       composeText: params.composeText ?? existing?.composeText,

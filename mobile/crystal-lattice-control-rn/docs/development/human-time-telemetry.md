@@ -60,8 +60,9 @@ connection banner rail; changing either setting re-arms the warning.
 When a successful action response reports skipped spans, the uploader
 isolates that batch into individual span requests. Confirmed spans are removed
 by value and continue uploading even when a rejected span appeared before
-them; only the rejected entries remain pending and show `Failed` in
-diagnostics. A rejected span does not emit the unavailable-plugin banner.
+them. A singleton span that the server confirms it cannot accept is removed
+from the active queue and shown as `Failed` in diagnostics, so it cannot poison
+later uploads. A rejected span does not emit the unavailable-plugin banner.
 
 Backgrounding closes and durably queues the open span. Mobile runtimes may
 suspend the two-second debounce, so returning to the foreground waits for

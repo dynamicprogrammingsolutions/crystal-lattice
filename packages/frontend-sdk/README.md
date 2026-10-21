@@ -39,8 +39,8 @@ Common categories:
 ## Bridge transport modes
 
 `createBridgeConnectionTransport()` supports WebSocket, HTTP, and hybrid
-operation. WebSocket is the compatibility default; HTTP and hybrid are
-explicit choices and never fall back automatically.
+operation. HTTP is the product default; explicit WebSocket and hybrid modes
+remain available for development diagnostics and never provide automatic fallback.
 
 See [Bridge transports](docs/bridge-transports.md) for pairing, mode routing,
 binary behavior, persistence, lifecycle, and rollback.

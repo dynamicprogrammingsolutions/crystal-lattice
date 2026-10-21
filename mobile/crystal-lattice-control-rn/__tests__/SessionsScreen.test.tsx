@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import {
   buildActionDialogInitialValues,
@@ -365,6 +365,26 @@ test('hosts screen-independent application actions in the Sessions header', () =
       'mock-sessions-action-application_config-reload_application',
     ).props.children,
   ).toBe('Reload application');
+});
+
+test('handles a New session request on first mount and acknowledges it once', async () => {
+  const onHandled = jest.fn();
+  renderWithMobileProviders(
+    <SessionsScreen
+      backend={{ kind: 'test' } as any}
+      connectionId="fresh-connection"
+      cachedSessions={[]}
+      lastLoadedAt={null}
+      isActive
+      onUpdateCache={jest.fn()}
+      onSelectSession={jest.fn()}
+      newSessionRequestToken={7}
+      onNewSessionRequestHandled={onHandled}
+    />,
+  );
+  await waitFor(() => expect(screen.getByTestId('new-session-agent-default')).toBeTruthy());
+  expect(onHandled).toHaveBeenCalledTimes(1);
+  expect(onHandled).toHaveBeenCalledWith(7);
 });
 
 test('falls back to the Sessions title when a connection name is unavailable', () => {

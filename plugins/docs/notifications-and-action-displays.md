@@ -687,6 +687,39 @@ store and survive `AgentApplication` replacement and server-process restart.
 Events remain best effort; the application snapshot/list endpoint is the
 reconnect authority.
 
+### Interactive terminal delivery
+
+The interactive terminal presents pending application notifications and
+pending notifications for its active session automatically. It hydrates both
+authoritative scopes at startup, after application replacement, after event
+cursor recovery/reconnect, and when the current session changes. It does not
+provide a notification-list command or require users to pull for updates.
+
+Terminal identity is `(scope, session_id when applicable, notification_id)`.
+The revision (or legacy `updated_at`) is the version. Re-observing one version
+through a snapshot and an event does not render it twice. A newer pending
+revision supersedes its content and follow-ups; a dismissed, resolved, or
+expired revision retires them. Events for inactive sessions are ignored.
+Switching to a session hydrates that session's current authoritative pending
+records.
+
+Each valid notification `run_action` follow-up is registered immediately and
+printed as an exact command such as:
+
+```text
+/action --ref notification-2
+```
+
+Before execution, the terminal rereads the authoritative notification. It
+requires a current pending record, locates the same follow-up id in the current
+revision, rebuilds its action element, and runs normal action validation. A
+stale, terminal, missing, or inactive-session notification cannot invoke its
+old action parameters.
+
+The terminal does not aggregate inactive sessions, navigate or change focus
+for asynchronous delivery, play sounds, set badges, maintain a global
+attention state, or provide a notification center.
+
 ## Failure and security boundaries
 
 - Notification event delivery is best effort.

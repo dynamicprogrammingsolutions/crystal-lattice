@@ -17,7 +17,7 @@ final class ActionDisplayWindowUITests: XCTestCase {
     continueAfterFailure = false
   }
 
-  func testLongDirectActionDisplayOpensScrollableWindow() throws {
+  func testLongDirectActionDisplayReopensAfterBothCloseMethods() throws {
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_ACTION_DISPLAY_HARNESS"] = "1"
     app.launchArguments.append("--action-display-harness")
@@ -57,5 +57,56 @@ final class ActionDisplayWindowUITests: XCTestCase {
     let closed = NSPredicate(format: "exists == false")
     expectation(for: closed, evaluatedWith: actionWindow)
     waitForExpectations(timeout: 10)
+
+    let reopen = harnessWindow.descendants(matching: .any)
+      .matching(identifier: "action-display-harness-reopen")
+      .firstMatch
+    XCTAssertTrue(reopen.waitForExistence(timeout: 10), app.debugDescription)
+    reopen.click()
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(
+      actionWindow.staticTexts["Compiled system message"].waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+
+    let nativeClose = actionWindow.buttons[XCUIIdentifierCloseWindow]
+    XCTAssertTrue(nativeClose.waitForExistence(timeout: 10), app.debugDescription)
+    nativeClose.click()
+    expectation(for: closed, evaluatedWith: actionWindow)
+    waitForExpectations(timeout: 10)
+
+    reopen.click()
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(
+      actionWindow.staticTexts["Compiled system message"].waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    close.click()
+    expectation(for: closed, evaluatedWith: actionWindow)
+    waitForExpectations(timeout: 10)
+  }
+
+  func testMultilineActionFieldKeepsFocusWhenTypingSpaces() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_ACTION_DISPLAY_HARNESS"] = "1"
+    app.launchArguments.append("--action-display-harness")
+    app.launch()
+    app.activate()
+
+    let actionWindow = app.windows["actionDisplayWindow"]
+    XCTAssertTrue(actionWindow.waitForExistence(timeout: 20), app.debugDescription)
+
+    let input = actionWindow.descendants(matching: .any)
+      .matching(identifier: "action-form-input-prompt")
+      .firstMatch
+    XCTAssertTrue(input.waitForExistence(timeout: 20), app.debugDescription)
+
+    input.click()
+    input.typeKey("a", modifierFlags: .command)
+    input.typeKey(.delete, modifierFlags: [])
+    input.typeText("alpha beta")
+
+    let value = input.value as? String
+    XCTAssertEqual(value, "alpha beta", app.debugDescription)
   }
 }

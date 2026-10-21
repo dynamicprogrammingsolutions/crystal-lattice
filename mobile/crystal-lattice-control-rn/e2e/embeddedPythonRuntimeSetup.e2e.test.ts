@@ -46,22 +46,23 @@ describe("embedded Python runtime setup", () => {
     }
 
     await launchApp(true);
-    await element(by.id("connections-tab")).tap();
+    await element(by.id("home-tab")).tap();
     await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
       .toBeVisible()
       .withTimeout(30000);
     await detoxExpect(
       element(by.id("connection-title-embedded-ios-runtime"))
-    ).toHaveText("On-device Python agents");
+    ).toHaveText("Local agent");
 
     await element(by.id("home-tab")).tap();
     await waitFor(element(by.id("home-menu")))
       .toBeVisible()
       .withTimeout(10000);
-    await waitFor(element(by.id("home-embedded-settings")))
+    await element(by.id("home-menu")).tap();
+    await waitFor(element(by.id("home-menu-embedded-settings")))
       .toBeVisible()
       .withTimeout(10000);
-    await element(by.id("home-embedded-settings")).tap();
+    await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
     await waitFor(element(by.id("embedded-runtime-settings")))
       .toBeVisible()
       .withTimeout(10000);
@@ -101,35 +102,31 @@ describe("embedded Python runtime setup", () => {
       .withTimeout(30000);
     await scrollUntilVisible("embedded-provider-compatible-enabled");
     await element(by.id("embedded-provider-compatible-enabled")).tap();
-    await scrollUntilVisible("embedded-provider-compatible-default");
-    await element(by.id("embedded-provider-compatible-default")).tap();
     await new Promise<void>((resolve) => setTimeout(resolve, 900));
     await waitFor(element(by.text("Provider settings saved.")))
       .toBeVisible()
       .withTimeout(10000);
     await detoxExpect(element(by.text(apiKey))).not.toExist();
     await element(by.id("embedded-runtime-settings-close")).tap();
-    await waitFor(element(by.id("connections-tab")))
+    await waitFor(element(by.id("home-tab")))
       .toBeVisible()
       .withTimeout(5000);
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
-    await element(by.id("connections-tab")).tap();
+    await element(by.id("home-tab")).tap();
     await waitFor(element(by.id("connection-card-embedded-ios-runtime")))
       .toBeVisible()
       .withTimeout(30000);
-    await waitFor(element(by.id("connection-info-embedded-ios-runtime")))
-      .toHaveText(`${model} via ${proxyUrl}`)
-      .withTimeout(30000);
     await element(by.id("connection-card-embedded-ios-runtime")).tap();
     await waitFor(element(by.id("sessions-screen-title")))
-      .toHaveText("On-device Python agents")
+      .toHaveText("Local agent")
       .withTimeout(120000);
 
     await launchApp(false);
-    await waitFor(element(by.id("home-embedded-settings")))
+    await element(by.id("home-menu")).tap();
+    await waitFor(element(by.id("home-menu-embedded-settings")))
       .toBeVisible()
       .withTimeout(10000);
-    await element(by.id("home-embedded-settings")).tap();
+    await element(by.id("home-menu-embedded-settings")).performAccessibilityAction("activate");
     await waitFor(element(by.id("embedded-runtime-settings")))
       .toBeVisible()
       .withTimeout(10000);

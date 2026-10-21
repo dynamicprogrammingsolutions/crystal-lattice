@@ -4,6 +4,17 @@ Provide a provider-neutral, persistent, actionable login experience for
 Codex/ChatGPT and Claude using existing notifications, action displays, global
 attention, and generic action deep links.
 
+SPLIT INTO:
+
+- `tasks/20261016-provider-login-experience/000-main.md`
+- `tasks/20261016-provider-login-experience/010-codex-browser-login-and-method-selection.md`
+- `tasks/20261016-provider-login-experience/020-provider-login-notifications-and-anthropic-adoption.md`
+- `tasks/20261016-provider-login-experience/030-provider-auth-global-attention.md`
+
+This draft is retained as historical input and must not be executed as one
+combined task. The split removes global attention from the critical path for
+functional Codex and Anthropic login.
+
 ## Requirements checklist
 
 ### Functional requirements

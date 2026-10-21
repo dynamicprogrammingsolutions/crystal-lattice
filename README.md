@@ -382,7 +382,6 @@ pyright
 
 Contributor references:
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
 - [Application and terminal feature development](application/python/docs/development/terminal-and-http-features.md)
 - [Core Python documentation](core/python/docs/index.md)
 - [Core SDK guide](core/python/docs/core-sdk.md)
@@ -544,7 +543,7 @@ Key docs:
 - [Application events](core/python/docs/events.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/overview.md](plugins/docs/overview.md) - general plugin-system overview
-- [docs/reference/agent_core](docs/reference/agent_core)
+- [Generated AgentCore reference](https://docs.crystallattice.dev/packages/core-python/reference/core/)
 - [application/python/README.md](application/python/README.md)
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)
 - [bridge-elixir/README.md](bridge-elixir/README.md)
@@ -556,8 +555,8 @@ python docs_site/scripts/prepare_mkdocs_site.py
 (cd docs_site && mkdocs build)
 ```
 
-See [docs_site/README.md](docs_site/README.md) for the full build, generated
-reference snapshot, and deployment workflow.
+See [docs_site/README.md](docs_site/README.md) for reference-source ownership,
+the full build, and the deployment workflow.
 
 When changing examples:
 

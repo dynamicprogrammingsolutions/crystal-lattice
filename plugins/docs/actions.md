@@ -154,6 +154,18 @@ directly in the returned display surface before pressing a follow-up action.
 The embedded form schema is intentionally the same form schema used by action
 dialogs:
 
+Keep embedded forms small and adjacent to the result they explain, such as one
+callback URL or a pair of short inputs. Mobile result modals reserve separate
+scroll areas for markdown and embedded fields, keeping the title and follow-up
+actions outside both areas. The software keyboard reduces the available space,
+so an embedded form may require scrolling even with only a few fields.
+
+Use a [follow-up action dialog](#follow-up-action-dialogs) for larger forms or
+workflows that involve substantial keyboard entry. Ordinary mobile action
+dialogs support arbitrary field counts through a scrollable body with fixed
+Cancel/OK controls. There is no enforced field-count cutoff for embedded forms;
+their presentation is intended for small workflows.
+
 ```json
 {
   "display": {
@@ -224,14 +236,68 @@ For manual testing, the `plugins/dummy-action-display-form-app` plugin exposes
 a `Show display form` session action that returns an embedded form and echoes
 submitted values in a confirmation display.
 
-### Future follow-up dialog proposal
+### Follow-up action dialogs
 
-Some workflows may eventually need a display action that opens a separate form
-dialog rather than showing fields inline in the display. The proposed future
-shape is for a `run_action` display action to include a `dialog` object that
-reuses the same action-dialog schema, with submitted values mapped through
-`$dialog.<field_name>`. This is not part of the current implemented contract;
-it is tracked in `tasks/20260620-action-display-followup-dialogs.md`.
+A display follow-up of kind `run_action` can include `dialog` using the ordinary
+action-dialog schema. Mobile opens the production action dialog; macOS uses its
+native dialog presenter, with a dialog window for globally presented results.
+A follow-up without a dialog, or with `kind: "none"`, executes immediately.
+
+```json
+{
+  "kind": "run_action",
+  "id": "edit-value",
+  "label": "Enter value",
+  "plugin": "example",
+  "action_id": "save_value",
+  "fixed_params": {"source": "result"},
+  "param_map": {
+    "value": "$dialog.value",
+    "note": "$form.note"
+  },
+  "dialog": {
+    "kind": "form",
+    "title": "Edit value",
+    "inputs": [
+      {"name": "value", "type": "string", "label": "Value", "required": true}
+    ]
+  },
+  "preserve_display": true
+}
+```
+
+`$dialog.<field>` addresses the separate dialog; `$form.<field>` still addresses
+the originating [embedded display form](#embedded-display-forms), if present.
+The frontend retains the originating action context and embedded values while
+the dialog is open. Cancel closes the dialog without executing the action or
+removing the source result. Form validation runs before submission.
+
+Opening a dialog does not dismiss the source display. After submission,
+`preserve_display` applies through the host's existing result-presentation
+policy: `true` retains the source unless a returned display replaces it; other
+values allow the host to remove the source when execution starts. Dialog
+submission uses the same action runner, parameter mapping, and session-scoped
+endpoint selection as ordinary actions.
+
+In the interactive terminal, each valid direct `run_action` follow-up is
+registered when its display is rendered. The terminal prints the exact
+invocation, such as:
+
+```text
+/action --ref result-1
+```
+
+The reference preserves the source context, embedded `$form` values,
+follow-up `$dialog` values, fixed/mapped parameters, action owner, and
+`preserve_display`. It remains valid until the source `display_id` is
+superseded, a non-preserving follow-up starts, the application generation
+changes, or the terminal exits. A reference is never an alternate execution
+API; invocation still resolves and validates the registered action through the
+ordinary application dispatcher.
+
+The neutral `plugins/dummy-action-display-form-app` demonstration package
+contributes **Show follow-up dialog**, which returns a result with **Enter
+value**. Submit its generic form to see the echoed value in the next result.
 
 ## Dynamic lifecycle names
 

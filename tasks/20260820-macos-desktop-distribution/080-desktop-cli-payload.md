@@ -15,7 +15,17 @@ application without coupling CLI lifetime to the GUI process.
 - [ ] Architecture, relocation, signature, runtime-layout, default-plugin, and command smoke tests cover both payloads.
 
 Parent Task: tasks/20260820-macos-desktop-distribution/000-main.md
-Depends On: tasks/20260820-macos-desktop-distribution/070-app-only-release-acceptance.md
+Depends On:
+tasks/20260928-universal-macos-desktop-fastlane-release.md
+tasks/20260820-macos-desktop-distribution/010-release-contract-and-preflight.md
+
+## Reconciliation — October 7, 2026
+
+Progress: pending. The replacement September task owns app-only acceptance.
+Its outstanding human acceptance remains a gate; historical 070 is superseded.
+Existing standalone CLI archives do not prove this task's signed system
+payload, version reporting, relocation or coexistence requirements.
+
 
 ## Approved payload model
 

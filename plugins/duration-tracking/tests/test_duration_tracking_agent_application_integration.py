@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 import sys
+from contextlib import closing
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -362,6 +364,152 @@ def test_tool_loop_records_every_llm_round(tmp_path: Path) -> None:
     assert assistant_md.get("human_time_turn_delta_formatted") == "0ms"
 
 
+@pytest.mark.parametrize("stream", [False, True])
+def test_responses_tool_loop_records_tool_only_round_and_completed_human_delta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stream: bool
+) -> None:
+    """Exercise production Responses conversion, tool execution, and persistence.
+
+    Only the remote SDK transport is replaced. Its outputs reproduce native
+    commentary, tool-only multi-call rounds, and terminal assistant answers.
+    """
+    from types import SimpleNamespace
+
+    from openai_responses_plugins.openai_responses_provider import (
+        OpenAIResponsesProvider,
+    )
+
+    db_path = tmp_path / "durations.sqlite3"
+    config_path = _make_config(
+        tmp_path,
+        db_path,
+        provider_entry=(
+            "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider"
+        ),
+        provider_overrides={
+            "provider": "openai_responses",
+            "auth_mode": "api",
+            "api_key": "test-key",
+            "track_chatgpt_usage_journal": False,
+        },
+    )
+    config = json.loads(config_path.read_text())
+    config["plugins"].extend(
+        [
+            "openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension",
+            "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
+        ]
+    )
+    config_path.write_text(json.dumps(config))
+    target = tmp_path / "hello.txt"
+    target.write_text("hello")
+
+    def message(text: str, phase: str = "final_answer") -> Dict[str, Any]:
+        return {
+            "type": "message",
+            "role": "assistant",
+            "phase": phase,
+            "content": [{"type": "output_text", "text": text}],
+            "status": "completed",
+        }
+
+    def tool(call_id: str) -> Dict[str, Any]:
+        return {
+            "type": "function_call",
+            "call_id": call_id,
+            "name": "read_file",
+            "arguments": json.dumps({"file_path": str(target)}),
+            "status": "completed",
+        }
+
+    outputs = [
+        [message("first answer")],
+        [message("I will read the file.", "commentary"), tool("call-1")],
+        [tool("call-2"), tool("call-3")],
+        [message("hello")],
+    ]
+    calls: List[Dict[str, Any]] = []
+    session_id: str = ""
+
+    def upload(request_id: str, start: str, end: str) -> None:
+        duration_store.record_human_time_spans(
+            db_path,
+            working_directory=str(tmp_path),
+            request_id=request_id,
+            spans=[{"session_id": session_id, "from": start, "to": end}],
+        )
+
+    def create(**kwargs: Any) -> Any:
+        index = len(calls)
+        calls.append(kwargs)
+        if index == 3:
+            upload("human-3", "2026-09-25T08:02:00Z", "2026-09-25T08:02:30Z")
+        payload = {
+            "id": f"resp-{index}",
+            "status": "completed",
+            "output": outputs[index],
+            "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        }
+        if kwargs.get("stream"):
+            return iter(
+                [
+                    {"type": "response.output_item.done", "item": item}
+                    for item in outputs[index]
+                ]
+                + [{"type": "response.completed", "response": payload}]
+            )
+        return payload
+
+    client = SimpleNamespace(
+        responses=SimpleNamespace(create=create),
+        with_options=lambda **kwargs: client,
+    )
+    monkeypatch.setattr(
+        OpenAIResponsesProvider, "_create_sdk_client", lambda *a: client
+    )
+    monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda *a: [])
+    app = AgentApplication(str(config_path), str(tmp_path / "sessions"))
+    core, base_config, session = app.create_session("default")
+    session_id = session.session_id
+
+    def run(current: Session) -> Session:
+        app.save_session(current)
+        events = list(app.send_request(core, current, base_config, stream=stream))
+        errors = [event for event in events if event.get("type") == "error"]
+        assert not errors
+        checkpoints = [
+            event for event in events if event.get("type") == "session_checkpoint"
+        ]
+        assert checkpoints
+        result = checkpoints[-1]["session"]
+        app.save_session(result)
+        return result
+
+    upload("human-1", "2026-09-25T08:00:00Z", "2026-09-25T08:01:00Z")
+    session = core.add_message(session, "user", "first", config=base_config)
+    session = run(session)
+    upload("human-2", "2026-09-25T08:01:00Z", "2026-09-25T08:02:00Z")
+    session = core.add_message(session, "user", "read the file", config=base_config)
+    session = run(session)
+
+    rows = _request_rows(db_path)
+    assert len(calls) == 4
+    assert len(rows) == 4
+    assert len(_tool_rows(db_path)) == 3
+    assert len({row["request_id"] for row in rows[1:]}) == 1
+    assistants = _assistant_messages(session)
+    for intermediate in assistants[1:-1]:
+        assert not any(
+            key.startswith("human_time_") for key in (intermediate.metadata or {})
+        )
+    final_md = assistants[-1].metadata or {}
+    assert final_md["duration_session_total"] == sum(row["duration_ms"] for row in rows)
+    assert final_md["turn_duration_ms"] == sum(row["duration_ms"] for row in rows[1:])
+    assert final_md["human_time_turn_delta"] == 90_000
+    _, _, reloaded = app.load_session(session_id)  # type: ignore[misc]
+    assert _assistant_messages(reloaded)[-1].metadata["human_time_turn_delta"] == 90_000
+
+
 def test_multiple_tool_calls_record_one_row_each(tmp_path: Path) -> None:
     db_path = tmp_path / "durations.sqlite3"
     app = _make_app(tmp_path, db_path)
@@ -471,8 +619,8 @@ def test_human_time_spans_ingest_through_public_action_path(
     tmp_path: Path,
 ) -> None:
     """Spans flow through ``execute_application_action`` (the HTTP route's
-    entry): session-less spans use the runtime working-directory default,
-    retries dedup, overlaps merge, and ingestion never mutates sessions."""
+    entry): every span uses the runtime working-directory default, retries
+    dedup, overlaps merge, and ingestion never mutates sessions."""
 
     db_path = tmp_path / "durations.sqlite3"
     app = _make_app(tmp_path, db_path)
@@ -491,8 +639,6 @@ def test_human_time_spans_ingest_through_public_action_path(
                     "to": "2026-09-25T08:05:00Z",
                 },
                 {
-                    # No plugin-config working directory: application
-                    # initialization defaults this target from WORKING_DIR.
                     "session_id": None,
                     "from": "2026-09-25T09:00:00Z",
                     "to": "2026-09-25T09:02:00Z",
@@ -507,13 +653,16 @@ def test_human_time_spans_ingest_through_public_action_path(
         "absorbed": 0,
         "duplicate": False,
     }
+    application_working_directory = str(Path.cwd().resolve())
     totals = duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     )
     assert totals == {"span_count": 1, "total_ms": 5 * 60 * 1000}
     assert duration_store.human_time_project_totals(
-        db_path, working_directory=str(Path.cwd().resolve())
-    ) == {"span_count": 1, "total_ms": 2 * 60 * 1000}
+        db_path, working_directory=application_working_directory
+    ) == {"span_count": 2, "total_ms": 7 * 60 * 1000}
 
     # A retry of the accepted batch is recognized and skipped.
     retry = app.execute_application_action(
@@ -533,7 +682,9 @@ def test_human_time_spans_ingest_through_public_action_path(
     assert retry["duplicate"] is True
     assert retry["recorded"] == 0
     assert duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     ) == {"span_count": 1, "total_ms": 5 * 60 * 1000}
 
     # A new batch with an overlapping same-session span merges into one.
@@ -554,7 +705,9 @@ def test_human_time_spans_ingest_through_public_action_path(
     assert merged["recorded"] == 1
     assert merged["merged"] == 1
     assert duration_store.human_time_session_totals(
-        db_path, working_directory=str(tmp_path), session_id=session_id
+        db_path,
+        working_directory=application_working_directory,
+        session_id=session_id,
     ) == {"span_count": 1, "total_ms": 8 * 60 * 1000}
 
     # Ingestion never mutates sessions (no save path).
@@ -619,14 +772,16 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
     assert second_md.get("human_time_turn_delta") == 3 * 60 * 1000
     assert second_md.get("human_time_turn_delta_formatted") == "3m"
 
-    # And the report action includes the current-project total and factual
-    # all-time per-session diagnostics.
+    # Human project attribution follows the application working directory,
+    # while the report's current-project summary follows this synthetic
+    # session's configured project. The session-id diagnostic remains
+    # independent of that project distinction.
     report = app.execute_application_action(
         "duration_tracking_app",
         "show_duration_report",
         {"session_id": session.session_id},
     )
-    assert "- Human time: `8m`" in report["display"]["body"]
+    assert "- Human time: `0ms`" in report["display"]["body"]
     assert "- Current session stored total: `8m`" in report["display"]["body"]
     assert report["human_time"] == {"span_count": 1, "total_ms": 8 * 60 * 1000}
 
@@ -650,3 +805,106 @@ def test_human_time_totals_reach_assistant_metadata_and_report(
         "span_count": 1,
         "total_ms": 8 * 60 * 1000,
     }
+
+
+def test_report_daily_scopes_through_application_actions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "durations.sqlite3"
+    projects = [tmp_path / "project-a", tmp_path / "project-b"]
+    sessions: List[Session] = []
+    local_now = datetime.now().astimezone()
+    for project_index, project in enumerate(projects):
+        project.mkdir()
+        # Separate project servers have separate process-wide runtime defaults.
+        # Start and close them sequentially using their actual launch directory.
+        monkeypatch.chdir(project)
+        with closing(_make_app(project, db_path)) as app:
+            target = project / "hello.txt"
+            target.write_text("hello", encoding="utf-8")
+            for _ in range(2 if project_index == 0 else 1):
+                core, config, session = app.create_session("default")
+                session = _seed_pending_tool_calls(
+                    app, core, session, [_read_file_call("daily-call", target)]
+                )
+                session = _run_request(app, core, session, config)
+                index = len(sessions)
+                sessions.append(session)
+                start = local_now.replace(
+                    hour=8 + index, minute=0, second=0, microsecond=0
+                )
+                result = app.execute_application_action(
+                    "duration_tracking_app",
+                    "record_human_time_spans",
+                    {
+                        "request_id": f"human-{index}",
+                        "spans": [
+                            {
+                                "session_id": session.session_id,
+                                "from": start.isoformat(),
+                                "to": (
+                                    start + timedelta(minutes=index + 1)
+                                ).isoformat(),
+                            }
+                        ],
+                    },
+                )
+                assert result["recorded"] == 1
+            if project_index == 0:
+                start = local_now.replace(hour=12, minute=0, second=0, microsecond=0)
+                app.execute_application_action(
+                    "duration_tracking_app",
+                    "record_human_time_spans",
+                    {
+                        "request_id": "sessionless",
+                        "spans": [
+                            {
+                                "session_id": None,
+                                "from": start.isoformat(),
+                                "to": (start + timedelta(minutes=4)).isoformat(),
+                            }
+                        ],
+                    },
+                )
+
+    monkeypatch.chdir(projects[0])
+    with closing(_make_app(projects[0], db_path)) as app:
+        app.execute_application_action(
+            "duration_tracking_app",
+            "reset_duration_tracking",
+            {"session_id": sessions[0].session_id},
+        )
+        report = app.execute_application_action(
+            "duration_tracking_app",
+            "show_duration_report",
+            {"session_id": sessions[0].session_id},
+        )
+
+    llm_rows = _request_rows(db_path)
+    tool_rows = _tool_rows(db_path)
+    assert len(llm_rows) == len(tool_rows) == 3
+    today = local_now.date().isoformat()
+    for key, session_ids, human_minutes in (
+        ("daily_totals_session_last_7_days", {sessions[0].session_id}, 1),
+        (
+            "daily_totals_project_last_7_days",
+            {sessions[0].session_id, sessions[1].session_id},
+            7,
+        ),
+        ("daily_totals_last_7_days", {s.session_id for s in sessions}, 10),
+    ):
+        assert report[key][today] == {
+            "llm_total_ms": sum(
+                row["duration_ms"]
+                for row in llm_rows
+                if row["session_id"] in session_ids
+            ),
+            "tool_total_ms": sum(
+                row["duration_ms"]
+                for row in tool_rows
+                if row["session_id"] in session_ids
+            ),
+            "human_total_ms": human_minutes * 60_000,
+        }
+    assert "### Last 7 days — current session" in report["display"]["body"]
+    assert report["display"]["display_id"] == "duration-tracking-report"

@@ -7,9 +7,14 @@ import {
   SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
 } from '@crystal-lattice/frontend-sdk';
 
-import { useMessagesCache, type UseMessagesCacheResult } from '../src/cache/useMessagesCache';
+import {
+  useMessagesCache,
+  type UseMessagesCacheResult,
+} from '../src/cache/useMessagesCache';
 
-function createInMemoryStore(initial?: Record<string, string>): KeyValueStore & {
+function createInMemoryStore(
+  initial?: Record<string, string>,
+): KeyValueStore & {
   data: Map<string, string>;
   writes: string[];
   deletes: string[];
@@ -82,7 +87,7 @@ test('desktop hook hydrates v2 cache and scrubs active request ids', async () =>
     ReactTestRenderer.create(
       <Harness
         store={store}
-        onSnapshot={(value) => {
+        onSnapshot={value => {
           latest = value;
         }}
       />,
@@ -111,7 +116,7 @@ test('desktop hook persists only the touched session entry and index', async () 
     ReactTestRenderer.create(
       <Harness
         store={store}
-        onSnapshot={(value) => {
+        onSnapshot={value => {
           latest = value;
         }}
       />,
@@ -138,12 +143,64 @@ test('desktop hook persists only the touched session entry and index', async () 
   ]);
   expect(
     JSON.parse(
-      store.data.get(getSessionScopedMessagesCacheEntryKey('conn-1', 'sess-1')) ?? 'null',
+      store.data.get(
+        getSessionScopedMessagesCacheEntryKey('conn-1', 'sess-1'),
+      ) ?? 'null',
     ),
   ).toMatchObject({
     connectionId: 'conn-1',
     sessionId: 'sess-1',
     cursorEventId: 'cursor:2',
     activeRequestId: null,
+  });
+});
+
+test('desktop cache clears an explicitly completed request while preserving omitted state', async () => {
+  const store = createInMemoryStore();
+  let latest!: UseMessagesCacheResult;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <Harness
+        store={store}
+        onSnapshot={value => {
+          latest = value;
+        }}
+      />,
+    );
+    await flushAsyncWork();
+  });
+  await ReactTestRenderer.act(async () => {
+    latest.updateMessagesCache({
+      connectionId: 'connection',
+      sessionId: 'session',
+      messages: [],
+      activeRequestId: 'running',
+      cursorEventId: 'cursor:1',
+    });
+  });
+  await ReactTestRenderer.act(async () => {
+    latest.updateMessagesCache({
+      connectionId: 'connection',
+      sessionId: 'session',
+      messages: [],
+    });
+  });
+  expect(latest.messagesCache.connection.session.activeRequestId).toBe(
+    'running',
+  );
+  await ReactTestRenderer.act(async () => {
+    latest.updateMessagesCache({
+      connectionId: 'connection',
+      sessionId: 'session',
+      messages: [],
+      activeRequestId: null,
+      cursorEventId: null,
+    });
+  });
+  expect(latest.messagesCache.connection.session.activeRequestId).toBeNull();
+  expect(latest.messagesCache.connection.session.cursorEventId).toBeNull();
+  await ReactTestRenderer.act(async () => {
+    renderer.unmount();
   });
 });

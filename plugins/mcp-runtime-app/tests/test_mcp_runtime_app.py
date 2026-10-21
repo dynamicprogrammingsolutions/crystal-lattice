@@ -342,7 +342,7 @@ def test_start_login_returns_open_and_copy_actions_and_stores_pending() -> None:
     assert query["response_type"] == ["code"]
     assert query["code_challenge_method"] == ["S256"]
     assert query["redirect_uri"] == [
-        "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected"
+        "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected"
     ]
 
     actions = result["display"]["actions"]
@@ -489,7 +489,7 @@ def _pending_login(server_name: str = "protected") -> dict:
     return {
         "server_name": server_name,
         "server_url": "https://mcp.example.test/mcp",
-        "redirect_uri": f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name={server_name}",
+        "redirect_uri": f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name={server_name}",
         "connection_id": "test-connection",
         "token_endpoint": "https://auth.example.test/token",
         "code_verifier": "verifier",
@@ -497,7 +497,7 @@ def _pending_login(server_name: str = "protected") -> dict:
             "client_id": "client-123",
             "token_endpoint_auth_method": "none",
             "redirect_uris": [
-                f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name={server_name}"
+                f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name={server_name}"
             ],
         },
         "resource": "https://mcp.example.test/mcp",
@@ -511,14 +511,14 @@ def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
         "state-123": {
             "server_name": "protected",
             "server_url": "https://mcp.example.test/mcp",
-            "redirect_uri": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected",
+            "redirect_uri": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected",
             "token_endpoint": "https://auth.example.test/token",
             "code_verifier": "verifier",
             "client_info": {
                 "client_id": "client-123",
                 "token_endpoint_auth_method": "none",
                 "redirect_uris": [
-                    "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected"
+                    "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected"
                 ],
             },
             "resource": "https://mcp.example.test/mcp",
@@ -539,7 +539,7 @@ def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
             "server_name": "protected",
             "code": "code-123",
             "state": "state-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected&code=code-123&state=state-123",
         },
         {"session_id": "session-123"},
         {},
@@ -688,7 +688,7 @@ def test_complete_login_succeeds_when_runtime_cleanup_fails(monkeypatch) -> None
             "server_name": "protected",
             "code": "code-123",
             "state": "state-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected&code=code-123&state=state-123",
         },
         {"session_id": "session-123"},
         {},
@@ -721,7 +721,7 @@ def test_complete_login_replayed_callback_is_idempotent_after_token_stored() -> 
             "server_name": "protected",
             "code": "code-123",
             "state": "state-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected&code=code-123&state=state-123",
         },
         {"session_id": "session-123"},
         {},
@@ -744,7 +744,7 @@ def test_complete_login_refreshes_runtime_when_session_config_available(
         "state-123": {
             "server_name": "protected",
             "server_url": "https://mcp.example.test/mcp",
-            "redirect_uri": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected",
+            "redirect_uri": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected",
             "connection_id": "test-connection",
             "token_endpoint": "https://auth.example.test/token",
             "code_verifier": "verifier",
@@ -752,7 +752,7 @@ def test_complete_login_refreshes_runtime_when_session_config_available(
                 "client_id": "client-123",
                 "token_endpoint_auth_method": "none",
                 "redirect_uris": [
-                    "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected"
+                    "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected"
                 ],
             },
             "resource": "https://mcp.example.test/mcp",
@@ -773,7 +773,7 @@ def test_complete_login_refreshes_runtime_when_session_config_available(
             "server_name": "protected",
             "code": "code-123",
             "state": "state-123",
-            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login_callback?server_name=protected&code=code-123&state=state-123",
         },
         {
             "session_id": "session-123",

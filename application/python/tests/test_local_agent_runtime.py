@@ -11,6 +11,9 @@ import pytest
 from agent_app import SessionRequestAlreadyRunningError
 from agent_terminal_app import AgentRunResult, RunProgress, open_runtime
 from agent_terminal_app.local_runtime import normalize_run_progress
+from application.python.tests.fixtures.headless_runtime_plugins import (
+    write_model_catalog_config,
+)
 
 
 def _write_config(
@@ -43,6 +46,40 @@ def _write_config(
         encoding="utf-8",
     )
     return path
+
+
+def test_list_models_uses_agent_configuration_without_sessions_or_inference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent / "fixtures"))
+    config = write_model_catalog_config(tmp_path / "config.json")
+    original_config = config.read_bytes()
+    sessions = tmp_path / "sessions"
+    with open_runtime(config_path=config, session_root=sessions) as runtime:
+        models = runtime.list_models(agent_id="alpha")
+        assert models == (
+            {
+                "id": "model-z",
+                "name": "Model Z",
+                "description": "Fast\tmodel\nfor reviews",
+                "capabilities": {"reasoning": True},
+            },
+            {"id": "model-a"},
+        )
+        assert runtime.list_models("alpha") == models
+        assert runtime.list_models("beta") == ({"id": "beta-model", "name": "Beta"},)
+        assert runtime.list_models("empty") == ()
+        with pytest.raises(KeyError, match="Unknown agent_id"):
+            runtime.list_models("unknown")
+        with pytest.raises(ValueError, match="non-empty"):
+            runtime.list_models("")
+        assert runtime.list_sessions()["sessions"] == []
+    with pytest.raises(RuntimeError, match="closed"):
+        runtime.list_models("alpha")
+    assert not list(sessions.glob("*.json"))
+    assert config.read_bytes() == original_config
+    assert "must-not-appear" not in json.dumps(models)
 
 
 def _write_long_tool_config(path: Path) -> Path:
@@ -127,6 +164,7 @@ def test_open_runtime_runs_and_follows_up_with_bounded_progress(
         assert isinstance(first, AgentRunResult)
         assert first.status == "succeeded"
         assert first.agent_id == "alpha"
+        assert first.persistence == "persisted"
         assert first.output_text == "SYS= | USER=first task"
         assert not hasattr(first, "final_session")
         assert follow_up.status == "succeeded"
@@ -148,6 +186,92 @@ def test_open_runtime_runs_and_follows_up_with_bounded_progress(
     assert progress_kinds.count("assistant_started") == 2
     assert progress_kinds.count("request_completed") == 2
     assert all(len(item.message) <= 240 for item in progress)
+
+
+def test_runtime_resend_does_not_append_another_user_message(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / ".crystal" / "config.json")
+
+    with open_runtime(
+        config_path=config,
+        session_root=tmp_path / "sessions",
+    ) as runtime:
+        first = runtime.run("first task", agent_id="alpha")
+        resent = runtime.resend(first.session_id)
+
+        assert resent.status == "succeeded"
+        assert resent.session_id == first.session_id
+        assert resent.agent_id == "alpha"
+        assert resent.output_text == "SYS= | USER=first task"
+
+        stored = runtime.application.load_session_record(first.session_id)
+        assert stored is not None
+        assert [message.role for message in stored.messages] == [
+            "user",
+            "assistant",
+            "assistant",
+        ]
+        assert [
+            message.content for message in stored.messages if message.role == "user"
+        ] == ["first task"]
+
+
+def test_runtime_describes_agents_and_runs_without_persisting_session(
+    tmp_path: Path,
+) -> None:
+    config = _write_config(tmp_path / "config.json")
+    session_root = tmp_path / "sessions"
+    progress: list[RunProgress] = []
+
+    with open_runtime(
+        config_path=config,
+        session_root=session_root,
+    ) as runtime:
+        descriptors = runtime.list_agent_descriptors()
+        assert [item["id"] for item in descriptors] == ["alpha", "beta"]
+        alpha = runtime.describe_agent("alpha")
+        assert alpha["provider_route"] == "deterministic"
+        assert alpha["provider_plugin"] == "deterministic_stream"
+        assert alpha["effective_settings"]["model"] == "deterministic-test"
+        assert any(item.get("key") == "model" for item in alpha["config_schema"])
+
+        result = runtime.run(
+            "temporary task",
+            agent_id="alpha",
+            overrides={"model": "temporary-model"},
+            persistence="ephemeral",
+            on_progress=progress.append,
+        )
+
+        assert result.status == "succeeded"
+        assert result.persistence == "ephemeral"
+        assert isinstance(result.session_id, str)
+        assert result.session_id
+        assert result.output_text == "SYS= | USER=temporary task"
+        assert runtime.list_sessions(apply_filter_defaults=False) == {"sessions": []}
+        assert not list(session_root.glob("*.json"))
+
+    assert [item.kind for item in progress].count("request_completed") == 1
+
+
+def test_ephemeral_run_cannot_continue_a_persisted_session(tmp_path: Path) -> None:
+    config = _write_config(tmp_path / "config.json")
+
+    with open_runtime(
+        config_path=config,
+        session_root=tmp_path / "sessions",
+    ) as runtime:
+        first = runtime.run("persisted", agent_id="alpha")
+        with pytest.raises(
+            ValueError,
+            match="ephemeral runs cannot continue",
+        ):
+            runtime.run(
+                "follow up",
+                session_id=first.session_id,
+                persistence="ephemeral",
+            )
 
 
 def test_open_runtime_discovers_local_config_and_dotenv(
@@ -312,6 +436,30 @@ def test_timeout_returns_cancelled_result(tmp_path: Path) -> None:
     assert result.error.category == "timeout"
 
 
+def test_ephemeral_timeout_leaves_no_session(tmp_path: Path) -> None:
+    config = _write_config(
+        tmp_path / "config.json",
+        delay_ms=100,
+    )
+    session_root = tmp_path / "sessions"
+
+    with open_runtime(
+        config_path=config,
+        session_root=session_root,
+    ) as runtime:
+        result = runtime.run(
+            "slow temporary task",
+            agent_id="alpha",
+            timeout=0.02,
+            persistence="ephemeral",
+        )
+
+    assert result.status == "cancelled"
+    assert result.error is not None
+    assert result.error.category == "timeout"
+    assert not list(session_root.glob("*.json"))
+
+
 def test_caller_can_cancel_an_active_request(tmp_path: Path) -> None:
     config = _write_config(
         tmp_path / "config.json",
@@ -437,6 +585,33 @@ def test_runtime_tool_progress_and_result_omit_persisted_long_output(
     )
     assert compact_tool.content == "Generated deterministic long output"
     assert compact_tool.content_truncated is True
+
+
+def test_ephemeral_run_uses_tool_loop_without_persisting_tool_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parent / "fixtures"))
+    config = _write_long_tool_config(tmp_path / "config.json")
+    session_root = tmp_path / "sessions"
+    progress: list[RunProgress] = []
+
+    with open_runtime(
+        config_path=config,
+        session_root=session_root,
+    ) as runtime:
+        result = runtime.run(
+            "use the deterministic tool",
+            agent_id="tool-agent",
+            persistence="ephemeral",
+            on_progress=progress.append,
+        )
+
+    assert result.status == "succeeded"
+    assert result.output_text == "Long tool workflow completed"
+    assert [item.kind for item in progress].count("tool_started") == 1
+    assert [item.kind for item in progress].count("tool_completed") == 1
+    assert not list(session_root.glob("*.json"))
 
 
 @pytest.mark.parametrize(

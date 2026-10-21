@@ -64,7 +64,9 @@ def test_embedded_ios_config_is_python_owned_and_secret_free() -> None:
     )
     assert raw["providers"]["reviewer"]["model"] == "gpt-5.6-luna"
     assert raw["providers"]["reviewer"]["auth_mode_options"] == []
-    assert raw["providers"]["openai"]["auth_mode_options"] == []
+    assert raw["providers"]["openai"]["auth_mode_options"] == ["api", "chatgpt"]
+    assert settings["profiles"]["reviewer"]["enabledByDefault"] is False
+    assert settings["profiles"]["openai"]["label"] == "OpenAI"
     assert raw["providers"]["openai"]["api_key"] == (
         "${env:EMBEDDED_OPENAI_API_KEY}"
     )

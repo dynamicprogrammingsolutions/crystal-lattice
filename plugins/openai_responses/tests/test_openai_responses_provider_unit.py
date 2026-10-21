@@ -2585,6 +2585,43 @@ def test_call_api_strips_output_only_fields_from_input_history() -> None:
     }
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+def test_provider_preserves_web_search_input_fields(streaming: bool) -> None:
+    provider = OpenAIResponsesProvider()
+    client = (
+        _FixtureStreamingClient(_load_stream_fixture_events())
+        if streaming
+        else _FixtureClient(_load_fixture())
+    )
+    native_search = {
+        "type": "web_search_call",
+        "id": "ws_1",
+        "status": "completed",
+        "action": {"type": "search", "query": "OpenAI Responses API"},
+        "_metadata": {"response_id": "resp_1"},
+    }
+    state = {
+        "config": {"model": "gpt-6-luna", "api_key": "test_key"},
+        "client": client,
+        "request": {"payload": {"model": "gpt-6-luna"}, "timeout": 12},
+    }
+
+    if streaming:
+        list(provider.stream_api([native_search], state))
+    else:
+        provider.call_api([native_search], state)
+
+    assert client.responses.calls[0]["input"][0] == {
+        "type": "web_search_call",
+        "id": "ws_1",
+        "status": "completed",
+        "action": {"type": "search", "query": "OpenAI Responses API"},
+    }
+    assert native_search["_metadata"] == {"response_id": "resp_1"}
+    assert native_search["id"] == "ws_1"
+    assert native_search["status"] == "completed"
+
+
 def test_call_api_normalizes_assistant_input_text_history_to_output_text() -> None:
     provider = OpenAIResponsesProvider()
     fixture = _load_fixture()

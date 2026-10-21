@@ -31,7 +31,13 @@ type MatrixState =
   | ReadyState
   | { status: "error"; message: string };
 
-export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
+export function EmbeddedProviderMatrixDiagnosticsScreen({
+  clcEmbeddedMatrixAgent,
+  clcEmbeddedMatrixAuthMode,
+}: {
+  clcEmbeddedMatrixAgent?: string;
+  clcEmbeddedMatrixAuthMode?: "api" | "chatgpt";
+}): React.JSX.Element {
   const [state, setState] = useState<MatrixState>({ status: "starting" });
 
   useEffect(() => {
@@ -91,11 +97,11 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
       workspaceDirectoryLabel: string;
       workspaceBoundaryRejected: boolean;
     }> {
-      const schema = await backend.getSessionUiSchema(sessionId);
+      const schema = await backend.getSessionApplicationUiSchema(sessionId);
       const directoryElement = schema.find(
         (candidate: any) =>
-          candidate?.type === "directory" &&
-          candidate?.key === "working_directory"
+          candidate?.type === "workspace" &&
+          candidate?.key === "workspace_id"
       ) as any;
       const directoryOptions = Array.isArray(directoryElement?.options)
         ? directoryElement.options
@@ -118,18 +124,18 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
       }
       if (selection.selectDirectory) {
         await backend.patchSessionOverrides(sessionId, {
-          working_directory: nestedOption.value,
+          workspace_id: nestedOption.value,
         });
       }
       const overrides = await backend.getSessionOverrides(sessionId);
-      if (overrides.working_directory !== nestedOption.value) {
+      if (overrides.workspace_id !== nestedOption.value) {
         throw new Error("The session working directory override was not persisted.");
       }
 
       let workspaceBoundaryRejected = false;
       try {
         await backend.patchSessionOverrides(sessionId, {
-          working_directory: `${rootOption.value}/../outside`,
+          workspace_id: "shared:../outside",
         });
       } catch {
         workspaceBoundaryRejected = true;
@@ -186,7 +192,8 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
             ...workspace,
             workspaceSessionIsolation:
               comparisonOverrides != null &&
-              comparisonOverrides.working_directory == null,
+              comparisonOverrides.working_directory == null &&
+              comparisonOverrides.workspace_id == null,
           };
         }
       }
@@ -197,7 +204,10 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
       try {
         await startEmbeddedPythonRuntime();
         const configuration = await getEmbeddedPythonRuntimeConfiguration();
-        const agentId = configuration.defaultAgent;
+        const agentId = clcEmbeddedMatrixAgent?.trim();
+        if (!agentId) {
+          throw new Error("Select the provider agent using clcEmbeddedMatrixAgent.");
+        }
         if (configuration.inspectionOnly) {
           const persisted = await inspectPersisted(agentId);
           if (!persisted) {
@@ -221,6 +231,11 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
         const { backend } = createEmbeddedRuntimeBackend();
         const created = await backend.createSession({ agentId });
         const sessionId = created.session.session_id;
+        if (clcEmbeddedMatrixAuthMode) {
+          await backend.patchSessionOverrides(sessionId, {
+            auth_mode: clcEmbeddedMatrixAuthMode,
+          });
+        }
         const providerCapabilities = await inspectProviderCapabilities(
           backend,
           sessionId
@@ -303,7 +318,8 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
             ...workspace,
             workspaceSessionIsolation:
               comparison.session.session_id !== sessionId &&
-              comparisonOverrides.working_directory == null,
+              comparisonOverrides.working_directory == null &&
+              comparisonOverrides.workspace_id == null,
           });
         }
       } catch (error) {
@@ -320,7 +336,7 @@ export function EmbeddedProviderMatrixDiagnosticsScreen(): React.JSX.Element {
     return () => {
       active = false;
     };
-  }, []);
+  }, [clcEmbeddedMatrixAgent, clcEmbeddedMatrixAuthMode]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

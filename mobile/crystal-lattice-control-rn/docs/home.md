@@ -1,8 +1,59 @@
 # Home, Watchlist, and recent sessions
 
-Home is the initial mobile workspace. It sits alongside Connections, Sessions,
-and Messages and provides shortcuts to sessions cached from all saved
-connections.
+Home is the initial mobile workspace, alongside Sessions and Messages.
+Connections appears first, followed by Watchlist and Recent Sessions.
+
+## Connections
+
+Saved connection cards keep their details, Open/Closed status, and pinnable
+actions. The list uses most-recently-used ordering and initially shows up to
+three cards. When there are more, **Show all N connections** below the cards
+reveals the whole list; **Show fewer** returns to three. Expanding does not
+leave Home.
+
+Tap a card to enter Sessions and open its connection when necessary. The
+card's **Open** action connects while staying on Home. The active connection
+offers Disconnect, Health Check, and server settings. Each card's **+** opens
+the connection when needed, then shows the agent picker for a new session.
+The Connections heading has just **New connection**, without an ellipsis.
+The Home menu on the left provides New connection, Global Settings,
+Development Settings, and
+Local provider settings on iOS. The right-hand header area remains empty until
+login is implemented.
+
+New connection opens setup in a modal. The current connection stays open
+while you configure and validate another. Closing, cancelling, or failed
+setup retains it; successful setup switches to the new connection. Bridge
+re-pairing also uses the setup modal.
+
+Choose **Bridge** in that modal to see saved bridge endpoints first. Tap an
+entry to connect and list its servers, or choose **Add New Bridge** to enter
+a bridge address. Enter a domain such as `bridge.example.com`; it uses HTTPS
+without requiring a scheme or `/ws/websocket` suffix. Use an explicit
+`http://host:port` for a local bridge without TLS. Full HTTP(S) and existing
+WS(S) URLs also work.
+
+Successful discovery saves the address before pairing, including
+when no servers are currently available. The trash button removes that
+endpoint from the list; paired server connections and credentials remain.
+
+Normal bridge connections use HTTP, including existing saved connections.
+Existing `ws://` and `wss://` bridge URLs continue to work.
+The setup modal adjusts its viewport for the software keyboard so fields and
+controls remain accessible by scrolling.
+
+## Development Settings
+
+Open **Home menu → Development Settings** for development preferences.
+The **Bridge** section offers HTTP as the product default and WebSocket or
+hybrid as explicit legacy diagnostics. Selection persists on this device and
+applies to the next bridge connection you open. Changing it leaves an already
+open connection running. **Reset bridge transport** restores HTTP and
+preserves other development settings.
+
+An older bridge that lacks HTTP protocol v1 requires an update. Development
+Settings provides the explicit legacy WebSocket option for diagnosing such a
+deployment; the app does not switch transports automatically.
 
 ## Watchlist
 
@@ -52,7 +103,7 @@ or not they are also on the Watchlist:
 - Last week
 
 Change the window in Global Settings. Global Settings is available from
-Connections, the Home menu, and Home actions.
+the Home menu.
 
 Timeline rows use the same information order as Watchlist tiles and add a
 neutral gray activity rail. Connection name and relative time are separate, so

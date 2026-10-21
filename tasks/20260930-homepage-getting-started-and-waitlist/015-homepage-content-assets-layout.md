@@ -64,6 +64,13 @@ subtask `020`.
       final decisions and rationale, and rejected-but-still-viable variations
       before this subtask or the parent task is closed.
 
+## Current tracking — October 7, 2026
+
+Progress: review. The original copy/platform-layout delivery and its immutable
+Completion Notes remain accepted. The current checklist still leaves final
+Getting Started copy/treatment approval open; that follow-up keeps this row
+out of `done` until human confirmation. No new implementation scope is added.
+
 ## Current committed prototype before content revisions
 
 Commit `89883b92` (`Build homepage structure`) is the durable Git snapshot of
@@ -769,3 +776,20 @@ fixtures, row hiding/reordering, or final proof assets in this subtask.
 - Deferred scope: real agent metadata/product changes and final proof assets
   belong to subtask `018`; the email waitlist belongs to subtask `020`.
 - No push, AWS mutation, or production publication occurred.
+
+## Post-completion follow-up
+
+### October 7, 2026 — bounded launch positioning and shared publication
+
+The original Completion Notes and accepted copy/layout evidence remain intact.
+The group 1 scope revision brings
+`tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
+forward as owner of a short product-based positioning review and complete
+website acceptance. It may propose changes to the earlier hero/proposition,
+subject to owner review; no final wording is selected by this tracking update.
+
+Record approved new decisions and viable alternatives in
+`landing_page/docs/development/homepage-positioning-and-visual-decisions.md`.
+Keep the existing Getting Started review and 018 proof ownership intact.
+Waitlist 020 performs the single integrated publishing push after 030 supplies
+the accepted complete content candidate.

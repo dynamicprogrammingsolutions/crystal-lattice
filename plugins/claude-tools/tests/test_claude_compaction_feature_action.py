@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -72,6 +73,7 @@ def _make_config(tmp_path: Path, *, include_system_feature: bool = False) -> Pat
     plugins = [
         "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
         "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
+        "claude_tools.claude_compaction_app.ClaudeCompactionAppPlugin",
     ]
     agent_cfg: Dict[str, Any] = {"provider": "echo"}
     if include_system_feature:
@@ -141,14 +143,33 @@ def test_session_ui_schema_includes_claude_compaction_fields_and_actions(
 
     resp = server_mod.get_session_ui_schema(session.session_id, app_instance=app)
 
-    matches = [el for el in resp["elements"] if el.get("plugin") == "claude_compaction"]
-    action_ids = {element.get("id") for element in matches}
-    assert "compact_conversation" in action_ids
-    assert "compact_up_to_here" in action_ids
+    feature_matches = [
+        el for el in resp["elements"] if el.get("plugin") == "claude_compaction"
+    ]
     compaction_model = next(
-        element for element in matches if element.get("key") == _COMPACTION_MODEL_KEY
+        element
+        for element in feature_matches
+        if element.get("key") == _COMPACTION_MODEL_KEY
     )
     assert compaction_model["ui_type"] == "config"
+    # Manual compaction actions moved from the feature to the application
+    # plugin, so the core schema no longer exposes them.
+    assert not any(
+        element.get("ui_type") in {"session_action", "message_action"}
+        for element in feature_matches
+    )
+
+    app_resp = server_mod.get_session_application_ui_schema(
+        session.session_id, app_instance=app
+    )
+    app_matches = [
+        el for el in app_resp["elements"] if el.get("plugin") == "claude_compaction_app"
+    ]
+    action_ids = {element.get("id") for element in app_matches}
+    assert "compact_conversation" in action_ids
+    assert "compact_up_to_here" in action_ids
+    for element in app_matches:
+        assert element.get("action_owner") == "application"
 
 
 def test_session_config_schema_includes_claude_compaction_model_key(
@@ -340,3 +361,86 @@ def test_claude_compaction_action_rewrites_selected_range(
     assert transcript_entries[1]["message"]["content"][0]["text"] == "ONE"
     assert transcript_entries[3]["message"]["content"][0]["text"] == "TWO"
     assert transcript_entries[5]["message"]["content"][0]["text"] == "THREE"
+
+
+def test_claude_compaction_action_accepts_summary_with_inapplicable_section(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Regression test: a summary missing an inapplicable section must not
+    fail the compaction.
+
+    Models legitimately omit sections such as "Errors and fixes:" when the
+    conversation had no errors. Before the relax, the action failed with
+    "summary is missing required sections" even though the summary was
+    usable; snapshots and the Retry followup are the safety net.
+    """
+
+    from agent_terminal_app import server as server_mod
+    from claude_tools import claude_compaction_feature as feature_mod
+
+    fixture = _fixture("success-basic")
+    summary_body = _summary_body_from_fixture(fixture)
+    # Drop the "4. Errors and fixes:" section header (and its content lines
+    # up to the next numbered header) to simulate an inapplicable section.
+    # The fixture's "All user messages" section quotes the compaction prompt
+    # verbatim; that quote contains the same header text, so it is dropped
+    # too. Otherwise the header substring would still be present and the
+    # strict validator would not treat the section as missing.
+    remaining_lines: list[str] = []
+    skipping = False
+    for line in summary_body.splitlines():
+        if line.startswith("4. Errors and fixes:"):
+            skipping = True
+            continue
+        if skipping and re.match(r"^\d+\.\s", line):
+            skipping = False
+        if "CRITICAL: Respond with TEXT ONLY" in line:
+            continue
+        if not skipping:
+            remaining_lines.append(line)
+    partial_body = "\n".join(remaining_lines).strip()
+    assert "4. Errors and fixes:" not in partial_body
+    assert "5. Problem Solving:" in partial_body
+
+    def _fake_run_compaction_request(
+        core: Any,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        context: Dict[str, Any] | None = None,
+    ) -> str:
+        _ = core, context
+        return f"<analysis>ok</analysis>\n<summary>\n{partial_body}\n</summary>"
+
+    monkeypatch.setattr(
+        feature_mod,
+        "_run_compaction_request",
+        _fake_run_compaction_request,
+        raising=True,
+    )
+
+    app = _build_app(tmp_path)
+    session = _seed_session(app)
+
+    resp = server_mod.execute_action(
+        {
+            "plugin": "claude_compaction",
+            "action_id": "compact_conversation",
+            "action_owner": "feature",
+            "inputs": {"session_id": session.session_id},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    assert resp["result"]["message"] == "Compacted conversation."
+
+    loaded = app.load_session_record(session.session_id)
+    assert loaded is not None
+    summary = resp["result"]["compact_summary_text"]
+    summary_index = next(
+        idx for idx, message in enumerate(loaded.messages) if message.content == summary
+    )
+    assert loaded.messages[summary_index].content == summary
+    assert "4. Errors and fixes:" not in summary

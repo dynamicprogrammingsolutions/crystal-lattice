@@ -55,6 +55,8 @@ export { useAgentsController } from './useAgentsController';
 
 export type { UsePluginActionDialogResult } from './usePluginActionDialog';
 export { usePluginActionDialog } from './usePluginActionDialog';
+export { useDisplayFollowupDialog } from './useDisplayFollowupDialog';
+export type { DisplayFollowupDialogContext } from './useDisplayFollowupDialog';
 
 export { useHydrateControllerFromCache } from './useHydrateControllerFromCache';
 
@@ -103,3 +105,5 @@ export type {
 export { useSessionPluginsController } from './useSessionPluginsController';
 
 export * from './sessionSettings';
+export { ChatWorkspaceProvider, useSessionChatWorkspace } from './chatWorkspace';
+export type { ChatEditDraft, PendingChatRequest, ChatWorkspaceState } from './chatWorkspace';

@@ -35,6 +35,8 @@ type InvertedTranscriptViewportProps<TItem> = Pick<
   | "ItemSeparatorComponent"
   | "extraData"
   | "contentContainerStyle"
+  | "anchorStrategy"
+  | "onAnchorDiagnostic"
 > & {
   listRef: React.RefObject<FlatList<any> | null>;
   initialScrollAnchor?: ChatScrollAnchor | null;
@@ -45,8 +47,8 @@ type InvertedTranscriptViewportProps<TItem> = Pick<
   testID?: string;
 };
 
-const TOP_NAVIGATION_MAX_MS = 30000;
-const TOP_NAVIGATION_MAX_ATTEMPTS = 60;
+const TOP_NAVIGATION_MAX_MS = 5000;
+const TOP_NAVIGATION_MAX_ATTEMPTS = 20;
 
 export function InvertedTranscriptViewport<TItem>({
   listRef,
@@ -78,7 +80,11 @@ export function InvertedTranscriptViewport<TItem>({
   const topNavigationTimerRef = React.useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const topNavigationTimerDeadlineRef = React.useRef<number | null>(null);
   const runTopNavigationRef = React.useRef<() => void>(() => {});
+  const scheduleTopNavigationRef = React.useRef<(delayMs: number) => void>(
+    () => {}
+  );
   const [scrollState, setScrollState] =
     React.useState<InvertedTranscriptScrollState>(() =>
       deriveInvertedTranscriptScrollState(
@@ -112,6 +118,7 @@ export function InvertedTranscriptViewport<TItem>({
       clearTimeout(topNavigationTimerRef.current);
       topNavigationTimerRef.current = null;
     }
+    topNavigationTimerDeadlineRef.current = null;
   }, []);
 
   const stopTopNavigation = React.useCallback(() => {
@@ -164,11 +171,7 @@ export function InvertedTranscriptViewport<TItem>({
         if (next.canScrollToTop) {
           topNavigation.topReachedAtMs = null;
         }
-        clearTopNavigationTimer();
-        topNavigationTimerRef.current = setTimeout(() => {
-          topNavigationTimerRef.current = null;
-          runTopNavigationRef.current();
-        }, 50);
+        scheduleTopNavigationRef.current(50);
       }
       onScrollStateChangeRef.current?.(next);
       setScrollState((current) =>
@@ -179,7 +182,7 @@ export function InvertedTranscriptViewport<TItem>({
           : next
       );
     },
-    [clearTopNavigationTimer]
+    []
   );
 
   const maybeRestoreScroll = React.useCallback(() => {
@@ -232,11 +235,21 @@ export function InvertedTranscriptViewport<TItem>({
 
   const scheduleTopNavigation = React.useCallback(
     (delayMs: number) => {
+      const deadlineMs = Date.now() + Math.max(0, delayMs);
+      if (
+        topNavigationTimerRef.current != null &&
+        topNavigationTimerDeadlineRef.current != null &&
+        topNavigationTimerDeadlineRef.current <= deadlineMs
+      ) {
+        return;
+      }
       clearTopNavigationTimer();
+      topNavigationTimerDeadlineRef.current = deadlineMs;
       topNavigationTimerRef.current = setTimeout(() => {
         topNavigationTimerRef.current = null;
+        topNavigationTimerDeadlineRef.current = null;
         runTopNavigationRef.current();
-      }, delayMs);
+      }, Math.max(0, delayMs));
     },
     [clearTopNavigationTimer]
   );
@@ -273,10 +286,8 @@ export function InvertedTranscriptViewport<TItem>({
     operation.attempts += 1;
     operation.topReachedAtMs = null;
     if (operation.attempts % 2 === 1) {
-      list.scrollToIndex({
-        index: listProps.data.length - 1,
+      list.scrollToEnd({
         animated: operation.attempts === 1,
-        viewPosition: 0,
       });
     } else {
       list.scrollToOffset({
@@ -293,6 +304,7 @@ export function InvertedTranscriptViewport<TItem>({
   ]);
 
   runTopNavigationRef.current = runTopNavigation;
+  scheduleTopNavigationRef.current = scheduleTopNavigation;
 
   const startTopNavigation = React.useCallback(() => {
     onUserNavigationIntentRef.current?.();
@@ -346,6 +358,8 @@ export function InvertedTranscriptViewport<TItem>({
         style={[styles.list, listStyle]}
         testID={testID}
         inverted
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
         onLayout={handleLayout}
         onContentSizeChange={handleContentSizeChange}
         onScroll={handleScroll}

@@ -143,14 +143,14 @@ function AgentPickerWindowInner({
     plugins: [],
   });
   const [retryRevision, setRetryRevision] = useState(0);
-  const [expandedKinds, setExpandedKinds] = useState<Record<PluginKind, boolean>>(
-    {
-      providers: false,
-      extensions: false,
-      features: false,
-      tools: true,
-    },
-  );
+  const [expandedKinds, setExpandedKinds] = useState<
+    Record<PluginKind, boolean>
+  >({
+    providers: false,
+    extensions: false,
+    features: false,
+    tools: true,
+  });
 
   const controller = useMemo(
     () => new AgentsController({ backend, cacheKey: connectionId }),
@@ -233,8 +233,8 @@ function AgentPickerWindowInner({
           {title
             ? title
             : mode === 'switchSessionAgent'
-              ? 'Switch Agent'
-              : 'New Session'}
+            ? 'Switch Agent'
+            : 'New Session'}
         </Text>
         <Text style={styles.subtitle} numberOfLines={1}>
           {connectionName
@@ -289,10 +289,7 @@ function AgentPickerWindowInner({
                       {descriptor.title}
                     </Text>
                     {descriptor.description ? (
-                      <Text
-                        style={styles.rowDescription}
-                        numberOfLines={2}
-                      >
+                      <Text style={styles.rowDescription} numberOfLines={2}>
                         {descriptor.description}
                       </Text>
                     ) : null}
@@ -316,7 +313,9 @@ function AgentPickerWindowInner({
                   : 'Agent defaults'}
               </Text>
               <Text style={styles.detailsTitle} numberOfLines={1}>
-                {selectedDescriptor?.title ?? selectedAgentId ?? 'Select an agent'}
+                {selectedDescriptor?.title ??
+                  selectedAgentId ??
+                  'Select an agent'}
               </Text>
               {selectedDescriptor?.description ? (
                 <Text style={styles.detailsDescription} numberOfLines={2}>
@@ -409,8 +408,8 @@ function AgentPickerWindowInner({
                               const status = !plugin.enabled
                                 ? 'Disabled'
                                 : !plugin.active
-                                  ? 'Inactive'
-                                  : 'Default';
+                                ? 'Inactive'
+                                : 'Default';
                               return (
                                 <View
                                   key={`${kind}:${plugin.id}:${
@@ -494,8 +493,8 @@ function AgentPickerWindowInner({
             {primaryButtonLabel
               ? primaryButtonLabel
               : mode === 'switchSessionAgent'
-                ? 'Switch'
-                : 'Create'}
+              ? 'Switch'
+              : 'Create'}
           </Text>
         </Pressable>
       </View>

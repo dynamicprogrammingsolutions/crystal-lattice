@@ -8,7 +8,11 @@ Break the mobile message refresh slowdown into separable fixes. The first priori
 - [ ] `tasks/20260610-mobile-message-refresh-performance/020-message-list-frontend-projection.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/030-session-metadata-ui-schema-invalidation-events.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/040-frontend-refresh-orchestration.md`
-- [x] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
+- [ ] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
+  - Original transport delivery is complete. The approved HTTP product-mode,
+    saved-endpoint, and development-settings follow-up has verified mobile
+    implementation, including iOS/Android native journeys. Human review remains
+    open. Desktop bridge work follows human mobile review.
 
 ## Roadmap status updates
 

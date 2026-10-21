@@ -259,7 +259,8 @@ website work. The projection contains:
 
 - 24 complete per-plugin application/session feature rows selected to avoid
   provider/tool overlap, with plugin IDs and repository paths retained;
-- 9 provider rows with 6 user-relevant native-capability columns;
+- 112 provider-specific feature rows grouped under all 10 retained provider
+  routes;
 - 71 package-specific current or planned tool rows across 6 model-family
   bundles.
 
@@ -293,6 +294,12 @@ source traceability.
   limitations. The other nine application-feature records are explicitly
   represented by the provider matrix, model-family matrix, or internal
   infrastructure classification.
+- On October 5, 2026, the provider projection changed from a wide matrix to
+  provider-grouped feature rows. Every supported, conditional, or planned
+  provider feature now has its own status, description, plugin bundle/path,
+  and plugin name. The model-family tool rows now expose the same
+  bundle/name identity. Unsupported and not-applicable provider capabilities
+  remain absent rather than appearing as generic negative cells.
 - The extractor and exhaustive matrices remain pinned to product source
   revision `add5f5e71de3bb1676851bb840dfd77620f63ddb`. A refresh check on the
   later `develop` revision reports expected source drift, including newer

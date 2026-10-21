@@ -4,6 +4,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import time
 from typing import Any, Dict
 
 import pytest
@@ -11,10 +12,29 @@ import requests
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from agent_app.operations import get_application_operation_service
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     make_provider_native_tool_result,
 )
+
+
+def _wait_until(predicate: Any, *, timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.01)
+    raise AssertionError("condition did not become true")
+
+
+def _wait_for_operation_done(app: AgentApplication, operation_id: str) -> None:
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            operation_id
+        )
+        is None
+    )
 
 
 def _make_config(tmp_path: Path) -> Path:
@@ -58,7 +78,9 @@ def test_summarize_range_modifies_session_messages(tmp_path: Path) -> None:
     session_id = session.session_id
 
     for text in ["m0", "m1", "m2", "m3"]:
-        session = core.add_message(session, "user", text, metadata=None, config=base_config)
+        session = core.add_message(
+            session, "user", text, metadata=None, config=base_config
+        )
 
     app.save_session(session)
 
@@ -68,8 +90,9 @@ def test_summarize_range_modifies_session_messages(tmp_path: Path) -> None:
         {"session_id": session_id, "start": 1, "end": 3},
     )
 
-    mutations = result.get("mutations") or {}
-    assert mutations.get("updated_session_ids") == [session_id]
+    assert result["status"] == "ok"
+    assert result["operation_status"] == "accepted"
+    _wait_for_operation_done(app, result["operation_id"])
 
     updated = app.load_session_record(session_id)
     assert updated is not None
@@ -89,7 +112,9 @@ def test_message_action_style_request_includes_selected_message(tmp_path: Path) 
     session_id = session.session_id
 
     for text in ["m0", "m1", "m2", "m3"]:
-        session = core.add_message(session, "user", text, metadata=None, config=base_config)
+        session = core.add_message(
+            session, "user", text, metadata=None, config=base_config
+        )
 
     app.save_session(session)
 
@@ -104,8 +129,8 @@ def test_message_action_style_request_includes_selected_message(tmp_path: Path) 
         },
     )
 
-    mutations = result.get("mutations") or {}
-    assert mutations.get("updated_session_ids") == [session_id]
+    assert result["status"] == "ok"
+    _wait_for_operation_done(app, result["operation_id"])
 
     updated = app.load_session_record(session_id)
     assert updated is not None
@@ -122,7 +147,9 @@ def test_summarize_range_validation_error_bubbles(tmp_path: Path) -> None:
     session_id = session.session_id
 
     for text in ["one", "two"]:
-        session = core.add_message(session, "user", text, metadata=None, config=base_config)
+        session = core.add_message(
+            session, "user", text, metadata=None, config=base_config
+        )
 
     app.save_session(session)
 
@@ -138,6 +165,7 @@ def test_summarize_range_validation_error_bubbles(tmp_path: Path) -> None:
 # Ollama-backed regression test for session_asset_store context forwarding
 # ---------------------------------------------------------------------------
 
+
 def _ollama_available(base_url: str) -> bool:
     try:
         r = requests.get(f"{base_url.rstrip('/')}/models", timeout=2)
@@ -148,7 +176,9 @@ def _ollama_available(base_url: str) -> bool:
 
 def _ollama_cfg() -> dict:
     return {
-        "base_url": os.environ.get("OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"),
+        "base_url": os.environ.get(
+            "OLLAMA_OPENAI_BASE_URL", "http://localhost:11434/v1"
+        ),
         "model": os.environ.get("OLLAMA_OPENAI_MODEL", "qwen3:0.6b"),
         "timeout": float(os.environ.get("OLLAMA_OPENAI_TIMEOUT", "60")),
     }
@@ -192,13 +222,18 @@ def _build_ollama_app(tmp_path: Path) -> AgentApplication:
 @pytest.mark.integration
 @pytest.mark.ollama
 def test_summarize_range_with_asset_ref_requires_context_ollama(tmp_path: Path) -> None:
-    """Regression test: summarize_range must pass context to send_request_stream
-    so that providers can resolve session asset references in tool messages.
+    """Integration regression test (streaming leg): summarize_range must pass
+    context to send_request_stream so that providers can resolve session asset
+    references in tool messages.
 
     Without the fix, the provider raises:
         "session asset attachment requires session_asset_store in context"
     because _expanded_request_messages cannot resolve the asset_ref without
     the context carrying session_asset_store.
+
+    The native-rebuild legs (prompt append and commit rewrite) are covered
+    deterministically by the asset-expanding fixture provider in
+    test_summarize_range_app_plugin_unit.py.
     """
     cfg = _ollama_cfg()
     if not _ollama_available(cfg["base_url"]):
@@ -221,7 +256,9 @@ def test_summarize_range_with_asset_ref_requires_context_ollama(tmp_path: Path) 
     asset_id = record.asset_id
 
     # Add a user message
-    session = core.add_message(session, "user", "Hello", metadata=None, config=base_config)
+    session = core.add_message(
+        session, "user", "Hello", metadata=None, config=base_config
+    )
 
     # Add a tool message with an asset_ref in the tool result
     tool_result = make_provider_native_tool_result(
@@ -258,15 +295,29 @@ def test_summarize_range_with_asset_ref_requires_context_ollama(tmp_path: Path) 
         {"session_id": session_id, "start": 0, "end": 2},
     )
 
-    # Without the fix, this is an error envelope.
-    # With the fix, it succeeds and returns a mutation.
-    if result.get("status") == "error":
-        error_msg = result.get("message", "")
-        assert "session asset attachment requires session_asset_store in context" in error_msg
+    # The action now starts a background operation and returns promptly.
+    assert result.get("status") == "ok"
+    assert result.get("operation_status") == "accepted"
+    _wait_for_operation_done(app, result["operation_id"])
+
+    # Without the context fix, the background operation fails and the
+    # terminal notification reports the asset-store error instead of
+    # completing successfully.
+    notifications = app.list_session_notifications(session_id)
+    assert notifications, "expected at least one session notification"
+    notification = notifications[0]
+    if notification.get("severity") == "error":
+        error_msg = notification.get("body", "")
+        assert (
+            "session asset attachment requires session_asset_store in context"
+            in error_msg
+        )
         pytest.fail(
             f"Regression detected: summarize_range did not forward context to "
             f"send_request_stream. Error: {error_msg}"
         )
+    assert notification.get("severity") == "success"
 
-    mutations = result.get("mutations") or {}
-    assert mutations.get("updated_session_ids") == [session_id]
+    updated = app.load_session_record(session_id)
+    assert updated is not None
+    assert updated.messages[0].role == "assistant"

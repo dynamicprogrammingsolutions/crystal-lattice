@@ -1,6 +1,11 @@
 # Claude Browser Login Adaptation
 Reuse the Codex redirect-based browser-login architecture for Claude once the provider implementation exists in this repo.
 
+SUPERSEDED BY:
+
+- `tasks/20260824-direct-claude-provider-and-plugin-login/020-claude-authentication-plugin.md`
+- `tasks/20261016-provider-login-experience/020-provider-login-notifications-and-anthropic-adoption.md`
+
 ## Requirements checklist
 
 - [ ] Confirm the Claude OAuth provider behavior against the `pi` implementation and identify any provider-specific deviations.
