@@ -582,7 +582,7 @@ python scripts/generate_examples_md.py
 ## Status And Version
 
 - Core package: `agent-core` 0.3.0
-- Terminal CLI package: `crystal-lattice-cli` 0.2.3 (`crystal-lattice` command)
+- Terminal CLI package: `crystal-lattice-cli` 0.2.4 (`crystal-lattice` command)
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.
