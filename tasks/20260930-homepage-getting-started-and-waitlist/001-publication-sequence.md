@@ -56,7 +56,7 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | H3 responsive multi-frame storyboard prepared | Human checkpoint H3A: approve frames, captions, and responsive reading model |
+| Publishable homepage | `019` | H3B layout accepted; focused content revision handed off | Human checkpoint H3C: approve direct copy and reduced visual sequence |
 | Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H6 homepage approval and handoff |
 
 ## Execution plan
@@ -135,6 +135,16 @@ order before component implementation.
 **HUMAN JUDGMENT — H3B:** Approve the implemented walkthrough's clarity,
 visual rhythm, legibility, responsiveness, and transition into the remaining
 feature sections.
+
+If H3B accepts the responsive layout but rejects selected content, subtask
+`019` records the focused correction without reopening the layout. The current
+H3B correction reduces promotional titles and redundant frames, replaces the
+Composer and Messages proof, enlarges Session settings, and routes Message
+metadata through the maintained `provider-usage-cost`
+`focusCalloutPipeline`.
+
+**HUMAN JUDGMENT — H3C:** Approve the focused content revision in the accepted
+responsive layout before H4 begins.
 
 #### H4 — Features, Getting Started, and Mobile access
 
@@ -373,3 +383,15 @@ Agent work after approval:
   through ordinary vertical scrolling. Subtask `019` is paused at H3A for
   review of the recorded frame order and draft visitor-facing captions before
   component implementation. H4 remains blocked.
+- 2026-10-16: H3A was approved and the multi-frame walkthrough is now
+  implemented and verified. Desktop uses six named chapters and thirteen
+  arrow-navigated frames; mobile and no-JavaScript presentation expose the
+  complete sequence through vertical reading. Subtask `019` is paused at H3B
+  for in-context human visual review. H4 remains blocked, and no source
+  promotion or publication occurred.
+- 2026-10-16: H3B accepted the responsive layout and rejected the current
+  visual/copy selection. Subtask `019` now owns a focused H3C correction with
+  direct interface titles, approximately nine frames, an unsliced Composer,
+  contextual Desktop Message/Session actions, larger Session settings, no
+  Desktop focused-connection frame, and Message metadata built through the
+  maintained `provider-usage-cost` `focusCalloutPipeline`. H4 remains blocked.

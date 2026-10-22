@@ -4,160 +4,212 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const landingRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
+const repositoryRoot = path.resolve(landingRoot, "..");
 const outputDirectory = path.join(landingRoot, "artifacts/walkthrough-final-preview");
 const workDirectory = path.join(outputDirectory, ".work");
 
-const sources = {
-  compose: "artifacts/walkthrough-candidates/mobile/composer-active",
-  messages: "artifacts/walkthrough-candidates/mobile/message-actions",
-  footer: "artifacts/walkthrough-candidates/message-footer",
-  actions: "artifacts/walkthrough-candidates/mobile/actions",
-  providerSettings: "artifacts/walkthrough-candidates/mobile/provider-settings",
-  plugins: "artifacts/walkthrough-candidates/mobile/plugins",
-  workspace: "artifacts/walkthrough-candidates/mobile/workspaces-list",
-  agent: "public/homepage-draft/agent-codex",
-};
-
 const themes = {
   light: {
-    suffix: "light",
+    token: "light",
     outputSuffix: "",
     background: "#f3f4f7",
-    card: "#ffffff",
-    border: "#c7c7cc",
-    focus: "#0a84ff",
-    secondary: "#30b956",
-    provider: "#af52de",
-    plugin: "#ff9500",
   },
   dark: {
-    suffix: "dark",
+    token: "dark",
     outputSuffix: "-dark",
     background: "#0b0d10",
-    card: "#1c1c1e",
-    border: "#55555a",
-    focus: "#409cff",
-    secondary: "#30d158",
-    provider: "#bf5af2",
-    plugin: "#ff9f0a",
   },
 };
 
+const sources = {
+  conversation:
+    "landing_page/artifacts/walkthrough-candidates/mobile/hero-{theme}.png",
+  composer:
+    "landing_page/artifacts/walkthrough-candidates/mobile/composer-active-{theme}.png",
+  messageActions:
+    "landing_page/artifacts/walkthrough-candidates/mobile/message-actions-{theme}.png",
+  messageFooter:
+    "landing_page/artifacts/walkthrough-candidates/message-footer-{theme}.webp",
+  sessionActions:
+    "landing_page/artifacts/walkthrough-candidates/mobile/actions-{theme}.png",
+  agent:
+    "landing_page/public/homepage-draft/agent-codex-{theme}.webp",
+  providerSettings:
+    "landing_page/artifacts/walkthrough-candidates/mobile/provider-settings-{theme}.png",
+  plugins:
+    "landing_page/artifacts/walkthrough-candidates/mobile/plugins-{theme}.png",
+  workspace:
+    "landing_page/artifacts/walkthrough-candidates/mobile/workspaces-list-{theme}.png",
+  requestStatus:
+    "landing_page/artifacts/walkthrough-candidates/request-status-{theme}.webp",
+  desktopSessions:
+    "desktop/crystal-lattice-control-desktop-rn/artifacts/website-proof-batch/session-list-{theme}-window.png",
+  mobileConnections:
+    "landing_page/artifacts/walkthrough-candidates/mobile/connections-{theme}.png",
+};
+
+const frames = [
+  {
+    id: "compose-controls",
+    source: sources.conversation,
+    crop: "1100x1150+53+260",
+    compactHeight: 1100,
+  },
+  {
+    id: "compose-running",
+    source: sources.composer,
+    crop: "1000x1060+100+500",
+    compactHeight: 1050,
+  },
+  {
+    id: "message-metadata",
+    source: sources.messageFooter,
+    crop: "1080x520+60+270",
+    compactHeight: 720,
+  },
+  {
+    id: "message-actions",
+    source: sources.messageActions,
+    crop: "1000x1350+100+480",
+    compactHeight: 1100,
+  },
+  {
+    id: "session-controls",
+    source: sources.sessionActions,
+    crop: "1100x1550+53+190",
+    compactHeight: 1160,
+  },
+  {
+    id: "session-pinning",
+    source: sources.sessionActions,
+    crop: "1100x820+53+250",
+    compactHeight: 760,
+  },
+  {
+    id: "agent-profile",
+    source: sources.agent,
+    crop: "1400x980+0+0",
+    compactHeight: 1050,
+  },
+  {
+    id: "provider-settings",
+    source: sources.providerSettings,
+    crop: "1100x840+53+680",
+    compactHeight: 760,
+  },
+  {
+    id: "session-plugins",
+    source: sources.plugins,
+    crop: "1100x1030+53+500",
+    compactHeight: 950,
+  },
+  {
+    id: "workspace-sessions",
+    source: sources.workspace,
+    crop: "1206x1300+0+250",
+    compactHeight: 1050,
+  },
+  {
+    id: "workspace-status",
+    source: sources.requestStatus,
+    crop: "856x880+172+10",
+    compactHeight: 900,
+  },
+  {
+    id: "desktop-connection",
+    source: sources.desktopSessions,
+    crop: "980x280+0+50",
+    compactHeight: 400,
+  },
+  {
+    id: "mobile-connection",
+    source: sources.mobileConnections,
+    crop: "1100x1700+53+250",
+    compactHeight: 1200,
+  },
+];
+
 function runMagick(args) {
-  execFileSync("magick", args, { cwd: landingRoot, stdio: "inherit" });
+  execFileSync("magick", args, {
+    cwd: repositoryRoot,
+    stdio: "inherit",
+  });
 }
 
-function sourceFor(prefix, theme, extension = "png") {
-  const filename = `${prefix}-${theme.suffix}.${extension}`;
-  const source = path.join(landingRoot, filename);
+function sourceFor(template, theme) {
+  const relativePath = template.replace("{theme}", theme.token);
+  const source = path.join(repositoryRoot, relativePath);
   if (!fs.existsSync(source)) {
-    throw new Error(`Missing walkthrough composition source: ${filename}`);
+    throw new Error(`Missing walkthrough composition source: ${relativePath}`);
   }
   return source;
 }
 
-function resolveColor(theme, color) {
-  return theme[color] ?? color;
+function outputFor(frame, shape, theme) {
+  return path.join(
+    outputDirectory,
+    `${frame.id}-${shape}${theme.outputSuffix}.webp`,
+  );
 }
 
-function card({
-  name,
+function renderFrame({
   source,
   crop,
   width,
   height,
   theme,
-  focusBoxes = [],
-  accent,
+  destination,
 }) {
-  const destination = path.join(workDirectory, `${name}.png`);
-  const resizeGeometry = accent ? `${width}x${height}` : `${width}x${height}>`;
-  const args = [
+  const horizontalPadding = width >= 1400 ? 80 : 40;
+  const verticalPadding = width >= 1400 ? 60 : 36;
+  runMagick([
     source,
     "-crop", crop,
     "+repage",
-    "-resize", resizeGeometry,
+    "-resize", `${width - horizontalPadding}x${height - verticalPadding}`,
     "-gravity", "center",
-    "-background", theme.card,
+    "-background", theme.background,
     "-extent", `${width}x${height}`,
-  ];
-
-  for (const box of focusBoxes) {
-    args.push(
-      "-fill", "none",
-      "-stroke", resolveColor(theme, box.color ?? "focus"),
-      "-strokewidth", String(box.strokeWidth ?? 8),
-      "-draw",
-      `roundrectangle ${box.x1},${box.y1} ${box.x2},${box.y2} ${box.radius ?? 18},${box.radius ?? 18}`,
-    );
-  }
-
-  if (accent) {
-    args.push(
-      "-fill", resolveColor(theme, accent),
-      "-stroke", "none",
-      "-draw", `rectangle 0,0 ${width},10`,
-    );
-  }
-
-  args.push(
-    "-fill", "none",
-    "-stroke", theme.border,
-    "-strokewidth", "4",
-    "-draw", `rectangle 2,2 ${width - 3},${height - 3}`,
+    "-strip",
+    "-define", "webp:method=6",
+    "-quality", "92",
     destination,
-  );
-  runMagick(args);
-  return destination;
+  ]);
 }
 
-function connector({
-  x1,
-  y1,
-  x2,
-  y2,
-  color = "focus",
-  arrow = "down",
+function renderPiece({
+  source,
+  crop,
+  width,
+  height,
+  theme,
+  destination,
 }) {
-  const triangle = arrow === "right"
-    ? `polygon ${x2 - 18},${y2 - 13} ${x2 - 18},${y2 + 13} ${x2},${y2}`
-    : `polygon ${x2 - 13},${y2 - 18} ${x2 + 13},${y2 - 18} ${x2},${y2}`;
-  return [
-    {
-      fill: "none",
-      stroke: color,
-      strokeWidth: 7,
-      command: `line ${x1},${y1} ${x2},${y2}`,
-    },
-    {
-      fill: color,
-      stroke: color,
-      strokeWidth: 1,
-      command: triangle,
-    },
-  ];
+  runMagick([
+    source,
+    "-crop", crop,
+    "+repage",
+    "-resize", `${width}x${height}`,
+    "-gravity", "center",
+    "-background", theme.background,
+    "-extent", `${width}x${height}`,
+    destination,
+  ]);
 }
 
-function ellipsis({ x, y, color = "border", radius = 4 }) {
-  return [-12, 0, 12].map(offset => ({
-    fill: color,
-    stroke: "none",
-    strokeWidth: 0,
-    command: `circle ${x + offset},${y} ${x + offset + radius},${y}`,
-  }));
-}
-
-function compose({ width, height, theme, parts, draws = [], destination }) {
+function composePieces({
+  width,
+  height,
+  theme,
+  pieces,
+  destination,
+}) {
   const args = ["-size", `${width}x${height}`, `xc:${theme.background}`];
-  for (const part of parts) {
-    args.push(part.source, "-geometry", `+${part.x}+${part.y}`, "-composite");
-  }
-  for (const draw of draws) {
+  for (const piece of pieces) {
     args.push(
-      "-fill", draw.fill === "none" ? "none" : resolveColor(theme, draw.fill),
-      "-stroke", draw.stroke === "none" ? "none" : resolveColor(theme, draw.stroke),
-      "-strokewidth", String(draw.strokeWidth ?? 1),
-      "-draw", draw.command,
+      piece.source,
+      "-geometry", `+${piece.x}+${piece.y}`,
+      "-composite",
     );
   }
   args.push(
@@ -169,631 +221,229 @@ function compose({ width, height, theme, parts, draws = [], destination }) {
   runMagick(args);
 }
 
-function output(name, shape, theme) {
-  return path.join(
-    outputDirectory,
-    `${name}-${shape}${theme.outputSuffix}.webp`,
-  );
-}
-
-function buildCompose(theme) {
-  const source = sourceFor(sources.compose, theme);
-
-  const wideContext = card({
-    name: `compose-${theme.suffix}-wide-context`,
+function renderAgentCompact({ source, theme, destination }) {
+  const profile = path.join(workDirectory, `agent-profile-${theme.token}.png`);
+  const details = path.join(workDirectory, `agent-details-${theme.token}.png`);
+  renderPiece({
     source,
-    crop: "1206x1750+0+250",
-    width: 500,
-    height: 900,
-    theme,
-    focusBoxes: [
-      { x1: 50, y1: 255, x2: 450, y2: 800, color: "focus" },
-    ],
-  });
-  const widePopup = card({
-    name: `compose-${theme.suffix}-wide-popup`,
-    source,
-    crop: "966x780+120+1200",
-    width: 820,
-    height: 662,
-    theme,
-    accent: "focus",
-  });
-  const wideComposer = card({
-    name: `compose-${theme.suffix}-wide-composer`,
-    source,
-    crop: "1120x400+43+2180",
-    width: 820,
-    height: 293,
-    theme,
-    accent: "secondary",
-  });
-  compose({
-    width: 1800,
-    height: 1013,
-    theme,
-    parts: [
-      { source: wideContext, x: 35, y: 55 },
-      { source: widePopup, x: 625, y: 45 },
-      { source: wideComposer, x: 625, y: 690 },
-    ],
-    draws: [
-      ...connector({
-        x1: 485,
-        y1: 470,
-        x2: 625,
-        y2: 470,
-        color: "focus",
-        arrow: "right",
-      }),
-    ],
-    destination: output("compose", "wide", theme),
-  });
-
-  const compactContext = card({
-    name: `compose-${theme.suffix}-compact-context`,
-    source,
-    crop: "1206x720+0+400",
+    crop: "900x360+20+80",
     width: 900,
-    height: 280,
+    height: 330,
     theme,
-    focusBoxes: [
-      { x1: 275, y1: 92, x2: 625, y2: 273, color: "focus" },
-    ],
+    destination: profile,
   });
-  const compactPopup = card({
-    name: `compose-${theme.suffix}-compact-popup`,
+  renderPiece({
     source,
-    crop: "966x780+120+1200",
+    crop: "450x650+930+80",
     width: 900,
-    height: 727,
+    height: 650,
     theme,
-    accent: "focus",
+    destination: details,
   });
-  const compactComposer = card({
-    name: `compose-${theme.suffix}-compact-composer`,
-    source,
-    crop: "1120x400+43+2180",
-    width: 900,
-    height: 322,
-    theme,
-    accent: "secondary",
-  });
-  compose({
+  composePieces({
     width: 1000,
-    height: 1500,
+    height: 1050,
     theme,
-    parts: [
-      { source: compactContext, x: 50, y: 35 },
-      { source: compactPopup, x: 50, y: 375 },
-      { source: compactComposer, x: 50, y: 1140 },
+    pieces: [
+      { source: profile, x: 50, y: 35 },
+      { source: details, x: 50, y: 385 },
     ],
-    draws: [
-      ...connector({
-        x1: 500,
-        y1: 308,
-        x2: 500,
-        y2: 375,
-        color: "focus",
-      }),
-    ],
-    destination: output("compose", "compact", theme),
+    destination,
   });
 }
 
-function buildMessages(theme) {
-  const source = sourceFor(sources.messages, theme);
-  const footer = sourceFor(sources.footer, theme, "webp");
+function renderComposeFrame({ source, theme, destination, compact }) {
+  const context = path.join(
+    workDirectory,
+    `compose-context-${theme.token}-${compact ? "compact" : "wide"}.png`,
+  );
+  const composer = path.join(
+    workDirectory,
+    `compose-field-${theme.token}-${compact ? "compact" : "wide"}.png`,
+  );
+  if (compact) {
+    renderPiece({
+      source,
+      crop: "1100x1150+53+260",
+      width: 900,
+      height: 680,
+      theme,
+      destination: context,
+    });
+    renderPiece({
+      source,
+      crop: "1100x430+53+2160",
+      width: 900,
+      height: 350,
+      theme,
+      destination: composer,
+    });
+    composePieces({
+      width: 1000,
+      height: 1100,
+      theme,
+      pieces: [
+        { source: context, x: 50, y: 35 },
+        { source: composer, x: 50, y: 735 },
+      ],
+      destination,
+    });
+    return;
+  }
 
-  const wideContext = card({
-    name: `messages-${theme.suffix}-wide-context`,
+  renderPiece({
     source,
-    crop: "1206x1730+0+250",
-    width: 400,
+    crop: "1100x1150+53+260",
+    width: 720,
     height: 900,
     theme,
-    focusBoxes: [
-      { x1: 40, y1: 250, x2: 360, y2: 805, color: "focus" },
-    ],
+    destination: context,
   });
-  const wideActions = card({
-    name: `messages-${theme.suffix}-wide-actions`,
+  renderPiece({
     source,
-    crop: "966x1370+120+620",
-    width: 650,
-    height: 922,
+    crop: "1100x430+53+2160",
+    width: 760,
+    height: 400,
     theme,
-    accent: "focus",
+    destination: composer,
   });
-  const wideUsage = card({
-    name: `messages-${theme.suffix}-wide-usage`,
-    source: footer,
-    crop: "680x105+60+450",
-    width: 620,
-    height: 96,
+  composePieces({
+    width: 1600,
+    height: 1000,
     theme,
-    accent: "secondary",
-  });
-  const wideCost = card({
-    name: `messages-${theme.suffix}-wide-cost`,
-    source: footer,
-    crop: "530x48+60+565",
-    width: 620,
-    height: 80,
-    theme,
-    accent: "secondary",
-  });
-  const wideOutput = card({
-    name: `messages-${theme.suffix}-wide-output`,
-    source: footer,
-    crop: "500x55+460+655",
-    width: 620,
-    height: 90,
-    theme,
-    accent: "secondary",
-  });
-  compose({
-    width: 1800,
-    height: 1013,
-    theme,
-    parts: [
-      { source: wideContext, x: 20, y: 55 },
-      { source: wideActions, x: 500, y: 45 },
-      { source: wideUsage, x: 1170, y: 335 },
-      { source: wideCost, x: 1170, y: 465 },
-      { source: wideOutput, x: 1170, y: 575 },
+    pieces: [
+      { source: context, x: 40, y: 50 },
+      { source: composer, x: 800, y: 300 },
     ],
-    draws: [
-      ...connector({
-        x1: 385,
-        y1: 500,
-        x2: 500,
-        y2: 500,
-        color: "focus",
-        arrow: "right",
-      }),
-    ],
-    destination: output("messages", "wide", theme),
+    destination,
   });
+}
 
-  const compactContext = card({
-    name: `messages-${theme.suffix}-compact-context`,
+function renderMetadataCompact({ source, theme, destination }) {
+  const response = path.join(workDirectory, `metadata-response-${theme.token}.png`);
+  const usage = path.join(workDirectory, `metadata-usage-${theme.token}.png`);
+  const cost = path.join(workDirectory, `metadata-cost-${theme.token}.png`);
+  const output = path.join(workDirectory, `metadata-output-${theme.token}.png`);
+  renderPiece({
     source,
-    crop: "1206x720+0+400",
+    crop: "1040x220+80+230",
     width: 900,
-    height: 260,
+    height: 190,
     theme,
-    focusBoxes: [
-      { x1: 275, y1: 87, x2: 625, y2: 253, color: "focus" },
-    ],
+    destination: response,
   });
-  const compactModify = card({
-    name: `messages-${theme.suffix}-compact-modify`,
+  renderPiece({
     source,
-    crop: "966x130+120+820",
-    width: 900,
-    height: 121,
-    theme,
-  });
-  const compactFork = card({
-    name: `messages-${theme.suffix}-compact-fork`,
-    source,
-    crop: "966x140+120+1230",
-    width: 900,
-    height: 130,
-    theme,
-  });
-  const compactSummarize = card({
-    name: `messages-${theme.suffix}-compact-summarize`,
-    source,
-    crop: "966x170+120+1365",
-    width: 900,
-    height: 158,
-    theme,
-  });
-  const compactCompaction = card({
-    name: `messages-${theme.suffix}-compact-compaction`,
-    source,
-    crop: "966x145+120+1525",
-    width: 900,
-    height: 135,
-    theme,
-  });
-  const compactDeleteFrom = card({
-    name: `messages-${theme.suffix}-compact-delete-from`,
-    source,
-    crop: "966x145+120+1810",
-    width: 900,
-    height: 135,
-    theme,
-  });
-  const compactUsage = card({
-    name: `messages-${theme.suffix}-compact-usage`,
-    source: footer,
     crop: "680x105+60+450",
     width: 900,
     height: 139,
     theme,
-    accent: "secondary",
+    destination: usage,
   });
-  const compactCost = card({
-    name: `messages-${theme.suffix}-compact-cost`,
-    source: footer,
+  renderPiece({
+    source,
     crop: "530x50+60+555",
+    width: 900,
+    height: 90,
+    theme,
+    destination: cost,
+  });
+  renderPiece({
+    source,
+    crop: "500x55+460+655",
     width: 900,
     height: 100,
     theme,
-    accent: "secondary",
+    destination: output,
   });
-  const compactOutput = card({
-    name: `messages-${theme.suffix}-compact-output`,
-    source: footer,
-    crop: "500x55+460+655",
-    width: 900,
-    height: 115,
-    theme,
-    accent: "secondary",
-  });
-  compose({
+  composePieces({
     width: 1000,
-    height: 1570,
+    height: 720,
     theme,
-    parts: [
-      { source: compactContext, x: 50, y: 35 },
-      { source: compactModify, x: 50, y: 360 },
-      { source: compactFork, x: 50, y: 495 },
-      { source: compactSummarize, x: 50, y: 640 },
-      { source: compactCompaction, x: 50, y: 813 },
-      { source: compactDeleteFrom, x: 50, y: 963 },
-      { source: compactUsage, x: 50, y: 1140 },
-      { source: compactCost, x: 50, y: 1310 },
-      { source: compactOutput, x: 50, y: 1425 },
+    pieces: [
+      { source: response, x: 50, y: 35 },
+      { source: usage, x: 50, y: 260 },
+      { source: cost, x: 50, y: 435 },
+      { source: output, x: 50, y: 560 },
     ],
-    draws: [
-      ...connector({
-        x1: 500,
-        y1: 288,
-        x2: 500,
-        y2: 360,
-        color: "focus",
-      }),
-      ...ellipsis({ x: 500, y: 488 }),
-      ...ellipsis({ x: 500, y: 632 }),
-      ...ellipsis({ x: 500, y: 805 }),
-      ...ellipsis({ x: 500, y: 955 }),
-    ],
-    destination: output("messages", "compact", theme),
+    destination,
   });
 }
 
-function buildSessionActions(theme) {
-  const source = sourceFor(sources.actions, theme);
-
-  const wideContext = card({
-    name: `session-actions-${theme.suffix}-wide-context`,
-    source,
-    crop: "1096x2080+50+250",
-    width: 450,
-    height: 900,
-    theme,
-    focusBoxes: [
-      { x1: 20, y1: 20, x2: 430, y2: 880, color: "focus" },
-    ],
-  });
-  const wideAgent = card({
-    name: `session-actions-${theme.suffix}-wide-agent`,
-    source,
-    crop: "1040x190+83+700",
-    width: 800,
-    height: 146,
-    theme,
-    accent: "focus",
-  });
-  const wideSettings = card({
-    name: `session-actions-${theme.suffix}-wide-settings`,
-    source,
-    crop: "1040x400+83+1370",
-    width: 800,
-    height: 308,
-    theme,
-    accent: "focus",
-  });
-  const wideTitles = card({
-    name: `session-actions-${theme.suffix}-wide-titles`,
-    source,
-    crop: "1040x440+83+1900",
-    width: 800,
-    height: 338,
-    theme,
-    accent: "focus",
-  });
-  compose({
-    width: 1800,
-    height: 1013,
-    theme,
-    parts: [
-      { source: wideContext, x: 35, y: 55 },
-      { source: wideAgent, x: 650, y: 35 },
-      { source: wideSettings, x: 650, y: 240 },
-      { source: wideTitles, x: 650, y: 610 },
-    ],
-    draws: [
-      ...connector({
-        x1: 450,
-        y1: 500,
-        x2: 650,
-        y2: 500,
-        color: "focus",
-        arrow: "right",
-      }),
-    ],
-    destination: output("session-actions", "wide", theme),
-  });
-
-  const compactContext = card({
-    name: `session-actions-${theme.suffix}-compact-context`,
-    source,
-    crop: "1096x900+50+250",
-    width: 900,
-    height: 260,
-    theme,
-    focusBoxes: [
-      { x1: 293, y1: 5, x2: 607, y2: 253, color: "focus" },
-    ],
-  });
-  const compactAgent = card({
-    name: `session-actions-${theme.suffix}-compact-agent`,
-    source,
-    crop: "1040x190+83+700",
-    width: 900,
-    height: 164,
-    theme,
-    accent: "focus",
-  });
-  const compactActions = card({
-    name: `session-actions-${theme.suffix}-compact-actions`,
-    source,
-    crop: "1040x980+83+1365",
-    width: 900,
-    height: 848,
-    theme,
-    accent: "focus",
-  });
-  compose({
-    width: 1000,
-    height: 1450,
-    theme,
-    parts: [
-      { source: compactContext, x: 50, y: 35 },
-      { source: compactAgent, x: 50, y: 365 },
-      { source: compactActions, x: 50, y: 560 },
-    ],
-    draws: [
-      ...connector({
-        x1: 500,
-        y1: 288,
-        x2: 500,
-        y2: 365,
-        color: "focus",
-      }),
-      ...ellipsis({ x: 500, y: 544 }),
-    ],
-    destination: output("session-actions", "compact", theme),
-  });
-}
-
-function buildSettings(theme) {
-  const agent = sourceFor(sources.agent, theme, "webp");
-  const provider = sourceFor(sources.providerSettings, theme);
-  const plugins = sourceFor(sources.plugins, theme);
-
-  const wideContext = card({
-    name: `settings-${theme.suffix}-wide-context`,
-    source: agent,
-    crop: "1400x760+0+50",
-    width: 550,
-    height: 700,
-    theme,
-    focusBoxes: [
-      { x1: 18, y1: 218, x2: 365, y2: 270, color: "focus", strokeWidth: 6 },
-      { x1: 370, y1: 310, x2: 535, y2: 440, color: "secondary", strokeWidth: 6 },
-    ],
-  });
-  const wideProfile = card({
-    name: `settings-${theme.suffix}-wide-profile`,
-    source: agent,
-    crop: "440x570+930+90",
-    width: 500,
-    height: 648,
-    theme,
-    accent: "secondary",
-  });
-  const wideProvider = card({
-    name: `settings-${theme.suffix}-wide-provider`,
-    source: provider,
-    crop: "1040x790+83+930",
-    width: 550,
-    height: 407,
-    theme,
-    accent: "provider",
-  });
-  const widePlugins = card({
-    name: `settings-${theme.suffix}-wide-plugins`,
-    source: plugins,
-    crop: "1040x1050+83+680",
-    width: 550,
-    height: 555,
-    theme,
-    accent: "plugin",
-  });
-  compose({
-    width: 1800,
-    height: 1013,
-    theme,
-    parts: [
-      { source: wideContext, x: 25, y: 155 },
-      { source: wideProfile, x: 620, y: 180 },
-      { source: wideProvider, x: 1200, y: 25 },
-      { source: widePlugins, x: 1200, y: 450 },
-    ],
-    destination: output("session-settings", "wide", theme),
-  });
-
-  const compactProfile = card({
-    name: `settings-${theme.suffix}-compact-profile`,
-    source: agent,
-    crop: "720x120+20+100",
-    width: 900,
-    height: 150,
-    theme,
-    accent: "focus",
-  });
-  const compactTools = card({
-    name: `settings-${theme.suffix}-compact-tools`,
-    source: agent,
-    crop: "700x260+700+390",
-    width: 900,
-    height: 334,
-    theme,
-    accent: "secondary",
-  });
-  const compactProvider = card({
-    name: `settings-${theme.suffix}-compact-provider`,
-    source: provider,
-    crop: "1040x400+83+1050",
-    width: 900,
-    height: 346,
-    theme,
-    accent: "provider",
-  });
-  const compactPlugins = card({
-    name: `settings-${theme.suffix}-compact-plugins`,
-    source: plugins,
-    crop: "1040x510+83+1040",
-    width: 900,
-    height: 441,
-    theme,
-    accent: "plugin",
-  });
-  compose({
-    width: 1000,
-    height: 1450,
-    theme,
-    parts: [
-      { source: compactProfile, x: 50, y: 35 },
-      { source: compactTools, x: 50, y: 220 },
-      { source: compactProvider, x: 50, y: 590 },
-      { source: compactPlugins, x: 50, y: 970 },
-    ],
-    destination: output("session-settings", "compact", theme),
-  });
-}
-
-function buildWorkspace(theme) {
-  const source = sourceFor(sources.workspace, theme);
-
-  const wideContext = card({
-    name: `workspace-${theme.suffix}-wide-context`,
-    source,
-    crop: "1206x1780+0+320",
-    width: 600,
-    height: 900,
-    theme,
-    focusBoxes: [
-      { x1: 5, y1: 5, x2: 595, y2: 290, color: "focus", strokeWidth: 7 },
-    ],
-  });
-  const wideRow = card({
-    name: `workspace-${theme.suffix}-wide-row`,
-    source,
-    crop: "1206x590+0+320",
-    width: 900,
-    height: 440,
-    theme,
-    accent: "focus",
-  });
-  compose({
-    width: 1800,
-    height: 1013,
-    theme,
-    parts: [
-      { source: wideContext, x: 40, y: 55 },
-      { source: wideRow, x: 820, y: 285 },
-    ],
-    draws: [
-      ...connector({
-        x1: 610,
-        y1: 360,
-        x2: 820,
-        y2: 360,
-        color: "focus",
-        arrow: "right",
-      }),
-    ],
-    destination: output("workspace", "wide", theme),
-  });
-
-  const compactContext = card({
-    name: `workspace-${theme.suffix}-compact-context`,
-    source,
-    crop: "1206x1780+0+320",
-    width: 900,
-    height: 650,
-    theme,
-    focusBoxes: [
-      { x1: 235, y1: 5, x2: 665, y2: 215, color: "focus", strokeWidth: 7 },
-    ],
-  });
-  const compactTitle = card({
-    name: `workspace-${theme.suffix}-compact-title`,
-    source,
-    crop: "1206x180+0+340",
-    width: 900,
-    height: 134,
-    theme,
-    accent: "focus",
-  });
-  const compactStatus = card({
-    name: `workspace-${theme.suffix}-compact-status`,
-    source,
-    crop: "850x340+0+540",
-    width: 900,
-    height: 360,
-    theme,
-    accent: "focus",
-  });
-  compose({
-    width: 1000,
-    height: 1370,
-    theme,
-    parts: [
-      { source: compactContext, x: 50, y: 35 },
-      { source: compactTitle, x: 50, y: 790 },
-      { source: compactStatus, x: 50, y: 950 },
-    ],
-    draws: [
-      ...connector({
-        x1: 500,
-        y1: 678,
-        x2: 500,
-        y2: 790,
-        color: "focus",
-      }),
-    ],
-    destination: output("workspace", "compact", theme),
-  });
-}
-
-fs.rmSync(workDirectory, { recursive: true, force: true });
+fs.rmSync(outputDirectory, { recursive: true, force: true });
+fs.mkdirSync(outputDirectory, { recursive: true });
 fs.mkdirSync(workDirectory, { recursive: true });
 
 for (const theme of Object.values(themes)) {
-  buildCompose(theme);
-  buildMessages(theme);
-  buildSessionActions(theme);
-  buildSettings(theme);
-  buildWorkspace(theme);
+  for (const frame of frames) {
+    const source = sourceFor(frame.source, theme);
+    const wideDestination = outputFor(frame, "wide", theme);
+    if (frame.id === "compose-controls") {
+      renderComposeFrame({
+        source,
+        theme,
+        destination: wideDestination,
+        compact: false,
+      });
+    } else {
+      renderFrame({
+        source,
+        crop: frame.crop,
+        width: 1600,
+        height: 1000,
+        theme,
+        destination: wideDestination,
+      });
+    }
+    const compactDestination = outputFor(frame, "compact", theme);
+    if (frame.id === "compose-controls") {
+      renderComposeFrame({
+        source,
+        theme,
+        destination: compactDestination,
+        compact: true,
+      });
+    } else if (frame.id === "agent-profile") {
+      renderAgentCompact({
+        source,
+        theme,
+        destination: compactDestination,
+      });
+    } else if (frame.id === "message-metadata") {
+      renderMetadataCompact({
+        source,
+        theme,
+        destination: compactDestination,
+      });
+    } else {
+      renderFrame({
+        source,
+        crop: frame.crop,
+        width: 1000,
+        height: frame.compactHeight,
+        theme,
+        destination: compactDestination,
+      });
+    }
+  }
 }
 
 fs.rmSync(workDirectory, { recursive: true, force: true });
-console.log(`Generated final walkthrough review assets in ${outputDirectory}`);
+
+fs.writeFileSync(
+  path.join(outputDirectory, "manifest.json"),
+  `${JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    frames: frames.map(frame => ({
+      id: frame.id,
+      width: 1600,
+      height: 1000,
+      widthCompact: 1000,
+      heightCompact: frame.compactHeight,
+    })),
+  }, null, 2)}\n`,
+);
+
+console.log(
+  `Generated ${frames.length} responsive walkthrough frames in ${outputDirectory}`,
+);

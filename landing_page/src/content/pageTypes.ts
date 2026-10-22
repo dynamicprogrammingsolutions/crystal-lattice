@@ -173,12 +173,9 @@ export type FeatureShowcaseSection = SectionBase<"featureShowcase"> & {
   visual?: MediaPlaceholder;
 };
 
-export type ProductWalkthroughChapter = {
+export type ProductWalkthroughFrame = {
   id: string;
-  label: string;
   title: string;
-  role: string;
-  distinction: string;
   caption: string;
   image: {
     src: string;
@@ -191,6 +188,15 @@ export type ProductWalkthroughChapter = {
     widthCompact?: number;
     heightCompact?: number;
   };
+};
+
+export type ProductWalkthroughChapter = {
+  id: string;
+  label: string;
+  title: string;
+  role: string;
+  distinction: string;
+  frames: ProductWalkthroughFrame[];
 };
 
 export type ProductWalkthroughSection = SectionBase<"productWalkthrough"> & {

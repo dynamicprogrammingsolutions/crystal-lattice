@@ -33,28 +33,52 @@ examples before the waitlist integration task begins.
       assume familiarity with coding-agent architecture, provider terminology,
       plugins, session history operations, or connection architecture beyond
       ordinary AI chat.
-- [ ] The Composer stage uses a contextual conversation view and explains
-      provider/request controls around the composer, including model,
-      reasoning effort, web search, append/resend, immediate cancellation, and
-      soft cancellation. Exact cancellation and resend semantics are verified
-      through product tests before becoming public claims.
+- [ ] The Composer stage uses one complete, unsliced chat view with the
+      composer naturally at the bottom and readable model, reasoning-effort,
+      and web-search controls beside it. Visitor copy explains that the
+      selected provider and plugins contribute those controls and can add
+      others to the same surface. It introduces the shared star/pinning
+      convention generically. Composer actions, resend, hard cancellation, and
+      soft cancellation remain preserved alternatives for later documentation
+      or advanced proof rather than appearing before the ordinary interface is
+      understood.
 - [ ] The Messages stage distinguishes response metadata from actions at one
       point in history. It introduces genuine message footers and actions such
       as modify, fork, delete, and export; optional plugin examples such as
       **Send to Kindle** may demonstrate extensibility. OpenAI compaction may
       remain visible without forcing its model-specific explanation into the
       introduction.
+- [ ] The primary Message actions proof is a Desktop capture that keeps the
+      selected message and its genuine popover visible together. Its direct
+      public image title is **Message actions**; it does not substitute an
+      abstract action-oriented slogan for the interface name.
+- [ ] The second Messages proof is the footer attached to a visible response.
+      It uses the same maintained visual-asset boundary as the lower-page
+      **Usage and cost transparency** proof: the catalog-managed
+      `focusCalloutPipeline` used by asset `provider-usage-cost`, with genuine
+      response context plus a magnified genuine footer. The walkthrough must
+      not retain its current ad hoc stack of detached metadata excerpts.
+      Reusing `provider-usage-cost` directly is allowed only if its fixture,
+      context, theme variants, dimensions, and visitor meaning fit; otherwise
+      add a separate catalog asset with the same captured-image lifecycle and
+      focus-callout pipeline.
 - [ ] The Session actions stage explains controls that affect the whole task
       and clearly distinguishes them from message-scoped actions. The
       introductory proof focuses on a useful subset such as switch agent,
       settings, plugins, snapshots, title, status, and range operations rather
-      than presenting the full power-user catalog without hierarchy.
+      than presenting the full power-user catalog without hierarchy. It uses
+      one contextual image; a separate pinning image is unnecessary once the
+      shared star convention has been introduced in Composer and remains
+      visible in Message actions.
 - [ ] The Session settings stage explains that each session carries its own
       agent setup. It covers agent/profile selection, provider-specific
       options, per-session plugin enable/disable, and tools contributed by
       enabled plugins. It explains that a Crystal Lattice profile can change
       provider route, instructions, tools, features, and UI behavior rather
-      than only selecting a model name.
+      than only selecting a model name. Agent, Provider settings, and Plugins
+      remain separate images, but each must use a tighter source/crop or
+      smaller captured window so its important text is readable at actual
+      phone page size.
 - [ ] The Workspace stage explains the standard session list, search/filter,
       titles/subtitles, pinning, status, open/preview behavior, recent/update
       state, and visible request status across open sessions. The
@@ -63,10 +87,12 @@ examples before the waitlist integration task begins.
       a server pin or plugin-provided view.
 - [ ] The Connections stage explains only the product concept needed by a new
       visitor: Desktop and mobile are clients that open sessions exposed by a
-      selected Crystal Lattice runtime. It uses focused Desktop and mobile
-      connection views without turning the introductory walkthrough into
-      installation or networking instructions; Getting Started retains the
-      local discovery, address/port, bridge, and trusted-network details.
+      selected Crystal Lattice runtime. The rejected
+      **See which workspace is active in Desktop** frame is removed. A focused
+      mobile connection-method view may explain the concept without turning
+      the introductory walkthrough into installation or networking
+      instructions; Getting Started retains the local discovery, address/port,
+      bridge, and trusted-network details.
 - [ ] Public wording distinguishes Crystal Lattice Codex-, Claude-, Gemini-,
       Qwen-, Kimi-, Grok-, and related profiles from official upstream
       applications, accounts, and sessions.
@@ -128,6 +154,12 @@ examples before the waitlist integration task begins.
       pictured area proves, avoid repetitive templated phrases, retain
       provider/sample/availability qualifications, and contain no fixture,
       checkpoint, provenance, or task language.
+- [ ] Walkthrough chapter and image titles prefer direct interface names such
+      as **Composer**, **Messages**, **Message actions**, **Message metadata**,
+      **Session actions**, **Session settings**, **Workspace**, and
+      **Connections**. Phrases such as **Steer the next request**, **Act from
+      any message**, and **Continue from this point in history** are retained
+      only as rejected alternatives, not final public titles.
 - [ ] Public screenshots contain no invalid or fallback `?` icons, private or
       mixed-language task data, unnecessary raw identifiers, debug-focused
       timestamps, or other capture artifacts that make the proof look
@@ -779,13 +811,15 @@ Draft Crystal Lattice distinction:
 
 Frame 1 — **Write the next instruction**
 
-- **Source responsibility:** active conversation, composer, and genuine
-  profile-contributed model/reasoning/search controls from C01.
-- **Draft caption:** “The conversation stays in view while the selected
-  profile places its model, reasoning, and search controls beside the
-  composer.”
-- **Composition:** preserve a recognizable conversation and full composer;
-  do not open the Composer actions popup in this frame.
+- **Source responsibility:** the genuine active conversation and composer from
+  the maintained Starlette mobile source.
+- **Selected caption:** “The current conversation and message field stay
+  together, so the next instruction starts from the work already visible in
+  the session.”
+- **Composition:** place genuine conversation and message-field excerpts from
+  the same screen in one responsive frame, with the private Agent/Session
+  metadata between them omitted. Provider controls remain visible in the
+  second active-request frame rather than being claimed here.
 
 Frame 2 — **Control work that is already running**
 
@@ -904,15 +938,15 @@ Frame 2 — **Adjust provider-specific settings**
 - **Composition:** one focused Settings window. Show only the rows needed to
   establish provider ownership and per-session override behavior.
 
-Frame 3 — **Change plugins and tools for this session**
+Frame 3 — **Change plugins for this session**
 
 - **Source responsibility:** genuine Session plugins/tools view C07.
-- **Draft caption:** “Enabled providers, extensions, features, and tools form
-  this session's capabilities. Change an entry here or reset the session to
-  its agent defaults.”
+- **Selected caption:** “Plugin features can be enabled or disabled for this
+  session, or reset together to the selected agent profile's defaults.”
 - **Composition:** one Plugins window. Prioritize enabled/disabled state,
-  Tools, Features, and Reset to defaults without shrinking unrelated
-  categories into unreadable rows.
+  Features, and Reset to defaults without claiming that a hidden Tools
+  category is visible. The Agent frame already shows the selected profile's
+  contributed tools.
 
 #### 5. Workspace
 
@@ -968,14 +1002,18 @@ Draft Crystal Lattice distinction:
 > creating unrelated client-local conversations. The connection method
 > determines whether that runtime is reached locally or remotely.
 
-Frame 1 — **Choose the workspace in Desktop**
+Frame 1 — **See which workspace is active in Desktop**
 
-- **Source responsibility:** production Desktop Connections panel from C13.
-- **Draft caption:** “A saved connection identifies one running Crystal
-  Lattice workspace. Selecting it makes that runtime's agents and sessions
-  available in Desktop.”
-- **Composition:** show a concise saved connection with focused/open state;
-  avoid setup instructions, private addresses, and unnecessary diagnostics.
+- **Source responsibility:** genuine Desktop Sessions header naming the
+  focused `Local workspace` connection. A dedicated website capture of the
+  production Desktop Connections panel is not currently retained.
+- **Selected caption:** “The Sessions panel names the focused connection above
+  the list, so Desktop shows which runtime currently supplies its agents and
+  sessions.”
+- **Composition:** show only the focused connection, online state, ordinary
+  controls, and search field. Omit session rows, raw IDs, private addresses,
+  and unnecessary diagnostics. A later dedicated Connections capture can
+  replace this frame without changing the chapter model.
 
 Frame 2 — **Reach the same workspace from mobile**
 
@@ -1045,6 +1083,177 @@ Before component implementation, human review must confirm:
    exposes the complete sequence through ordinary scrolling.
 5. Session settings remains three separate product images rather than one
    three-window composition.
+
+## H3B human review and direct-content revision handoff
+
+The user accepted the responsive layout and rejected the current frame content
+as final. The component behavior is the baseline for the next agent; the
+chapter titles, frame selection, copy, and several sources must be revised
+before another in-context checkpoint.
+
+### Approved human review outcomes
+
+- Preserve the current responsive layout:
+  - Desktop keeps named chapters, one focused frame, image-edge arrows, and
+    chapter-local pagination.
+  - Mobile keeps the complete vertical reading order with no hidden primary
+    content or required carousel interaction.
+- Replace promotional/action-oriented chapter and image titles with direct
+  interface names.
+- Replace the current first Compose composition and caption. The image must
+  show one continuous chat screen with the composer at the bottom plus model,
+  reasoning-effort, and web-search controls. Do not slice unrelated screen
+  regions together.
+- Explain that provider and plugin contributions can add other composer
+  controls. Introduce the shared star/pinning convention here as a generic UI
+  pattern.
+- Remove Composer actions from the initial understanding path. Preserve the
+  genuine active-request candidate and verified cancellation semantics for
+  documentation, later advanced proof, or a future product tour.
+- Use a Desktop Message actions capture so the selected response and genuine
+  popover remain visible together. Use the direct title **Message actions**.
+- Put the message footer second in the Messages chapter and present it as
+  **Message metadata** or another equally direct interface name.
+- Use one Session actions image. The same star convention should already be
+  understood, so a second image that only crops the same menu is redundant.
+- Keep Agent, Provider settings, and Plugins as separate Session settings
+  images, but enlarge their readable product text. The user has no conceptual
+  objection to the Plugins image.
+- Remove **See which workspace is active in Desktop**.
+
+### Required message-footer pipeline
+
+The lower-page item titled **Usage and cost transparency** is bound to catalog
+asset `provider-usage-cost` in `landing_page/visual_assets/config.mjs`. That
+asset uses:
+
+- a genuine captured response as the original context;
+- a genuine bounded message-footer crop as the callout;
+- the maintained `focusCalloutPipeline`;
+- the captured-image candidate → reviewed source → derivative lifecycle;
+- light/dark variants, declared dimensions, expected hashes, freshness
+  triggers, alt text, and website content bindings.
+
+The revised walkthrough message-footer image must use this maintained boundary.
+It must not remain a special-case set of crops assembled only by
+`walkthrough-final-composition.mjs`.
+
+The next agent should first evaluate whether the existing
+`provider-usage-cost` asset can be reused directly. Reuse is appropriate only
+if:
+
+- its visible response and footer match the approved walkthrough fixture and
+  visitor explanation;
+- it remains legible in both Desktop and mobile walkthrough placement;
+- its current lower-page binding can be shared without coupling unrelated
+  copy or publication state.
+
+Otherwise define a new walkthrough footer asset through the same
+`capturedImageLifecycle` and `focusCalloutPipeline`, with its own source,
+geometry, expected outputs, freshness triggers, content binding, and tests.
+The pipeline may enlarge and frame genuine pixels; it may not repaint metadata
+or fabricate a shortened footer.
+
+### Recommended next candidate sequence
+
+This is the narrow first implementation target for contextual review, not
+pre-approved final public copy:
+
+| Chapter | Frames | Direct visual responsibility |
+| --- | ---: | --- |
+| **Composer** | 1 | One continuous chat/composer screen with model, reasoning effort, web search, plugin-contribution explanation, and generic pinning convention |
+| **Messages** | 2 | Desktop **Message actions**; focus-callout **Message metadata** attached to a visible response |
+| **Session actions** | 1 | One contextual whole-session menu; no separate pinning crop |
+| **Session settings** | 3 | **Agent profile**, **Provider settings**, **Plugins**, each legible at rendered phone width |
+| **Workspace** | 1 | One coherent session list with title/subtitle, pin, durable status, and current request state |
+| **Connections** | 1 | Mobile **Connection methods** only; operational setup remains in Getting Started |
+
+The recommended candidate has nine frames rather than thirteen. Preserve the
+removed Composer actions, Session pinning, separate Workspace-status, and
+Desktop focused-connection frames as durable alternatives until the next
+human review.
+
+### Copy direction
+
+Use direct chapter titles:
+
+1. **Composer**
+2. **Messages**
+3. **Session actions**
+4. **Session settings**
+5. **Workspace**
+6. **Connections**
+
+Use direct frame titles such as:
+
+- **Composer controls**
+- **Message actions**
+- **Message metadata**
+- **Agent profile**
+- **Provider settings**
+- **Plugins**
+- **Session list**
+- **Connection methods**
+
+The exact section heading and descriptions remain draft. The recommended
+section-level direction is a plain category explanation such as
+**A workspace for AI agent sessions**, followed by a concise explanation of
+how conversation, agent profile, provider controls, plugins, tools, durable
+sessions, and connections fit together.
+
+### Capture and implementation plan
+
+1. Preserve the current thirteen-frame implementation and responsive tests as
+   the comparison baseline.
+2. Keep `ProductWalkthrough.astro` behavior unchanged unless a content-driven
+   issue is demonstrated in the real page.
+3. Produce a genuine unsliced Composer source with a smaller window or
+   constrained viewport, one or two messages, the composer at the bottom, and
+   readable model/reasoning/search controls. Remove private metadata through
+   the source fixture or truthful crop, not repainting.
+4. Produce or select a Desktop Message actions source using the same sanitized
+   session fixture, with the response and popup visible together.
+5. Build Message metadata through the required catalog-managed
+   `focusCalloutPipeline`.
+6. Produce or select one contextual Session actions source. Keep the star
+   visible without devoting another frame to it.
+7. Tighten Session settings captures:
+   - Agent compact proof prioritizes the selected profile, at most one useful
+     comparison profile, and the contributed tool list.
+   - Provider settings retains authentication mode, flex processing, and
+     reasoning controls.
+   - Plugins retains visible feature switches and either includes
+     **Reset to defaults** or omits that claim from the caption.
+8. Use one coherent Workspace source. Prefer matching Desktop and compact
+   native variants over a second explanatory status frame.
+9. Keep one mobile Connections source and direct conceptual copy.
+10. Update content/type bindings, composition/source maps, source freshness,
+    tests, and maintained documentation.
+11. Build the actual page and inspect all selected frames with Playwright and
+    direct `view_image` review at 1440, 1024, 768, 390, and 320 pixels in light
+    and dark themes.
+12. Stop at Human Checkpoint H3C before H4.
+
+### Branch and ownership boundary
+
+- Website component, content, processing definitions, docs, and task tracking
+  belong on `main`.
+- Any genuine Desktop/mobile product or capture-harness improvement belongs on
+  `develop`, is verified there, and is reconciled to `main` only when the
+  accepted website source requires it.
+- Candidate captures and review pages remain ignored. Do not promote sources
+  or change normal public bindings before H3C approval.
+
+### Human judgment remaining
+
+- Confirm at H3C whether the recommended nine-frame sequence is short enough
+  and whether the one-image Workspace explanation is sufficient.
+- Approve the exact section heading, chapter descriptions, frame captions, and
+  any retained optional/plugin examples only after they appear in context.
+- If “one image is enough” was intended to reduce Messages to one image rather
+  than Session actions to one image, revise this handoff before final
+  selection. The current interpretation follows the review order and the
+  statement that the star should already be understood.
 
 ## Execution plan
 
@@ -1386,13 +1595,25 @@ fulfilled by the walkthrough or feature proof. At minimum:
       visitor-facing per-frame captions.
 - [x] **AGENT:** Prepare the detailed six-chapter, thirteen-frame responsive
       storyboard and interaction contract.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 3A:** Approve the responsive storyboard,
+- [x] **HUMAN JUDGMENT — CHECKPOINT 3A:** Approve the responsive storyboard,
       Connections scope, frame count/order, and draft titles/captions before
       component implementation.
-- [ ] **AGENT:** Implement and verify the approved responsive multi-frame
+- [x] **AGENT:** Implement and verify the approved responsive multi-frame
       walkthrough through the actual Desktop and mobile page presentations.
-- [ ] **HUMAN JUDGMENT — CHECKPOINT 3B:** Review the complete selected
-      walkthrough in page context at desktop and phone widths.
+- [x] **HUMAN JUDGMENT — CHECKPOINT 3B:** Review the complete selected
+      walkthrough in page context at desktop and phone widths. The responsive
+      layout was accepted; the frame content, directness, image count, and
+      several sources were rejected for focused revision.
+- [ ] **AGENT:** Implement the H3B direct-content revision while preserving the
+      accepted responsive component behavior and the current comparison
+      baseline.
+- [ ] **AGENT:** Build Message metadata through the catalog-managed
+      `focusCalloutPipeline` used by `provider-usage-cost`, with genuine
+      response context and footer pixels.
+- [ ] **HUMAN JUDGMENT — CHECKPOINT 3C:** Review the revised direct titles,
+      approximately nine focused frames, Composer/pinning explanation,
+      Desktop Message actions, message-footer focus callout, enlarged Session
+      settings, single Workspace proof, and mobile-only Connections proof.
 - [ ] **AGENT:** Finalize remaining feature order, captions, proof, and
       availability distinctions.
 - [ ] **AGENT:** Implement and verify the six-step Getting Started and grouped
@@ -1760,3 +1981,62 @@ fulfilled by the walkthrough or feature proof. At minimum:
   is paused at Human Checkpoint H3A for copy, frame count/order, Connections
   scope, and responsive-reading approval. No component or asset changes for
   this new direction have begun.
+- 2026-10-16: The user approved H3A and authorized implementation. The
+  `productWalkthrough` content model now owns a `frames` array, with six
+  chapters and thirteen focused frames. The source HTML is the complete
+  vertical reading order; Desktop progressively applies chapter tabs,
+  image-edge Previous/Next controls, per-chapter dots and `n of m`, while
+  mobile and no-JavaScript rendering expose every frame without carousel
+  interaction.
+- 2026-10-16: Each screenshot now owns its own border and background. Its
+  visitor title sits above the image, its caption sits below, and chapter role
+  plus Crystal Lattice distinction remain together before the mobile frame
+  sequence. Session settings uses independent Agent, provider-settings, and
+  Plugins images rather than the rejected three-window composition.
+- 2026-10-16: Direct source inspection caused three truthful refinements. The
+  first Compose frame now uses genuine conversation and message-field excerpts
+  with private Agent/Session metadata omitted; the Plugins frame describes
+  visible plugin features rather than claiming an unseen Tools category; and
+  the first Connections frame uses the genuine Desktop Sessions header naming
+  the focused `Local workspace` because no dedicated Desktop Connections
+  website capture is currently retained.
+- 2026-10-16: Direct `view_image` review covered every generated light-theme
+  frame, the complete 390-pixel walkthrough, ordinary 1440-, 390-, and
+  320-pixel viewport captures, and focused dark-theme browser output. Mobile
+  scrolls naturally with no hidden chapter state; the compact Agent,
+  provider-settings, Plugins, Workspace, and connection controls remain
+  identifiable at 320 pixels. Desktop keeps one stable 1600 × 1000 visual
+  stage with side arrows and chapter-local progress.
+- 2026-10-16: Verification passed 13 multi-frame H3 Playwright tests across
+  1440, 1024, 768, 390, and 320 × 568 light/dark viewports; 15 retained H2
+  candidate tests; 8 homepage content/download tests; 25 visual-asset tests;
+  normal and explicit H3 Astro builds; and `git diff --check`.
+- 2026-10-16: The responsive multi-frame implementation and durable
+  documentation remain uncommitted for Human Checkpoint H3B. Generated review
+  assets remain ignored, normal public content remains unchanged, and no
+  source promotion, push, deployment, publication, or H4 work occurred.
+- 2026-10-16: H3B human review accepted the responsive layout and rejected the
+  current frame content as final. The user required direct interface titles,
+  one unsliced Composer/chat image with model/reasoning/search controls,
+  generic star/pinning explanation, Desktop Message actions context, Message
+  metadata second, one Session actions image, larger Session settings text,
+  and removal of the Desktop focused-connection frame.
+- 2026-10-16: The next-agent handoff recommends a nine-frame comparison while
+  preserving removed frames as alternatives. The recommendation removes
+  introductory Composer actions, the redundant Session-pinning crop, the
+  separate Workspace-status proof, and the weak Desktop connection frame. The
+  exact section heading, one-image Workspace sufficiency, and the
+  interpretation that “one image is enough” refers to Session actions remain
+  explicit H3C human judgments.
+- 2026-10-16: The user added a mandatory processing constraint for Message
+  metadata. It must use the same maintained visual-asset boundary as the
+  lower-page **Usage and cost transparency** asset `provider-usage-cost`:
+  `capturedImageLifecycle` plus `focusCalloutPipeline` over genuine response
+  and footer pixels. Reuse the existing asset only when its fixture and
+  responsive meaning fit; otherwise define a separate catalog asset with the
+  same lifecycle, freshness, expected-output, and verification contracts.
+- 2026-10-16: The current accepted-layout/thirteen-frame comparison,
+  responsive tests, H3B review outcome, next-agent revision plan, and durable
+  decision record are ready to be committed as one recoverable handoff. No
+  H3C implementation, source promotion, push, deployment, publication, or H4
+  work occurred.

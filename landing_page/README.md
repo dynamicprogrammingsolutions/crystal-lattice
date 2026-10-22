@@ -132,9 +132,12 @@ CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn build
 CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
 ```
 
-This mode renders the labeled five-chapter walkthrough and copies only its
-ignored responsive review assets into the ignored preview build. Do not enable
-the H2 candidate and H3 final flags together.
+This mode renders the labeled six-chapter, thirteen-frame walkthrough and
+copies only its ignored responsive review assets into the ignored preview
+build. Desktop progressively enhances the content into chapter/frame
+navigation; mobile and no-JavaScript presentation keep every frame in ordinary
+vertical document order. Do not enable the H2 candidate and H3 final flags
+together.
 
 The homepage structural prototype keeps draft feature copy and missing proof
 explicit through review-status metadata and placeholder panels. Those states

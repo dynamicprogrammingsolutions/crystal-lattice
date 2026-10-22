@@ -1199,6 +1199,125 @@ another commit, source promotion, and publication remain pending. Review at
 `http://192.168.8.10:4182/#feature-transparency` and
 `http://192.168.8.10:4182/#feature-vibe-anything`.
 
+## Responsive Multi-Frame Walkthrough Decision — October 16, 2026
+
+The earlier H3 walkthrough used one composite image per chapter and hid the
+other chapters behind the same interaction on Desktop and mobile. It remains
+recoverable in commit `b2a06b40`. Human review rejected that model because
+mobile visitors had to operate a carousel to discover primary explanatory
+content, chapter copy was split around the image, and the Session settings
+composition tried to teach the Agent picker, provider settings, and Plugins
+window at once.
+
+The selected replacement keeps one semantic order with two responsive
+presentations:
+
+- mobile and no-JavaScript rendering expose every chapter and frame through
+  ordinary vertical scrolling;
+- Desktop progressively enhances the same content into named chapter tabs and
+  one focused image at a time;
+- image-edge arrows move through all frames, chapter labels jump directly, and
+  dots plus an `n of m` label show progress inside the active chapter;
+- there is no autoplay or swipe-only content;
+- the screenshot alone owns the visible frame, with an image title above and
+  visitor-facing caption below.
+
+The teaching order is Compose, Messages, Session actions, Session settings,
+Workspace, and Connections. Their frame counts are 2 / 2 / 2 / 3 / 2 / 2.
+Connections is now part of the conceptual introduction because the separation
+between client and runtime materially distinguishes the product. Getting
+Started still owns local discovery, address/port, bridge setup, availability,
+and trusted-network instructions.
+
+One frame teaches one relationship. Session settings therefore uses separate
+Agent, provider-settings, and plugin-feature images. The first Compose frame
+shows the familiar conversation and message field, while its second frame
+shows active request controls. Message metadata and Message actions are
+separate. Session action stars receive their own focused frame. Workspace task
+status and runtime request state remain explicitly distinct.
+
+The captions address a first-time visitor. They say what relationship to
+notice and why it matters; they do not discuss fixtures, candidates, crops,
+review status, or what an image proves. The current Plugins frame describes
+visible plugin features only; tools remain visible in the Agent-profile frame
+rather than being claimed in a screenshot that does not show them.
+
+The genuine Desktop Connections panel did not have a retained website source.
+The first Connections frame therefore uses the genuine Desktop Sessions header
+that names `Local workspace` as the focused connection. This is a truthful
+first-release explanation of which runtime supplies the list and can later be
+replaced with a dedicated Connections capture without changing the component
+or chapter model.
+
+The thirteen-frame component, copy, crops, and responsive rhythm remain at the
+H3B human in-page checkpoint. No source promotion or public binding is implied
+by this implementation.
+
+## H3B Walkthrough Content Review — October 16, 2026
+
+Human review accepted the Desktop staged layout and mobile vertical reading
+model. It rejected the current content as final. The next revision keeps the
+component behavior and changes only titles, copy, frame selection, source
+captures, and image processing.
+
+The accepted copy direction is direct interface naming rather than
+action-oriented marketing language:
+
+- Composer;
+- Messages;
+- Message actions;
+- Message metadata;
+- Session actions;
+- Session settings;
+- Agent profile;
+- Provider settings;
+- Plugins;
+- Workspace or Session list;
+- Connections or Connection methods.
+
+The current first Compose frame and its caption do not communicate one clear
+idea. Replace them with one genuine unsliced chat screen: conversation above,
+composer at the bottom, and readable model, reasoning-effort, and web-search
+controls. Explain that the selected provider and plugins contribute those
+controls and can add others. Introduce the shared star/pinning convention here.
+Remove Composer actions from the introductory sequence while retaining the
+candidate and verified lifecycle semantics for later advanced use.
+
+Messages should use a contextual Desktop Message actions image first, with the
+selected response and real popover visible together. Message metadata follows
+as a second image attached to a visible response.
+
+The message-footer image must reuse the maintained processing boundary behind
+the lower-page **Usage and cost transparency** item. That item is catalog asset
+`provider-usage-cost`, which uses `capturedImageLifecycle` and
+`focusCalloutPipeline` over a genuine response plus magnified genuine footer.
+The walkthrough may share the existing asset only if fixture, meaning, and
+responsive placement fit. Otherwise add a separate catalog asset through the
+same lifecycle and pipeline. The rejected ad hoc stack of detached footer
+excerpts is retained only as comparison material.
+
+Session actions should use one contextual image; a second crop of the same menu
+is redundant once the star convention is understood. Session settings keeps
+three images but must enlarge important text. Plugins remains conceptually
+accepted. The Desktop focused-connection frame is removed.
+
+The recommended next comparison uses approximately nine frames:
+
+1. Composer;
+2. Message actions;
+3. Message metadata;
+4. Session actions;
+5. Agent profile;
+6. Provider settings;
+7. Plugins;
+8. Session list;
+9. Mobile connection methods.
+
+The separate Workspace-status image is a recommended cut because one coherent
+session list can show title, subtitle, pin, durable status, and current request
+state together. Its removal and the exact section heading remain subject to
+the next in-context human checkpoint.
+
 ## Revision Procedure
 
 When a section does not work in context:

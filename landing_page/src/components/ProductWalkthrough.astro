@@ -9,6 +9,17 @@ interface Props {
 
 const { section } = Astro.props;
 const chapters = section.chapters ?? [];
+let nextGlobalFrameIndex = 0;
+const indexedChapters = chapters.map((chapter, chapterIndex) => ({
+  ...chapter,
+  chapterIndex,
+  frames: chapter.frames.map((frame, frameIndex) => ({
+    ...frame,
+    frameIndex,
+    globalFrameIndex: nextGlobalFrameIndex++,
+  })),
+}));
+const allFrames = indexedChapters.flatMap(chapter => chapter.frames);
 ---
 
 <SectionShell
@@ -17,258 +28,384 @@ const chapters = section.chapters ?? [];
   spacing="flush-top"
   innerClass="walkthrough-shell"
 >
-  <product-walkthrough data-chapter-count={chapters.length}>
+  <product-walkthrough
+    data-chapter-count={indexedChapters.length}
+    data-frame-count={allFrames.length}
+  >
     <header class="walkthrough-intro">
       <h2>{section.title}</h2>
       <p>{section.intro}</p>
     </header>
 
-    <div
+    <nav
       class="walkthrough-tabs"
-      role="tablist"
       aria-label="Explore the Crystal Lattice interface"
       data-walkthrough-tabs
+      hidden
     >
-      {chapters.map((chapter, index) => (
+      {indexedChapters.map((chapter) => (
         <button
           type="button"
           id={`walkthrough-tab-${chapter.id}`}
-          role="tab"
-          aria-selected={index === 0 ? "true" : "false"}
-          aria-controls={`walkthrough-panel-${chapter.id}`}
-          tabindex={index === 0 ? 0 : -1}
           data-walkthrough-tab
-          data-chapter-index={index}
+          data-chapter-index={chapter.chapterIndex}
         >
           <span class="tab-number" aria-hidden="true">
-            {String(index + 1).padStart(2, "0")}
+            {String(chapter.chapterIndex + 1).padStart(2, "0")}
           </span>
           <span>{chapter.label}</span>
         </button>
       ))}
-    </div>
+    </nav>
 
     <div class="walkthrough-stage" data-walkthrough-stage>
-      {chapters.map((chapter, index) => (
+      {indexedChapters.map((chapter) => (
         <article
           id={`walkthrough-panel-${chapter.id}`}
           class="walkthrough-panel"
-          role="tabpanel"
-          aria-labelledby={`walkthrough-tab-${chapter.id}`}
           data-walkthrough-panel
-          data-chapter-index={index}
+          data-chapter-index={chapter.chapterIndex}
         >
           <div class="walkthrough-copy">
             <h3>{chapter.title}</h3>
             <p class="chapter-role">{chapter.role}</p>
+            <p class="chapter-distinction">{chapter.distinction}</p>
           </div>
 
-          <figure
-            class="walkthrough-visual"
-            data-walkthrough-visual
-          >
-            <div class="walkthrough-image-stage" data-walkthrough-image-stage>
-              <ThemedImage
-                src={chapter.image.src}
-                srcDark={chapter.image.srcDark}
-                srcCompact={chapter.image.srcCompact}
-                srcCompactDark={chapter.image.srcCompactDark}
-                width={chapter.image.width}
-                height={chapter.image.height}
-                widthCompact={chapter.image.widthCompact}
-                heightCompact={chapter.image.heightCompact}
-                alt={chapter.image.alt}
-                loading={index === 0 ? "eager" : "lazy"}
-                decoding="async"
-                fetchpriority={index === 0 ? "high" : "auto"}
-              />
-              <div
-                class="walkthrough-image-controls"
-                data-walkthrough-image-controls
-                hidden
-              >
-                <button
-                  type="button"
-                  class="walkthrough-image-button walkthrough-image-button--previous"
-                  data-walkthrough-step="-1"
-                  aria-label={index === 0
-                    ? "Previous chapter"
-                    : `Previous chapter: ${chapters[index - 1].label}`}
-                  disabled={index === 0}
+          <div class="walkthrough-frames">
+            {chapter.frames.map((frame) => {
+              const previousFrame = allFrames[frame.globalFrameIndex - 1];
+              const nextFrame = allFrames[frame.globalFrameIndex + 1];
+              return (
+                <figure
+                  id={`walkthrough-frame-${frame.id}`}
+                  class="walkthrough-frame"
+                  data-walkthrough-frame
+                  data-chapter-index={chapter.chapterIndex}
+                  data-frame-index={frame.frameIndex}
+                  data-global-frame-index={frame.globalFrameIndex}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="m15 6-6 6 6 6"></path>
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="walkthrough-image-button walkthrough-image-button--next"
-                  data-walkthrough-step="1"
-                  aria-label={index === chapters.length - 1
-                    ? "Next chapter"
-                    : `Next chapter: ${chapters[index + 1].label}`}
-                  disabled={index === chapters.length - 1}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="m9 6 6 6-6 6"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <figcaption>{chapter.caption}</figcaption>
-          </figure>
-
-          <p class="chapter-distinction">{chapter.distinction}</p>
+                  <h4 class="walkthrough-frame-title">{frame.title}</h4>
+                  <div class="walkthrough-image-shell">
+                    <div
+                      class="walkthrough-image-stage"
+                      data-walkthrough-image-stage
+                    >
+                      <ThemedImage
+                        src={frame.image.src}
+                        srcDark={frame.image.srcDark}
+                        srcCompact={frame.image.srcCompact}
+                        srcCompactDark={frame.image.srcCompactDark}
+                        width={frame.image.width}
+                        height={frame.image.height}
+                        widthCompact={frame.image.widthCompact}
+                        heightCompact={frame.image.heightCompact}
+                        compactMedia="(max-width: 899px)"
+                        alt={frame.image.alt}
+                        loading={frame.globalFrameIndex === 0 ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchpriority={frame.globalFrameIndex === 0 ? "high" : "auto"}
+                      />
+                      <div
+                        class="walkthrough-image-controls"
+                        data-walkthrough-image-controls
+                        hidden
+                      >
+                        <button
+                          type="button"
+                          class="walkthrough-image-button walkthrough-image-button--previous"
+                          data-walkthrough-step="-1"
+                          aria-label={previousFrame
+                            ? `Previous: ${previousFrame.title}`
+                            : "Previous image"}
+                          disabled={!previousFrame}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="m15 6-6 6 6 6"></path>
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="walkthrough-image-button walkthrough-image-button--next"
+                          data-walkthrough-step="1"
+                          aria-label={nextFrame
+                            ? `Next: ${nextFrame.title}`
+                            : "Next image"}
+                          disabled={!nextFrame}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="m9 6 6 6-6 6"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="walkthrough-frame-progress"
+                    data-walkthrough-frame-progress
+                    hidden
+                  >
+                    <div
+                      class="walkthrough-frame-dots"
+                      role="group"
+                      aria-label={`${chapter.label} images`}
+                    >
+                      {chapter.frames.map((targetFrame) => (
+                        <button
+                          type="button"
+                          data-walkthrough-frame-target={targetFrame.globalFrameIndex}
+                          aria-label={`Show ${targetFrame.title}`}
+                          aria-current={targetFrame.frameIndex === frame.frameIndex ? "true" : "false"}
+                        >
+                          <span aria-hidden="true"></span>
+                        </button>
+                      ))}
+                    </div>
+                    <span class="walkthrough-frame-count">
+                      {frame.frameIndex + 1} of {chapter.frames.length}
+                    </span>
+                  </div>
+                  <figcaption>{frame.caption}</figcaption>
+                </figure>
+              );
+            })}
+          </div>
         </article>
       ))}
     </div>
-    <span class="sr-only" aria-live="polite" aria-atomic="true" data-walkthrough-status></span>
+
+    <span
+      class="sr-only"
+      aria-live="polite"
+      aria-atomic="true"
+      data-walkthrough-status
+    ></span>
   </product-walkthrough>
 </SectionShell>
 
 <script>
   class ProductWalkthroughElement extends HTMLElement {
+    private tabsContainer: HTMLElement | null = null;
     private tabs: HTMLButtonElement[] = [];
     private panels: HTMLElement[] = [];
+    private frames: HTMLElement[] = [];
     private status: HTMLElement | null = null;
-    private currentIndex = 0;
-    private touchStartX = 0;
-    private touchStartY = 0;
+    private mediaQuery: MediaQueryList | null = null;
+    private currentGlobalFrameIndex = 0;
+    private wide = false;
 
     connectedCallback() {
+      this.tabsContainer = this.querySelector("[data-walkthrough-tabs]");
       this.tabs = Array.from(this.querySelectorAll("[data-walkthrough-tab]"));
       this.panels = Array.from(this.querySelectorAll("[data-walkthrough-panel]"));
+      this.frames = Array.from(this.querySelectorAll("[data-walkthrough-frame]"));
       this.status = this.querySelector("[data-walkthrough-status]");
+      this.mediaQuery = window.matchMedia("(min-width: 900px)");
 
       this.addEventListener("click", this.handleClick);
       this.addEventListener("keydown", this.handleKeydown);
-      this.addEventListener("touchstart", this.handleTouchStart, { passive: true });
-      this.addEventListener("touchend", this.handleTouchEnd, { passive: true });
-      this.dataset.ready = "true";
-      this.querySelectorAll<HTMLElement>("[data-walkthrough-image-controls]")
-        .forEach(element => {
-          element.hidden = false;
-        });
-      this.showChapter(0, false);
+      this.mediaQuery.addEventListener("change", this.handleModeChange);
+      this.applyMode();
     }
 
     disconnectedCallback() {
       this.removeEventListener("click", this.handleClick);
       this.removeEventListener("keydown", this.handleKeydown);
-      this.removeEventListener("touchstart", this.handleTouchStart);
-      this.removeEventListener("touchend", this.handleTouchEnd);
-      this.querySelectorAll<HTMLElement>("[data-walkthrough-image-controls]")
-        .forEach(element => {
-          element.hidden = true;
-        });
-      delete this.dataset.ready;
+      this.mediaQuery?.removeEventListener("change", this.handleModeChange);
+      this.showNarrowLayout();
+      this.mediaQuery = null;
     }
 
-    private chapterLabel(index: number) {
-      return this.tabs[index]?.textContent?.replace(/^\s*\d+\s*/, "").trim() ?? "";
+    private chapterIndexForFrame(frameIndex: number) {
+      return Number(this.frames[frameIndex]?.dataset.chapterIndex ?? 0);
     }
 
-    private centerTab(index: number) {
-      const tab = this.tabs[index];
-      const tabList = tab?.parentElement;
-      if (!tab || !tabList) return;
-      tabList.scrollTo({
-        left: tab.offsetLeft - (tabList.clientWidth - tab.offsetWidth) / 2,
-        behavior: "auto",
+    private chapterFirstFrame(chapterIndex: number) {
+      return this.frames.findIndex(
+        frame => Number(frame.dataset.chapterIndex) === chapterIndex,
+      );
+    }
+
+    private frameTitle(frameIndex: number) {
+      return this.frames[frameIndex]
+        ?.querySelector<HTMLElement>(".walkthrough-frame-title")
+        ?.textContent
+        ?.trim() ?? "";
+    }
+
+    private chapterLabel(chapterIndex: number) {
+      return this.tabs[chapterIndex]
+        ?.textContent
+        ?.replace(/^\s*\d+\s*/, "")
+        .trim() ?? "";
+    }
+
+    private applyMode() {
+      if (this.mediaQuery?.matches) {
+        this.showWideLayout();
+      } else {
+        this.showNarrowLayout();
+      }
+    }
+
+    private showWideLayout() {
+      this.wide = true;
+      this.dataset.wide = "true";
+      if (this.tabsContainer) {
+        this.tabsContainer.hidden = false;
+        this.tabsContainer.setAttribute("role", "tablist");
+      }
+      this.tabs.forEach((tab, chapterIndex) => {
+        tab.setAttribute("role", "tab");
+        tab.setAttribute(
+          "aria-controls",
+          this.panels[chapterIndex]?.id ?? "",
+        );
       });
+      this.panels.forEach((panel, chapterIndex) => {
+        panel.setAttribute("role", "tabpanel");
+        panel.setAttribute(
+          "aria-labelledby",
+          this.tabs[chapterIndex]?.id ?? "",
+        );
+      });
+      this.showFrame(this.currentGlobalFrameIndex, false);
     }
 
-    private showChapter(
-      index: number,
+    private showNarrowLayout() {
+      this.wide = false;
+      delete this.dataset.wide;
+      if (this.tabsContainer) {
+        this.tabsContainer.hidden = true;
+        this.tabsContainer.removeAttribute("role");
+      }
+      this.tabs.forEach(tab => {
+        tab.removeAttribute("role");
+        tab.removeAttribute("aria-selected");
+        tab.removeAttribute("aria-controls");
+        tab.removeAttribute("tabindex");
+      });
+      this.panels.forEach(panel => {
+        panel.hidden = false;
+        panel.removeAttribute("role");
+        panel.removeAttribute("aria-labelledby");
+      });
+      this.frames.forEach(frame => {
+        frame.hidden = false;
+        frame
+          .querySelectorAll<HTMLElement>("[data-walkthrough-image-controls], [data-walkthrough-frame-progress]")
+          .forEach(element => {
+            element.hidden = true;
+          });
+      });
+      if (this.status) this.status.textContent = "";
+    }
+
+    private showFrame(
+      globalFrameIndex: number,
       announce = true,
       focusTab = false,
-      preserveVisualPosition = false,
     ) {
-      if (index < 0 || index >= this.tabs.length) return;
-      const previousVisualTop = preserveVisualPosition
-        ? this.panels[this.currentIndex]
-          ?.querySelector<HTMLElement>("[data-walkthrough-image-stage]")
-          ?.getBoundingClientRect().top
-        : undefined;
-      this.currentIndex = index;
+      if (!this.wide || globalFrameIndex < 0 || globalFrameIndex >= this.frames.length) {
+        return;
+      }
+      this.currentGlobalFrameIndex = globalFrameIndex;
+      const chapterIndex = this.chapterIndexForFrame(globalFrameIndex);
+      const activeFrame = this.frames[globalFrameIndex];
+      const localFrameIndex = Number(activeFrame.dataset.frameIndex ?? 0);
+      const chapterFrames = this.frames.filter(
+        frame => Number(frame.dataset.chapterIndex) === chapterIndex,
+      );
 
       this.tabs.forEach((tab, tabIndex) => {
-        const selected = tabIndex === index;
+        const selected = tabIndex === chapterIndex;
         tab.setAttribute("aria-selected", String(selected));
         tab.tabIndex = selected ? 0 : -1;
       });
       this.panels.forEach((panel, panelIndex) => {
-        panel.hidden = panelIndex !== index;
+        panel.hidden = panelIndex !== chapterIndex;
+      });
+      this.frames.forEach((frame, frameIndex) => {
+        const selected = frameIndex === globalFrameIndex;
+        frame.hidden = !selected;
+        frame
+          .querySelectorAll<HTMLElement>("[data-walkthrough-image-controls], [data-walkthrough-frame-progress]")
+          .forEach(element => {
+            element.hidden = !selected;
+          });
+        frame
+          .querySelectorAll<HTMLButtonElement>("[data-walkthrough-frame-target]")
+          .forEach(dot => {
+            dot.setAttribute(
+              "aria-current",
+              String(Number(dot.dataset.walkthroughFrameTarget) === globalFrameIndex),
+            );
+          });
       });
 
       if (announce && this.status) {
         this.status.textContent =
-          `${this.chapterLabel(index)}, chapter ${index + 1} of ${this.tabs.length}`;
+          `${this.chapterLabel(chapterIndex)}: ${this.frameTitle(globalFrameIndex)}, `
+          + `image ${localFrameIndex + 1} of ${chapterFrames.length}`;
       }
-      if (focusTab) this.tabs[index]?.focus();
-      this.centerTab(index);
-
-      if (previousVisualTop !== undefined) {
-        requestAnimationFrame(() => {
-          const nextVisual = this.panels[index]
-            ?.querySelector<HTMLElement>("[data-walkthrough-image-stage]");
-          if (!nextVisual) return;
-          document.documentElement.scrollTop +=
-            nextVisual.getBoundingClientRect().top - previousVisualTop;
-        });
-      }
+      if (focusTab) this.tabs[chapterIndex]?.focus();
     }
 
     private handleClick = (event: Event) => {
+      if (!this.wide) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
+
       const tab = target.closest<HTMLButtonElement>("[data-walkthrough-tab]");
       if (tab && this.contains(tab)) {
-        this.showChapter(Number(tab.dataset.chapterIndex));
+        const frameIndex = this.chapterFirstFrame(
+          Number(tab.dataset.chapterIndex),
+        );
+        if (frameIndex >= 0) this.showFrame(frameIndex);
         return;
       }
+
+      const frameTarget = target.closest<HTMLButtonElement>(
+        "[data-walkthrough-frame-target]",
+      );
+      if (frameTarget && this.contains(frameTarget)) {
+        this.showFrame(Number(frameTarget.dataset.walkthroughFrameTarget));
+        return;
+      }
+
       const step = target.closest<HTMLButtonElement>("[data-walkthrough-step]");
       if (!step || !this.contains(step) || step.disabled) return;
-      this.showChapter(
-        this.currentIndex + Number(step.dataset.walkthroughStep),
-        true,
-        false,
-        true,
+      this.showFrame(
+        this.currentGlobalFrameIndex + Number(step.dataset.walkthroughStep),
       );
     };
 
     private handleKeydown = (event: KeyboardEvent) => {
+      if (!this.wide) return;
       const target = event.target;
-      if (!(target instanceof Element) || !target.closest("[data-walkthrough-tab]")) return;
-      let index: number | null = null;
-      if (event.key === "ArrowRight") index = (this.currentIndex + 1) % this.tabs.length;
-      if (event.key === "ArrowLeft") index = (this.currentIndex - 1 + this.tabs.length) % this.tabs.length;
-      if (event.key === "Home") index = 0;
-      if (event.key === "End") index = this.tabs.length - 1;
-      if (index === null) return;
-      event.preventDefault();
-      this.showChapter(index, true, true);
-    };
-
-    private handleTouchStart = (event: TouchEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-image-stage]")) return;
-      const touch = event.changedTouches[0];
-      this.touchStartX = touch.clientX;
-      this.touchStartY = touch.clientY;
-    };
-
-    private handleTouchEnd = (event: TouchEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-walkthrough-image-stage]")) return;
-      const touch = event.changedTouches[0];
-      const deltaX = touch.clientX - this.touchStartX;
-      const deltaY = touch.clientY - this.touchStartY;
-      if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
-      this.showChapter(
-        this.currentIndex + (deltaX < 0 ? 1 : -1),
-        true,
-        false,
-        true,
+      if (!(target instanceof Element) || !target.closest("[data-walkthrough-tab]")) {
+        return;
+      }
+      const chapterIndex = this.chapterIndexForFrame(
+        this.currentGlobalFrameIndex,
       );
+      let nextChapterIndex: number | null = null;
+      if (event.key === "ArrowRight") {
+        nextChapterIndex = (chapterIndex + 1) % this.tabs.length;
+      }
+      if (event.key === "ArrowLeft") {
+        nextChapterIndex = (chapterIndex - 1 + this.tabs.length) % this.tabs.length;
+      }
+      if (event.key === "Home") nextChapterIndex = 0;
+      if (event.key === "End") nextChapterIndex = this.tabs.length - 1;
+      if (nextChapterIndex === null) return;
+      event.preventDefault();
+      const frameIndex = this.chapterFirstFrame(nextChapterIndex);
+      if (frameIndex >= 0) this.showFrame(frameIndex, true, true);
+    };
+
+    private handleModeChange = () => {
+      this.applyMode();
     };
   }
 
@@ -300,82 +437,40 @@ const chapters = section.chapters ?? [];
 
   .walkthrough-intro p {
     margin-top: 1rem;
-    max-width: 780px;
+    max-width: 800px;
     color: var(--text-3);
     font-size: 1.025rem;
     line-height: 1.7;
   }
 
-  .walkthrough-tabs {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.5rem;
-    margin-top: 1.75rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .walkthrough-tabs button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 44px;
-    padding: 0.65rem 0.75rem;
-    border: 0;
-    border-radius: 0.65rem;
-    background: transparent;
-    color: var(--text-4);
-    font: inherit;
-    font-size: 0.875rem;
-    font-weight: 650;
-    cursor: pointer;
-  }
-
-  .walkthrough-tabs button:hover {
-    color: var(--text-2);
-    background: var(--bg-surface);
-  }
-
-  .walkthrough-tabs button[aria-selected="true"] {
-    color: var(--text);
-    background: var(--bg-raised);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .walkthrough-tabs button:focus-visible,
-  .walkthrough-image-button:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .tab-number {
-    color: var(--accent-soft);
-    font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
-  }
-
-  .walkthrough-stage {
-    margin-top: 1.25rem;
-  }
-
-  .walkthrough-panel {
-    display: grid;
-    grid-template-columns: minmax(235px, 0.72fr) minmax(0, 1.65fr);
-    grid-template-rows: auto 1fr;
-    gap: clamp(1.5rem, 4vw, 3.5rem);
-    align-items: start;
-  }
-
-  product-walkthrough[data-ready="true"] .walkthrough-panel[hidden] {
+  .walkthrough-tabs[hidden],
+  .walkthrough-image-controls[hidden],
+  .walkthrough-frame-progress[hidden],
+  .walkthrough-panel[hidden],
+  .walkthrough-frame[hidden] {
     display: none;
   }
 
-  product-walkthrough:not([data-ready="true"]) .walkthrough-panel + .walkthrough-panel {
-    margin-top: 3rem;
+  .walkthrough-stage {
+    margin-top: 2rem;
+  }
+
+  .walkthrough-panel {
     padding-top: 3rem;
     border-top: 1px solid var(--border);
+  }
+
+  .walkthrough-panel:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .walkthrough-panel + .walkthrough-panel {
+    margin-top: 3.5rem;
+  }
+
+  .walkthrough-copy {
+    max-width: 760px;
   }
 
   .walkthrough-copy h3 {
@@ -394,22 +489,33 @@ const chapters = section.chapters ?? [];
   }
 
   .chapter-distinction {
-    grid-column: 1;
-    grid-row: 2;
-    margin-top: -2.5rem;
     color: var(--text-2);
   }
 
-  .walkthrough-visual {
-    grid-column: 2;
-    grid-row: 1 / span 2;
+  .walkthrough-frames {
+    display: grid;
+    gap: 2.75rem;
+    margin-top: 1.75rem;
+  }
+
+  .walkthrough-frame {
     min-width: 0;
     margin: 0;
-    padding: clamp(0.65rem, 1.5vw, 1rem);
+  }
+
+  .walkthrough-frame-title {
+    margin-bottom: 0.75rem;
+    color: var(--text-2);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .walkthrough-image-shell {
+    padding: clamp(0.5rem, 1vw, 0.75rem);
     border: 1px solid var(--border);
     border-radius: 1rem;
     background: var(--bg-raised);
-    overflow: visible;
   }
 
   .walkthrough-image-stage {
@@ -425,7 +531,6 @@ const chapters = section.chapters ?? [];
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 16 / 9;
     border-radius: 0.7rem;
     background: var(--bg-surface);
     object-fit: contain;
@@ -438,38 +543,35 @@ const chapters = section.chapters ?? [];
     pointer-events: none;
   }
 
-  .walkthrough-image-controls[hidden] {
-    display: none;
-  }
-
   .walkthrough-image-button {
     position: absolute;
     top: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     padding: 0;
     transform: translateY(-50%);
     border: 1px solid var(--border);
     border-radius: 50%;
     background: var(--bg-raised);
     color: var(--text);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
     cursor: pointer;
     pointer-events: auto;
   }
 
   .walkthrough-image-button--previous {
-    left: -1.15rem;
+    left: -1.55rem;
   }
 
   .walkthrough-image-button--next {
-    right: -1.15rem;
+    right: -1.55rem;
   }
 
   .walkthrough-image-button:disabled {
-    opacity: 0.3;
+    opacity: 0.28;
     cursor: default;
   }
 
@@ -477,11 +579,159 @@ const chapters = section.chapters ?? [];
     background: var(--bg-surface);
   }
 
-  .walkthrough-visual figcaption {
+  .walkthrough-tabs button:focus-visible,
+  .walkthrough-image-button:focus-visible,
+  .walkthrough-frame-dots button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .walkthrough-frame-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
     margin-top: 0.75rem;
+  }
+
+  .walkthrough-frame-dots {
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+  }
+
+  .walkthrough-frame-dots button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .walkthrough-frame-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-5);
+  }
+
+  .walkthrough-frame-dots button[aria-current="true"] span {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+  }
+
+  .walkthrough-frame-count {
+    color: var(--text-5);
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.7rem;
+  }
+
+  .walkthrough-frame figcaption {
+    margin-top: 0.8rem;
     color: var(--text-4);
-    font-size: 0.8125rem;
-    line-height: 1.55;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  @media (min-width: 900px) {
+    .walkthrough-tabs {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.45rem;
+      margin-top: 1.75rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-tabs {
+      display: grid;
+    }
+
+    .walkthrough-tabs button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.42rem;
+      min-height: 44px;
+      padding: 0.65rem 0.45rem;
+      border: 0;
+      border-radius: 0.65rem;
+      background: transparent;
+      color: var(--text-4);
+      font: inherit;
+      font-size: clamp(0.72rem, 1vw, 0.875rem);
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .walkthrough-tabs button:hover {
+      color: var(--text-2);
+      background: var(--bg-surface);
+    }
+
+    .walkthrough-tabs button[aria-selected="true"] {
+      color: var(--text);
+      background: var(--bg-raised);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+
+    .tab-number {
+      color: var(--accent-soft);
+      font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.04em;
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-stage {
+      margin-top: 1.5rem;
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-panel {
+      display: grid;
+      grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.65fr);
+      gap: clamp(1.75rem, 4vw, 3.75rem);
+      align-items: start;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-copy {
+      position: sticky;
+      top: 6rem;
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-frames {
+      grid-column: 2;
+      margin-top: 0;
+    }
+
+    product-walkthrough[data-wide="true"] .walkthrough-image-stage :global(img) {
+      aspect-ratio: 8 / 5;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .walkthrough-intro h2 {
+      font-size: clamp(2rem, 8vw, 2.8rem);
+    }
+
+    .walkthrough-frame-title {
+      font-size: 1.05rem;
+    }
+
+    .walkthrough-image-shell {
+      padding: 0.5rem;
+      border-radius: 0.85rem;
+    }
+
+    .walkthrough-image-stage :global(img) {
+      border-radius: 0.6rem;
+    }
   }
 
   @media (max-width: 760px) {
@@ -496,49 +746,22 @@ const chapters = section.chapters ?? [];
       margin-right: 1.5rem;
     }
 
-    .walkthrough-intro h2 {
-      font-size: clamp(2rem, 10vw, 2.75rem);
-    }
-
     .walkthrough-intro p {
       margin-top: 0.85rem;
       font-size: 0.975rem;
       line-height: 1.65;
     }
 
-    .walkthrough-tabs {
-      display: flex;
-      gap: 0.45rem;
-      margin-top: 1.25rem;
-      padding: 0 1.5rem 0.75rem;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scroll-snap-type: x proximity;
-      scrollbar-width: none;
-    }
-
-    .walkthrough-tabs::-webkit-scrollbar {
-      display: none;
-    }
-
-    .walkthrough-tabs button {
-      flex: 0 0 auto;
-      justify-content: flex-start;
-      min-height: 42px;
-      padding: 0.6rem 0.75rem;
-      scroll-snap-align: center;
-      white-space: nowrap;
-    }
-
     .walkthrough-stage {
-      margin-top: 1rem;
+      margin-top: 1.75rem;
     }
 
     .walkthrough-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      align-items: stretch;
+      padding-top: 2.75rem;
+    }
+
+    .walkthrough-panel + .walkthrough-panel {
+      margin-top: 3rem;
     }
 
     .walkthrough-copy h3 {
@@ -552,52 +775,31 @@ const chapters = section.chapters ?? [];
       line-height: 1.65;
     }
 
-    .walkthrough-visual {
-      order: 2;
-      padding: 0.55rem;
-      border-radius: 0.85rem;
+    .walkthrough-frames {
+      gap: 2.5rem;
+      margin-top: 1.5rem;
     }
 
-    .walkthrough-copy {
-      order: 1;
-    }
-
-    .chapter-distinction {
-      order: 3;
-      margin-top: 0;
-    }
-
-    .walkthrough-image-stage :global(picture) {
-      display: flex;
-      justify-content: center;
-    }
-
-    .walkthrough-image-stage :global(img) {
-      width: auto;
-      max-width: 100%;
-      max-height: calc(100svh - 10rem);
-      aspect-ratio: auto;
-      margin-inline: auto;
-      border-radius: 0.6rem;
-    }
-
-    .walkthrough-visual figcaption {
-      padding: 0 0.2rem;
-      font-size: 0.78rem;
-    }
-
-    .walkthrough-image-button--previous {
-      left: -1.05rem;
-    }
-
-    .walkthrough-image-button--next {
-      right: -1.05rem;
+    .walkthrough-frame figcaption {
+      padding: 0 0.15rem;
+      font-size: 0.82rem;
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .walkthrough-tabs {
-      scroll-behavior: auto;
+  @media (prefers-reduced-motion: no-preference) {
+    product-walkthrough[data-wide="true"] .walkthrough-frame {
+      animation: walkthrough-frame-in 160ms ease-out;
+    }
+  }
+
+  @keyframes walkthrough-frame-in {
+    from {
+      opacity: 0.7;
+      transform: translateX(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
     }
   }
 </style>

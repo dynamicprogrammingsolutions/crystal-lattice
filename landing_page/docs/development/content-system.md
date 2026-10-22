@@ -205,21 +205,34 @@ CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn build
 CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
 ```
 
-`productWalkthrough` owns a concise introduction and five labeled chapters:
-Compose, Messages, Session actions, Session settings, and Workspace. Each
-chapter separates the ordinary UI role from the Crystal Lattice distinction,
-uses one wide/compact light/dark image set, and supplies a visitor-facing
-caption and alt text. The component exposes a labeled tab list, keyboard
-navigation, previous/next buttons, horizontal swipe over the visual, no
-autoplay, a reduced-motion-safe presentation, and sequential panels when
-JavaScript is unavailable.
+`productWalkthrough` owns a concise introduction and six labeled chapters:
+Compose, Messages, Session actions, Session settings, Workspace, and
+Connections. Each chapter separates the ordinary UI role from the Crystal
+Lattice distinction and owns one or more focused frames. A frame supplies its
+own visitor-facing title, caption, alt text, and wide/compact light/dark image
+set.
 
-Compact chapter media uses the dimensions declared by each content asset
-rather than a shared aspect ratio. Every current compact composition remains
-between 1.37:1 and 1.57:1, so the whole image can fit at full available width
-in 375 × 667 and 320 × 568 phone viewports. Chapter navigation uses the same
-circular image-edge arrow convention as feature media; named tabs remain the
-explicit pagination, and the previous bottom control footer is not retained.
+The source markup is the complete chapter/frame reading order. Below the
+900-pixel walkthrough breakpoint, and whenever JavaScript is unavailable, all
+six chapters and thirteen frames remain visible as ordinary headings, figures,
+and captions. There are no mobile tabs, arrows, dots, hidden panels, or
+required swipe gestures.
+
+At wider sizes the custom element progressively applies an ARIA tab list to
+the chapter labels and displays one frame at a time. Image-edge arrows advance
+through the flattened frame sequence, chapter tabs jump to the first frame in
+a chapter, and per-chapter dots plus an `n of m` label expose local frame
+position. Arrow-key tab navigation, a polite live region, normal button
+keyboard behavior, no autoplay, and reduced-motion handling remain part of the
+contract.
+
+Only the screenshot owns a visible image frame. The frame title sits above it,
+and the caption below explains what a new visitor should notice rather than
+describing fixture provenance or review evidence. Wide review derivatives use
+one stable 1600 × 1000 stage. Compact derivatives are independently composed
+at 1000 pixels wide with focused natural heights from 400 to 1200 pixels so
+mobile can prioritize readable controls instead of shrinking a complete
+multi-window collage.
 
 The final preview removes the superseded model-family and session-workspace
 compact highlights but leaves later feature and Getting Started changes to
@@ -227,7 +240,8 @@ their owning checkpoint. H2 and H3 flags are mutually exclusive. The final
 source map lives in
 `scripts/visual-assets/walkthrough-final-preview.mjs`; missing composed sources
 fail the explicit build. Responsive browser evidence is written under
-`artifacts/walkthrough-final-review/`.
+`artifacts/walkthrough-final-review/`, with ordinary viewport captures retained
+under `artifacts/walkthrough-responsive-review/` for direct visual inspection.
 
 ## Current Section Types
 
