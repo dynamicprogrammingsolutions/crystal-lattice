@@ -270,6 +270,134 @@ def test_python_runtime_preinstalled_default_plugins_manifest_and_install(
     assert "plugins/non-default" not in manifest["plugin_paths"]
 
 
+def test_intel_macos_runtime_pins_last_supported_cryptography_wheel(
+    tmp_path: Path,
+) -> None:
+    package_dir = tmp_path / "package"
+
+    constraints = runtime_builder.write_runtime_pip_constraints(
+        package_dir,
+        platform_name="darwin",
+        arch="amd64",
+    )
+
+    assert constraints == package_dir / runtime_builder.PIP_CONSTRAINTS
+    assert constraints.read_text(encoding="utf-8") == "cryptography==48.0.1\n"
+    assert runtime_builder.package_pip_constraint_args(package_dir) == [
+        "--constraint",
+        str(constraints.resolve()),
+    ]
+
+
+def test_non_intel_runtime_does_not_write_crypto_constraint(tmp_path: Path) -> None:
+    package_dir = tmp_path / "package"
+
+    assert (
+        runtime_builder.write_runtime_pip_constraints(
+            package_dir,
+            platform_name="darwin",
+            arch="arm64",
+        )
+        is None
+    )
+    assert runtime_builder.package_pip_constraint_args(package_dir) == []
+
+
+def test_preinstalled_plugins_use_runtime_pip_constraint(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_dir = tmp_path / "package"
+    plugins = package_dir / "plugins"
+    selected = plugins / "selected"
+    selected.mkdir(parents=True)
+    (selected / "pyproject.toml").write_text(
+        "[build-system]\nrequires = []\n",
+        encoding="utf-8",
+    )
+    default_config = (
+        package_dir / "application" / "python" / "agent_terminal_app" / "default_config"
+    )
+    default_config.mkdir(parents=True)
+    (default_config / "config.json").write_text("{}", encoding="utf-8")
+    python = package_dir / "python" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    constraints = package_dir / runtime_builder.PIP_CONSTRAINTS
+    constraints.write_text("cryptography==48.0.1\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        runtime_builder,
+        "discover_selected_bundled_plugin_names",
+        lambda _config, _plugins_root: {"selected"},
+    )
+    monkeypatch.setattr(
+        runtime_builder,
+        "resolve_local_project_names",
+        lambda _selected, _plugins_root: {"selected"},
+    )
+    monkeypatch.setattr(
+        runtime_builder.subprocess,
+        "run",
+        lambda command, **_kwargs: (
+            calls.append([str(value) for value in command])
+            or subprocess.CompletedProcess(command, 0)
+        ),
+    )
+
+    runtime_builder.install_preinstalled_default_plugins(package_dir)
+
+    assert calls == [
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--constraint",
+            str(constraints.resolve()),
+            str(selected),
+        ]
+    ]
+
+
+def test_application_dependencies_use_runtime_pip_constraint(
+    tmp_path: Path, monkeypatch
+) -> None:
+    package_dir = tmp_path / "package"
+    python = package_dir / "python" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    constraints = package_dir / runtime_builder.PIP_CONSTRAINTS
+    constraints.write_text("cryptography==48.0.1\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        runtime_builder.subprocess,
+        "run",
+        lambda command, **_kwargs: (
+            calls.append([str(value) for value in command])
+            or subprocess.CompletedProcess(command, 0)
+        ),
+    )
+
+    runtime_builder.install_app_dependencies(package_dir)
+
+    expected_prefix = [
+        str(python),
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "--constraint",
+        str(constraints.resolve()),
+    ]
+    assert calls == [
+        [*expected_prefix, str(runtime_builder.CORE_DIR), str(runtime_builder.APP_DIR)],
+        [*expected_prefix, "pyinstaller>=6.0"],
+    ]
+
+
 def test_prepare_copied_python_runtime_removes_external_management_marker(
     tmp_path: Path, monkeypatch
 ) -> None:

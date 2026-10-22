@@ -34,6 +34,13 @@ application, and the default config's local plugin closure into the packaged
 Python. `preinstalled-plugins.json` lets runtime plugin resolution import that
 closure without copying it into user state.
 
+Intel macOS archives also contain `pip-constraints.txt`, which pins
+`cryptography==48.0.1`, the last release with an upstream universal Intel/ARM
+macOS wheel. Build-time dependency installation and later dynamic plugin
+installation both use that constraint. This prevents a source-built
+`cryptography` extension from recording the build runner's Homebrew OpenSSL
+paths in an otherwise relocatable archive.
+
 `application/python/scripts/install.sh` and
 `application/python/scripts/install.ps1` are the user-facing installation
 authorities. Each downloads or accepts a matching local archive, extracts it
@@ -147,7 +154,8 @@ checks:
 
 - required archive paths and manifests;
 - launcher `--runtime-layout-json` behavior and runtime overrides;
-- linked-library portability on macOS;
+- linked-library portability on macOS, recursively covering the packaged
+  interpreter, extension modules, and dynamic libraries;
 - credential-free default-config boot and the complete configured agent set;
 - use of the preinstalled default-plugin closure;
 - dynamic installation of packaged `generic-callback-app`, which must not be

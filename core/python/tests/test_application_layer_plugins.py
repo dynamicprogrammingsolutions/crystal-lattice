@@ -20,20 +20,28 @@ from .dummy_tool import DummyCalculator  # noqa: F401
 from .dummy_tool_same_id import AlternateDummyCalculator  # noqa: F401
 
 
-def _write_config(tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json") -> Path:
+def _write_config(
+    tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json"
+) -> Path:
     path = tmp_path / name
     path.write_text(json.dumps(config), encoding="utf-8")
     return path
 
 
-def _make_app(tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json") -> AgentApplication:
+def _make_app(
+    tmp_path: Path, config: Dict[str, Any], name: str = "config_plugins.json"
+) -> AgentApplication:
     config_path = _write_config(tmp_path, config, name=name)
     session_root = tmp_path / f"sessions-{name}"
     return AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
 
 
-def _core_plugin_names(core: AgentCore) -> Tuple[List[str], List[str], List[str], List[str]]:
-    providers = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_providers")]
+def _core_plugin_names(
+    core: AgentCore,
+) -> Tuple[List[str], List[str], List[str], List[str]]:
+    providers = [
+        wrapper.plugin_class.__name__ for wrapper in getattr(core, "_providers")
+    ]
     extensions: List[str] = []
     for wrapper in getattr(core, "_providers"):
         extensions.extend(ext.plugin_class.__name__ for ext in wrapper.extensions)
@@ -56,7 +64,9 @@ def _tool_schema_names(core: AgentCore, config: Dict[str, Any]) -> List[str]:
     return names
 
 
-def test_list_plugins_for_agent_uses_global_provider_and_agent_package_specs(tmp_path: Path) -> None:
+def test_list_plugins_for_agent_uses_global_provider_and_agent_package_specs(
+    tmp_path: Path,
+) -> None:
     config = {
         "providers": {
             "primary": {
@@ -108,7 +118,74 @@ def test_list_plugins_for_agent_uses_global_provider_and_agent_package_specs(tmp
     )
 
 
-def test_provider_level_plugins_only_apply_to_agents_using_that_provider(tmp_path: Path) -> None:
+def test_runtime_pip_constraint_is_added_to_plugin_install_policy(
+    tmp_path: Path,
+) -> None:
+    config = {
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+            }
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {"default": {"provider": "primary"}},
+    }
+    constraint = tmp_path / "pip-constraints.txt"
+    constraint.write_text("cryptography==48.0.1\n", encoding="utf-8")
+    config_path = _write_config(tmp_path, config)
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={"CRYSTAL_PIP_CONSTRAINT": str(constraint)},
+    )
+
+    assert app._plugin_manager.policy["pip_args"] == [
+        "--constraint",
+        str(constraint),
+    ]
+
+
+def test_explicit_plugin_constraint_policy_wins_over_runtime_default(
+    tmp_path: Path,
+) -> None:
+    explicit_constraint = tmp_path / "explicit-constraints.txt"
+    explicit_constraint.write_text("cryptography==47.0.0\n", encoding="utf-8")
+    runtime_constraint = tmp_path / "runtime-constraints.txt"
+    runtime_constraint.write_text("cryptography==48.0.1\n", encoding="utf-8")
+    config = {
+        "plugin_policy": {
+            "pip_args": ["--constraint", str(explicit_constraint)],
+        },
+        "providers": {
+            "primary": {
+                "provider": "dummy_provider",
+                "model": "test-model",
+            }
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {"default": {"provider": "primary"}},
+    }
+    config_path = _write_config(tmp_path, config)
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        env_overrides={"CRYSTAL_PIP_CONSTRAINT": str(runtime_constraint)},
+    )
+
+    assert app._plugin_manager.policy["pip_args"] == [
+        "--constraint",
+        str(explicit_constraint),
+    ]
+
+
+def test_provider_level_plugins_only_apply_to_agents_using_that_provider(
+    tmp_path: Path,
+) -> None:
     config = {
         "providers": {
             "tooling": {
@@ -141,17 +218,25 @@ def test_provider_level_plugins_only_apply_to_agents_using_that_provider(tmp_pat
     ]
 
     tool_core, _tool_cfg, _tool_session = app.create_session("tool-agent")
-    assert _core_plugin_names(tool_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+    assert _core_plugin_names(tool_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["DummyCalculator"],
+    )
 
     feature_core, _feature_cfg, _feature_session = app.create_session("feature-agent")
-    assert _core_plugin_names(feature_core) == (["DummyProvider"], [], ["DummyFeature"], [])
+    assert _core_plugin_names(feature_core) == (
+        ["DummyProvider"],
+        [],
+        ["DummyFeature"],
+        [],
+    )
 
 
 def test_agent_level_plugins_only_apply_to_that_agent(tmp_path: Path) -> None:
     config = {
-        "providers": {
-            "shared": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"shared": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": ["tests.dummy_provider.DummyProvider"],
         "agents": {
             "tool-agent": {
@@ -177,19 +262,27 @@ def test_agent_level_plugins_only_apply_to_that_agent(tmp_path: Path) -> None:
     ]
 
     tool_core, _tool_cfg, _tool_session = app.create_session("tool-agent")
-    assert _core_plugin_names(tool_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+    assert _core_plugin_names(tool_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["DummyCalculator"],
+    )
 
     feature_core, _feature_cfg, _feature_session = app.create_session("feature-agent")
-    assert _core_plugin_names(feature_core) == (["DummyProvider"], [], ["DummyFeature"], [])
+    assert _core_plugin_names(feature_core) == (
+        ["DummyProvider"],
+        [],
+        ["DummyFeature"],
+        [],
+    )
 
 
 def test_create_session_exposes_only_agent_specific_tool_schemas_to_model(
     tmp_path: Path,
 ) -> None:
     config = {
-        "providers": {
-            "shared": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"shared": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": ["tests.dummy_provider.DummyProvider"],
         "agents": {
             "math-agent": {
@@ -206,7 +299,12 @@ def test_create_session_exposes_only_agent_specific_tool_schemas_to_model(
     app = _make_app(tmp_path, config)
 
     math_core, math_base_config, _math_session = app.create_session("math-agent")
-    assert _core_plugin_names(math_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+    assert _core_plugin_names(math_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["DummyCalculator"],
+    )
     assert _tool_schema_names(math_core, math_base_config) == ["add"]
 
     blocking_core, blocking_base_config, _blocking_session = app.create_session(
@@ -374,9 +472,7 @@ def test_agent_run_descriptor_exposes_safe_defaults_and_schema(tmp_path: Path) -
 
 def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> None:
     config = {
-        "providers": {
-            "primary": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"primary": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_tool.DummyCalculator",
@@ -401,9 +497,7 @@ def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> 
 
 def test_update_agent_recovers_when_previous_agent_is_missing(tmp_path: Path) -> None:
     config = {
-        "providers": {
-            "primary": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"primary": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_feature.DummyFeature",
@@ -434,11 +528,16 @@ def test_update_agent_recovers_when_previous_agent_is_missing(tmp_path: Path) ->
         },
     )
 
-    switched_core, switched_base_config, switched_session = app.update_agent("other", broken_session)
+    switched_core, switched_base_config, switched_session = app.update_agent(
+        "other", broken_session
+    )
 
     assert switched_base_config["provider"] == "dummy_provider"
     assert switched_session.metadata["agent_id"] == "other"
-    assert switched_session.metadata["plugins"] == ["dummy_provider", "dummy_calculator"]
+    assert switched_session.metadata["plugins"] == [
+        "dummy_provider",
+        "dummy_calculator",
+    ]
     assert _core_plugin_names(switched_core) == (
         ["DummyProvider"],
         [],
@@ -449,9 +548,7 @@ def test_update_agent_recovers_when_previous_agent_is_missing(tmp_path: Path) ->
 
 def test_load_session_raises_when_no_provider_enabled(tmp_path: Path) -> None:
     config = {
-        "providers": {
-            "primary": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"primary": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_tool.DummyCalculator",

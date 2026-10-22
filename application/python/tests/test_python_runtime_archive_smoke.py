@@ -51,6 +51,89 @@ def test_macos_library_reference_classifier_rejects_host_paths() -> None:
         )
         is True
     )
+    assert (
+        runtime_smoke.is_unsafe_macos_library_reference(
+            "/usr/local/opt/openssl@3/lib/libssl.3.dylib"
+        )
+        is True
+    )
+
+
+def test_macos_native_validation_checks_extension_modules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_dir = tmp_path / "package"
+    python = package_dir / "python" / "bin" / "python"
+    extension = (
+        package_dir
+        / "python"
+        / "lib"
+        / "python3.11"
+        / "site-packages"
+        / "cryptography"
+        / "_rust.abi3.so"
+    )
+    python.parent.mkdir(parents=True)
+    extension.parent.mkdir(parents=True)
+    python.write_bytes(b"python")
+    extension.write_bytes(b"extension")
+
+    def fake_otool(command: list[str], **_kwargs: object) -> str:
+        if Path(command[-1]) == extension:
+            return (
+                f"{extension}:\n"
+                f"\t{extension} "
+                "(compatibility version 0.0.0, current version 0.0.0)\n"
+                "\t/usr/local/opt/openssl@3/lib/libssl.3.dylib "
+                "(compatibility version 3.0.0, current version 3.0.0)\n"
+            )
+        return (
+            f"{python}:\n"
+            "\t/usr/lib/libSystem.B.dylib "
+            "(compatibility version 1.0.0, current version 1.0.0)\n"
+        )
+
+    monkeypatch.setattr(runtime_smoke.subprocess, "check_output", fake_otool)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"cryptography/_rust\.abi3\.so -> /usr/local/opt/openssl@3",
+    ):
+        runtime_smoke.validate_portable_python_links(
+            package_dir,
+            {"platform": "darwin"},
+        )
+
+
+def test_macos_native_validation_allows_absolute_self_install_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_dir = tmp_path / "package"
+    python = package_dir / "python" / "bin" / "python"
+    extension = package_dir / "python" / "lib" / "module.abi3.so"
+    python.parent.mkdir(parents=True)
+    extension.parent.mkdir(parents=True)
+    python.write_bytes(b"python")
+    extension.write_bytes(b"extension")
+
+    def fake_otool(command: list[str], **_kwargs: object) -> str:
+        binary = Path(command[-1])
+        return (
+            f"{binary}:\n"
+            f"\t/private/build/root/{binary.name} "
+            "(compatibility version 0.0.0, current version 0.0.0)\n"
+            "\t/usr/lib/libSystem.B.dylib "
+            "(compatibility version 1.0.0, current version 1.0.0)\n"
+        )
+
+    monkeypatch.setattr(runtime_smoke.subprocess, "check_output", fake_otool)
+
+    runtime_smoke.validate_portable_python_links(
+        package_dir,
+        {"platform": "darwin"},
+    )
 
 
 def test_native_python_identity_accepts_matching_manifest(

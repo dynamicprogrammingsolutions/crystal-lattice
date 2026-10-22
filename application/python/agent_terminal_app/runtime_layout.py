@@ -69,6 +69,10 @@ class RuntimeLayout:
     def preinstalled_plugin_manifest(self) -> Path | None:
         return self.optional_bundle_path("preinstalled_plugin_manifest")
 
+    @property
+    def pip_constraints(self) -> Path | None:
+        return self.optional_bundle_path("pip_constraints")
+
     def bundle_path(self, name: str) -> Path:
         return _resolve_bundle_path(self.manifest_dir, self.bundle_paths[name])
 
@@ -103,6 +107,9 @@ class RuntimeLayout:
             values["CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"] = str(
                 preinstalled_plugin_manifest
             )
+        pip_constraints = self.pip_constraints
+        if pip_constraints is not None:
+            values["CRYSTAL_PIP_CONSTRAINT"] = str(pip_constraints)
         return values
 
     def application_env_overrides(
@@ -127,7 +134,9 @@ class RuntimeLayout:
         else:
             # Resolving sys.executable follows a venv's python symlink into the
             # base installation, where this application's SDK may not exist.
-            python_executable = self.python_executable or Path(sys.executable).absolute()
+            python_executable = (
+                self.python_executable or Path(sys.executable).absolute()
+            )
             cli_argv = [
                 str(python_executable),
                 "-m",

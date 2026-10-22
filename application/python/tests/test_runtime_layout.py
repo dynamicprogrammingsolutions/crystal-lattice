@@ -73,9 +73,7 @@ def test_source_runtime_layout_preserves_venv_python_symlink(
     )
 
     assert access["CRYSTAL_LATTICE_PYTHON"] == str(venv_python)
-    assert json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])[0] == str(
-        venv_python
-    )
+    assert json.loads(access["CRYSTAL_LATTICE_CLI_ARGV_JSON"])[0] == str(venv_python)
 
 
 def test_runtime_layout_resolves_user_paths_from_current_working_directory(
@@ -128,6 +126,8 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
     manifest = tmp_path / "agent_terminal_app" / "runtime_layout.json"
     manifest.parent.mkdir()
     (manifest.parent / "docs").mkdir()
+    pip_constraints = tmp_path / "pip-constraints.txt"
+    pip_constraints.write_text("cryptography==48.0.1\n", encoding="utf-8")
     manifest.write_text(
         json.dumps(
             {
@@ -140,6 +140,7 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
                     "cloud_runtime_dockerfile": "../cloud_runtime/Dockerfile",
                     "default_config_template": "default_config",
                     "config_examples": ".",
+                    "pip_constraints": "../pip-constraints.txt",
                     "root_system_messages": "system_messages",
                 },
                 "user_paths": {
@@ -164,6 +165,8 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
     )
     assert layout.cloud_runtime_build_context == tmp_path / "cloud_runtime"
     assert layout.cloud_runtime_dockerfile == tmp_path / "cloud_runtime" / "Dockerfile"
+    assert layout.pip_constraints == pip_constraints
+    assert layout.env_overrides()["CRYSTAL_PIP_CONSTRAINT"] == str(pip_constraints)
     assert layout.user_path("default_sessions_dir") == (
         Path.cwd() / ".crystal" / "sessions"
     )

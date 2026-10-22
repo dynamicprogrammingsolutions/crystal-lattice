@@ -37,6 +37,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-python-runtime"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
 PREINSTALLED_PLUGIN_MANIFEST = "preinstalled-plugins.json"
+PIP_CONSTRAINTS = "pip-constraints.txt"
 WINDOWS_LONG_PATH_MANIFEST = "python-long-path-aware.manifest"
 MANIFEST_NS = "urn:schemas-microsoft-com:asm.v1"
 MANIFEST_V3_NS = "urn:schemas-microsoft-com:asm.v3"
@@ -122,6 +123,11 @@ def build_python_runtime_package(
     make_windows_python_long_path_aware(package_dir / "python", platform_name)
     stage_repo_like_runtime(package_dir)
     write_preinstalled_plugins_manifest(package_dir, set())
+    write_runtime_pip_constraints(
+        package_dir,
+        platform_name=platform_name,
+        arch=arch,
+    )
     write_launchers(package_dir, platform_name=platform_name)
     write_manifest(package_dir, platform_name=platform_name, arch=arch, version=version)
 
@@ -375,6 +381,8 @@ def write_runtime_layout(package_dir: Path) -> None:
             "local_config": "./.crystal/config.json",
         },
     }
+    if (package_dir / PIP_CONSTRAINTS).is_file():
+        manifest["bundle_paths"]["pip_constraints"] = f"../../../{PIP_CONSTRAINTS}"
     manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -414,15 +422,58 @@ def write_launchers(package_dir: Path, *, platform_name: str) -> None:
     launcher.chmod(0o755)
 
 
+def write_runtime_pip_constraints(
+    package_dir: Path,
+    *,
+    platform_name: str,
+    arch: str,
+) -> Path | None:
+    path = package_dir / PIP_CONSTRAINTS
+    constraints: list[str] = []
+    if platform_name == "darwin" and arch == "amd64":
+        constraints.append("cryptography==48.0.1")
+    if not constraints:
+        path.unlink(missing_ok=True)
+        return None
+    package_dir.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(constraints) + "\n", encoding="utf-8")
+    return path
+
+
+def package_pip_constraint_args(package_dir: Path) -> list[str]:
+    path = package_dir / PIP_CONSTRAINTS
+    if not path.is_file():
+        return []
+    return ["--constraint", str(path.resolve())]
+
+
 def install_app_dependencies(package_dir: Path) -> None:
     python = package_python(package_dir)
+    constraint_args = package_pip_constraint_args(package_dir)
     subprocess.run(
-        [str(python), "-m", "pip", "install", "--upgrade", str(CORE_DIR), str(APP_DIR)],
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            *constraint_args,
+            str(CORE_DIR),
+            str(APP_DIR),
+        ],
         cwd=str(ROOT),
         check=True,
     )
     subprocess.run(
-        [str(python), "-m", "pip", "install", "--upgrade", "pyinstaller>=6.0"],
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            *constraint_args,
+            "pyinstaller>=6.0",
+        ],
         cwd=str(ROOT),
         check=True,
     )
@@ -457,6 +508,7 @@ def install_preinstalled_default_plugins(package_dir: Path) -> None:
             if is_python_project(plugins_root / name)
         ],
     ]
+    constraint_args = package_pip_constraint_args(package_dir)
     for projects in install_project_groups:
         if not projects:
             continue
@@ -467,6 +519,7 @@ def install_preinstalled_default_plugins(package_dir: Path) -> None:
                 "pip",
                 "install",
                 "--upgrade",
+                *constraint_args,
                 *map(str, projects),
             ],
             cwd=str(package_dir),
@@ -544,6 +597,9 @@ def verify_package_tree(package_dir: Path) -> None:
         package_dir / "cloud_runtime" / "runtime.py",
         package_dir / "runtime-package.json",
     ]
+    constraints = package_dir / PIP_CONSTRAINTS
+    if constraints.is_file():
+        required.append(constraints)
     if os.name == "nt":
         required.append(package_dir / "Scripts" / "crystal-lattice.cmd")
     else:

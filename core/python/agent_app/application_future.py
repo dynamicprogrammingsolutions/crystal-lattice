@@ -479,6 +479,18 @@ class AgentApplication:
             plugin_policy.setdefault(
                 "preinstalled_plugin_manifest", preinstalled_manifest
             )
+        pip_constraint = self._resolved_env.get("CRYSTAL_PIP_CONSTRAINT")
+        if isinstance(pip_constraint, str) and pip_constraint.strip():
+            pip_args = list(plugin_policy.get("pip_args") or [])
+            has_constraint = any(
+                argument in {"-c", "--constraint"}
+                or argument.startswith("--constraint=")
+                for argument in pip_args
+                if isinstance(argument, str)
+            )
+            if not has_constraint:
+                pip_args.extend(["--constraint", pip_constraint.strip()])
+                plugin_policy["pip_args"] = pip_args
 
         mgr = PluginManager(
             cache_dir=cache_path,
@@ -1784,7 +1796,9 @@ class AgentApplication:
             try:
                 candidate.relative_to(workspace_root)
             except ValueError as exc:
-                raise ValueError("shared workspace selection escapes workspace_root") from exc
+                raise ValueError(
+                    "shared workspace selection escapes workspace_root"
+                ) from exc
         elif workspace_id.startswith("private:"):
             parts = workspace_id.split(":", 2)
             if len(parts) != 3 or parts[1] != session_id:
@@ -3287,9 +3301,7 @@ class AgentApplication:
 
             enabled = enabled_ids is None or plugin_id in enabled_ids
             active_ids = (
-                active_by_kind.get(kind)
-                if isinstance(active_by_kind, dict)
-                else None
+                active_by_kind.get(kind) if isinstance(active_by_kind, dict) else None
             )
             active = enabled and (
                 not isinstance(active_ids, list) or plugin_id in active_ids
@@ -3671,11 +3683,7 @@ class AgentApplication:
         )
         return self._validate_command_action_bindings(
             build_command_catalog(
-                [
-                    element
-                    for element in elements
-                    if element.get("ui_type") == ui_type
-                ],
+                [element for element in elements if element.get("ui_type") == ui_type],
                 ui_type=ui_type,
                 reserved_paths=reserved_paths,
             ),

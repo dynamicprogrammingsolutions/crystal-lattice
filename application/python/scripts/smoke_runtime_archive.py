@@ -199,19 +199,37 @@ def validate_portable_python_links(
 ) -> None:
     if manifest.get("platform") != "darwin":
         return
-    python = python_path(package_dir)
-    output = subprocess.check_output(["otool", "-L", str(python)], text=True)
-    unsafe = [
-        line.strip().split(" ", 1)[0]
-        for line in output.splitlines()[1:]
-        if is_unsafe_macos_library_reference(line.strip().split(" ", 1)[0])
-    ]
+    unsafe: list[tuple[Path, str]] = []
+    for binary in iter_macos_native_binaries(package_dir):
+        output = subprocess.check_output(["otool", "-L", str(binary)], text=True)
+        unsafe.extend(
+            (binary, dependency)
+            for dependency in (
+                line.strip().split(" ", 1)[0] for line in output.splitlines()[1:]
+            )
+            if Path(dependency).name != binary.name
+            and is_unsafe_macos_library_reference(dependency)
+        )
     if unsafe:
-        formatted = "\n".join(f"- {path}" for path in unsafe)
+        formatted = "\n".join(
+            f"- {binary.relative_to(package_dir)} -> {dependency}"
+            for binary, dependency in unsafe
+        )
         raise RuntimeError(
-            "Packaged macOS Python has non-portable library references:\n"
+            "Packaged macOS native files have non-portable library references:\n"
             f"{formatted}"
         )
+
+
+def iter_macos_native_binaries(package_dir: Path) -> list[Path]:
+    candidates = {
+        python_path(package_dir),
+        *package_dir.rglob("*.dylib"),
+        *package_dir.rglob("*.so"),
+    }
+    return sorted(
+        path for path in candidates if path.is_file() and not path.is_symlink()
+    )
 
 
 def is_unsafe_macos_library_reference(path: str) -> bool:
