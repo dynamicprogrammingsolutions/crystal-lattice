@@ -13,6 +13,16 @@ if str(SCRIPTS_DIR) not in sys.path:
 import smoke_runtime_archive as runtime_smoke  # type: ignore[import-not-found]  # noqa: E402
 
 
+def test_otool_library_reference_parser_preserves_spaces_in_path() -> None:
+    assert (
+        runtime_smoke.parse_otool_library_reference(
+            "\t/private/tmp/runtime extraction/module.abi3.so "
+            "(compatibility version 0.0.0, current version 0.0.0)"
+        )
+        == "/private/tmp/runtime extraction/module.abi3.so"
+    )
+
+
 def test_macos_library_reference_classifier_allows_relative_and_system_paths() -> None:
     assert (
         runtime_smoke.is_unsafe_macos_library_reference(
@@ -122,7 +132,7 @@ def test_macos_native_validation_allows_absolute_self_install_id(
         binary = Path(command[-1])
         return (
             f"{binary}:\n"
-            f"\t/private/build/root/{binary.name} "
+            f"\t/private/build/root with spaces/{binary.name} "
             "(compatibility version 0.0.0, current version 0.0.0)\n"
             "\t/usr/lib/libSystem.B.dylib "
             "(compatibility version 1.0.0, current version 1.0.0)\n"

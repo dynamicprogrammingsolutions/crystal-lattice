@@ -205,7 +205,7 @@ def validate_portable_python_links(
         unsafe.extend(
             (binary, dependency)
             for dependency in (
-                line.strip().split(" ", 1)[0] for line in output.splitlines()[1:]
+                parse_otool_library_reference(line) for line in output.splitlines()[1:]
             )
             if Path(dependency).name != binary.name
             and is_unsafe_macos_library_reference(dependency)
@@ -230,6 +230,10 @@ def iter_macos_native_binaries(package_dir: Path) -> list[Path]:
     return sorted(
         path for path in candidates if path.is_file() and not path.is_symlink()
     )
+
+
+def parse_otool_library_reference(line: str) -> str:
+    return line.strip().rsplit(" (", 1)[0]
 
 
 def is_unsafe_macos_library_reference(path: str) -> bool:
