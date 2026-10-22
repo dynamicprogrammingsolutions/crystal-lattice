@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ## Install a specific version
 
 ```powershell
-$env:VERSION = "0.2.2"
+$env:VERSION = "0.2.3"
 try {
   irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex
 } finally {
