@@ -16,6 +16,9 @@ import {
 import {
   applyWalkthroughFinalPreview,
 } from "../../scripts/visual-assets/walkthrough-final-preview.mjs";
+import {
+  applyProductOverviewPreview,
+} from "../../scripts/visual-assets/product-overview-preview.mjs";
 
 const pagesDir = join(process.cwd(), "src", "content", "pages");
 
@@ -49,8 +52,10 @@ export function loadPage(name: string): PageDocument {
       })),
     })),
   };
-  return applyWalkthroughFinalPreview(
-    applyWalkthroughCandidatePreview(previewPage),
+  return applyProductOverviewPreview(
+    applyWalkthroughFinalPreview(
+      applyWalkthroughCandidatePreview(previewPage),
+    ),
   );
 }
 

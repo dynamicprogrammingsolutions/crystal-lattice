@@ -36,6 +36,11 @@ import vibeMessages from "./fixtures/websiteVibeMessages.json";
 
 const SESSION_SUMMARY = codingPlanFixture.session as SessionSummary;
 const SESSION_ID = SESSION_SUMMARY.session_id;
+const COMPOSER_SESSION_ID = "starlette-compatibility";
+const COMPOSER_SESSION_SUMMARY: SessionSummary = {
+  ...SESSION_SUMMARY,
+  session_id: COMPOSER_SESSION_ID,
+};
 const MESSAGES = codingPlanFixture.messages as IndexedMessage[];
 const SESSION_UI_SCHEMA = runtimeUiFixture.session_ui_schema;
 const SESSION_APPLICATION_UI_SCHEMA =
@@ -379,12 +384,16 @@ function createHarnessBackend(kind: string): AgentBackend {
               order: 10,
             },
           ],
-    listSessions: async () => [SESSION_SUMMARY],
+    listSessions: async () => [
+      kind === "composer-active" ? COMPOSER_SESSION_SUMMARY : SESSION_SUMMARY,
+    ],
     getSessionSummary: async () =>
       kind === "vibe"
         ? VIBE_SESSION_SUMMARY
         : kind === "system-template"
         ? SYSTEM_TEMPLATE_SUMMARY
+        : kind === "composer-active"
+        ? COMPOSER_SESSION_SUMMARY
         : SESSION_SUMMARY,
     getSessionAgent: async () => (kind === "vibe" ? "zai" : "codex-openai"),
     switchSessionAgent: async () => {},
@@ -783,12 +792,18 @@ export function MobileWebsiteVisualHarness({
                       configuredKind === "composer-active" ||
                       configuredKind === "system-template"
                     }
-                    sessionId={SESSION_ID}
+                    sessionId={
+                      configuredKind === "composer-active"
+                        ? COMPOSER_SESSION_ID
+                        : SESSION_ID
+                    }
                     sessionSummary={
                       configuredKind === "vibe"
                         ? VIBE_SESSION_SUMMARY
                         : configuredKind === "system-template"
                         ? SYSTEM_TEMPLATE_SUMMARY
+                        : configuredKind === "composer-active"
+                        ? COMPOSER_SESSION_SUMMARY
                         : SESSION_SUMMARY
                     }
                     cachedMessages={

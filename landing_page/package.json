@@ -17,6 +17,7 @@
     "visual-assets:inspect": "node scripts/visual-assets/cli.mjs inspect",
     "visual-assets:update": "node scripts/visual-assets/cli.mjs update",
     "review:homepage-visuals": "node scripts/build-homepage-visual-review.mjs",
+    "review:product-overview": "node scripts/visual-assets/product-overview-composition.mjs",
     "test:visual-assets": "node --test tests/visual-assets/*.test.mjs",
     "test:visual-session": "python -m pytest tests/visual-assets-python/test_session_fixture.py -q",
     "test:visual": "playwright test --config=playwright.visual.config.mjs",

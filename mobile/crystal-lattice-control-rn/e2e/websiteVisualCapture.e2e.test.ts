@@ -187,6 +187,10 @@ async function captureTheme(
     await waitFor(element(by.label("Open Composer actions")))
       .toBeVisible()
       .withTimeout(30000);
+    await persistWebsiteScreenshot(
+      `website-composer-overview-${theme}`,
+      `composer-overview-${theme}.png`
+    );
     await element(by.label("Open Composer actions")).tap();
     await waitFor(element(by.text("Soft cancel request")))
       .toBeVisible()

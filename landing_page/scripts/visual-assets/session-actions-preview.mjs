@@ -11,6 +11,10 @@ import {
   walkthroughFinalPreviewEnabled,
   walkthroughFinalSourceCopies,
 } from "./walkthrough-final-preview.mjs";
+import {
+  productOverviewPreviewEnabled,
+  productOverviewSourceCopies,
+} from "./product-overview-preview.mjs";
 import { createHash } from "node:crypto";
 export { vibePreviewAsset };
 
@@ -22,7 +26,8 @@ export const proofBatchPreviewRecipes = proofBatchRecipes.filter(
 export const proofBatchPreviewEnabled =
   process.env.CRYSTAL_PROOF_BATCH_PREVIEW === "1"
   || walkthroughCandidatePreviewEnabled
-  || walkthroughFinalPreviewEnabled;
+  || walkthroughFinalPreviewEnabled
+  || productOverviewPreviewEnabled;
 export function proofRecipeReady(recipe, landingRoot = fileURLToPath(new URL("../../", import.meta.url))) {
   const directory = path.join(landingRoot, recipe.candidateDirectory);
   const manifestFile = path.join(directory, "manifest.json");
@@ -148,6 +153,25 @@ export function sessionActionsPreviewIntegration() {
               fs.copyFileSync(
                 source,
                 path.join(finalDestination, asset.destination),
+              );
+            }
+          }
+          if (productOverviewPreviewEnabled) {
+            const overviewDestination = path.join(
+              fileURLToPath(dir),
+              "__preview/product-overview",
+            );
+            fs.mkdirSync(overviewDestination, { recursive: true });
+            for (const asset of productOverviewSourceCopies) {
+              const source = path.join(root, asset.source);
+              if (!fs.existsSync(source)) {
+                throw new Error(
+                  `Missing product overview source: ${asset.source}`,
+                );
+              }
+              fs.copyFileSync(
+                source,
+                path.join(overviewDestination, asset.destination),
               );
             }
           }

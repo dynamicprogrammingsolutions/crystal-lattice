@@ -1,0 +1,280 @@
+---
+import SectionShell from "./SectionShell.astro";
+import ThemedImage from "./ThemedImage.astro";
+import type { ProductOverviewSection } from "../content/pageTypes";
+
+interface Props {
+  section: ProductOverviewSection;
+}
+
+const { section } = Astro.props;
+const stories = section.stories ?? [];
+---
+
+<SectionShell
+  id={section.id}
+  border={false}
+  spacing="flush-top"
+  innerClass="product-overview-shell"
+>
+  <header class="overview-intro">
+    {section.eyebrow && <p class="overview-eyebrow">{section.eyebrow}</p>}
+    <h2>{section.title}</h2>
+    <p>{section.intro}</p>
+  </header>
+
+  <div class="overview-stories">
+    {stories.map((story, storyIndex) => (
+      <article
+        id={story.id}
+        class:list={["overview-story", storyIndex % 2 === 1 && "overview-story--reverse"]}
+        data-product-overview-story={story.id}
+      >
+        <div class="overview-copy">
+          <span class="overview-number" aria-hidden="true">{story.number}</span>
+          <h3>{story.title}</h3>
+          <p>{story.description}</p>
+          <p class="overview-detail">{story.detail}</p>
+        </div>
+
+        <div
+          class:list={[
+            "overview-media",
+            story.images.length > 1 && "overview-media--multiple",
+          ]}
+        >
+          {story.images.map((image) => (
+            <figure class="overview-figure" data-product-overview-image={image.id}>
+              <h4>{image.title}</h4>
+              <div class="overview-image-frame">
+                <ThemedImage
+                  src={image.src}
+                  srcDark={image.srcDark}
+                  srcCompact={image.srcCompact}
+                  srcCompactDark={image.srcCompactDark}
+                  width={image.width}
+                  height={image.height}
+                  widthCompact={image.widthCompact}
+                  heightCompact={image.heightCompact}
+                  compactMedia="(max-width: 760px)"
+                  alt={image.alt}
+                  loading={storyIndex === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                  fetchpriority={storyIndex === 0 ? "high" : "auto"}
+                />
+              </div>
+              <figcaption>{image.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </article>
+    ))}
+  </div>
+</SectionShell>
+
+<style>
+  .overview-intro {
+    max-width: 780px;
+    padding-bottom: 3.5rem;
+  }
+
+  .overview-eyebrow {
+    margin-bottom: 0.85rem;
+    color: var(--accent-soft);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .overview-intro h2 {
+    color: var(--fg);
+    font-size: clamp(2.15rem, 5vw, 4.1rem);
+    font-weight: 750;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+  }
+
+  .overview-intro > p:last-child {
+    margin-top: 1.35rem;
+    max-width: 720px;
+    color: var(--fg-3);
+    font-size: clamp(1rem, 1.7vw, 1.15rem);
+    line-height: 1.65;
+  }
+
+  .overview-stories {
+    border-top: 1px solid var(--line);
+  }
+
+  .overview-story {
+    display: grid;
+    grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.28fr);
+    gap: clamp(2.5rem, 6vw, 5.5rem);
+    align-items: center;
+    padding: clamp(4rem, 8vw, 7rem) 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .overview-story--reverse .overview-copy {
+    grid-column: 2;
+  }
+
+  .overview-story--reverse {
+    grid-template-columns: minmax(0, 1.28fr) minmax(250px, 0.72fr);
+  }
+
+  .overview-story--reverse .overview-media {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .overview-copy {
+    align-self: start;
+    padding-top: 0.35rem;
+  }
+
+  .overview-number {
+    display: block;
+    margin-bottom: 1.05rem;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .overview-copy h3 {
+    color: var(--fg);
+    font-size: clamp(2rem, 4vw, 3.35rem);
+    font-weight: 750;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+
+  .overview-copy p {
+    margin-top: 1.25rem;
+    color: var(--fg-3);
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+
+  .overview-copy .overview-detail {
+    color: var(--fg-4);
+  }
+
+  .overview-media {
+    min-width: 0;
+  }
+
+  .overview-media--multiple {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  #overview-workspace,
+  #overview-configuration {
+    grid-template-columns: 1fr;
+  }
+
+  #overview-workspace .overview-copy,
+  #overview-configuration .overview-copy {
+    max-width: 760px;
+  }
+
+  #overview-workspace .overview-copy,
+  #overview-workspace .overview-media,
+  #overview-configuration .overview-media {
+    grid-column: 1;
+  }
+
+  .overview-figure {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    background: var(--raised);
+  }
+
+  .overview-figure h4 {
+    margin-bottom: 0.85rem;
+    color: var(--fg-2);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .overview-image-frame {
+    display: flex;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 0.75rem;
+    background: var(--canvas);
+  }
+
+  .overview-image-frame :global(picture) {
+    display: contents;
+  }
+
+  .overview-image-frame :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .overview-figure figcaption {
+    margin-top: 0.9rem;
+    color: var(--fg-4);
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 900px) {
+    .overview-story {
+      grid-template-columns: minmax(210px, 0.65fr) minmax(0, 1.35fr);
+      gap: 2.25rem;
+    }
+
+    .overview-story--reverse {
+      grid-template-columns: minmax(0, 1.35fr) minmax(210px, 0.65fr);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .overview-intro {
+      padding-bottom: 2.5rem;
+    }
+
+    .overview-story,
+    .overview-story--reverse {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      padding: 3.75rem 0;
+    }
+
+    .overview-story--reverse .overview-copy,
+    .overview-story--reverse .overview-media,
+    #overview-workspace .overview-copy,
+    #overview-workspace .overview-media,
+    #overview-configuration .overview-media {
+      grid-column: 1;
+      grid-row: auto;
+    }
+
+    .overview-copy {
+      padding-top: 0;
+    }
+
+    .overview-media--multiple {
+      grid-template-columns: 1fr;
+    }
+
+    .overview-figure {
+      padding: 0.75rem;
+    }
+  }
+</style>

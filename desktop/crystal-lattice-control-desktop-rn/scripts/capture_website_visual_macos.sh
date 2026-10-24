@@ -59,5 +59,7 @@ capture_one agent-claude light
 capture_one agent-claude dark
 capture_one cross-device light
 capture_one cross-device dark
+capture_one workspace light
+capture_one workspace dark
 
 ls -lh "${output_dir}"/*.png

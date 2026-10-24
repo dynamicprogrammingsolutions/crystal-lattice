@@ -175,73 +175,41 @@ leave placeholders despite valid captures. Browser checks require the selected
 candidate images to load. Missing/stale candidates keep their authored
 placeholder.
 
-The H2 UI-walkthrough selection page uses another explicit local-only build:
+The active clear-product-overview candidate uses an explicit local-only build:
 
 ```bash
-CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn build
-CRYSTAL_WALKTHROUGH_CANDIDATE_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4182
+yarn review:product-overview
+CRYSTAL_PRODUCT_OVERVIEW_PREVIEW=1 yarn build
+CRYSTAL_PRODUCT_OVERVIEW_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
 ```
 
-This mode inserts the five candidate chapters after the hero, removes the
-model-family and session-workspace compact duplicates, and places candidate
-System-message, cross-device, and connection proof in their proposed
-Transparency, Work from anywhere, and Getting Started destinations. It copies
-only ignored candidate files into the ignored preview output. Normal authored
-content, reviewed public sources, and `public/` remain unchanged.
+This mode inserts the `productOverview` section after a plain-language hero.
+Four stories explain one agent session, persistent workspace organization,
+per-session configuration, and cross-device continuity. All stories remain in
+ordinary document order at every width; the section has no tabs, carousel,
+autoplay, swipe requirement, or hidden primary content.
 
-The source map and candidate-only copy contract live in
-`scripts/visual-assets/walkthrough-candidate-preview.mjs`. Missing candidate
-files fail the explicit preview build instead of silently rendering a stale or
-planning placeholder. Responsive Playwright review is gated by the same
-environment variable and writes screenshots under
-`artifacts/walkthrough-candidate-review/`.
+Each story owns direct visitor copy and one or two images. Every image has one
+interface-oriented title, one source set with optional compact variants,
+useful alt text, and a short caption describing the relationship to notice.
+The configuration story is the only current two-image comparison because the
+Agent picker and provider-contributed controls establish different necessary
+relationships.
 
-The selected H3 implementation uses the dedicated `productWalkthrough`
-section and a separate final-preview flag:
+The preview removes the unfinished six-highlight block. It reuses the
+configured-agent and provider-controls evidence inside the overview and places
+the Vibe workflow after Getting Started so its secondary role can be judged in
+context. Connection setup remains in Getting Started rather than becoming a
+fifth overview story.
 
-```bash
-node scripts/visual-assets/walkthrough-final-composition.mjs
-CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn build
-CRYSTAL_WALKTHROUGH_FINAL_PREVIEW=1 yarn preview --host 0.0.0.0 --port 4184
-```
-
-`productWalkthrough` owns a concise introduction and six labeled chapters:
-Compose, Messages, Session actions, Session settings, Workspace, and
-Connections. Each chapter separates the ordinary UI role from the Crystal
-Lattice distinction and owns one or more focused frames. A frame supplies its
-own visitor-facing title, caption, alt text, and wide/compact light/dark image
-set.
-
-The source markup is the complete chapter/frame reading order. Below the
-900-pixel walkthrough breakpoint, and whenever JavaScript is unavailable, all
-six chapters and thirteen frames remain visible as ordinary headings, figures,
-and captions. There are no mobile tabs, arrows, dots, hidden panels, or
-required swipe gestures.
-
-At wider sizes the custom element progressively applies an ARIA tab list to
-the chapter labels and displays one frame at a time. Image-edge arrows advance
-through the flattened frame sequence, chapter tabs jump to the first frame in
-a chapter, and per-chapter dots plus an `n of m` label expose local frame
-position. Arrow-key tab navigation, a polite live region, normal button
-keyboard behavior, no autoplay, and reduced-motion handling remain part of the
-contract.
-
-Only the screenshot owns a visible image frame. The frame title sits above it,
-and the caption below explains what a new visitor should notice rather than
-describing fixture provenance or review evidence. Wide review derivatives use
-one stable 1600 × 1000 stage. Compact derivatives are independently composed
-at 1000 pixels wide with focused natural heights from 400 to 1200 pixels so
-mobile can prioritize readable controls instead of shrinking a complete
-multi-window collage.
-
-The final preview removes the superseded model-family and session-workspace
-compact highlights but leaves later feature and Getting Started changes to
-their owning checkpoint. H2 and H3 flags are mutually exclusive. The final
-source map lives in
-`scripts/visual-assets/walkthrough-final-preview.mjs`; missing composed sources
-fail the explicit build. Responsive browser evidence is written under
-`artifacts/walkthrough-final-review/`, with ordinary viewport captures retained
-under `artifacts/walkthrough-responsive-review/` for direct visual inspection.
+The candidate source/copy contract lives in
+`scripts/visual-assets/product-overview-preview.mjs`; composition lives in
+`scripts/visual-assets/product-overview-composition.mjs`. Missing candidates
+fail the explicit build. Browser review is gated by
+`CRYSTAL_PRODUCT_OVERVIEW_PREVIEW=1` and writes screenshots under
+`artifacts/product-overview-review/`. Normal authored content, reviewed public
+sources, and `public/` remain unchanged until human approval and explicit
+source promotion.
 
 ## Current Section Types
 
@@ -255,7 +223,7 @@ include:
 - ordered getting-started workflows;
 - action guides;
 - feature/code showcases;
-- labeled product walkthroughs;
+- static screenshot-led product overviews;
 - screenshot galleries;
 - prompt and code examples;
 - mobile hero, feature, connection, and download sections;

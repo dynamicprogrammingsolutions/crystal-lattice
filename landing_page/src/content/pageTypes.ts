@@ -204,6 +204,35 @@ export type ProductWalkthroughSection = SectionBase<"productWalkthrough"> & {
   chapters: ProductWalkthroughChapter[];
 };
 
+export type ProductOverviewImage = {
+  id: string;
+  title: string;
+  caption: string;
+  src: string;
+  srcDark?: string;
+  srcCompact?: string;
+  srcCompactDark?: string;
+  alt: string;
+  width: number;
+  height: number;
+  widthCompact?: number;
+  heightCompact?: number;
+};
+
+export type ProductOverviewStory = {
+  id: string;
+  number: string;
+  title: string;
+  description: string;
+  detail: string;
+  images: ProductOverviewImage[];
+};
+
+export type ProductOverviewSection = SectionBase<"productOverview"> & {
+  intro: string;
+  stories: ProductOverviewStory[];
+};
+
 export type GettingStartedPlatform = {
   id: string;
   label: string;
@@ -361,6 +390,7 @@ export type PageSection =
   | FeatureMatrixSection
   | FeatureShowcaseSection
   | ProductWalkthroughSection
+  | ProductOverviewSection
   | GettingStartedSection
   | FeatureCodeShowcaseSection
   | ScreenshotGallerySection

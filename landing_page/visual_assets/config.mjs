@@ -76,6 +76,10 @@ const mobileWebsiteCapture = detoxCapture({
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-light.png",
     heroDark:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/hero-dark.png",
+    composerOverviewLight:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/composer-overview-light.png",
+    composerOverviewDark:
+      "mobile/crystal-lattice-control-rn/artifacts/website-visual/composer-overview-dark.png",
     providerSettingsLight:
       "mobile/crystal-lattice-control-rn/artifacts/website-visual/provider-settings-light.png",
     providerSettingsDark:

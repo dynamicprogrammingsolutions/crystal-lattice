@@ -43,7 +43,7 @@ requirements already owned by those subtasks.
   — product/capture improvements and accepted Plugin, Transparency, and Vibe
   evidence; remaining bookkeeping and ownership handoff must be reconciled.
 - `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
-  — approved bottom-up walkthrough, candidate selection, remaining features,
+  — approved clear-product-overview revision, remaining visual proof,
   Getting Started/mobile presentation, release cut, and final local homepage.
 - `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
   — AWS waitlist, real form, privacy integration, final integrated review,
@@ -56,7 +56,7 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | H3B layout accepted; focused content revision handed off | Human checkpoint H3C: approve direct copy and reduced visual sequence |
+| Publishable homepage | `019` | Four-story overview candidate complete; paused for review | Human checkpoint: approve the rendered overview and visual-purpose map |
 | Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H6 homepage approval and handoff |
 
 ## Execution plan
@@ -111,40 +111,24 @@ Agent work:
 Plugins/Transparency/another feature, Getting Started, documentation, later
 work, or the rejected set.
 
-#### H3 — Selected walkthrough in context
+#### H3 — Clear product overview in context
 
 Agent work:
 
-- prepare and review the responsive multi-frame storyboard before replacing
-  the preserved one-image implementation;
-- implement a progressively enhanced Desktop stage with labeled chapters,
-  focused frames, image-edge arrows, and no autoplay;
-- render all chapters and frames in ordinary vertical document order on
-  mobile, without requiring tabs, dots, arrows, or swipe to discover content;
-- use visitor-facing image titles and captions that explain what relationship
-  to inspect;
-- preserve clear scope from request to message, session, settings, workspace,
-  and the final client/runtime connection boundary;
-- verify that Compose explains a complete product and that the separate
-  Agent, provider-settings, and Plugins/Tools frames remain legible.
+- inventory every current placeholder and candidate by visitor question,
+  claim, real source, processing, destination, and disposition;
+- revise the hero around plain product language;
+- implement a static four-story overview covering one agent session,
+  persistent workspace organization, per-agent configuration, and
+  cross-device continuity;
+- create/select one-purpose real-product candidates with the existing
+  provider proof as their visual-quality benchmark;
+- bind the candidates to the actual responsive homepage without promoting
+  reviewed sources.
 
-**HUMAN JUDGMENT — H3A:** Approve the chapter/frame storyboard, draft
-visitor-facing captions, Desktop interaction, and mobile vertical reading
-order before component implementation.
-
-**HUMAN JUDGMENT — H3B:** Approve the implemented walkthrough's clarity,
-visual rhythm, legibility, responsiveness, and transition into the remaining
-feature sections.
-
-If H3B accepts the responsive layout but rejects selected content, subtask
-`019` records the focused correction without reopening the layout. The current
-H3B correction reduces promotional titles and redundant frames, replaces the
-Composer and Messages proof, enlarges Session settings, and routes Message
-metadata through the maintained `provider-usage-cost`
-`focusCalloutPipeline`.
-
-**HUMAN JUDGMENT — H3C:** Approve the focused content revision in the accepted
-responsive layout before H4 begins.
+**HUMAN JUDGMENT — OVERVIEW STORYBOARD:** Approve the rendered hero,
+four-story sequence, exact image purposes, proposed copy, and disposition of
+every current placeholder before source promotion and Getting Started work.
 
 #### H4 — Features, Getting Started, and Mobile access
 

@@ -8,6 +8,7 @@ import { actionGuideSection } from "../sections/actionGuide";
 import { featureMatrixSection } from "../sections/featureMatrix";
 import { featureShowcaseSection } from "../sections/featureShowcase";
 import { productWalkthroughSection } from "../sections/productWalkthrough";
+import { productOverviewSection } from "../sections/productOverview";
 import { gettingStartedSection } from "../sections/gettingStarted";
 import { featureCodeShowcaseSection } from "../sections/featureCodeShowcase";
 import { screenshotGallerySection } from "../sections/screenshotGallery";
@@ -28,6 +29,7 @@ export const sectionDefinitions: SectionDefinition[] = [
   featureMatrixSection,
   featureShowcaseSection,
   productWalkthroughSection,
+  productOverviewSection,
   gettingStartedSection,
   featureCodeShowcaseSection,
   screenshotGallerySection,

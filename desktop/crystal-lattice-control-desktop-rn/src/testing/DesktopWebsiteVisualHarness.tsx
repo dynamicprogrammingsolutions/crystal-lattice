@@ -10,6 +10,7 @@ import type {
   AgentBackend,
   AgentDescriptor,
   IndexedMessage,
+  SessionRequestStatus,
   SessionSummary,
   SessionPluginEntry,
 } from '@crystal-lattice/frontend-sdk';
@@ -95,7 +96,7 @@ const CLAUDE_TOOLS: SessionPluginEntry[] = [
   tool('claude_bash_tool', 'Bash'),
 ];
 
-const CONTINUITY_SESSION_ID = 'dc4efaec-9451-5981-a721-175a079860fb';
+const CONTINUITY_SESSION_ID = 'starlette-compatibility';
 const CONTINUITY_SUMMARY: SessionSummary = {
   session_id: CONTINUITY_SESSION_ID,
   modified: 1,
@@ -136,6 +137,68 @@ const CONTINUITY_MESSAGES: IndexedMessage[] = [
   },
 ];
 
+const WORKSPACE_SUMMARIES: SessionSummary[] = [
+  CONTINUITY_SUMMARY,
+  {
+    session_id: 'customer-signals',
+    modified: 20,
+    preview: 'Synthesize the latest customer interview notes.',
+    metadata: {
+      agent_id: 'claude-anthropic',
+      title: 'Customer signal synthesis',
+      subtitle: 'Interview themes and open questions',
+      status: 'todo',
+      pinned: false,
+    },
+    presentation: {
+      title: 'Customer signal synthesis',
+      subtitle: 'Interview themes and open questions',
+      meta: 'Status: To do',
+    },
+  },
+  {
+    session_id: 'release-brief',
+    modified: 10,
+    preview: 'Final launch brief ready for review.',
+    metadata: {
+      agent_id: 'codex-openai',
+      title: 'Release readiness brief',
+      subtitle: 'Decision, risks, owners, and next steps',
+      status: 'done',
+      pinned: false,
+    },
+    presentation: {
+      title: 'Release readiness brief',
+      subtitle: 'Decision, risks, owners, and next steps',
+      meta: 'Status: Done',
+    },
+  },
+];
+
+const WORKSPACE_REQUEST_STATUSES: Record<string, SessionRequestStatus> = {
+  [CONTINUITY_SESSION_ID]: {
+    session_id: CONTINUITY_SESSION_ID,
+    request_id: 'request-starlette-compatibility',
+    state: 'running',
+    basis: 'active_request',
+    session_modified: 30,
+  },
+  'customer-signals': {
+    session_id: 'customer-signals',
+    request_id: null,
+    state: 'not_started',
+    basis: 'session_tail',
+    session_modified: 20,
+  },
+  'release-brief': {
+    session_id: 'release-brief',
+    request_id: 'request-release-brief',
+    state: 'succeeded',
+    basis: 'session_tail',
+    session_modified: 10,
+  },
+};
+
 function createBackend(plugins: SessionPluginEntry[]): AgentBackend {
   return {
     kind: 'inProcess',
@@ -167,6 +230,16 @@ function createBackend(plugins: SessionPluginEntry[]): AgentBackend {
 }
 
 function createContinuityBackend(): AgentBackend {
+  const statusOptions = [
+    { value: 'todo', label: 'To do', icon: 'circle', tone: 'muted' },
+    {
+      value: 'in_progress',
+      label: 'In progress',
+      icon: 'clock',
+      tone: 'primary',
+    },
+    { value: 'done', label: 'Done', icon: 'check-circle', tone: 'success' },
+  ];
   return {
     kind: 'inProcess',
     getCapabilities: () => ({
@@ -181,8 +254,10 @@ function createContinuityBackend(): AgentBackend {
     listAgentDescriptors: async () => [AGENT_DESCRIPTORS[0]],
     getSessionAgent: async () => 'codex-openai',
     switchSessionAgent: async () => {},
-    listSessions: async () => [CONTINUITY_SUMMARY],
-    getSessionSummary: async () => CONTINUITY_SUMMARY,
+    listSessions: async () => WORKSPACE_SUMMARIES,
+    getSessionSummary: async (sessionId: string) =>
+      WORKSPACE_SUMMARIES.find(summary => summary.session_id === sessionId) ??
+      CONTINUITY_SUMMARY,
     listMessages: async () => ({
       messages: CONTINUITY_MESSAGES,
       cursorEventId: '0',
@@ -196,8 +271,107 @@ function createContinuityBackend(): AgentBackend {
     }),
     getSessionUiSchema: async () => [],
     getSessionApplicationUiSchema: async () => [],
-    listApplicationActions: async () => [],
-    listApplicationUiSchema: async () => [],
+    listApplicationActions: async () => [
+      {
+        plugin: 'session_status',
+        id: 'set_session_status',
+        label: 'Set session status',
+        inputs: {
+          session_id: { type: 'string', required: true },
+          status: { type: 'string', required: true },
+        },
+      },
+      {
+        plugin: 'session_pinned',
+        id: 'toggle_session_pinned',
+        label: 'Pin/unpin session',
+        inputs: { session_id: { type: 'string', required: true } },
+      },
+    ],
+    listApplicationUiSchema: async () => [
+      {
+        ui_type: 'session_list_field',
+        plugin: 'session_title',
+        id: 'session_title_field',
+        role: 'title',
+        data: 'metadata.title',
+        template: '{{data}}',
+        order: 0,
+      },
+      {
+        ui_type: 'session_list_field',
+        plugin: 'session_title',
+        id: 'session_subtitle_field',
+        role: 'subtitle',
+        data: 'metadata.subtitle',
+        template: '{{data}}',
+        order: 0,
+      },
+      {
+        ui_type: 'session_list_field',
+        plugin: 'session_status',
+        id: 'session_status_meta',
+        role: 'meta',
+        data: 'session_status_label',
+        template: 'Status: {{data}}',
+        order: 100,
+      },
+      {
+        ui_type: 'session_list_action',
+        plugin: 'session_pinned',
+        id: 'toggle_session_pinned',
+        label: 'Pin/unpin session',
+        icon: 'star',
+        order: 10,
+        action_id: 'toggle_session_pinned',
+        param_map: { session_id: '$session.session_id' },
+        dialog: { kind: 'none' },
+        rich_ui: {
+          kind: 'toggle',
+          value_path: 'metadata.pinned',
+          missing_value: false,
+          active_value: true,
+          default_pinned: false,
+          placements: ['header_trailing', 'actions_bar'],
+          appearance: {
+            active: { tone: 'highlight' },
+            inactive: { tone: 'muted' },
+          },
+        },
+      },
+      {
+        ui_type: 'session_list_action',
+        plugin: 'session_status',
+        id: 'set_session_status',
+        label: 'Set status',
+        icon: 'circle',
+        order: 30,
+        action_id: 'set_session_status',
+        param_map: {
+          session_id: '$session.session_id',
+          status: '$dialog.status',
+        },
+        dialog: {
+          kind: 'form',
+          inputs: [
+            {
+              name: 'status',
+              type: 'select',
+              label: 'Status',
+              options: statusOptions,
+            },
+          ],
+        },
+        rich_ui: {
+          kind: 'list',
+          value_path: 'metadata.status',
+          missing_value: 'todo',
+          input_name: 'status',
+          default_pinned: true,
+          options: statusOptions,
+        },
+      },
+    ],
     getSessionOverrides: async () => ({}),
     patchSessionOverrides: async () => {},
     deleteSessionOverride: async () => {},
@@ -207,6 +381,12 @@ function createContinuityBackend(): AgentBackend {
     getSelectedSessionSnapshot: async () => null,
     listSessionNotifications: async () => [],
     listApplicationNotifications: async () => [],
+    executeAction: async () => ({
+      status: 'ok',
+      plugin: 'website_visual',
+      action_id: 'noop',
+      result: {},
+    }),
   } as unknown as AgentBackend;
 }
 
@@ -246,6 +426,67 @@ function DesktopContinuityVisual({
             }}
             onUpdateCache={() => {}}
           />
+        </View>
+      </ApplicationPluginsProvider>
+    </ThemeProvider>
+  );
+}
+
+function DesktopWorkspaceVisual({
+  theme,
+}: {
+  theme: Theme;
+}): React.JSX.Element {
+  const backend = useMemo(() => createContinuityBackend(), []);
+  return (
+    <ThemeProvider theme={theme}>
+      <ApplicationPluginsProvider
+        backend={backend}
+        connectionId={CONNECTION_ID}
+      >
+        <View style={[styles.workspaceRoot, { backgroundColor: theme.background }]}>
+          <View style={styles.workspaceList}>
+            <SessionsPanel
+              focusedConnectionId={CONNECTION_ID}
+              focusedConnectionName="Local workspace"
+              connectionId={CONNECTION_ID}
+              backend={backend}
+              cachedSessions={WORKSPACE_SUMMARIES}
+              cachedLastLoadedAt={1}
+              isOnline
+              activeTabConnectionId={CONNECTION_ID}
+              activeTabSessionId={CONTINUITY_SESSION_ID}
+              requestStatuses={WORKSPACE_REQUEST_STATUSES}
+              localActionsEnabled={false}
+              onUpdateCache={() => {}}
+              onOpenSessionTab={() => {}}
+            />
+          </View>
+          <View style={styles.workspaceConversation}>
+            <ChatPane
+              isVisible
+              isActive
+              connectionId={CONNECTION_ID}
+              connectionName="Local workspace"
+              sessionId={CONTINUITY_SESSION_ID}
+              sessionSummary={CONTINUITY_SUMMARY}
+              title="Plan a Starlette compatibility fix"
+              backend={backend}
+              cachedEntry={{
+                connectionId: CONNECTION_ID,
+                sessionId: CONTINUITY_SESSION_ID,
+                messages: CONTINUITY_MESSAGES,
+                cursorEventId: '0',
+                activeRequestId: 'request-starlette-compatibility',
+                lastLoadedAt: 1,
+                rangeStartText: '-50',
+                rangeEndText: '',
+                composeText: '',
+                scrollAnchor: null,
+              }}
+              onUpdateCache={() => {}}
+            />
+          </View>
         </View>
       </ApplicationPluginsProvider>
     </ThemeProvider>
@@ -413,6 +654,9 @@ export function DesktopWebsiteVisualHarness({
   if (websiteVisualKind === 'cross-device') {
     return <DesktopContinuityVisual theme={theme} />;
   }
+  if (websiteVisualKind === 'workspace') {
+    return <DesktopWorkspaceVisual theme={theme} />;
+  }
   const selectedAgentId = claude ? 'claude-anthropic' : 'codex-openai';
 
   return (
@@ -452,6 +696,18 @@ const styles = StyleSheet.create({
     width: 1000,
   },
   continuityRoot: {
+    flex: 1,
+  },
+  workspaceRoot: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  workspaceList: {
+    borderRightColor: '#d9dde5',
+    borderRightWidth: 1,
+    width: 760,
+  },
+  workspaceConversation: {
     flex: 1,
   },
 });
