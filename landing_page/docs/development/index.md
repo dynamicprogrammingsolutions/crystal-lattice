@@ -10,6 +10,9 @@
 - [Homepage positioning and visual decisions](homepage-positioning-and-visual-decisions.md):
   selected homepage values, retained copy/visual alternatives, platform
   download patterns, proof concepts, and revision rationale.
+- [Homepage first-user release](homepage-first-user-release/README.md):
+  reviewable page brief, complete opening-copy alternatives, visual plan, and
+  claim-to-image plan for the next homepage candidate.
 
 ## Product Communication
 

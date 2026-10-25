@@ -3,7 +3,7 @@
 Parent Task:
 `tasks/20260930-homepage-getting-started-and-waitlist/000-main.md`
 
-This is the coordination umbrella for the homepage redesign, UI walkthrough,
+This is the coordination umbrella for the homepage redesign, product overview,
 mobile waitlist, and publication. It determines execution order, records
 human-review gates, and tracks completion across the implementation subtasks.
 It does not own product code, website components, captures, AWS resources, or
@@ -12,7 +12,7 @@ requirements already owned by those subtasks.
 ## Requirements checklist
 
 - [ ] The umbrella keeps one current, human-readable sequence from the
-      completed homepage foundation through the publishable UI walkthrough,
+      completed homepage foundation through the publishable product overview,
       real waitlist integration, production approval, publication, and
       post-publication verification.
 - [ ] Every implementation outcome remains owned by its dedicated task. This
@@ -43,8 +43,9 @@ requirements already owned by those subtasks.
   — product/capture improvements and accepted Plugin, Transparency, and Vibe
   evidence; remaining bookkeeping and ownership handoff must be reconciled.
 - `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
-  — approved clear-product-overview revision, remaining visual proof,
-  Getting Started/mobile presentation, release cut, and final local homepage.
+  — approved brief/copy/visual/image review workflow, selected product
+  overview, remaining visual proof, Getting Started/mobile presentation,
+  release cut, and final local homepage.
 - `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
   — AWS waitlist, real form, privacy integration, final integrated review,
   production publication, and production verification.
@@ -56,8 +57,8 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | Four-story overview candidate complete; paused for review | Human checkpoint: approve the rendered overview and visual-purpose map |
-| Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H6 homepage approval and handoff |
+| Publishable homepage | `019` | Candidate A committed; durable brief/copy/visual/image package ready for review | Human checkpoints H1–H4: approve terminology, complete copy direction, visual plan, and image shortlist |
+| Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H8 homepage approval and handoff |
 
 ## Execution plan
 
@@ -82,70 +83,82 @@ No additional visual direction is selected in this phase.
 
 ### Phase B — Build the publishable homepage
 
-#### H1 — Candidate storyboard
+Candidate A and the earlier walkthrough remain in Git as comparison evidence.
+They do not define the next implementation structure.
+
+#### H1 — Brief and terminology
 
 Agent work:
 
-- verify public claims for composer cancellation/resend, message metadata,
-  action scope, session settings/plugins, request status, and connections;
-- prepare the bottom-up Compose → Messages → Session actions → Session
-  settings → Workspace storyboard;
-- describe the fourteen candidate sources, their copy, composition,
-  dependencies, and proposed destinations.
+- define the page role, primary visitor, visitor questions, concept ownership,
+  terminology, claim boundaries, and information order;
+- reconcile parent/specification requirements that conflict with the revised
+  direction.
 
-**HUMAN JUDGMENT:** Approve the teaching order, claims, screenshot
-responsibilities, and candidate destinations before new capture production.
+**HUMAN JUDGMENT:** Approve or correct the brief and terminology before
+selecting public copy.
 
-#### H2 — Candidate selection on the real page
+#### H2 — Complete opening copy
 
 Agent work:
 
-- implement approved product/capture prerequisites on `develop`;
-- verify them and reconcile only website-used changes to `main`;
-- create viable responsive candidates through real product boundaries;
-- bind them temporarily to the actual homepage;
-- inspect desktop/phone and light/dark states with Playwright and
-  `view_image`.
+- prepare complete alternative hero/overview directions rather than isolated
+  headline fragments;
+- include all headings, paragraphs, figure titles, captions, actions, and
+  metadata in scope.
 
-**HUMAN JUDGMENT:** Select what belongs in the introductory walkthrough,
-Plugins/Transparency/another feature, Getting Started, documentation, later
-work, or the rejected set.
+**HUMAN JUDGMENT:** Select or revise one complete direction.
 
-#### H3 — Clear product overview in context
+#### H3 — Visual plan
 
 Agent work:
 
-- inventory every current placeholder and candidate by visitor question,
-  claim, real source, processing, destination, and disposition;
-- revise the hero around plain product language;
-- implement a static four-story overview covering one agent session,
-  persistent workspace organization, per-agent configuration, and
-  cross-device continuity;
-- create/select one-purpose real-product candidates with the existing
-  provider proof as their visual-quality benchmark;
-- bind the candidates to the actual responsive homepage without promoting
-  reviewed sources.
+- map the selected copy to intentional desktop and mobile compositions;
+- define section rhythm, text measures, figure containment, frames,
+  magnification targets, responsive behavior, and accessibility.
 
-**HUMAN JUDGMENT — OVERVIEW STORYBOARD:** Approve the rendered hero,
-four-story sequence, exact image purposes, proposed copy, and disposition of
-every current placeholder before source promotion and Getting Started work.
+**HUMAN JUDGMENT:** Approve the visual system independently from copy.
 
-#### H4 — Features, Getting Started, and Mobile access
+#### H4 — Image shortlist
 
 Agent work:
 
-- finalize Vibe, Work from anywhere, Plugins, and Transparency;
-- complete the truthful Desktop/mobile continuity proof;
-- complete the six Getting Started steps;
-- group the mobile app and mobile connection steps;
+- map every retained image to one claim, real source, capture geometry,
+  rendered-size target, title, caption, and disposition;
+- remove redundant slots rather than filling them;
+- specify the compact profile capture and separately framed Desktop/mobile
+  continuity sources.
+
+**HUMAN JUDGMENT:** Approve the exact screenshot shortlist and capture
+treatments before new implementation/capture work.
+
+#### H5 — Opening candidate in context
+
+Agent work:
+
+- implement the approved opt-in opening candidate;
+- recapture/select the approved real-product sources without promotion;
+- bind them to the actual page;
+- review light/dark desktop, tablet, and phone compositions.
+
+**HUMAN JUDGMENT:** Approve the rendered opening copy, figures, visual rhythm,
+and image readability before normal-content integration.
+
+#### H6 — First-user flow
+
+Agent work:
+
+- integrate approved opening content and visual sources;
+- complete the six Getting Started steps and Desktop/mobile connection proof;
+- group Mobile access;
 - explain local discovery, address/port, and bridge in visitor order;
 - keep the Desktop path local by default and explain trusted-network exposure
   when LAN discovery is enabled.
 
-**HUMAN JUDGMENT:** Approve feature proof, captions, release availability,
-downloads, connection concepts, and network-security language.
+**HUMAN JUDGMENT:** Approve the complete overview, Getting Started path,
+availability wording, downloads, and connection/security language.
 
-#### H5 — First-release content cut
+#### H7 — First-release content cut
 
 Agent work:
 
@@ -161,7 +174,7 @@ Agent work:
 **HUMAN JUDGMENT:** Approve every retained, moved, deferred, and rejected
 advanced section.
 
-#### H6 — Local homepage ready for waitlist integration
+#### H8 — Local homepage ready for waitlist integration
 
 Agent work:
 
@@ -175,12 +188,12 @@ Agent work:
 **HUMAN JUDGMENT:** Approve the complete local homepage as publishable apart
 from the real waitlist form.
 
-After H6, mark the applicable `019` requirements and checklist complete and
+After H8, mark the applicable `019` requirements and checklist complete and
 hand the reviewed local site to `020`. Do not publish yet.
 
 ### Phase C — Integrate the real waitlist and publish
 
-#### H7 — Waitlist policy and AWS deployment readiness
+#### H9 — Waitlist policy and AWS deployment readiness
 
 Agent work:
 
@@ -196,7 +209,7 @@ access action that cannot be safely automated.
 
 **HUMAN — MANDATORY:** Explicitly approve AWS deployment.
 
-#### H8 — Integrated website review
+#### H10 — Integrated website review
 
 Agent work:
 
@@ -209,7 +222,7 @@ Agent work:
 **HUMAN JUDGMENT:** Approve the form behavior, consent presentation,
 confirmation message, privacy wording, and complete integrated page.
 
-#### H9 — Production publication
+#### H11 — Production publication
 
 **HUMAN — MANDATORY:** Explicitly approve production website publication.
 
@@ -229,9 +242,9 @@ Agent work after approval:
 - **Decision:** child requirements and evidence remain authoritative when this
   summary and a child file differ; reconcile the tracker immediately rather
   than changing child scope silently.
-- **Decision:** execution follows explicit H1–H9 gates, not filename ordering
+- **Decision:** execution follows explicit H1–H11 gates, not filename ordering
   alone.
-- **Decision:** H1–H6 produce the approved local homepage; H7–H9 add the real
+- **Decision:** H1–H8 produce the approved local homepage; H9–H11 add the real
   waitlist and produce/verify the public website.
 - **Decision:** candidate production is deliberately broader than public
   selection.
@@ -260,26 +273,29 @@ Agent work after approval:
 - [x] Complete structural prototype `010`.
 - [x] Complete content/assets/layout baseline `015`.
 - [x] Reconcile completed/deferred `018` ownership with `019`.
-- [x] **AGENT:** Prepare H1 candidate storyboard.
-- [x] **HUMAN JUDGMENT — H1:** Approve candidate storyboard.
-- [x] **AGENT:** Produce and bind the H2 candidate set on the actual page.
-- [x] **HUMAN JUDGMENT — H2:** Select candidate destinations.
-- [x] **AGENT:** Implement the selected walkthrough.
-- [ ] **HUMAN JUDGMENT — H3:** Approve the walkthrough in context.
-- [ ] **AGENT:** Complete features, Getting Started, and Mobile access.
-- [ ] **HUMAN JUDGMENT — H4:** Approve features and setup flow.
-- [ ] **AGENT:** Apply the first-release content cut.
-- [ ] **HUMAN JUDGMENT — H5:** Approve retained/deferred advanced content.
-- [ ] **AGENT:** Complete homepage verification and source promotion.
-- [ ] **HUMAN JUDGMENT — H6:** Approve the local homepage for waitlist
+- [x] **AGENT:** Commit Candidate A and create the durable brief/copy/visual/
+      image review package.
+- [ ] **HUMAN JUDGMENT — H1:** Approve the brief and terminology.
+- [ ] **HUMAN JUDGMENT — H2:** Select or revise one complete copy direction.
+- [ ] **HUMAN JUDGMENT — H3:** Approve the visual plan.
+- [ ] **HUMAN JUDGMENT — H4:** Approve the image shortlist and treatments.
+- [ ] **AGENT:** Implement and capture the H5 opening candidate.
+- [ ] **HUMAN JUDGMENT — H5:** Approve the opening in context.
+- [ ] **AGENT:** Complete the H6 first-user flow.
+- [ ] **HUMAN JUDGMENT — H6:** Approve overview, Getting Started, availability,
+      and connection language.
+- [ ] **AGENT:** Apply the H7 first-release content cut.
+- [ ] **HUMAN JUDGMENT — H7:** Approve retained/deferred advanced content.
+- [ ] **AGENT:** Complete H8 homepage verification and source promotion.
+- [ ] **HUMAN JUDGMENT — H8:** Approve the local homepage for waitlist
       integration.
 - [ ] **AGENT:** Prepare the waitlist service and deployment evidence.
-- [ ] **HUMAN JUDGMENT — H7:** Approve policy decisions.
-- [ ] **HUMAN — MANDATORY — H7:** Complete required account-owner actions and
+- [ ] **HUMAN JUDGMENT — H9:** Approve policy decisions.
+- [ ] **HUMAN — MANDATORY — H9:** Complete required account-owner actions and
       approve AWS deployment.
 - [ ] **AGENT:** Deploy, verify, and integrate the waitlist.
-- [ ] **HUMAN JUDGMENT — H8:** Approve the complete integrated website.
-- [ ] **HUMAN — MANDATORY — H9:** Approve production publication.
+- [ ] **HUMAN JUDGMENT — H10:** Approve the complete integrated website.
+- [ ] **HUMAN — MANDATORY — H11:** Approve production publication.
 - [ ] **AGENT:** Publish, monitor, verify production, and remove test records.
 - [ ] **AGENT:** Complete `019`, `020`, this tracker, and the parent task with
       evidence.
@@ -294,12 +310,12 @@ Agent work after approval:
 - Child-ownership requirement: implementation evidence appears in `018`,
   `019`, or `020`; this file contains status and links rather than duplicate
   hidden requirements.
-- Homepage-ready boundary: H6 evidence proves the complete local page through
+- Homepage-ready boundary: H8 evidence proves the complete local page through
   production-like browser, accessibility, visual, download, security-copy,
   source-freshness, and private-data checks.
-- Waitlist-ready boundary: H8 evidence crosses the real browser → public HTTPS
+- Waitlist-ready boundary: H10 evidence crosses the real browser → public HTTPS
   endpoint → storage → SES confirmation → withdrawal path.
-- Publication boundary: H9 includes explicit human approval, successful
+- Publication boundary: H11 includes explicit human approval, successful
   protected deployment, anonymous production checks, authenticated state
   verification, and controlled-test cleanup.
 - Completion boundary: all parent requirements map to completed child
@@ -379,3 +395,10 @@ Agent work after approval:
   contextual Desktop Message/Session actions, larger Session settings, no
   Desktop focused-connection frame, and Message metadata built through the
   maintained `provider-usage-cost` `focusCalloutPipeline`. H4 remains blocked.
+- 2026-10-23: Candidate A's static four-story replacement was committed as
+  `96e08249`, then rejected as the implementation baseline after contextual
+  review of terminology, image magnification, profile readability, figure
+  separation, text measures, and device framing. The active sequence was
+  revised to H1–H11. Subtask `019` is now paused at the new H1–H4 brief, copy,
+  visual-plan, and image-shortlist decisions; all implementation, source
+  promotion, waitlist, AWS, and publication steps remain blocked.

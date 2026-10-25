@@ -8,14 +8,14 @@ confirmation and integrate its real form into the mobile-download step.
 
 ## Requirements checklist
 
-- [ ] The homepage primary sequence is: concise hero, an introductory
-      screenshot-led UI walkthrough, the remaining visual product highlights,
-      then a six-step getting-started section.
-- [ ] The walkthrough and highlights together preserve the six approved
-      themes—one workspace for model-family-oriented agents, replaceable
-      plugin surfaces, transparent and open-source operation, work from
-      anywhere, adaptability beyond development, and durable session
-      workspaces—without forcing every theme to remain a separate card.
+- [ ] The homepage primary sequence is: concise hero, a coherent
+      screenshot-led product overview, then a six-step getting-started
+      section.
+- [ ] The selected overview and secondary routes preserve the approved
+      values—one workspace across model-family-oriented profiles, replaceable
+      plugin surfaces, transparent and open-source operation, cross-device
+      continuity, adaptability beyond development, and durable session
+      workspaces—without requiring a fixed number of cards or visuals.
 - [ ] Public copy clearly distinguishes Crystal Lattice configured-agent
       profiles and model-family-oriented defaults from official upstream
       applications such as Claude Code, Codex, Gemini, Kimi, or other products.
@@ -47,7 +47,7 @@ confirmation and integrate its real form into the mobile-download step.
 ## Workstreams and ownership
 
 - `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
-  is the coordination umbrella. It tracks the approved order, H1–H9 human
+  is the coordination umbrella. It tracks the approved order, H1–H11 human
   gates, current completion, and handoff across the implementation subtasks
   without owning their product requirements.
 - `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
@@ -78,10 +78,10 @@ confirmation and integrate its real form into the mobile-download step.
 
 ## Approved shared website checkpoint — October 7, 2026
 
-The group 1 outcome includes the published complete user website with all
-six reviewed visual stories, three public compatibility views and rethought
-owner-approved launch positioning. The existing product evidence supports
-that bounded review; broad market research remains later.
+The group 1 outcome includes the published complete user website with the
+owner-selected reviewed visual set, three public compatibility views and
+rethought owner-approved launch positioning. The existing product evidence
+supports that bounded review; broad market research remains later.
 
 Service/form work in 020 stays independent of final copy/proof readiness.
 Before the single integrated publishing push, website 030 supplies its accepted
@@ -179,7 +179,7 @@ confirmation and withdrawal behavior, and adds the actual form to the mobile-dow
 step. This keeps the public form contract driven by a real backend rather than
 a placeholder endpoint. The final integrated site is reviewed again before
 one protected production publication. Include website 030's accepted launch
-positioning, all six 018 visual stories and all three compatibility views in
+positioning, 019's selected proof set and all three compatibility views in
 that candidate. After the same push, run both 030's live website checks and
 020's production form checks.
 
@@ -282,9 +282,9 @@ repository files, or application logs.
 ### Requirement verification
 
 - Homepage structure and product-value requirements: production-built HTML
-  plus content-contract and responsive browser tests must show the exact
-  ordered hero, UI walkthrough, remaining highlights, and Getting Started,
-  with all six approved themes represented in their selected locations.
+  plus content-contract and responsive browser tests must show the selected
+  hero, product overview, Getting Started, and secondary routes, with the
+  approved product values represented in their selected locations.
 - Availability requirement: maintained content tests and live-link checks
   must prove current CLI/macOS links and non-interactive coming-soon states
   without implying unavailable Desktop or store releases exist.

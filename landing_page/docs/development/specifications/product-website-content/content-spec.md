@@ -13,10 +13,10 @@ the currently deployed website confusing, inaccurate, or visibly unfinished.
 
 ## First User Website Release
 
-The first complete user website includes owner-reviewed launch positioning,
-all six approved homepage visual stories, a usable first-success path and
-three public compatibility views: product/application features, provider
-support and model-family tools.
+The first complete user website includes owner-reviewed launch positioning, a
+bounded set of reviewed homepage visuals selected for distinct explanatory
+purposes, a usable first-success path and three public compatibility views:
+product/application features, provider support and model-family tools.
 
 Use the accepted canonical website projection and real reviewed product
 proof. Preserve material capability states, limitations, default/optional
@@ -39,7 +39,10 @@ and their respective real production checks.
 Until an owner-approved product-based content decision replaces this baseline,
 the website should present Crystal Lattice primarily as a coding-agent product.
 The first-release positioning pass can propose a revised direction without
-waiting for the later market-research program.
+waiting for the later market-research program. It does not need to preserve a
+fixed number of feature cards or visual stories when a smaller set explains
+the product more clearly and retains the approved values through copy, proof,
+or a focused route.
 
 Crystal Lattice runs as an ordinary process on the user's computer in the
 working directory where the agent should operate. Desktop, mobile, terminal,
@@ -86,7 +89,10 @@ They may value:
 - control over prompts, tools, and provider-native features.
 
 The website should make these capabilities understandable without requiring
-the visitor to know internal plugin terminology first.
+the visitor to know internal plugin terminology first. Primary product copy
+must not rely on **AI agent** as the visitor's category term; introduce an
+approved ordinary-language product description before interface labels or
+technical agent terminology.
 
 ### Plugin Users and Authors
 
@@ -318,9 +324,9 @@ The public website must not render:
 
 The website uses progressive releases:
 
-1. a complete early-user release with bounded owner-reviewed positioning,
-   all six visual stories and three public compatibility views based on
-   current product truth;
+1. a complete early-user release with bounded owner-reviewed positioning, a
+   selected set of purpose-specific visual proof and three public
+   compatibility views based on current product truth;
 2. a first update based on built-in feature, search, community, and competitor
    evidence;
 3. an update based on early-user and remote-access findings;
