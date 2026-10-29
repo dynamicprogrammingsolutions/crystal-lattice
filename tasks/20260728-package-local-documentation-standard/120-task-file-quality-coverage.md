@@ -367,6 +367,25 @@ directories and connections; the matrix command set stays unchanged.
   fallout, verified to fail with the fix stashed too — triage
   separately.
 
+- October 11, 2026 (post-fix baseline launched): `b1v3-gpt6-r2` —
+  full-matrix retest of the promoted b1v3 bundle under the corrected
+  framework (process isolation, judge-JSON retry, ambient-repo cache
+  fix), same invocation pattern as `b1v3-gpt6-r1` but WITHOUT
+  `--max-concurrent` (task 150 landed; two-agent default parallelism).
+  Started October 11 ~19:40 UTC (pid 88364), log
+  `/tmp/b1v3-gpt6-r2.log`. Expected: full re-run (the
+  `persistent_cache_enabled: false` config change and the
+  workspace-fingerprint fix rotated all task-guidance cache keys);
+  wall-clock should drop from ~9 h toward ~5 h at two-way
+  parallelism. Known expected finding: the gpt-6-luna tg08/tg10
+  producer regression (clarifying question, no task files) should
+  reproduce — kept as an evaluation finding so r1 vs r2 isolates the
+  framework fixes. Follow-ups after completion: cross-label cache
+  probe (one-scenario planning slice under a new label, checking
+  cross-invocation cache hits — closes the open planning-key question
+  from the October 10 diagnosis), then the approved evaluation-only
+  `task-mechanics-b1v4` candidate run.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
