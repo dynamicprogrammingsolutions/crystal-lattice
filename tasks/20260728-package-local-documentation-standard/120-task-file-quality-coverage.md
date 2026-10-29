@@ -386,6 +386,23 @@ directories and connections; the matrix command set stays unchanged.
   from the October 10 diagnosis), then the approved evaluation-only
   `task-mechanics-b1v4` candidate run.
 
+- October 11, 2026 (pre-existing test failures triaged, all green):
+  the three failures flagged during task 150 verification decompose
+  into (1) `test_frozen_candidate_datasets_are_complete` — pure
+  invocation-cwd artifact (the freeze script builds a repo-root-
+  relative path); passes from the repo root; and (2)+(3) the doc-
+  standard gpt preflight ×2 — a REAL product gap the preflight
+  caught: the gpt-6-luna model switch (`29a367f0`) added the
+  instruction files and the task-guidance runtime mapping but missed
+  `default_config/config.json`'s `codex_developer_messages` table,
+  so instruction composition from the DEFAULT config fell back to a
+  wrong mapping for gpt-6-luna. Fixed by adding the mapping
+  (commit `e2abd059`); 41/41 doc-standard tests pass. Task-guidance
+  evaluation runs were NEVER affected (their gpt.json mapping was
+  updated by the switch commit — verified line 41 covers
+  gpt-6-luna), so b1v3-gpt6-r1 and the in-flight r2 remain valid.
+  Full maintainer suite from the repo root: 189 passed, 0 failed.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
