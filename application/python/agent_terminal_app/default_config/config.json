@@ -62,6 +62,10 @@
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-luna/instructions_default.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-5\\.6-sol$",
           "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
         },
