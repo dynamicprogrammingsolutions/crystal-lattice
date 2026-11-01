@@ -403,6 +403,45 @@ directories and connections; the matrix command set stays unchanged.
   gpt-6-luna), so b1v3-gpt6-r1 and the in-flight r2 remain valid.
   Full maintainer suite from the repo root: 189 passed, 0 failed.
 
+- November 1, 2026 (b1v3-gpt6-r2 result): 242 cases — 225 ok,
+  9 failed, 8 skipped. Failure classes: (1) the two expected
+  gpt-6-luna producer regressions (tg09/tg10 gpt-high, no task
+  files); (2) THREE transient provider blips (OpenAI
+  401/"Too many concurrent requests" ×2 on handoff-plan tg01 omit
+  gpt-high and from-plan tg04 gpt-high; z.ai read timeout on
+  from-plan tg03 glm-strip) — new noise class, plausibly related to
+  two-way concurrency; candidates for one-off re-runs; (3) three
+  tg01 omit-plan instructed-omission violations (glm-max-preserve,
+  glm-max-strip, gpt-high) — same stable model-behavior class as r1;
+  (4) one NEW framework gap: the file-fidelity judge returned valid
+  JSON with an off-vocabulary grade ('appropriate') and the
+  normalizer crashed the case instead of retrying — FIXED by
+  extending the judge retry to the full format contract
+  (`105ff18e`, parse+normalize+validate inside the retried callable;
+  regression test added; same treatment for readability). Framework
+  verification at scale: zero overlay conflicts, zero isolation
+  failures, zero malformed-JSON judge failures across 242 uncapped
+  cases. r1-vs-r2 comparison: identical ok count (225); r1's three
+  malformed-JSON failures gone (retry working); producer regression
+  reproduced identically; skip chains differ only through which
+  parents failed.
+- November 1, 2026 (cross-invocation cache probe closed): probes
+  `d-cache-probe-r1/r2` (planning-session only, tg01, no --fresh).
+  probe-r1 MISSED r2's entries (one commit between);
+  probe-r2 HIT BOTH of probe-r1's planning entries — cross-
+  invocation cache reuse WORKS within a code state. Conclusion: the
+  execution cache is correct and stable per code state; the residual
+  rotation across commits (some fingerprint component still tracks
+  repo HEAD/working state through a path the `_git_root` fix did not
+  cover) remains open as an EFFICIENCY item only — fresh
+  re-execution is always valid, and bundle changes rotate identities
+  regardless. Deferred; not blocking any queued run.
+- November 1, 2026 (b1v4 candidate launched): approved
+  evaluation-only run of the `task-mechanics-b1v4` candidate bundle,
+  label `b1v4-gpt6-r1`, full matrix, uncapped, via
+  AGENT_EVAL_GUIDANCE_BUNDLE=.../candidates/task-mechanics-b1v4.
+  Do NOT promote over current (b1v3) on its results alone.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
