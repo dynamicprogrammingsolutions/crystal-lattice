@@ -1019,14 +1019,36 @@ def execute_plan_content_assessment(
 JUDGE_JSON_RETRIES = 2
 
 
+def _parse_fidelity_contract(text, *, scenario):
+    """Full fidelity judge contract: JSON, normalization, validation."""
+
+    parsed = normalize_file_fidelity(parse_file_fidelity(text), scenario=scenario)
+    validate_file_fidelity(parsed)
+    return parsed
+
+
+def _parse_readability_contract(text, *, scenario, record):
+    """Full readability judge contract: JSON, normalization, validation."""
+
+    parsed = normalize_file_readability(
+        parse_file_readability(text),
+        scenario=scenario,
+        record=record,
+    )
+    validate_file_readability(parsed)
+    return parsed
+
+
 def _parse_judge_response(run, parse, rerun):
     """Parse a judge JSON response, retrying malformed output.
 
-    A judge response that still fails JSON parsing (after the parsers'
-    own fence/brace fallback) is re-requested up to ``JUDGE_JSON_RETRIES``
-    times within the same logical assessment; re-runs bypass the cache
-    read so the same malformed response is not re-served, and a
-    successful final retry becomes the cached one.
+    A judge response that still fails the format contract — JSON
+    parsing (after the parsers' own fence/brace fallback) or the
+    downstream normalization such as off-vocabulary grades — is
+    re-requested up to ``JUDGE_JSON_RETRIES`` times within the same
+    logical assessment; re-runs bypass the cache read so the same
+    invalid response is not re-served, and a successful final retry
+    becomes the cached one.
     """
 
     current = run
@@ -1034,7 +1056,7 @@ def _parse_judge_response(run, parse, rerun):
         value = _require_assessment_value(current)
         try:
             return parse(value.response), current
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError):
             if retry == JUDGE_JSON_RETRIES:
                 raise
         current = rerun()[0]
@@ -1077,7 +1099,7 @@ def execute_file_fidelity_assessment(
         for run in runs:
             judge_parsed, run = _parse_judge_response(
                 run,
-                parse_file_fidelity,
+                lambda text: _parse_fidelity_contract(text, scenario=scenario),
                 lambda: harness.run_assessment(
                     test_id=(
                         f"task-guidance-file-fidelity-{scenario.scenario_id}-"
@@ -1088,11 +1110,7 @@ def execute_file_fidelity_assessment(
                     fresh=True,
                 ),
             )
-            parsed = normalize_file_fidelity(
-                judge_parsed,
-                scenario=scenario,
-            )
-            validate_file_fidelity(parsed)
+            parsed = judge_parsed
             record = file_fidelity_record(scenario, subject, parsed)
             run.record(STAGES["file-fidelity-assessment"].record, record)
             run.record(
@@ -1143,7 +1161,11 @@ def execute_file_readability_assessment(
         for run in runs:
             judge_parsed, run = _parse_judge_response(
                 run,
-                parse_file_readability,
+                lambda text: _parse_readability_contract(
+                    text,
+                    scenario=scenario,
+                    record=subject.record,
+                ),
                 lambda: harness.run_assessment(
                     test_id=(
                         f"task-guidance-file-readability-{scenario.scenario_id}-"
@@ -1154,12 +1176,7 @@ def execute_file_readability_assessment(
                     fresh=True,
                 ),
             )
-            parsed = normalize_file_readability(
-                judge_parsed,
-                scenario=scenario,
-                record=subject.record,
-            )
-            validate_file_readability(parsed)
+            parsed = judge_parsed
             record = file_readability_record(scenario, subject, parsed)
             run.record(STAGES["file-readability-assessment"].record, record)
             run.record(

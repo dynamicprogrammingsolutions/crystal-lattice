@@ -61,3 +61,33 @@ def test_valid_json_does_not_retry() -> None:
     )
     assert parsed == {"ok": True}
     assert isinstance(run, _Run)
+
+
+def test_invalid_grade_vocabulary_retries_like_malformed_json() -> None:
+    """An off-vocabulary grade is a judge-format failure, not a crash.
+
+    A response can be valid JSON and still violate the grade contract
+    (for example ``appropriate`` where only ``complete``, ``partial``,
+    ``poor`` are allowed); the retry path must re-request it exactly
+    like malformed JSON instead of failing the case.
+    """
+
+    reruns = []
+
+    def rerun():
+        reruns.append(True)
+        return [_Run('{"assessment": {"grade": "complete"}}')]
+
+    def parse(text: str):
+        value = json.loads(text)
+        grade = value["assessment"]["grade"]
+        if grade not in ("complete", "partial", "poor"):
+            raise ValueError(f"grade {grade!r} not in vocabulary")
+        return value
+
+    parsed, run = _parse_judge_response(
+        _Run('{"assessment": {"grade": "appropriate"}}'), parse, rerun
+    )
+    assert parsed == {"assessment": {"grade": "complete"}}
+    assert run.value.response == '{"assessment": {"grade": "complete"}}'
+    assert len(reruns) == 1
