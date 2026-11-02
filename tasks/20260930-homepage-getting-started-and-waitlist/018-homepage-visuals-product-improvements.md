@@ -6,6 +6,17 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 
+Current Continuation Boundary:
+
+- Retain this task as the historical owner of completed Plugin,
+  Transparency, Vibe, popup, icon, capture-pipeline, and product evidence.
+- Do not resume its older homepage image-batch/layout plan while
+  `tasks/20261024-production-staging-website-channels.md` is active.
+- After the production/staging split, task
+  `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
+  owns future homepage visual selection and integration. Remaining checklist
+  state here is bookkeeping unless task `019` explicitly consumes it.
+
 After the selected homepage copy and download layout are approved in context,
 make the real product improvements and reviewed capture fixtures needed to
 produce truthful proof for all six highlights. Keep screenshot-specific

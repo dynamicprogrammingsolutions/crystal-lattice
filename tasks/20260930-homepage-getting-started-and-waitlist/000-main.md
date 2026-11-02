@@ -12,12 +12,12 @@ confirmation and integrate its real form into the mobile-download step.
       screenshot-led product overview, then a six-step getting-started
       section.
 - [ ] The selected overview and secondary routes preserve the approved
-      values—one workspace across model-family-oriented profiles, replaceable
+      values—one application across configured-agent harnesses, replaceable
       plugin surfaces, transparent and open-source operation, cross-device
       continuity, adaptability beyond development, and durable session
       workspaces—without requiring a fixed number of cards or visuals.
 - [ ] Public copy clearly distinguishes Crystal Lattice configured-agent
-      profiles and model-family-oriented defaults from official upstream
+      configurations and model-family-oriented harnesses from official upstream
       applications such as Claude Code, Codex, Gemini, Kimi, or other products.
 - [ ] Getting Started presents, in order: CLI installation, workspace startup,
       Desktop download, Desktop connection, mobile download/waitlist, and
@@ -46,6 +46,10 @@ confirmation and integrate its real form into the mobile-download step.
 
 ## Workstreams and ownership
 
+- `tasks/20261024-production-staging-website-channels.md` is the current
+  highest-priority blocker. It restores production from exact historical
+  baseline `d3fe28a6` plus current Getting Started, moves ongoing homepage work
+  to a public no-index staging channel, and establishes dual deployment.
 - `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
   is the coordination umbrella. It tracks the approved order, H1–H11 human
   gates, current completion, and handoff across the implementation subtasks
@@ -71,15 +75,15 @@ confirmation and integrate its real form into the mobile-download step.
 - Production publication is completed through subtask `020` after the service
   and final integrated website have both passed human review.
 - `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
-  owns the complete website's bounded positioning review, compatibility
-  presentation, integrated content acceptance and live website checks.
+  owns the later three-table canonical compatibility catalogue, integrated
+  content acceptance and live website checks.
   Its accepted candidate is consumed by `020`'s publishing step; both record
   evidence from the same artifact and publishing push.
 
 ## Approved shared website checkpoint — October 7, 2026
 
 The group 1 outcome includes the published complete user website with the
-owner-selected reviewed visual set, three public compatibility views and
+owner-selected reviewed visual set, three public compatibility tables and
 rethought owner-approved launch positioning. The existing product evidence
 supports that bounded review; broad market research remains later.
 
@@ -135,6 +139,8 @@ No actual AWS/site/source publication is authorized by this tracking approval.
 
 ## Subtasks
 
+- [ ] `tasks/20261024-production-staging-website-channels.md`
+      — PRIORITY BLOCKER for `019` continuation and website integration.
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/001-publication-sequence.md`
 - [x] `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
 - [ ] `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
@@ -179,7 +185,7 @@ confirmation and withdrawal behavior, and adds the actual form to the mobile-dow
 step. This keeps the public form contract driven by a real backend rather than
 a placeholder endpoint. The final integrated site is reviewed again before
 one protected production publication. Include website 030's accepted launch
-positioning, 019's selected proof set and all three compatibility views in
+positioning, 019's selected proof set and all three compatibility tables in
 that candidate. After the same push, run both 030's live website checks and
 020's production form checks.
 

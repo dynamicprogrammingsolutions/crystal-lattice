@@ -12,8 +12,9 @@ and release choices.
 - [ ] Every deployed website version gives an unfamiliar early user an
       accurate explanation of Crystal Lattice and a useful first action.
 - [ ] The first user website is published with owner-reviewed launch
-      positioning, all six approved visual stories and the three public
-      compatibility views, without extensive research as a prerequisite.
+      positioning, an owner-selected purpose-specific visual set and three
+      concise public compatibility tables, without extensive research as a
+      prerequisite.
 - [ ] The website progressively incorporates product, feature, search,
       community, competitor, early-user, and remote-access findings without
       waiting for the complete research program.
@@ -56,11 +57,17 @@ reason to mark 090, 160 or 170 complete.
 
 ## Approved group 1 website and source release — October 7, 2026
 
-Subtask 030 owns the complete first website's bounded positioning pass,
-compatibility presentation, integrated content acceptance and live checks.
-Homepage 015/018 supply the selected copy and six real proof stories; 025
-supplies the reusable asset workflow. The accepted compatibility baseline in
-020 remains done and is consumed rather than re-audited wholesale.
+Subtask 030 owns the first website's compatibility catalogue, integrated
+content acceptance and live checks. Homepage task 019 supplies the accepted
+first-user homepage; 025 supplies the reusable asset workflow. The accepted
+compatibility baseline in 020 remains done and is consumed rather than
+re-audited wholesale.
+
+`tasks/20261024-production-staging-website-channels.md` is the current
+highest-priority delivery. It restores the historical production homepage,
+adds the current Getting Started section without empty visual placeholders,
+and establishes the public no-index staging channel before 019/030 UI work
+resumes.
 
 `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
 retains the single integrated website publishing push. Before that step, 030
@@ -115,8 +122,8 @@ AWS/email/site publication or the repository visibility operation.
 - Current positioning begins coding-agent-first. 030's short product-based
   review may propose a revised launch direction supported by real behavior
   and approved by the owner; market-validation work remains later.
-- Crystal Lattice compatibility profiles must not be presented as official
-  upstream products or sessions.
+- Crystal Lattice configured agents and harnesses must not be presented as
+  official upstream products, accounts, or sessions.
 
 ## Known facts and supporting details
 
@@ -264,9 +271,9 @@ Status: Draft
 Keep the current website useful throughout the program. Establish package-local
 documentation and target ownership first, audit current product and
 compatibility truth, integrate a truthful and performant early visual baseline,
-then publish the complete early-user site with six reviewed visual stories,
-three compatibility views and owner-reviewed launch positioning. Coordinate
-one integrated publishing push through homepage waitlist 020, then complete
+then publish the complete early-user site with the selected visual proof, three
+compatibility tables and owner-reviewed launch positioning. Coordinate one
+integrated publishing push through homepage waitlist 020, then complete
 open-source 070/080. Extensive research does not gate this sequence.
 
 After the research foundation is approved, built-in feature mining, search,
@@ -317,8 +324,8 @@ authority required for the remote mutation.
       application-feature truth.
 - [ ] Integrate the current visual baseline and establish the reusable
       browser-side asset foundation.
-- [ ] Publish the positioned early-user website with all six reviewed visual
-      stories and three compatibility views through the shared checkpoint.
+- [ ] Publish the positioned early-user website with the owner-selected visual
+      proof and three compatibility tables through the shared checkpoint.
 - [ ] Complete source research and the first evidence-informed rewrite.
 - [ ] Complete early-user and remote-access research and the second rewrite.
 - [ ] Select and test the primary positioning and page architecture.

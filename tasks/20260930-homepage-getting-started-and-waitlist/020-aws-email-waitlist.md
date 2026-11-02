@@ -6,6 +6,9 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
 
+Task Paused By:
+`tasks/20261024-production-staging-website-channels.md`
+
 Deploy a small AWS service that accepts mobile-release waitlist email
 submissions, stores minimal consent evidence safely, sends a confirmation
 through Amazon SES, handles withdrawal and delivery suppression, and adds the
@@ -68,16 +71,21 @@ actual working form to the homepage mobile-download step.
 - Final website publication reviews the actual integrated homepage, including
   concurrent changes. This release gate does not prevent building the service
   or testing the form now.
+- The waitlist backend/form plan remains valid, but implementation, website
+  integration, and publication are paused while
+  `tasks/20261024-production-staging-website-channels.md` establishes separate
+  production and staging variants. Resume only after the target production
+  content source and dual deployment workflow are approved.
 
 Coordinates With:
 `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`
 
 ## Approved shared publication checkpoint — October 7, 2026
 
-Website 030 owns bounded positioning, all six reviewed visual stories, the
-three public compatibility views, integrated content acceptance and live
-website checks. This task retains the service/form and single integrated
-website publishing push.
+Website 030 owns the three-table compatibility catalogue, integrated content
+acceptance and live website checks. Homepage task 019 owns the accepted
+first-user homepage and selected visual proof. This task retains the
+service/form and single integrated website publishing push.
 
 Before the publishing step, obtain 030's accepted content candidate as well as
 this task's verified backend/form and approved privacy policy. 030 need not be
@@ -533,9 +541,9 @@ deployed storage or email delivery.
 9. **HUMAN JUDGMENT:** Review confirmation, consent/privacy text, capacity
    behavior, withdrawal, and actual integrated page. Confirm SES production
    access and sender verification are complete. Require website 030's accepted
-   content candidate with all six visuals, three compatibility views and
-   reviewed launch positioning; do not require its post-publication checks
-   to be complete before this push.
+   content candidate with task 019's selected visual proof, three compatibility
+   tables and reviewed launch positioning; do not require its post-publication
+   checks to be complete before this push.
 10. **HUMAN — MANDATORY:** Authorize the specific commit/push and production
     website publication, including concurrent homepage changes in that
     release. Do not push during the earlier local review.

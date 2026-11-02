@@ -22,8 +22,11 @@ updates.
   where important planning points are stored, partially retained, or
   intentionally omitted.
 - [Current product and compatibility baseline](findings/current-product-and-compatibility-baseline.md):
-  accepted configured-profile, provider, feature, tool, client, limitation,
+  accepted configured-agent, provider, feature, tool, client, limitation,
   and canonical website-draft findings.
+- [Release-safe early-user content decision](findings/release-safe-early-user-content-decision.md):
+  approved configured-agent/harness terminology, four-view catalogue model,
+  version-two projection, focused source drift, and current review boundary.
 
 Retained normalized records, manifests, datasets, and review ledgers belong
 under `landing_page/research/`. Disposable raw responses, browser output,

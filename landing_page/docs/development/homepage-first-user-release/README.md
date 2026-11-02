@@ -1,8 +1,9 @@
 # Homepage First-User Release
 
-Status: **Draft for owner review — not implemented.**
+Status: **Brief and terminology direction approved; copy, visual plan, and
+image plan require revision — not implemented.**
 
-Updated: 2026-10-23
+Updated: 2026-10-24
 
 This package defines the proposed first-user homepage before implementation.
 It separates product language, information architecture, visual composition,
@@ -29,8 +30,8 @@ target.
 
 ## Approval sequence
 
-1. Approve or correct the page role, visitor questions, concept ownership, and
-   terminology.
+1. **Complete:** approve the page role, visitor questions, concept ownership,
+   and terminology.
 2. Select one complete opening-copy direction and correct its wording.
 3. Approve or correct the visual plan independently from the copy.
 4. Approve the image shortlist and capture treatments.

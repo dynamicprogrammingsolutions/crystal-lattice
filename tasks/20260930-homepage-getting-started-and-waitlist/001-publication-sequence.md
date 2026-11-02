@@ -34,6 +34,9 @@ requirements already owned by those subtasks.
 
 ## Tracked implementation tasks
 
+- `tasks/20261024-production-staging-website-channels.md`
+  — highest-priority production restoration, staging source channel, staging
+  AWS hosting, and dual deployment workflow.
 - `tasks/20260930-homepage-getting-started-and-waitlist/010-homepage-structure-prototype.md`
   — completed structural prototype and responsive baseline.
 - `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
@@ -56,19 +59,36 @@ requirements already owned by those subtasks.
 | --- | --- | --- | --- |
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
-| Existing visual/product evidence | `018` | In progress; ownership reconciled | Retain historical evidence and deferred bookkeeping |
-| Publishable homepage | `019` | Candidate A committed; durable brief/copy/visual/image package ready for review | Human checkpoints H1–H4: approve terminology, complete copy direction, visual plan, and image shortlist |
-| Waitlist and publication | `020` | Draft; blocked by `019` | Begins only after H8 homepage approval and handoff |
+| Existing visual/product evidence | `018` | Historical evidence retained; older layout/image plan paused | Task `019` consumes selected evidence after channel split |
+| Production/staging channels | `tasks/20261024-production-staging-website-channels.md` | Draft plan; highest priority | Approve plan, then review literal historical-plus-Getting-Started production candidate |
+| Publishable homepage | `019` | H1 approved; paused before H2 | Resume after production/staging local channel checkpoint |
+| Compatibility catalogue | website `030` | Focused source refresh accepted; full projection internal; paused before canonical tables | Resume after production/staging channel checkpoint |
+| Waitlist and publication | `020` | Plan retained; all execution paused | Resume after channel target approval, then integrate after later H8 handoff |
 
 ## Execution plan
 
 Status: Approved
 
-The sequence is intentionally divided into a publishable-homepage phase and a
-final waitlist/publication phase. Candidate production is broader than final
-homepage selection: viable real-product images are placed on the actual local
-page, reviewed responsively, and then selected, moved, or deferred at a human
-gate.
+The sequence now begins with a production/staging release-channel phase,
+followed by the publishable-homepage phase, canonical compatibility tables,
+and final waitlist/publication integration.
+
+### Priority Phase — Restore production and establish staging
+
+Owning task:
+`tasks/20261024-production-staging-website-channels.md`
+
+1. Restore production from exact historical baseline `d3fe28a6`.
+2. Add the current six-step Getting Started section without empty media
+   placeholders.
+3. Preserve all other historical sections until contextual human review.
+4. Move the in-progress current homepage into staging ownership.
+5. Establish separate production/staging builds and local previews.
+6. Establish the public no-index staging AWS/GitHub deployment channel.
+7. Deploy and verify both channels only after their explicit gates.
+
+Tasks `019`, compatibility UI work in website `030`, and waitlist website
+integration remain paused during this phase.
 
 ### Phase A — Reconcile the completed foundation
 
@@ -126,7 +146,7 @@ Agent work:
 - map every retained image to one claim, real source, capture geometry,
   rendered-size target, title, caption, and disposition;
 - remove redundant slots rather than filling them;
-- specify the compact profile capture and separately framed Desktop/mobile
+- specify the compact configured-agent capture and separately framed Desktop/mobile
   continuity sources.
 
 **HUMAN JUDGMENT:** Approve the exact screenshot shortlist and capture
@@ -275,7 +295,16 @@ Agent work after approval:
 - [x] Reconcile completed/deferred `018` ownership with `019`.
 - [x] **AGENT:** Commit Candidate A and create the durable brief/copy/visual/
       image review package.
-- [ ] **HUMAN JUDGMENT — H1:** Approve the brief and terminology.
+- [x] **HUMAN JUDGMENT — H1:** Approve the brief and terminology.
+- [ ] **HUMAN JUDGMENT:** Approve
+      `tasks/20261024-production-staging-website-channels.md`.
+- [ ] **AGENT:** Build the literal `d3fe28a6` plus current Getting Started
+      production candidate and the separate staging variant.
+- [ ] **HUMAN JUDGMENT:** Approve local production/staging content and
+      separation.
+- [ ] **AGENT:** Prepare staging AWS/GitHub/workflow changes.
+- [ ] **HUMAN — MANDATORY:** Approve and execute the first dual deployment.
+- [ ] **HUMAN JUDGMENT:** Accept both public channels and release paused work.
 - [ ] **HUMAN JUDGMENT — H2:** Select or revise one complete copy direction.
 - [ ] **HUMAN JUDGMENT — H3:** Approve the visual plan.
 - [ ] **HUMAN JUDGMENT — H4:** Approve the image shortlist and treatments.
@@ -402,3 +431,11 @@ Agent work after approval:
   revised to H1–H11. Subtask `019` is now paused at the new H1–H4 brief, copy,
   visual-plan, and image-shortlist decisions; all implementation, source
   promotion, waitlist, AWS, and publication steps remain blocked.
+- 2026-10-24: Inserted
+  `tasks/20261024-production-staging-website-channels.md` as the
+  highest-priority phase. Production restores exact baseline `d3fe28a6` plus
+  the current Getting Started section with empty visual placeholders removed.
+  The current in-progress homepage becomes staging at
+  `staging.crystallattice.dev`. Task `019` is paused before H2, website `030`
+  is paused before canonical public tables, and waitlist task `020` retains
+  its approved plan but pauses all execution.

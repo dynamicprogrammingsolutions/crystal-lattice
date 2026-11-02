@@ -1,0 +1,192 @@
+{
+  "schema_version": "2.0.0",
+  "observation_date": "2026-10-24",
+  "review_state": "focused_refresh_accepted",
+  "maturity": "internal_evidence",
+  "identity_note": "Configured agents and harnesses are Crystal Lattice configurations and implementations, not official upstream applications, accounts, or sessions.",
+  "revision_policy": "Public presentation may change grouping, wording, and progressive disclosure while preserving accepted or explicitly refreshed identity, status, limitation, and source boundaries.",
+  "status_labels": {
+    "included": "Included",
+    "available": "Available",
+    "conditional": "Conditional",
+    "experimental": "Experimental",
+    "in_development": "In development",
+    "planned": "Planned",
+    "unsupported": "Unsupported",
+    "not_applicable": "Not applicable",
+    "not_verified": "Not verified",
+    "internal": "Developer/internal"
+  },
+  "harness_groups": [
+    {
+      "harness_id": "codex-oriented",
+      "label": "Codex-oriented",
+      "description": "Codex-oriented command, patch, image, skill, and optional MCP behavior implemented by Crystal Lattice.",
+      "agent_family_ids": [
+        "codex-shell-command-mini",
+        "codex-shell-command-api",
+        "codex-shell-array"
+      ],
+      "tool_family_id": "codex"
+    },
+    {
+      "harness_id": "claude-compatible",
+      "label": "Claude-compatible",
+      "description": "Claude-compatible file, search, shell, web, MCP, background-task, and compaction behavior implemented by Crystal Lattice.",
+      "agent_family_ids": [
+        "claude-compatible"
+      ],
+      "tool_family_id": "claude"
+    },
+    {
+      "harness_id": "gemini-oriented",
+      "label": "Gemini-oriented",
+      "description": "Gemini-oriented file, shell, search, and web behavior, also used by selected GLM configurations.",
+      "agent_family_ids": [
+        "gemini-style"
+      ],
+      "tool_family_id": "gemini"
+    },
+    {
+      "harness_id": "qwen-oriented",
+      "label": "Qwen-oriented",
+      "description": "Qwen-oriented file, shell, search, and fetch behavior implemented by Crystal Lattice.",
+      "agent_family_ids": [
+        "qwen-style"
+      ],
+      "tool_family_id": "qwen"
+    },
+    {
+      "harness_id": "grok-oriented",
+      "label": "Grok-oriented",
+      "description": "Grok-oriented file and shell behavior composed with selected Qwen tool implementations.",
+      "agent_family_ids": [
+        "grok-style"
+      ],
+      "tool_family_id": "grok"
+    },
+    {
+      "harness_id": "kimi-oriented",
+      "label": "Kimi-oriented",
+      "description": "Kimi-oriented file, shell, web, media, and compaction behavior implemented by Crystal Lattice.",
+      "agent_family_ids": [
+        "kimi-style"
+      ],
+      "tool_family_id": "kimi"
+    },
+    {
+      "harness_id": "provider-only",
+      "label": "Provider-only configurations",
+      "description": "Configured provider routes without a model-family-specific coding tool bundle.",
+      "agent_family_ids": [
+        "provider-only"
+      ]
+    },
+    {
+      "harness_id": "image-generation",
+      "label": "Image-generation configuration",
+      "description": "A specialist non-streaming image-generation configuration through OpenRouter.",
+      "agent_family_ids": [
+        "image-generation"
+      ]
+    }
+  ],
+  "provider_access": {
+    "openai-api": "API key",
+    "openai-chatgpt": "Saved ChatGPT account",
+    "openrouter-chat": "API key",
+    "openrouter-responses": "API key; optional Responses route",
+    "anthropic": "API key",
+    "ollama": "Local endpoint; cloud-named models may have external account requirements",
+    "fireworks": "API key",
+    "zai": "API key; Coding or General endpoint",
+    "custom-openai-compatible": "Endpoint-specific",
+    "openrouter-image": "API key"
+  },
+  "focused_verification": [
+    {
+      "area": "Anthropic native context management",
+      "command": "pytest plugins/anthropic-compatible/tests/test_context_management_unit.py plugins/anthropic-compatible/tests/test_stack_integration.py -q",
+      "result": "20 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Claude-compatible compaction",
+      "command": "pytest plugins/claude-tools/tests/test_claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature_action.py plugins/claude-tools/tests/test_claude_compaction_app.py -q",
+      "result": "43 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Codex unified exec and shell selection",
+      "command": "pytest plugins/codex-tools/tests/test_unified_exec_tool.py plugins/codex-tools/tests/test_shell_tool_selection.py -q",
+      "result": "98 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Embedded workspace settings",
+      "command": "PYTHONPATH=plugins/embedded-workspace-settings/src pytest plugins/embedded-workspace-settings/tests -q",
+      "result": "2 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Interleaved thinking",
+      "command": "PYTHONPATH=plugins/interleaved-thinking/src pytest plugins/interleaved-thinking/tests -q",
+      "result": "9 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Shell-tool settings",
+      "command": "PYTHONPATH=plugins/shell-tool-settings/src pytest plugins/shell-tool-settings/tests -q",
+      "result": "13 passed",
+      "hosted_provider_verified": false
+    }
+  ],
+  "plugin_supplements": [
+    {
+      "plugin_id": "embedded-workspace-settings",
+      "description": "Embedded-runtime workspace selection and containment-aware per-session working-directory controls.",
+      "lifecycle_status": "distribution_specific",
+      "capability_status": "optional",
+      "default_selected": false,
+      "plugin_kinds": [
+        "application",
+        "features"
+      ],
+      "audience": "embedded-runtime users",
+      "source_path": "plugins/embedded-workspace-settings",
+      "documentation_path": "plugins/embedded-workspace-settings/README.md",
+      "verification_state": "passed",
+      "limitations": "Applies to the embedded mobile runtime; it does not provide arbitrary filesystem paths, directory creation, or iOS Files/iCloud access."
+    },
+    {
+      "plugin_id": "interleaved-thinking",
+      "description": "Optional provider extension that omits previous-turn thinking blocks from outgoing OpenAI-compatible requests without changing stored session history.",
+      "lifecycle_status": "optional",
+      "capability_status": "optional",
+      "default_selected": false,
+      "plugin_kinds": [
+        "extensions"
+      ],
+      "audience": "advanced users",
+      "source_path": "plugins/interleaved-thinking",
+      "documentation_path": "plugins/interleaved-thinking/README.md",
+      "verification_state": "passed",
+      "limitations": "It affects request construction only and does not establish provider support for reasoning or thinking fields."
+    },
+    {
+      "plugin_id": "shell-tool-settings",
+      "description": "Optional session setting that selects the Codex shell-tool surface used for later requests.",
+      "lifecycle_status": "optional",
+      "capability_status": "optional",
+      "default_selected": false,
+      "plugin_kinds": [
+        "features"
+      ],
+      "audience": "advanced users",
+      "source_path": "plugins/shell-tool-settings",
+      "documentation_path": "plugins/shell-tool-settings/README.md",
+      "verification_state": "passed",
+      "limitations": "The plugin exposes configuration only; codex-tools owns the actual command implementations."
+    }
+  ]
+}

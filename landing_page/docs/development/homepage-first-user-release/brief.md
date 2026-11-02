@@ -1,8 +1,9 @@
 # Homepage First-User Release Brief
 
-Status: **Draft for owner review — not implemented.**
+Status: **Differentiator direction approved; exact copy and visual treatment
+remain under review — not implemented.**
 
-Updated: 2026-10-23
+Updated: 2026-10-24
 
 ## Page role
 
@@ -14,6 +15,13 @@ The homepage should answer:
 The page orients, demonstrates, and routes. It does not reproduce the complete
 compatibility catalogue, plugin-authoring guide, bridge-deployment guide,
 Python SDK reference, or product history.
+
+The opening separates necessary product orientation from actual
+differentiation. Category, installation, sessions, model selection,
+instructions, permissions, ordinary tool enablement, history, usage/cost
+display, Desktop/mobile availability, and source availability may need to be
+stated, but they do not become leading value claims merely because Crystal
+Lattice supports them.
 
 ## Primary visitor
 
@@ -35,14 +43,15 @@ equal above-the-fold weight.
 The proposed information order answers:
 
 1. What kind of application is Crystal Lattice?
-2. Where does it run and who owns the working files and sessions?
-3. What does the complete application workspace look like?
-4. What remains visible while a session is running?
-5. What can be configured without changing the whole application?
-6. How can provider- or feature-specific behavior appear in the interface?
-7. Do Desktop and mobile open the same Crystal Lattice sessions?
-8. What is the shortest current path to install and connect?
-9. Where should I go for compatibility, customization, mobile, source, or
+2. What does the complete application look like?
+3. How can one configured agent use a materially different harness from
+   another?
+4. How does Crystal Lattice retain provider-native behavior instead of
+   reducing every provider to one generic representation?
+5. How can plugins change the application and session workflow, not only add
+   model-facing tools?
+6. What is the shortest current path to install and connect?
+7. Where should I go for compatibility, customization, mobile, source, or
    contribution detail?
 
 Page length is not a target. Every retained section must answer one of these
@@ -52,58 +61,76 @@ questions, prove an important claim, or provide a necessary next route.
 
 ### Primary-language decisions
 
-- Do not use **AI agent** as the product category or hero terminology.
-- Do not say **your AI agents**, **agent platform**, or **agent runtime** in
-  the opening explanation.
-- Explain the product in terms of a coding workspace, sessions, conversations,
-  models, tools, profiles, provider controls, Desktop, and mobile.
+- Use **application for configurable AI coding agents** as the current
+  category direction. After the first category introduction, prefer
+  **coding agent** or **agent** where the meaning is clear.
+- Do not use the generic phrase **AI agent platform** as the primary
+  definition. It is broader than the current coding-agent-first product and
+  makes the developer/runtime architecture sound like the first-user product.
 - Say that Crystal Lattice runs on the visitor's computer. Do not describe
   ordinary use as operating infrastructure or a self-hosted runtime.
-- Use **workspace** for the application-level relationship among sessions,
-  selected conversation, configuration, and clients.
-- Use **session** for persistent work that contains a conversation and its
-  working state.
+- Use **configured agent** for the named `agents` configuration selected by a
+  session. Do not replace this concept with **profile**.
+- Use **harness** for the materially variable behavior around the model. In
+  first-user language, define it briefly through the tool implementations,
+  provider integration, context behavior, and controls used by the configured
+  agent.
+- Use **workspace** only for the visible application context. It is not the
+  product category or primary differentiator.
+- Use **session** as the ordinary unit of work without presenting session
+  persistence or organization as a differentiator by itself.
 
-### Terms introduced after the ordinary product explanation
+### Relationship among the terms
 
-- **Profile** describes a reusable setup that can select instructions, tools,
-  model/provider defaults, and related controls.
-- The current interface label **Agent** may appear when naming the real
-  `Agent` picker. Public prose should introduce it as the profile picker rather
-  than assume that “agent” is already the visitor's product category.
+- The **Crystal Lattice application** owns configuration, sessions, clients,
+  and the extension system.
+- A **configured agent** selects the provider/model configuration and plugin
+  packages used by a session.
+- The configured agent's **harness** may include different tool
+  implementations and schemas, provider extensions, context behavior, and
+  controls. This is more substantial than selecting another model, changing a
+  prompt, or allowing a subset of one shared tool catalogue.
+- A **plugin** supplies or changes one part of provider behavior, tool
+  behavior, feature behavior, session/application behavior, or UI schema.
+- A **session** uses a configured agent and may be opened through supported
+  clients. The first-user homepage does not need to explain the complete
+  configuration resolution model.
+
+### Terms introduced after the category
+
 - **Provider** is introduced when provider-specific controls or metadata are
   shown.
-- **Plugin** is introduced after its user consequence is clear: a plugin can
-  add or replace behavior, tools, settings, actions, reports, or interface
-  controls.
-- **Coding agent** may be used in compatibility or category detail after the
-  product has been explained. It is not required in the hero.
+- **Provider-native** is introduced only when explaining that Crystal Lattice
+  retains the provider's native request history separately from its normalized
+  display history.
+- **Plugin** is introduced after its user consequence is clear: plugins can
+  compose harness behavior and can also contribute settings, actions,
+  notifications, reports, and controls to the application.
 
 ### Terms excluded from the opening path
 
-- AI agent;
-- harness;
+- AI agent platform;
+- your AI agents;
 - model-native;
-- provider-native;
 - runtime session;
-- application plugin;
-- feature plugin;
 - self-hosted infrastructure.
 
-These terms may appear on focused technical pages where they are necessary and
-defined.
+Detailed plugin-kind names, request-pipeline terminology, native message field
+names, and internal configuration resolution belong on focused technical
+pages.
 
 ## Concept ownership
 
 | Concept | Homepage treatment | Authoritative detail |
 | --- | --- | --- |
-| Product category and primary benefit | Hero and opening copy | This brief and selected homepage copy |
+| Product category | Concise hero orientation, not a differentiation claim | This brief and selected homepage copy |
 | Complete application shape | One large Desktop workspace figure | Product UI and maintained screenshot source |
-| Persistent sessions | Product-at-a-glance explanation | Product documentation |
-| Visible model/provider/request information | One focused proof | Provider and product documentation |
-| Profiles and configuration | One compact real profile-picker proof | Configuration documentation |
-| Replaceable or extensible behavior | One provider/plugin UI proof and a concise explanation | Plugin documentation |
-| Desktop/mobile continuity | One matched, separately framed pair | Mobile and Desktop documentation |
+| Different harnesses per configured agent | Primary product claim with focused agent/tool proof | Agent configuration and plugin packages |
+| Provider-native history and behavior | Focused explanation and diagram or product proof | Core/provider documentation |
+| Plugins that affect the application | Focused cause/effect proof for settings, actions, reports, notifications, or controls | Plugin documentation |
+| Included configured agents | Concise recognizable examples plus a route to detailed compatibility | Public compatibility catalogue |
+| Sessions and application organization | Visible in the application overview without a separate value claim | Product documentation |
+| Desktop/mobile continuity | Availability and connection explanation near Getting Started | Mobile and Desktop documentation |
 | Installation and first connection | Six-step Getting Started | Package installation and connection guides |
 | Compatibility matrices | Short route only, if retained | Focused compatibility content |
 | Detailed bridge deployment | No homepage procedure | Bridge documentation |
@@ -118,8 +145,9 @@ defined.
 
 Owns:
 
-- a plain-language category;
-- one concrete benefit;
+- the category **application for configurable AI coding agents**;
+- the primary differentiator that a configured agent can use a materially
+  different harness, not merely another model or permission list;
 - that the product runs on the visitor's computer;
 - one primary route to Getting Started;
 - one lower-emphasis route to source or documentation.
@@ -134,38 +162,67 @@ Owns one large, framed Desktop image showing:
 - the session list;
 - the selected conversation;
 - the composer;
-- profile or model identity;
+- configured-agent identity;
 - current request/session state where useful.
 
-The figure establishes the application before smaller proof images are
-introduced. Short labels below the figure may identify sessions, profile,
-provider controls, and clients without painting annotations into the image.
+The figure establishes the application before focused differentiator proof is
+introduced. It is orientation, not a claim that sessions, conversations, a
+composer, or model selection are unusual.
 
-### 3. Visible, configurable, and extensible
+### 3. Different harnesses per configured agent
 
-These qualities remain distinct:
+Owns the primary product difference:
 
-- **Visible:** important model, provider, request, usage, cost, tool, or state
-  information can remain inspectable when available.
-- **Configurable:** a profile and provider settings can change the setup
-  without forcing the visitor through several unrelated configuration files.
-- **Extensible:** plugins can add or replace coherent behavior and UI without
-  requiring the complete application to be replaced.
+- each session uses a configured agent;
+- configured agents can load materially different tool implementations,
+  provider extensions, context behavior, and controls;
+- this difference is broader than selecting another model, editing ordinary
+  instructions, or allowing a subset of one shared tool inventory.
 
-Use three consistent proof rows or figures. Do not turn the concepts into
-three slogan cards with decorative icons.
+The accepted first-user wording direction may introduce included agents as:
 
-### 4. Desktop and mobile continuity
+> Crystal Lattice includes configured agents with Codex-oriented,
+> Claude-compatible, Gemini-oriented, and other harnesses. These are Crystal
+> Lattice implementations, not the official upstream applications.
+
+Use the exact qualifier supported by each harness family rather than applying
+one universal **compatible** claim. The homepage gives only enough recognizable
+examples to make the concept concrete and routes detailed agent, harness,
+provider, and plugin status to the public compatibility catalogue.
+
+Use focused configured-agent and tool/harness proof. A second image is
+justified only when it demonstrates a genuinely different harness composition
+rather than another model name.
+
+### 4. Provider-native fidelity
 
 Owns:
 
-- one matching Crystal Lattice session;
-- separately framed Desktop and mobile clients;
-- the fact that the phone is another client for the sessions on the computer.
+- Crystal Lattice retains provider-native request history separately from the
+  normalized form used for display and generic application behavior;
+- provider-specific continuation state does not have to be reconstructed into
+  one generic message/tool format;
+- visible provider controls or metadata are supporting examples, not the
+  complete claim.
 
-Connection methods remain in Getting Started.
+Prefer a concise maintained diagram when ordinary UI cannot communicate the
+relationship accurately.
 
-### 5. Getting Started
+### 5. Plugins can affect the application
+
+Owns:
+
+- plugins may change provider, tool, feature, session, or application
+  behavior;
+- plugins may contribute settings, message/session actions, notifications,
+  reports, and interface controls;
+- extensibility is not limited to adding another model-facing tool.
+
+Use a focused cause/effect relationship when possible: one plugin
+configuration or capability beside the resulting genuine application control,
+action, or report.
+
+### 6. Getting Started
 
 Retains six ordered steps:
 
@@ -180,7 +237,10 @@ The default Desktop path stays local. Same-network mobile discovery, manual
 address entry, and bridge access away from the local network are explained
 separately.
 
-### 6. Secondary routes and final action
+Desktop/mobile availability and continuity belong here unless later review
+shows a distinct homepage claim beyond ordinary client access.
+
+### 7. Secondary routes and final action
 
 The first-release cut should prefer a compact route group for:
 
@@ -205,6 +265,12 @@ The homepage must not:
   evidence confirms it;
 - imply that the bridge is required for local use;
 - use “open source” as proof that runtime behavior is automatically visible;
+- present model selection, configurable instructions, generic permissions,
+  session persistence, history, cost display, Desktop/mobile access, or source
+  availability as primary differentiators;
+- claim that every configured agent has a distinct harness when two agents
+  resolve to materially equivalent provider/tool behavior;
+- describe a generic allow/deny tool list as proof of different harnesses;
 - imply broad non-coding product fit from one demonstration;
 - describe planned or test-only behavior as generally available;
 - retain a visual slot whose claim is duplicated or no longer belongs on the
@@ -212,17 +278,24 @@ The homepage must not:
 
 ## Copy acceptance criteria
 
-- The hero works for a visitor who has never heard “AI agent,” “harness,” or
-  “provider-native.”
-- The product category and primary benefit are understandable before any
-  profile, provider, plugin, or connection terminology appears.
+- The hero establishes the AI coding-agent category without defining Crystal
+  Lattice as a generic AI agent platform.
+- The difference between a configured agent and its harness is understandable
+  without explaining the full configuration or plugin architecture.
 - The opening copy says that Crystal Lattice runs on the visitor's computer.
-- Every heading communicates a product relationship when read without its
-  paragraph.
-- “Workspace,” “session,” “profile,” “provider,” and “plugin” each have one
-  stable meaning.
-- Public copy distinguishes Crystal Lattice profiles from official upstream
-  applications.
+- Primary value headings communicate materially differentiating information
+  rather than ordinary coding-agent capabilities.
+- “Configured agent,” “harness,” “plugin,” “workspace,” “session,” and
+  “provider-native” each have one stable meaning.
+- Public copy distinguishes Crystal Lattice configured agents from official
+  upstream applications.
+- Different harness claims identify actual differences in tool
+  implementations, provider integration, context behavior, or controls rather
+  than only model, instruction, or permission changes.
+- Provider-native fidelity is not reduced to a generic transparency, token,
+  usage, or cost claim.
+- Plugin extensibility names application/session effects in addition to model
+  tools.
 - No section repeats another section's claim merely to use an available
   screenshot.
 - Getting Started remains a shorter route than the product explanation that

@@ -1,309 +1,567 @@
-# Publish the Positioned Early-User Website with Proof and Compatibility
+# Publish The First-User Website And Compatibility Catalogue
 
-Publish a complete first user website with owner-reviewed launch positioning,
-all six approved visual stories, product compatibility tables and a verified
-first-success path. Use the accepted product evidence and existing homepage
-work without waiting for extensive market research.
+Publish the owner-approved first-user homepage together with a transparent
+compatibility catalogue derived from the accepted product baseline. Keep the
+homepage concise, give configured agents and materially different harnesses a
+recognizable introduction, and put detailed agent, harness, provider, and
+plugin status on a focused public route.
 
-## Requirements checklist
-
-- [ ] The public website has coherent owner-approved launch positioning that
-      explains its primary audience, benefit, product category and first
-      action using current product evidence, without extensive research.
-- [ ] It distinguishes Crystal Lattice compatibility profiles from official
-      upstream applications and sessions.
-- [ ] All six approved homepage visual stories use reviewed, sanitized real
-      product proof and truthful captions; incomplete stories are not omitted
-      merely to close this release.
-- [ ] The public website presents the three accepted compatibility views:
-      product/application features, provider support and model-family tools.
-      Material states, limitations, default/optional behavior and source/version
-      traceability remain clear.
-- [ ] It explains direct local-network mobile use and the user-operated bridge
-      accurately.
-- [ ] Early users have a short, verified first-success path and current
-      availability, downloads, support, privacy, docs and waitlist paths.
-      Source availability is truthful before and after repository publication.
-- [ ] Visible planning placeholders, knowingly unverified APIs, and stale
-      availability claims are absent; actual release/source-build distinctions
-      are preserved.
-- [ ] The complete integrated site passes desktop/mobile visual and
-      accessibility acceptance, is published through the shared checkpoint
-      with homepage waitlist 020, and passes live website checks before the
-      open-source visibility operation.
-
-Parent Task: `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
+Parent Task:
+`tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
 
 Depends On:
 
 - `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
 - `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md`
-- `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
-- `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
+
+Accepted Input Boundary:
+
+- `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
+  owns the homepage brief, copy, visual plan, proof selection, Getting Started,
+  release cut, and final local homepage. Compatibility work may prepare its
+  independent projection and route after this plan is approved, but final
+  navigation, terminology, integrated acceptance, and publication consume the
+  homepage accepted at task `019`'s final local checkpoint.
 
 Coordinates With:
-`tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
 
-## Approved scope and human decisions — October 7, 2026
+- `tasks/20260930-homepage-getting-started-and-waitlist/020-aws-email-waitlist.md`
+  — owns the real waitlist, one integrated publishing push, and production
+  form verification.
 
-The user approved this complete website outcome at the end of delivery group 1,
-followed by open-source publication and anonymous-user validation in
-`tasks/20260804-open-source-public-release/070-github-visibility-and-security-settings.md`
-and
-`tasks/20260804-open-source-public-release/080-post-publication-validation-and-early-adopter-intake.md`.
-This records scope and tracking approval. Website implementation, AWS mutation,
-email sending, publication and repository visibility keep their execution gates.
+Paused By:
 
-**HUMAN JUDGMENT:** approve the primary proposition/audience emphasis, final
-copy/table presentation, all six visuals and release-specific claims. The
-positioning pass may propose changes to the earlier coding-agent-first direction
-or hero; approval of this scope does not choose the final wording.
+- `tasks/20261024-production-staging-website-channels.md` — establishes the
+  production/staging source and deployment channels before compatibility UI
+  implementation resumes.
 
-Reuse the accepted compatibility baseline and refresh only changed
-decision-bearing claims. Search-demand, community/competitor campaigns,
-interviews and proposition experiments are later work. Their later tasks remain
-pending rather than being credited by this bounded release.
+## Requirements checklist
 
-## Scope
+- [ ] The published homepage is the owner-approved result of task `019`; this
+      task does not restore the former six-card or walkthrough structure.
+- [ ] The homepage introduces the existence of included configured agents and
+      materially different harnesses with concise recognizable examples, then
+      routes detailed compatibility questions to a focused catalogue instead
+      of rendering exhaustive tables in the first-user flow.
+- [ ] Public wording uses **configured agent** for Crystal Lattice's named
+      agent configurations and **harness** for materially different tool,
+      provider, context, and control behavior. It does not rename agents as
+      profiles.
+- [ ] Public wording may describe configured agents as Codex-oriented,
+      Claude-compatible, Gemini-oriented, or another evidence-backed family
+      qualifier. Each qualifier matches its owning package evidence; no
+      universal parity or compatibility claim is inferred from a family name.
+- [ ] Every public configured-agent or harness explanation visibly states that
+      these are Crystal Lattice implementations, not official upstream
+      applications, accounts, or sessions.
+- [ ] The public compatibility catalogue contains three concise canonical
+      tables: harnesses, providers, and plugins/application features.
+- [ ] Configured agents are introduced through homepage/harness examples and
+      progressive detail rather than a fourth exhaustive public table.
+- [ ] Configured agents, harnesses, providers, and plugins remain separate
+      axes. The UI does not flatten them into one sparse cross-product or imply
+      that a provider is a harness, a harness is an agent, or every plugin
+      applies to every agent.
+- [ ] The harness table contains only canonical differentiating capabilities,
+      combining related tools into meaningful rows such as command execution,
+      editing, media, web, MCP, skills, compaction, and subagents.
+- [ ] The provider table collapses ordinary required coding-agent API behavior
+      into a **Basic API support** result, separates subscription
+      authentication, and lists only meaningful native extras such as native
+      search/compaction, flex or priority processing, verbosity, file/image
+      input, image generation, and provider routing.
+- [ ] The plugin/application-feature table groups product behavior such as
+      session organization, actions/history, provider controls, usage/cost,
+      attachments/assets, context, MCP, export/sharing, and cloud workspaces;
+      it does not publish the complete package inventory as the primary table.
+- [ ] Public status presentation preserves material distinctions including
+      available, conditional, optional, experimental/in development, planned,
+      unavailable/unsupported, not applicable, unknown/not verified, default
+      selected, and source-only or internal states where relevant.
+- [ ] Canonical tables may use check, cross, and conditional symbols, but each
+      cell includes accessible text and does not rely on color alone.
+- [ ] Public rows retain enough source/version, limitation, prerequisite, and
+      verification information to be trustworthy without exposing internal
+      task paths, private diagnostics, or research workflow language.
+- [ ] The public projection is generated or validated from the accepted
+      compatibility research. It does not manually duplicate authoritative
+      provider, agent, harness, or plugin facts in page copy.
+- [ ] Before publication, deterministic extraction and focused verification
+      identify source drift since the accepted baseline. Changed claims are
+      refreshed through their owning evidence boundary; unchanged accepted
+      evidence is not broadly re-audited.
+- [ ] Unsupported and not-applicable states are not collapsed into generic
+      negative checkmarks. Planned and in-development work remains visually
+      distinct from delivered behavior.
+- [ ] The compatibility catalogue is responsive, keyboard accessible,
+      semantically structured, linkable to individual groups/entries, and
+      usable without horizontal page overflow or color-only status meaning.
+- [ ] The complete integrated website has current downloads, first-use,
+      mobile/bridge, support, privacy, documentation, source, and waitlist
+      paths derived from their owning release sources.
+- [ ] Visible planning placeholders, knowingly unverified APIs, stale
+      availability statements, internal task terminology, and unsupported
+      official-product parity claims are absent.
+- [ ] Local implementation, compatibility review, waitlist deployment,
+      production publication, live verification, and repository visibility
+      remain separate gates.
 
-This is the complete first user-facing website release, with bounded
-product-based positioning review. The later research-validated positioning
-and information architecture remain separately tracked. Reuse 015's copy and
-decision record, 018's real proof and 025's asset workflow. Do not create a
-second visual-production or full product-audit task.
+## Scope and ownership
 
-## Shared publication checkpoint
+This task owns:
 
-This task owns positioning, compatibility presentation, final integrated content
-acceptance and live website checks. Homepage waitlist 020 owns the AWS/form work
-and the single integrated website publishing push. Both use the same accepted
-artifact and release evidence.
+- the public compatibility information architecture;
+- compatibility terminology and table/list presentation;
+- a focused website-facing canonical projection derived from the complete
+  retained evidence;
+- the focused compatibility route or approved route set;
+- current status, limitation, freshness, and evidence presentation;
+- integration of task `019`'s accepted homepage with the compatibility route;
+- final integrated content acceptance and live website checks after the shared
+  publishing push.
 
-Content work and waitlist service/form work may proceed in parallel. Before
-020's publishing step, this task supplies an approved candidate with all six
-visuals, tables, copy, downloads and relevant routes. That candidate checkpoint
-does not require this task to be marked done: its live verification follows the
-same publishing push. Then run this task's public website checks and 020's
-production signup/receipt/withdrawal checks and record both outcomes.
+This task does not own:
 
-Do not add mutual whole-task completion dependencies between these tasks.
-Final website readiness does not block implementing or testing the waitlist
-backend. The open-source visibility task waits for this published website's
-acceptance; this task does not wait for repository visibility. Source controls
-describe pre-publication availability truthfully, then 070/080 promote and
-verify the actual public source/clone links.
+- the homepage copy, visual plan, proof assets, Getting Started, or release cut
+  owned by task `019`;
+- the compatibility evidence baseline owned by task `020`;
+- provider, plugin, configured-agent, mobile, Desktop, CLI, bridge, account,
+  security, or release behavior;
+- the waitlist backend/form/privacy implementation or publishing push owned by
+  the waitlist task;
+- repository visibility or anonymous-source validation.
+
+## Accepted research inputs
+
+The completed baseline already provides:
+
+- accepted configured-agent records;
+- provider/account routes;
+- model-family tool and feature bundles;
+- a 66-project plugin catalogue;
+- lifecycle, capability, packaging, loading, default, frontend, automated-test,
+  hosted-verification, limitation, confidence, and review states;
+- stable claim evidence and deterministic validation;
+- a draft website projection that downstream work may refine.
+
+Authoritative retained sources:
+
+- `landing_page/research/current-product-and-compatibility-baseline/configured-agent-compatibility.csv`
+- `landing_page/research/current-product-and-compatibility-baseline/model-family-feature-matrix.json`
+- `landing_page/research/current-product-and-compatibility-baseline/provider-support-matrix.json`
+- `landing_page/research/current-product-and-compatibility-baseline/feature-catalog.json`
+- `landing_page/research/current-product-and-compatibility-baseline/claim-evidence.jsonl`
+
+The generated version-two projection is retained as complete internal evidence
+and drift validation. It is not the approved public information design. This
+task owns a later canonical public selection derived from that evidence; it
+does not rewrite the accepted source merely to shorten website tables.
+
+## Approved terminology and relationship direction
+
+Homepage direction supplied by task `019`:
+
+> Crystal Lattice includes configured agents with Codex-oriented,
+> Claude-compatible, Gemini-oriented, and other harnesses. These are Crystal
+> Lattice implementations, not the official upstream applications.
+
+Relationship model:
+
+```text
+configured agent
+  ├─ provider route and account/auth mode
+  ├─ default model or model family
+  ├─ harness/tool and provider plugin composition
+  └─ selected supporting plugins
+```
+
+The catalogue uses this model to explain relationships without implying that
+every combination is supported or that a family-oriented harness owns an
+official upstream application's sessions.
+
+## Approved public table direction
+
+### 1. Harnesses
+
+Primary question:
+
+> What materially changes between the available harness families?
+
+Canonical rows should combine implementation details. For example, the
+Codex-oriented column needs one command row for `exec_command` +
+`write_stdin`, not separate rows for each tool. Expected primary rows include:
+
+- editing tools;
+- command execution;
+- image/media;
+- web tools;
+- MCP;
+- skills;
+- compaction;
+- subagents.
+
+Features that are uniformly unavailable and do not clarify a meaningful
+comparison, such as the current structured planning and request-user-input
+gaps, may appear as a concise note rather than separate rows.
+
+### 2. Providers
+
+Primary question:
+
+> Which provider/account route supplies complete ordinary coding-agent API
+> support, subscription authentication, and meaningful provider-native extras?
+
+Primary columns:
+
+- provider route;
+- Basic API support;
+- subscription authentication;
+- native extras;
+- important condition/limitation.
+
+Basic API support canonicalizes expected behavior such as streaming, tool
+calling, reasoning, usage/cost, caching, and normal retry handling. Native
+extras contain only differentiating behavior.
+
+### 3. Plugins and application features
+
+Primary question:
+
+> Which additional product behaviors exist, where do they apply, and what is
+> their maturity?
+
+Primary rows are product behavior groups, not package rows. Plugin package
+names and the complete 69-project inventory remain in progressive developer
+detail or internal evidence.
+
+## Open questions
+
+- Exact canonical rows and grouping inside the three approved tables.
+- Exact family qualifiers:
+  - Codex-oriented versus Codex-compatible;
+  - Claude-compatible versus Claude-oriented;
+  - Gemini-, Qwen-, Kimi-, Grok-, and other family labels according to package
+    evidence.
+- Which configured-agent examples and default models appear as progressive
+  harness detail rather than on the primary table.
+- Which plugin package names appear in expandable detail.
+- Public status vocabulary and visual treatment for **in development** versus
+  **planned**, where the retained evidence currently uses source presence,
+  lifecycle status, capability status, and maintained future tasks.
+- How much source path, plugin name, verification date, and evidence detail is
+  visible initially versus progressively disclosed.
+- Whether source/version freshness appears per row, per group, or in one
+  catalogue-level verification note.
+
+## Human decisions and actions required
+
+- **HUMAN JUDGMENT — CANONICAL TABLES:** Approve the selected rows, grouping,
+  symbols, wording, and omissions in the three public tables before UI
+  implementation.
+- **HUMAN JUDGMENT — LOCAL CATALOGUE:** Review the implemented responsive
+  catalogue, terminology, limitations, evidence/freshness presentation, and
+  homepage route in context.
+- **HUMAN JUDGMENT — INTEGRATED SITE:** Approve the exact homepage,
+  compatibility catalogue, waitlist/privacy presentation, downloads, and
+  navigation before production publication.
+- **HUMAN — MANDATORY:** AWS deployment, production publication, and
+  repository visibility keep their separate confirmation gates.
 
 ## References
 
 ### Start here
 
-1. `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md:8-186`
-   — shared program requirements, current positioning decisions, output rules,
-   and public/research boundaries.
-2. `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md:1-125`
-   plus its completed outputs — required current product, configured-agent,
-   provider/account, feature, and evidence baseline. Stop if incomplete.
-3. `tasks/20260825-crystal-lattice-product-positioning-and-website/025-integrate-current-visual-baseline-and-bootstrap-asset-pipeline.md:1-241`
-   plus its accepted early visual manifest, public assets, browser validation,
-   and completion evidence. Stop if incomplete.
-4. `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
+1. `tasks/20260825-crystal-lattice-product-positioning-and-website/000-main.md`
+   — parent requirements, evidence roles, release sequencing, and public
+   boundaries.
+2. `tasks/20260825-crystal-lattice-product-positioning-and-website/020-current-product-and-compatibility-baseline.md`
+   — completed compatibility evidence, accepted decisions, source revision,
+   generators, limitations, and downstream refinement boundary.
+3. `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
    and
-   `tasks/20260930-homepage-getting-started-and-waitlist/018-homepage-visuals-product-improvements.md`
-   — selected copy/decision record, real product changes and six reviewed
-   visual stories. Preserve the completed copy evidence and consume accepted
-   outputs for release acceptance.
-5. `landing_page/docs/development/specifications/product-website-content/content-spec.md`
-   — complete current content target, terminology, compatibility, proof, and
-   progressive-revision requirements.
-6. `landing_page/docs/development/specifications/product-website-content/requirements.md`
-   — live target state and evidence mapping.
-7. `landing_page/docs/development/content-system.md:7-161` — current authored
-   sources, rendering, assets, extension points, boundaries, and verification.
-8. `landing_page/src/content/pages/home.yaml:1-441`,
-   `landing_page/src/content/pages/mobile.yaml:1-119`, and
-   `landing_page/src/content/markdown/privacy.md:1-104` — current public
-   product, mobile, and privacy content to audit before editing.
-
-### Additional references
-
-- `application/python/README.md:1-210` and
-  `mobile/crystal-lattice-control-rn/README.md:1-180` — current first-use and
-  connection behavior.
-- Current iOS, Android, macOS, CLI, open-source, and bridge release task files
-  listed in `landing_page/docs/development/research/evidence-index.md:65-75`
-  when their facts are used.
-- Historical landing-page task and brainstorm listed in the main task only as
-  prior hypotheses.
-
-## Known facts and supporting details
-
-- This rewrite exists so early users are not blocked by later market research.
-- Inspect the selected source for remaining placeholders and unverified
-  examples rather than assuming an earlier observation is still current.
-- Task 025 owns the reviewed early visual baseline and minimal asset workflow;
-  this task consumes those accepted outputs rather than independently
-  re-importing or selecting screenshots.
-- Coding-agent-first is the earlier positioning baseline. The bounded review
-  can propose a revised direction supported by actual product behavior.
-  Crystal Lattice runs on the user's computer; its profiles remain distinct
-  from official upstream applications and sessions.
-- The accepted canonical website projection is
-  `landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.json`.
-  It is a draft input, not evidence that the tables are already public.
-- Mobile can connect directly on the same local network; the bridge relays the
-  Crystal Lattice connection when away from that network.
-- The rewrite may satisfy the factual website part of the existing iOS review
-  placeholder, but roadmap mutation is separate.
+   `landing_page/docs/development/homepage-first-user-release/brief.md`
+   — homepage ownership and approved configured-agent/harness terminology.
+4. `landing_page/docs/development/research/findings/current-product-and-compatibility-baseline.md`
+   — human-readable accepted findings and website projection boundary.
+5. `landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.json`
+   and its generator/selection files — accepted draft evidence feeding the
+   internal version-two projection and later canonical public selection.
+6. `landing_page/docs/development/specifications/product-website-content/content-spec.md`
+   and `requirements.md` — intended public communication outcomes and live
+   target state.
+7. `landing_page/docs/development/content-system.md`,
+   `landing_page/AGENTS.md`, and `landing_page/README.md` — current authored
+   content, rendering, claim, build, and verification boundaries.
 
 ## Expected outputs
 
-Content decision:
+Durable content decision:
 
 - `landing_page/docs/development/research/findings/release-safe-early-user-content-decision.md`
 
-Required current-content updates:
+Website-facing compatibility source:
 
-- `landing_page/src/content/pages/home.yaml`;
-- `landing_page/src/content/pages/mobile.yaml` when availability or
-  explanation changes;
-- affected support, privacy, terms, navigation, footer, section, or component
-  sources only when the verified baseline requires them.
-- public compatibility rendering/data bindings derived from the accepted
-  projection, retaining evidence and material state boundaries.
+- a maintained canonical three-table projection generated from the accepted
+  research and focused current-source refresh;
+- implementation source under the landing package's content/data ownership,
+  with no manual duplication of authoritative rows;
+- validation that every public row resolves to accepted evidence or a
+  separately refreshed current claim.
 
-Required target/state updates:
+Current public implementation:
 
-- `landing_page/docs/development/specifications/product-website-content/content-spec.md`
-  when the approved intended content changes;
-- `landing_page/docs/development/specifications/product-website-content/requirements.md`
-  with implementation, verification, documentation, and evidence state.
+- focused compatibility route or approved route set;
+- navigation and homepage route to the catalogue;
+- semantic status legend, grouped rows/cards/tables, limitations, evidence and
+  freshness presentation;
+- task `019`'s accepted homepage and first-use path;
+- affected mobile, support, privacy, terms, footer, or documentation routes
+  only when current evidence requires them.
 
-Verification outputs:
+Target/state:
 
-- successful landing build;
-- focused link/command checks;
-- desktop and mobile viewport observations;
-- accessibility observations;
-- production deployment evidence only when separately authorized.
+- approved updates to the product-content specification;
+- implementation, verification, documentation, and evidence state updates in
+  requirements.
+
+Verification:
+
+- focused canonical selection/generator validation;
+- content and route tests;
+- responsive and keyboard browser tests;
+- semantic/accessibility review;
+- source/version/limitation checks;
+- full landing build and integrated-site review;
+- production checks only after the shared authorized publication.
 
 ## Scope boundaries
 
-- Do not wait for
-  `tasks/20260825-crystal-lattice-product-positioning-and-website/040-research-foundation.md`
-  through
-  `tasks/20260825-crystal-lattice-product-positioning-and-website/080-competitor-category-and-multi-agent-research.md`.
-- Use an owner-reviewed product-based launch proposition. Do not claim market
-  validation, invent pricing/comparisons, or imply managed-bridge availability.
-- Do not add speculative screenshots or unverified code to replace removed
-  placeholders.
-- Do not update the roadmap or deploy remotely without the relevant separate
-  authority.
+- Do not repeat broad compatibility research or reclassify unchanged accepted
+  rows merely to produce different public wording.
+- Do not write public compatibility facts directly from task prose when an
+  accepted data/evidence source exists.
+- Do not place exhaustive compatibility tables in the homepage first-user
+  path.
+- Do not present official upstream applications, accounts, or sessions as
+  included Crystal Lattice products.
+- Do not infer complete parity from tool/package names.
+- Do not expose internal task paths, research confidence labels, private
+  diagnostics, credentials, account identifiers, or raw provider responses.
+- Do not expose development fixtures, templates, or support libraries as
+  ordinary user-facing product capabilities without explicit grouping.
+- Do not publish planned or in-development behavior with the same presentation
+  as delivered behavior.
+- Do not update the roadmap or deploy remotely without separate authority.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
-First reconcile the accepted product baseline, existing copy decisions and
-actual release/source-build states. Make one short positioning pass around the
-primary visitor, benefit, category and first action. Prepare bounded alternatives
-and obtain owner approval before changing public copy. Preserve the earlier
-015 Completion Notes and add new decisions to the maintained design record.
+Keep the accepted compatibility research and generated version-two projection
+as complete internal evidence. Do not expose that full projection directly.
 
-Integrate 018's six reviewed visual stories and all three public compatibility
-views through the existing content/asset system. Refine grouping and wording
-without erasing limitations or changing accepted capability identity. Refresh
-only claims affected by real source/release changes. Verify downloads and
-first-success commands against their owning packages.
+Execution is paused behind
+`tasks/20261024-production-staging-website-channels.md`.
 
-Prepare the complete content candidate for the shared checkpoint with waitlist
-020. Verify build, links, responsive layouts, keyboard/semantic accessibility,
-all visuals and tables. A human accepts that exact integrated candidate.
-Waitlist 020 performs the single authorized publishing push after its own
-backend/privacy gates; this task does not duplicate that deployment.
+After resumption, create a canonical public selection:
 
-After publication, inspect actual public pages, assets, tables, commands,
-downloads and availability states, alongside 020's production form tests.
-Record the website acceptance used by open-source 070. Public source-link
-promotion/anonymous verification then belongs to 070/080.
+1. derive one small harness table from differentiating capabilities only;
+2. combine related tool implementations into one understandable row;
+3. derive one provider table with Basic API support, subscription auth,
+   native extras, and concise conditions;
+4. derive one plugin/application-feature table from product behavior groups
+   rather than package rows;
+5. map current, conditional, planned, and unavailable states to accessible
+   check/cross/conditional presentation;
+6. retain exact package, provider, model, evidence, limitation, and freshness
+   detail outside the primary scan path;
+7. validate every public cell against accepted or explicitly refreshed
+   evidence.
 
-### Delivery steps and human boundaries
+Stop for the Canonical Tables checkpoint before route/component
+implementation.
 
-1. **AGENT:** Reconcile accepted product/proof inputs and changed claims.
-2. **AGENT + HUMAN JUDGMENT:** Review the bounded positioning alternatives,
-   approve the primary direction and preserve the decision rationale.
-3. **AGENT:** Implement approved copy, compatibility presentation and six
-   visual bindings; coordinate form-owned changes with waitlist 020.
-4. **AGENT:** Verify the exact integrated candidate, supported first-use paths
-   and release/source-build claims.
-5. **HUMAN JUDGMENT:** Accept copy, all visuals, table presentation, responsive
-   behavior and the integrated privacy/form presentation.
-6. **HUMAN PUBLICATION AUTHORIZATION + AGENT:** Coordinate the single
-   publishing push in waitlist 020 after its separate AWS/email gates.
-7. **AGENT + HUMAN:** Verify the live website and form evidence, record
-   acceptance and hand off to open-source 070/080.
+After canonical-table approval, implement the focused compatibility route
+using semantic tables and progressive details. Do not add search, comparison
+scoring, or a dense client-side data application merely because the internal
+source is large.
+
+Integrate the accepted task `019` homepage through a concise configured-agent
+introduction and one compatibility action. Verify both independently, then
+review them together with current downloads, documentation, mobile/bridge,
+support, privacy, and waitlist presentation.
+
+The waitlist task performs the single authorized production publishing push
+after its own AWS/privacy gates and this task's integrated-site acceptance.
+After publication, verify public homepage, compatibility routes, status
+semantics, evidence/freshness notes, links, downloads, and waitlist behavior.
+Repository visibility follows its separate release task.
 
 ### Implementation decisions and open questions
 
-- Decision: do not wait for search, community, competitor, or interview
-  research.
-- Decision: label this content as normal current product content, not as a
-  research phase.
-- Decision: all six approved visual stories and all three public compatibility
-  views are required for this release.
-- Decision: keep one coordinated publishing push in waitlist 020 and no
-  circular whole-task dependency.
-- Open: owner selection of the leading proposition and compact table/page
-  presentation; avoid assuming that an accepted draft is final copy.
-- Open: verify claims against actual releases or clearly identified source
-  builds. A fresh Desktop DMG is needed only if selected download-specific
-  claims require it, not as a blanket website gate.
+- Decision: revise this task in place; the completed compatibility research
+  remains the evidence owner.
+- Decision: task `019` owns the homepage and supplies an accepted input rather
+  than becoming a circular whole-task dependency.
+- Decision: the homepage introduces configured agents/harnesses but does not
+  render the exhaustive catalogue.
+- Decision: public compatibility uses three concise tables: harnesses,
+  providers, and plugins/application features.
+- Decision: configured-agent examples belong in homepage/harness context and
+  progressive details rather than an exhaustive fourth table.
+- Decision: configured agents are not renamed profiles.
+- Decision: a harness is broader than model choice, instructions, or a shared
+  tool permission list.
+- Decision: per-family **oriented** or **compatible** wording follows package
+  evidence rather than one universal adjective.
+- Decision: the accepted research package and version-two projection remain
+  complete internal evidence; this task owns a smaller canonical public
+  selection.
+- Decision: final homepage, compatibility catalogue, waitlist, and publication
+  use one integrated artifact and shared publication checkpoint.
+- Decision: compatibility UI work is paused behind the production/staging
+  channel task.
+- Open human questions are listed above and must be resolved before canonical
+  table or UI work.
 
 ### Documentation
 
-- Update current public content and content requirements.
-- Update `content-system.md` only if the implementation changes.
-- Record larger positioning questions in research, not public copy.
-- Update the existing homepage positioning/visual decision record for the
-  bounded launch decision and preserve viable prior alternatives.
+- Record approved compatibility information architecture and public
+  terminology in the durable release-safe content decision.
+- Update the product-content specification and requirements after the content
+  model is approved.
+- Update `content-system.md` only for delivered projection/rendering behavior.
+- Document the projection generator/source boundary and freshness workflow
+  without duplicating the accepted research catalogue.
+- Keep provider, harness, agent, and plugin package documentation
+  authoritative for behavior.
 
 ### Task checklist
 
-- [ ] Reconcile the current page against the compatibility baseline.
-- [ ] Obtain owner approval of bounded launch positioning and final copy.
-- [ ] Consume 025's asset workflow and all six accepted 018 proof stories.
-- [ ] Update the content target and affected requirements.
-- [ ] Rewrite the homepage and affected product routes.
-- [ ] Render all three public compatibility views and verify material states.
-- [ ] Remove public placeholders and unverified examples without dropping
-  required visual stories.
-- [ ] Verify first-success commands and links.
-- [ ] Run build, responsive, accessibility, and visual checks.
-- [ ] Obtain acceptance of the exact integrated content/form candidate.
-- [ ] Coordinate authorized publication through waitlist 020.
-- [ ] Verify public routes/assets/tables and record website acceptance before
-  open-source visibility.
+- [x] Reconcile this task with the revised task `019` homepage ownership and
+      completed compatibility research.
+- [x] Draft and review the complete internal
+      configured-agent/harness/provider/plugin evidence model.
+- [x] Obtain Content Model human approval.
+- [x] Define and generate the version-two website projection.
+- [x] Run current-source drift detection and refresh changed claims only.
+- [x] Obtain focused source-refresh human approval.
+- [ ] Define the selected canonical harness/provider/plugin tables.
+- [ ] Obtain Canonical Tables human approval.
+- [ ] Implement the approved compatibility route or route set.
+- [ ] Add the concise homepage compatibility introduction/action after task
+      `019` supplies its accepted local homepage.
+- [ ] Verify public status, limitation, evidence, and freshness presentation.
+- [ ] Run content, build, responsive, keyboard, semantic, accessibility, and
+      link checks.
+- [ ] Obtain Local Catalogue human approval.
+- [ ] Review the complete integrated homepage, catalogue, waitlist/privacy,
+      navigation, downloads, docs, support, and mobile/bridge paths.
+- [ ] Obtain Integrated Site human approval.
+- [ ] Coordinate the authorized publishing push through the waitlist task.
+- [ ] Verify public homepage/catalogue/routes and record acceptance before
+      repository visibility work.
 
 ### Requirement verification
 
-- A reviewer unfamiliar with the product can answer the acceptance questions
-  in the content specification.
-- Current commands and links produce the documented result.
-- No visible placeholder or internal planning label remains.
-- Production content matches current owning release and product sources.
-- Public browser checks show all six approved visual stories and the three
-  compatibility views, with no missing assets or misleading availability.
-- Human review of the full page establishes approved positioning and visual/
-  table comprehension; the research program is not a prerequisite.
-- The shared publishing artifact agrees with live website and waitlist
-  production evidence. Open-source 070 consumes this acceptance before
-  changing visibility.
+- Homepage ownership: task and source inspection show that task `019` owns
+  homepage copy/visuals while this task owns the compatibility catalogue and
+  integrated content acceptance.
+- Three-table separation: generated public data and rendered HTML expose
+  harnesses, providers, and plugins/features as separate concise tables while
+  complete configured-agent relationships remain available in internal
+  evidence and progressive detail.
+- Configured-agent identity: every public agent maps to accepted source
+  identity, harness/tool bundle and provider route, retains its limitation and
+  qualifier, and states that it is not an official upstream application or
+  session.
+- Harness accuracy: harness rows identify material tool/provider/context
+  behavior backed by package descriptors/evidence and do not treat model,
+  prompt, or permission-only differences as separate harness proof.
+- Provider accuracy: public provider rows preserve auth/account distinctions,
+  current/conditional/planned states, prerequisites, limitations, and
+  verification freshness from accepted or refreshed evidence.
+- Plugin accuracy: public plugin rows resolve to the accepted catalogue,
+  preserve lifecycle/capability/default distinctions, and separate ordinary
+  user-facing product behavior from examples, templates, support libraries,
+  distribution-specific packages, and fixtures.
+- Projection lineage: deterministic validation traces every public cell to
+  accepted evidence or a focused refreshed claim and reports source drift
+  rather than silently changing classifications.
+- Accessibility/responsiveness: browser and semantic checks cover linkable
+  headings, keyboard navigation, table/list reading, details disclosure,
+  status text independent of color, and no horizontal page overflow at
+  desktop, tablet, 390-pixel, and 320-pixel widths.
+- Integrated-site boundary: human review accepts the exact homepage,
+  compatibility catalogue, waitlist/privacy presentation, navigation,
+  downloads, docs, support, and mobile/bridge content before publication.
+- Publication boundary: live verification follows explicit authorization and
+  checks public routes/data/statuses against the accepted artifact.
 
 ### Additional implementation verification
 
-- Confirm compatibility rendering preserves canonical identities, material
-  status/limitation cells and source/version traceability after presentation
-  changes; do not replace missing evidence with generic checkmarks.
-- Check release-specific claims against installed artifacts or explicit source
-  builds, rather than treating captures as proof of public binary behavior.
-- Keep waitlist implementation independent and record one publishing push;
-  source availability transitions must not create a reverse publication gate.
+- Run the accepted compatibility generators/checks before and after the new
+  projection work.
+- Validate JSON/CSV parsing, stable IDs, evidence references, source paths,
+  status mappings, route anchors, and generated public data.
+- Check that internal task paths, private identifiers, credentials, research
+  confidence fields, and raw diagnostics are absent from browser output.
+- Use a small current-source comparison to identify changed configured agents,
+  plugin descriptors, provider routes, and maintained planned states.
+- Treat hosted-provider verification as not run unless explicitly authorized
+  and performed; do not upgrade a status from local tests alone.
+
+## Implementation Notes
+
+- 2026-10-24: The user approved the revised execution plan and ordered work to
+  proceed through the version-two compatibility projection before task `019`
+  resumes. Content Model approval selects one `/compatibility` route with four
+  linkable views, harness-family-first configured-agent grouping, exact models
+  in progressive technical detail, a user-facing plugin catalogue separated
+  from developer/internal projects, explicit public status distinctions, and
+  progressive evidence/freshness disclosure. Execution starts with projection
+  generation and current-source drift detection and must stop at the Projection
+  human checkpoint before route/component implementation.
+- 2026-10-24: Generated the task-owned retained projection under
+  `landing_page/research/release-safe-early-user-website/` without rewriting
+  the completed baseline. The projection has 20 configured agents grouped
+  into eight relationship groups, six harness families with 71 capability
+  rows, 10 provider/account routes with 191 capability rows, and all 69
+  current plugin projects grouped as 33 included, 9 optional, 3
+  distribution-specific, and 24 developer/internal projects. Exact model and
+  plugin-package defaults are progressive technical details rather than
+  primary agent columns.
+- 2026-10-24: Focused drift detection found no accepted configured-agent
+  provider/model/plugin/shell-mode identity changes, but current display
+  metadata exists for all 20 agents. Refreshed the projection for Anthropic
+  native compaction/context editing, Codex unified exec, the Claude background
+  compaction application plugin, and three additional plugin projects:
+  `embedded-workspace-settings`, `interleaved-thinking`, and
+  `shell-tool-settings`.
+- 2026-10-24: Focused local verification passed 185 tests: Anthropic context
+  management 20, Claude compaction 43, Codex unified exec/shell selection 98,
+  embedded workspace settings 2, interleaved thinking 9, and shell-tool
+  settings 13. The first combined new-plugin command failed during collection
+  because `embedded-workspace-settings` was not installed in the shared
+  environment; package-source `PYTHONPATH` reruns passed and are the counted
+  evidence. No hosted provider request was run.
+- 2026-10-24: The deterministic generator and JSON parsing checks pass.
+  Validation covers complete current plugin inventory, stable configured-agent
+  grouping, progressive model detail, known public statuses, planned
+  capability treatment, Anthropic refreshed rows, input hashes, and absence of
+  internal task paths, requirement IDs, obsolete **profile** terminology, and
+  **AI Agent Platform** from the proposed public projection. Route/component
+  implementation remains unstarted; the complete projection is now retained
+  as internal evidence pending canonical public table selection.
+- 2026-10-24: The user accepted the focused source refreshes but rejected the
+  complete version-two projection as direct website content. Retain it as
+  internal evidence. The approved future public shape is three small
+  canonical tables—Harnesses, Providers, and Plugins/application features—
+  with selected meaningful rows, baseline provider behavior collapsed into a
+  Basic API result, related tool implementations combined, and accessible
+  check/cross/conditional states. Configured agents remain homepage/harness
+  examples and progressive detail, not a fourth exhaustive table.
+- 2026-10-24: Compatibility canonicalization and route implementation are
+  paused behind `tasks/20261024-production-staging-website-channels.md`.
+  Resume at the Canonical Tables checkpoint after the production/staging
+  channels pass their recorded resumption boundary.

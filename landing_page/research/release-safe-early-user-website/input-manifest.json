@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0.0",
+  "projection_schema_version": "2.0.0",
+  "observation_date": "2026-10-24",
+  "accepted_source_revision": "add5f5e71de3bb1676851bb840dfd77620f63ddb",
+  "current_product_revision": "b61b38cc33132128b74ea6acb812959af5fde951",
+  "generator": "generate_compatibility_projection.py",
+  "inputs": [
+    {
+      "path": "landing_page/research/release-safe-early-user-website/generate_compatibility_projection.py",
+      "sha256": "f359ebb541b5ceb5aae2714993b8d3cc108e7fca679bfba031c6a937037032ad"
+    },
+    {
+      "path": "landing_page/research/release-safe-early-user-website/projection-config.json",
+      "sha256": "547925e485583c2ed8e2c2927204c5f16a3fc4e2e19f681ed8ce0a33e0f6f0e0"
+    },
+    {
+      "path": "application/python/agent_terminal_app/default_config/config.json",
+      "sha256": "2435c70a2ea176b8f5c80f3236dce7de3ca6db3ce7a621983c7edb38db4de643"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/configured-agent-compatibility.csv",
+      "sha256": "917070a03bff98205971795c7f7ec262871e527b2ea6c6024910a84f12ed3e15"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/provider-account-compatibility.csv",
+      "sha256": "49d4a8d63840f01ef39902be58bb1356c66bdf57eab3c1dd3753fd1c5afa4745"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/model-family-feature-matrix.json",
+      "sha256": "d0dc095604df0f33183e6607cb3369eadb2bff92910157cd7a52b86b120f6df0"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/provider-support-matrix.json",
+      "sha256": "3e9bedbd3cad6ddea92dd57309a733e1f0ed9297a8652f70933b5afd179a90ec"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/feature-catalog.json",
+      "sha256": "593c1fe264506ef9f0c14e2a3114715202c0ca49ddd4f8f0dfcd7dbc39354edc"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/website-compatibility-data.json",
+      "sha256": "e15fc6648ad877a187b54e1c3f99990857440b7f5de4ce811906e6c360f0a9b3"
+    },
+    {
+      "path": "landing_page/research/current-product-and-compatibility-baseline/input-manifest.json",
+      "sha256": "245cd0c36335b95a94aef6bea09e7c8e64fbe40e76f71ab93cfb21e32cc42bc1"
+    }
+  ],
+  "outputs": [
+    "compatibility-projection-v2.json",
+    "compatibility-projection-v2.md",
+    "drift-report.json",
+    "drift-report.md"
+  ],
+  "status": "awaiting_canonical_public_selection"
+}

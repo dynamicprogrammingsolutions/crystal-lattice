@@ -10,15 +10,18 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 
+Paused By:
+`tasks/20261024-production-staging-website-channels.md`
+
 ## Requirements checklist
 
 - [ ] The homepage role, primary visitor, visitor questions, terminology,
       concept ownership, claim boundaries, and information order are approved
       before the next implementation candidate is built.
-- [ ] Primary homepage copy does not use **AI agent** as the product category.
-      It explains Crystal Lattice in ordinary product language before
-      introducing the real `Agent` picker, coding-agent compatibility,
-      providers, plugins, bridge behavior, or other technical terms.
+- [x] Primary homepage copy uses **application for configurable AI coding
+      agents** as the category direction and does not define Crystal Lattice
+      as a generic **AI agent platform**. It distinguishes the configured
+      agent, its harness, provider route, plugins, session, and application.
 - [ ] The hero identifies a recognizable product category, one primary
       benefit, that Crystal Lattice runs on the visitor's computer, and a
       truthful first action.
@@ -26,9 +29,11 @@ Depends On:
       establishes the complete application through a real Desktop state that
       includes sessions, selected conversation, composer, and relevant setup
       identity.
-- [ ] The opening explanation keeps three product qualities distinct:
-      visible behavior and information; configurable profiles and settings;
-      and replaceable or extensible behavior.
+- [ ] The opening explanation focuses on three material differences:
+      configured agents can select materially different harnesses;
+      provider-native history/behavior can remain distinct from normalized
+      display history; and plugins can affect application/session behavior in
+      addition to model-facing tools.
 - [ ] Desktop and mobile are explained as clients for the same Crystal Lattice
       sessions on the computer. A matched cross-device figure uses separately
       framed genuine captures rather than one blended product canvas.
@@ -40,9 +45,10 @@ Depends On:
       clear visual unit with separation from surrounding prose.
 - [ ] Related screenshots have consistent apparent UI magnification at actual
       rendered size. Important proof-bearing labels are readable inline.
-- [ ] A dedicated compact real profile-picker capture removes unused window
-      space before capture and shows the selected profile's purpose and
-      contributed tools without repainting or fabricating product text.
+- [ ] A dedicated compact real Agent-picker capture removes unused window
+      space before capture and shows configured-agent identity plus the
+      materially different harness/tool behavior being explained without
+      repainting or fabricating product text.
 - [ ] Desktop and mobile receive restrained presentation frames where client
       identity or continuity matters. Focus crops and callouts remain
       unframed when another frame would reduce readability or add noise.
@@ -99,7 +105,10 @@ This task owns the final local homepage apart from the functional waitlist:
 - local publish-readiness verification and documentation.
 
 Subtask `020` owns the real waitlist service and form, privacy integration,
-production deployment, publication, and production verification.
+and its later integrated production verification.
+`tasks/20261024-production-staging-website-channels.md` now owns the
+production/staging source split, restoration of the interim production
+homepage, staging infrastructure, and dual deployment workflow.
 
 Current public behavior and product interfaces remain authoritative. If an
 accepted screenshot would require a genuine product behavior change, stop and
@@ -156,20 +165,27 @@ direction passes the required approvals.
 
 ### Brief and terminology
 
-- Is **coding workspace** the right ordinary product category, or should the
-  approved copy use another category that still avoids **AI agent**?
-- Should **coding agent** appear later in compatibility detail, or should the
-  first homepage avoid the term entirely?
-- Is **profile** the correct public explanation for the interface's `Agent`
-  picker?
+- Resolved: use **application for configurable AI coding agents** as category
+  orientation.
+- Resolved: use **configured agent**, not **profile**, for the named `agents`
+  configuration used by a session.
+- Resolved: use **harness** for materially different tool implementations,
+  provider integration, context behavior, and controls around the configured
+  agent.
+- Resolved: the primary differentiators are harness composition,
+  provider-native fidelity, and plugins that can affect the application.
+- Resolved: included agents may be introduced as Codex-oriented,
+  Claude-compatible, Gemini-oriented, and other evidence-backed harnesses,
+  with an explicit non-upstream identity statement and a route to the focused
+  compatibility catalogue owned by website task `030`.
 
 ### Copy
 
 - Select opening direction A, B, or C, or request a complete revised
   alternative.
 - Approve or revise the shared overview headings and captions.
-- Decide whether “visible, configurable, and extensible” is the correct
-  organizing language for the focused proof section.
+- Rewrite the prior A/B/C alternatives around the approved harness,
+  provider-native, and application-plugin differentiation.
 
 ### Visual plan
 
@@ -184,10 +200,11 @@ direction passes the required approvals.
 
 - Confirm that the large Desktop figure replaces separate Composer and
   Workspace stories.
-- Confirm provider usage/cost as the visibility proof.
-- Decide whether provider controls sufficiently explain extensibility or a
-  focused Plugins dialog should replace or complement it.
-- Confirm the compact profile-picker capture requirements.
+- Confirm the configured-agent/harness comparison proof.
+- Confirm whether provider-native fidelity uses the maintained relationship
+  diagram, focused real UI, or both.
+- Confirm the plugin-configuration-to-application-effect proof.
+- Confirm the compact Agent-picker capture requirements.
 
 ### Later checkpoints
 
@@ -245,9 +262,10 @@ after each applicable decision is explicit.
 After approval:
 
 1. create the new opt-in candidate using the selected copy and visual plan;
-2. recapture the complete Desktop overview and compact profile picker;
-3. recapture Desktop/mobile continuity as separate real clients;
-4. select or revise the provider usage/cost and provider-control proofs;
+2. recapture the complete Desktop overview and compact Agent picker;
+3. produce the approved configured-agent/harness proof;
+4. select or produce the provider-native fidelity and application-plugin
+   proofs;
 5. render actual-page candidates in light/dark themes and at all review widths;
 6. stop for contextual approval before source promotion.
 
@@ -270,11 +288,17 @@ to subtask `020` without pushing, deploying, or publishing.
   prior walkthrough history.
 - Decision: copy and visual direction are approved before another implementation
   candidate.
-- Decision: primary copy does not use **AI agent** as the category.
+- Decision: primary copy uses **application for configurable AI coding
+  agents** as category orientation and avoids the broader **AI agent
+  platform** definition.
 - Decision: the homepage uses no fixed number of visual stories.
 - Decision: one large Desktop image establishes the complete application.
-- Decision: visible, configurable, and extensible behavior remain distinct
-  candidate qualities pending exact copy approval.
+- Decision: configured-agent harness composition, provider-native fidelity,
+  and application-level plugin effects are the material differentiators.
+- Decision: model selection, ordinary instructions, generic permissions,
+  session persistence, history, usage/cost display, Desktop/mobile access, and
+  source availability are orientation or supporting facts rather than primary
+  value claims.
 - Decision: proof rows use one consistent layout rather than automatic
   left/right alternation.
 - Decision: real window geometry is corrected before capture when unused space
@@ -312,13 +336,13 @@ to subtask `020` without pushing, deploying, or publishing.
       package.
 - [x] Reconcile the fixed six-visual requirement in the parent task and
       product-content specification.
-- [ ] Complete the Brief and Terminology human checkpoint.
+- [x] Complete the Brief and Terminology human checkpoint.
 - [ ] Complete the Complete Copy human checkpoint.
 - [ ] Complete the Visual Plan human checkpoint.
 - [ ] Complete the Image Shortlist human checkpoint.
 - [ ] Implement the selected opt-in homepage candidate.
-- [ ] Capture/select the approved overview, profile, focused proof, and
-      continuity sources without promotion.
+- [ ] Capture/select the approved overview, configured-agent/harness,
+      provider-native, and application-plugin proof without promotion.
 - [ ] Complete the contextual opening-page human checkpoint.
 - [ ] Integrate approved normal content, responsive assets, and catalog
       bindings.
@@ -413,9 +437,22 @@ to subtask `020` without pushing, deploying, or publishing.
   plan, and a seven-image opening/Getting Started shortlist.
 - 2026-10-23: Corrected the parent task and product-content specification so
   the final homepage no longer has to preserve six visual stories. Added a
-  terminology requirement that primary homepage copy does not use **AI
-  agent** as the category.
+  terminology requirement preventing the broader **AI agent platform**
+  definition from replacing an accurate coding-agent category.
 - 2026-10-23: Current public YAML and Candidate A code remain unchanged.
   Execution is paused for the Brief and Terminology, Complete Copy, Visual
   Plan, and Image Shortlist human decisions before another implementation
   candidate is built.
+- 2026-10-24: The user approved **application for configurable AI coding
+  agents** as the category direction, **configured agent** instead of
+  **profile**, and the harness/provider-native/application-plugin
+  differentiator hierarchy. The brief records the accepted hybrid wording for
+  Codex-oriented, Claude-compatible, Gemini-oriented, and other
+  evidence-backed harnesses. H1 is complete; exact copy, visual plan, and
+  image shortlist remain open.
+- 2026-10-24: This task is paused before H2 behind
+  `tasks/20261024-production-staging-website-channels.md`. Resume only after
+  the production/staging source and local-build split passes its human
+  checkpoint and the staging deployment path is available or explicitly
+  deferred. Resume at H2 Complete Opening Copy; H1 decisions and the durable
+  review package remain authoritative.

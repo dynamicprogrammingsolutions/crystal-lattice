@@ -15,8 +15,10 @@ the currently deployed website confusing, inaccurate, or visibly unfinished.
 
 The first complete user website includes owner-reviewed launch positioning, a
 bounded set of reviewed homepage visuals selected for distinct explanatory
-purposes, a usable first-success path and three public compatibility views:
-product/application features, provider support and model-family tools.
+purposes, a usable first-success path and three concise public compatibility
+tables: harnesses, providers, and plugins/application features. Complete
+configured-agent and package evidence remains available for canonicalization
+and progressive detail rather than becoming another exhaustive primary table.
 
 Use the accepted canonical website projection and real reviewed product
 proof. Preserve material capability states, limitations, default/optional
@@ -53,11 +55,17 @@ The website must not imply that ordinary use requires operating agent
 infrastructure. Technical server, API, and transport terminology belongs in
 the appropriate detailed explanation.
 
-Crystal Lattice configured agents may provide compatibility-oriented tools,
-instructions, and workflow behavior resembling Codex, Claude Code, Gemini,
-Qwen, Kimi, Grok, or other coding-agent products. These are Crystal Lattice
-profiles and sessions, not sessions owned by the official upstream
-applications.
+Crystal Lattice configured agents may provide compatibility-oriented harnesses
+resembling Codex, Claude Code, Gemini, Qwen, Kimi, Grok, or other coding-agent
+products. These are Crystal Lattice configurations, implementations, and
+sessions, not the official upstream applications, accounts, or sessions.
+
+Public content distinguishes the configured agent from its harness and
+provider route. A configured agent selects a provider/model configuration and
+plugin composition. The harness describes materially variable tool,
+provider-extension, context, and control behavior around that configuration.
+Ordinary model, instruction, or permission changes do not by themselves prove
+that two configured agents use materially different harnesses.
 
 Broader general-purpose claims must be supported by actual delivered behavior
 and approved product proof. The bounded launch review may use that evidence;
@@ -185,7 +193,8 @@ acceptance checks and is available from the public release endpoint.
 Compatibility content must distinguish:
 
 - official upstream products and accounts;
-- Crystal Lattice configured-agent profiles;
+- Crystal Lattice configured agents;
+- harness/tool and provider-extension composition;
 - model family;
 - provider route;
 - authentication or account mode;
@@ -361,8 +370,10 @@ An unfamiliar visitor should be able to answer:
 - Is it primarily a coding agent today?
 - How do desktop and mobile relate to it?
 - What does the bridge do?
-- Is a Claude- or Codex-style profile the official upstream application?
-- Which models, providers, accounts, and profile features are actually
+- Is a Claude-compatible or Codex-oriented configured agent the official
+  upstream application?
+- Which configured agents, harnesses, models, providers, accounts, and plugin
+  features are actually
   supported?
 - What can plugins change?
 - What can I try now?

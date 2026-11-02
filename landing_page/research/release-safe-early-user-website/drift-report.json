@@ -1,0 +1,179 @@
+{
+  "schema_version": "1.0.0",
+  "observation_date": "2026-10-24",
+  "accepted_source_revision": "add5f5e71de3bb1676851bb840dfd77620f63ddb",
+  "current_product_revision": "b61b38cc33132128b74ea6acb812959af5fde951",
+  "current_product_revision_date": "2026-10-21T23:05:38+02:00",
+  "status": "focused_refresh_required_and_applied_to_projection",
+  "configured_agent_core_drift": [],
+  "configured_agent_display_metadata": {
+    "status": "added_after_accepted_baseline",
+    "agent_count": 20,
+    "projection_use": "current titles, descriptions, and order"
+  },
+  "new_plugin_projects": [
+    "embedded-workspace-settings",
+    "interleaved-thinking",
+    "shell-tool-settings"
+  ],
+  "removed_plugin_projects": [],
+  "descriptor_changes": [
+    {
+      "plugin_id": "anthropic-compatible",
+      "accepted_entries": [
+        "anthropic_plugins.provider.AnthropicProvider",
+        "anthropic_plugins.tools_extension.AnthropicToolsExtension",
+        "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+        "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension",
+        "anthropic_plugins.usage_extension.AnthropicUsageExtension",
+        "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
+      ],
+      "current_entries": [
+        "anthropic_plugins.provider.AnthropicProvider",
+        "anthropic_plugins.tools_extension.AnthropicToolsExtension",
+        "anthropic_plugins.reasoning_extension.AnthropicReasoningExtension",
+        "anthropic_plugins.reasoning_controls_extension.AnthropicReasoningControlsExtension",
+        "anthropic_plugins.context_editing_extension.AnthropicContextEditingExtension",
+        "anthropic_plugins.compaction_extension.AnthropicCompactionExtension",
+        "anthropic_plugins.usage_extension.AnthropicUsageExtension",
+        "anthropic_plugins.prompt_caching_extension.AnthropicPromptCachingExtension"
+      ],
+      "added_entries": [
+        "anthropic_plugins.context_editing_extension.AnthropicContextEditingExtension",
+        "anthropic_plugins.compaction_extension.AnthropicCompactionExtension"
+      ],
+      "removed_entries": []
+    },
+    {
+      "plugin_id": "claude-tools",
+      "accepted_entries": [
+        "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
+        "claude_tools.claude_bash_tool.ClaudeBashTool",
+        "claude_tools.claude_read_tool.ClaudeReadTool",
+        "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool",
+        "claude_tools.claude_write_tool.ClaudeWriteTool",
+        "claude_tools.claude_edit_tool.ClaudeEditTool",
+        "claude_tools.claude_glob_tool.ClaudeGlobTool",
+        "claude_tools.claude_grep_tool.ClaudeGrepTool",
+        "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool",
+        "claude_tools.claude_web_search_tool.ClaudeWebSearchTool",
+        "claude_tools.claude_mcp_tool.ClaudeMCPTool"
+      ],
+      "current_entries": [
+        "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
+        "claude_tools.claude_compaction_app.ClaudeCompactionAppPlugin",
+        "claude_tools.claude_bash_tool.ClaudeBashTool",
+        "claude_tools.claude_read_tool.ClaudeReadTool",
+        "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool",
+        "claude_tools.claude_write_tool.ClaudeWriteTool",
+        "claude_tools.claude_edit_tool.ClaudeEditTool",
+        "claude_tools.claude_glob_tool.ClaudeGlobTool",
+        "claude_tools.claude_grep_tool.ClaudeGrepTool",
+        "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool",
+        "claude_tools.claude_web_search_tool.ClaudeWebSearchTool",
+        "claude_tools.claude_mcp_tool.ClaudeMCPTool"
+      ],
+      "added_entries": [
+        "claude_tools.claude_compaction_app.ClaudeCompactionAppPlugin"
+      ],
+      "removed_entries": []
+    },
+    {
+      "plugin_id": "codex-tools",
+      "accepted_entries": [
+        "codex_tools.shell_tool.ShellArrayTool",
+        "codex_tools.shell_command_tool.ShellCommandTool",
+        "codex_tools.shell_tool_legacy.ShellTool",
+        "codex_tools.apply_patch_tool.ApplyPatchTool",
+        "codex_tools.mcp_tool.CodexMCPTool",
+        "codex_tools.view_image_tool.ViewImageTool",
+        "codex_tools.codex_skills_feature.CodexSkillsFeature",
+        "codex_tools.codex_variant_feature.CodexVariantFeature"
+      ],
+      "current_entries": [
+        "codex_tools.shell_tool.ShellArrayTool",
+        "codex_tools.shell_command_tool.ShellCommandTool",
+        "codex_tools.unified_exec_tool.ExecCommandTool",
+        "codex_tools.unified_exec_tool.WriteStdinTool",
+        "codex_tools.shell_tool_legacy.ShellTool",
+        "codex_tools.apply_patch_tool.ApplyPatchTool",
+        "codex_tools.mcp_tool.CodexMCPTool",
+        "codex_tools.view_image_tool.ViewImageTool",
+        "codex_tools.codex_skills_feature.CodexSkillsFeature",
+        "codex_tools.codex_variant_feature.CodexVariantFeature"
+      ],
+      "added_entries": [
+        "codex_tools.unified_exec_tool.ExecCommandTool",
+        "codex_tools.unified_exec_tool.WriteStdinTool"
+      ],
+      "removed_entries": []
+    }
+  ],
+  "public_claim_refreshes": [
+    {
+      "area": "Anthropic provider",
+      "change": "Native automatic compaction moved from planned to conditional current support; native context editing was added as a conditional capability.",
+      "projection_state": "refreshed"
+    },
+    {
+      "area": "Codex-oriented harness",
+      "change": "exec_command and write_stdin moved from planned to included current tools; legacy shell modes remain optional.",
+      "projection_state": "refreshed"
+    },
+    {
+      "area": "Claude-compatible harness",
+      "change": "The existing compaction capability now includes a background application plugin with notifications, cancellation, retry, and pre-commit snapshots.",
+      "projection_state": "refreshed"
+    },
+    {
+      "area": "Plugin catalogue",
+      "change": "Added embedded-workspace-settings, interleaved-thinking, and shell-tool-settings with distribution/optional lifecycle boundaries.",
+      "projection_state": "refreshed"
+    }
+  ],
+  "focused_verification": [
+    {
+      "area": "Anthropic native context management",
+      "command": "pytest plugins/anthropic-compatible/tests/test_context_management_unit.py plugins/anthropic-compatible/tests/test_stack_integration.py -q",
+      "result": "20 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Claude-compatible compaction",
+      "command": "pytest plugins/claude-tools/tests/test_claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature_action.py plugins/claude-tools/tests/test_claude_compaction_app.py -q",
+      "result": "43 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Codex unified exec and shell selection",
+      "command": "pytest plugins/codex-tools/tests/test_unified_exec_tool.py plugins/codex-tools/tests/test_shell_tool_selection.py -q",
+      "result": "98 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Embedded workspace settings",
+      "command": "PYTHONPATH=plugins/embedded-workspace-settings/src pytest plugins/embedded-workspace-settings/tests -q",
+      "result": "2 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Interleaved thinking",
+      "command": "PYTHONPATH=plugins/interleaved-thinking/src pytest plugins/interleaved-thinking/tests -q",
+      "result": "9 passed",
+      "hosted_provider_verified": false
+    },
+    {
+      "area": "Shell-tool settings",
+      "command": "PYTHONPATH=plugins/shell-tool-settings/src pytest plugins/shell-tool-settings/tests -q",
+      "result": "13 passed",
+      "hosted_provider_verified": false
+    }
+  ],
+  "remaining_limits": [
+    "No hosted provider request was run for this focused refresh.",
+    "Anthropic compaction and context editing remain capability-gated.",
+    "The accepted catalogue was not broadly regenerated or re-audited.",
+    "Unchanged accepted rows retain their original verification state and limitations.",
+    "The complete compatibility route and responsive presentation are not implemented."
+  ]
+}

@@ -20,7 +20,7 @@ It does not duplicate their findings.
 - `README.md` — repository-level current user path and project status.
 - `application/python/agent_terminal_app/default_config/config.json` — current
   default providers, configured agents, global plugins, application settings,
-  and profile composition.
+  and harness/plugin composition.
 - `application/python/docs/configuration.md` — current configuration behavior.
 - `plugins/docs/index.md` — shared plugin-authoring documentation.
 - `plugins/docs/application-plugins.md` — application-level actions, settings,
@@ -32,7 +32,7 @@ It does not duplicate their findings.
 ## Accepted Product and Compatibility Baseline
 
 - `landing_page/docs/development/research/findings/current-product-and-compatibility-baseline.md`
-  — accepted product, provider, configured-profile, feature, tool, client,
+  — accepted product, provider, configured-agent, feature, tool, client,
   limitation, and website-draft conclusions.
 - `landing_page/research/current-product-and-compatibility-baseline/compatibility-matrices.md`
   — exhaustive human-readable plugin, provider, and model-family matrices.
@@ -44,6 +44,21 @@ It does not duplicate their findings.
 - `landing_page/research/current-product-and-compatibility-baseline/input-manifest.json`
   and `completion-manifest.json` — source revision, transformation, review,
   output, verification, and completion lineage.
+
+## Version-Two Website Projection
+
+- `landing_page/docs/development/research/findings/release-safe-early-user-content-decision.md`
+  — approved terminology and four-view content model plus the current
+  projection checkpoint.
+- `landing_page/research/release-safe-early-user-website/compatibility-projection-v2.json`
+  — machine-readable configured-agent, harness, provider, and plugin views.
+- `landing_page/research/release-safe-early-user-website/compatibility-projection-v2.md`
+  — human review rendering.
+- `landing_page/research/release-safe-early-user-website/drift-report.json`
+  and `drift-report.md` — focused current-source changes and verification.
+- `landing_page/research/release-safe-early-user-website/input-manifest.json`
+  — accepted/current revisions, input hashes, generator, outputs, and review
+  state.
 
 ## Configured-Agent Compatibility Packages
 

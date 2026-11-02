@@ -39,6 +39,13 @@ reviews/
 
 Do not add empty directory placeholders.
 
+Current retained packages include:
+
+- `current-product-and-compatibility-baseline/` — accepted exhaustive product
+  and compatibility evidence;
+- `release-safe-early-user-website/` — version-two public compatibility
+  projection and focused current-source drift review.
+
 ## Retained Evidence
 
 A retained record should preserve, where applicable:
