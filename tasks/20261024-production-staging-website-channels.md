@@ -606,3 +606,8 @@ After authorization:
   recorded H2 and Canonical Tables checkpoints. Waitlist task `020` has cleared
   this channel dependency but remains gated by its own decisions and task
   `019` integration handoff.
+- 2026-11-05: The first pushed dual-deployment run exposed that GitHub's
+  depth-one checkout cannot read historical commit `d3fe28a6` for the
+  provenance test. Replaced the CI requirement on deep Git history with the
+  approved baseline file's fixed SHA-256, while retaining the byte-for-byte
+  `git show` comparison whenever the historical object is locally available.

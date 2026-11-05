@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { load } from "js-yaml";
@@ -19,18 +20,34 @@ const productionGettingStartedUrl = new URL(
 
 test("production homepage source exactly matches the approved historical baseline", async () => {
   const actual = await readFile(productionHomeUrl, "utf8");
-  const expected = execFileSync(
-    "git",
-    [
-      "show",
-      "d3fe28a62ccdf82451e8273dc30245ca9075f0dd:landing_page/src/content/pages/home.yaml",
-    ],
-    {
-      cwd: new URL("../..", import.meta.url),
-      encoding: "utf8",
-    },
+  assert.equal(
+    createHash("sha256").update(actual).digest("hex"),
+    "8dd7f715d97cd6fb89c7aeb58e6200e9a6a2470d701994a906c9047c900315d2",
   );
-  assert.equal(actual, expected);
+
+  try {
+    const expected = execFileSync(
+      "git",
+      [
+        "show",
+        "d3fe28a62ccdf82451e8273dc30245ca9075f0dd:landing_page/src/content/pages/home.yaml",
+      ],
+      {
+        cwd: new URL("../..", import.meta.url),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    assert.equal(actual, expected);
+  } catch (error) {
+    if (
+      !error ||
+      typeof error !== "object" ||
+      error.status !== 128
+    ) {
+      throw error;
+    }
+  }
 });
 
 test("production Getting Started has six steps and no review or visual placeholders", async () => {
