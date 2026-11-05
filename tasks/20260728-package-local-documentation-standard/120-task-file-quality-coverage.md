@@ -442,6 +442,39 @@ directories and connections; the matrix command set stays unchanged.
   AGENT_EVAL_GUIDANCE_BUNDLE=.../candidates/task-mechanics-b1v4.
   Do NOT promote over current (b1v3) on its results alone.
 
+- November 5, 2026 (b1v4-gpt6-r1 COMPLETE + recovery): original
+  full-matrix run finished `242 cases: 5 failed, 237 ok`, zero
+  skips. All 5 failures were glm/z.ai provider or judge noise
+  (429 5-hour usage limit ×3, read timeout ×1, judge
+  JSONDecodeError ×1). Recovery pass 1 (same label, unchanged
+  code state; 237 ok cells cache-replayed, failed cells
+  re-executed) ended `2 failed, 240 ok`; recovery pass 2 ended
+  `3 failed, 239 ok`. Remaining failures across passes:
+  handoff-assessment tg01 generated-file glm-max and tg03
+  generated-task glm-max fail DETERMINISTICALLY on malformed
+  judge JSON (identical error offsets across three invocations —
+  char 2659 and char 3072, a trailing-comma class defect), plus
+  one new z.ai read timeout per pass on a different from-plan
+  cell. GUIDANCE-QUALITY RESULT: ZERO guidance/producer failures
+  anywhere in the matrix — the b1v3 gpt-6-luna producer regression
+  (tg09/tg10 gpt-high) is FIXED by b1v4 (2/2 stable fail under
+  b1v3 in r1+r2 → 2/2 pass under b1v4), and the three tg01
+  omit-plan instructed-omission violations under b1v3 are GONE
+  (0 violations under b1v4). No quality regressions observed
+  versus b1v3-gpt6-r2.
+- November 5, 2026 (judge-retry seam completed): the two
+  deterministic handoff cells exposed the remaining un-retried
+  judge sites — handoff-assessment and plan-content-assessment
+  now parse their full contract (JSON + normalize + validate)
+  through `_parse_judge_response` like file-fidelity/readability
+  (`98b391a6`). The two cells should recover on the next suite
+  run at the fixed state; no dedicated recovery pass was run
+  because a suite-source commit rotates cache keys (confirmed by
+  the r2→probe-r1 miss) and would force a full 242-cell
+  re-execution (~2 days + API cost) for two assessment-stage
+  noise cells. PROMOTION DECISION (b1v4 over b1v3) PENDING with
+  the user; candidate was approved for evaluation only.
+
 ## Execution plan` renamed to
   `## Implementation plan` everywhere (the section carries a decided
   design, not a step list); conditional plan inclusion decided by the
