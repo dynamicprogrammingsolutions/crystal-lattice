@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { load } from 'js-yaml';
 
-const homePath = new URL('../src/content/pages/home.yaml', import.meta.url);
+const homePath = new URL(
+  '../sites/staging/content/pages/home.yaml',
+  import.meta.url,
+);
 const shellInstaller =
   'curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash';
 const powershellInstaller =

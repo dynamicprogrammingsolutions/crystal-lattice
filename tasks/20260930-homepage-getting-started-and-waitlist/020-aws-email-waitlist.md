@@ -6,8 +6,10 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/019-publishable-homepage-ui-walkthrough.md`
 
-Task Paused By:
-`tasks/20261024-production-staging-website-channels.md`
+Previously Paused By:
+`tasks/20261024-production-staging-website-channels.md` — the channel blocker
+is cleared, but this task remains pending its own unresolved decisions and the
+accepted task `019` integration handoff.
 
 Deploy a small AWS service that accepts mobile-release waitlist email
 submissions, stores minimal consent evidence safely, sends a confirmation
@@ -76,6 +78,11 @@ actual working form to the homepage mobile-download step.
   `tasks/20261024-production-staging-website-channels.md` establishes separate
   production and staging variants. Resume only after the target production
   content source and dual deployment workflow are approved.
+- **Channel update, November 4, 2026:** Production and staging are now
+  separately deployed and verified, so this channel dependency is satisfied.
+  Do not start website integration yet: task `019` must still provide its
+  accepted staging homepage and this task's remaining material decisions and
+  AWS/email gates still apply.
 
 Coordinates With:
 `tasks/20260825-crystal-lattice-product-positioning-and-website/030-release-safe-early-user-website.md`

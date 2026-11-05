@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions OIDC deploy role scoped to the Crystal Lattice staging
+  website bucket and CloudFront distribution.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: dynamicprogrammingsolutions
+  GitHubRepo:
+    Type: String
+    Default: crystal-lattice
+  GitHubEnvironment:
+    Type: String
+    Default: staging-sites
+  RoleName:
+    Type: String
+    Default: CrystalLatticeStagingSiteGitHubDeployRole
+  ExistingOidcProviderArn:
+    Type: String
+    Description: Existing token.actions.githubusercontent.com OIDC provider ARN.
+  StagingBucket:
+    Type: String
+    Description: Staging artifact bucket.
+  StagingDistributionId:
+    Type: String
+    Description: Staging CloudFront distribution ID.
+
+Resources:
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"
+      Policies:
+        - PolicyName: CrystalLatticeStagingSiteDeploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListStagingBucket
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${StagingBucket}"
+              - Sid: WriteStagingObjects
+                Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${StagingBucket}/*"
+              - Sid: InvalidateStagingDistribution
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${StagingDistributionId}"
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: staging-site-github-actions
+
+Outputs:
+  AwsRoleToAssume:
+    Description: IAM role ARN for the staging GitHub Actions job.
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+  GitHubEnvironment:
+    Description: GitHub environment trusted by this role.
+    Value: !Ref GitHubEnvironment
+  StagingBucket:
+    Description: Bucket writable by this role.
+    Value: !Ref StagingBucket
+  StagingDistributionId:
+    Description: Distribution invalidatable by this role.
+    Value: !Ref StagingDistributionId

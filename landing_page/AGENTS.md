@@ -37,7 +37,10 @@ For positioning or research work, also read:
   previews, and intermediate screenshots. The directory is ignored.
 - `visual_assets/` contains the executable visual catalog and reviewed,
   sanitized source masters used to reproduce public derivatives.
-- `public/` contains approved files shipped by the website.
+- `public/` contains approved files shared by both website variants.
+- `sites/staging/public/` contains staging-only review assets. The staging
+  build copies them into its output; the production build must not contain
+  them.
 
 Do not copy task phases, requirement IDs, approval state, research confidence
 labels, or internal progress into public website content.
@@ -93,8 +96,10 @@ labels, or internal progress into public website content.
 From `landing_page/`:
 
 ```bash
-yarn build
-yarn preview
+yarn build:production
+yarn build:staging
+yarn preview:production
+yarn preview:staging
 ```
 
 For substantive content or route changes, also verify:

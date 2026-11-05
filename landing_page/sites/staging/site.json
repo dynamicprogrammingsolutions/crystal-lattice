@@ -1,0 +1,7 @@
+{
+  "variant": "staging",
+  "label": "Staging preview",
+  "indexable": false,
+  "analytics": false,
+  "defaultSiteUrl": "https://staging.crystallattice.dev"
+}

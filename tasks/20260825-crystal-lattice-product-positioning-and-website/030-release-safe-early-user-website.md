@@ -29,11 +29,12 @@ Coordinates With:
   — owns the real waitlist, one integrated publishing push, and production
   form verification.
 
-Paused By:
+Previously Paused By:
 
 - `tasks/20261024-production-staging-website-channels.md` — establishes the
   production/staging source and deployment channels before compatibility UI
-  implementation resumes.
+  implementation resumes. The channels are now public and verified; resume at
+  the Canonical Tables checkpoint.
 
 ## Requirements checklist
 
@@ -565,3 +566,7 @@ Repository visibility follows its separate release task.
   paused behind `tasks/20261024-production-staging-website-channels.md`.
   Resume at the Canonical Tables checkpoint after the production/staging
   channels pass their recorded resumption boundary.
+- 2026-11-04: The production/staging blocker is cleared. The full projection
+  remains internal evidence, and public implementation may now resume at the
+  Canonical Tables checkpoint for the three approved focused tables. This task
+  has not otherwise resumed during channel deployment.

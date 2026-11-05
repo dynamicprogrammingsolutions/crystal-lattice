@@ -8,7 +8,7 @@ STATIC_SITES_DIR="$SCRIPT_DIR"
 # shellcheck source=deploy/aws-static-sites/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
-LANDING_DIST_DIR="$REPO_ROOT/landing_page/dist"
+LANDING_DIST_DIR="$REPO_ROOT/landing_page/dist/production"
 DOCS_SITE_DIR="$REPO_ROOT/docs_site/dist"
 
 usage() {
@@ -19,7 +19,7 @@ Usage:
   ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh [common options]
 
 Build outputs must already exist:
-  landing_page/dist
+  landing_page/dist/production
   docs_site/dist
 USAGE
   usage_common

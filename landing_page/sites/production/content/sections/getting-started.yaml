@@ -1,0 +1,137 @@
+type: gettingStarted
+id: getting-started
+title: "Getting started"
+steps:
+  - id: "install-cli"
+    kind: "install"
+    title: "Install the CLI"
+    description: >-
+      Install the local Crystal Lattice runtime for your platform. This is
+      the process that owns agents, sessions, tools, and client connections.
+    install:
+      ariaLabel: "Install Crystal Lattice"
+      defaultMethod: "macos-linux"
+      methods:
+        - id: "macos-linux"
+          tabLabel: "macOS/Linux"
+          panelLabel: "Terminal"
+          kind: "command"
+          prompt: "$"
+          command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
+          support: "macOS Intel or Apple silicon · Linux x64 or ARM64"
+          documentation:
+            label: "Installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
+        - id: "windows"
+          tabLabel: "Windows"
+          panelLabel: "Windows PowerShell"
+          kind: "command"
+          prompt: "PS>"
+          command: "irm https://download.crystallattice.dev/crystal-lattice-cli/install.ps1 | iex"
+          support: "Windows x64 or ARM64 · No admin rights, Python, Git Bash, or WSL needed"
+          documentation:
+            label: "Installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
+        - id: "manual"
+          tabLabel: "Manual"
+          panelLabel: "Manual download"
+          kind: "manual"
+          description: >-
+            Download an immutable release archive to inspect it, launch it
+            directly, or install the command yourself.
+          platforms:
+            - "macOS Intel"
+            - "macOS Apple silicon"
+            - "Linux x64"
+            - "Linux ARM64"
+            - "Windows x64"
+            - "Windows ARM64"
+          download:
+            label: "Open latest downloads"
+            href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/releases/latest"
+            target: "_blank"
+          documentation:
+            label: "Manual installation guide"
+            href: "$docsUrl/packages/application-python/installation/"
+  - id: "start-workspace"
+    kind: "command"
+    title: "Start a workspace"
+    description: >-
+      Run Crystal Lattice in the project directory where you want the agent
+      to work, expose the local server, and enable same-network discovery.
+    code: |
+      $ mkdir -p ~/crystal-lattice-demo
+      $ cd ~/crystal-lattice-demo
+
+      $ crystal-lattice \
+          --server \
+          --console \
+          --config-local \
+          --host 0.0.0.0 \
+          --port 9000 \
+          --enable-bonjour
+  - id: "download-desktop"
+    kind: "desktop-download"
+    title: "Download Crystal Lattice Desktop"
+    description: >-
+      Install the app UI after the CLI runtime is available. The current
+      macOS DMG contains the app only and does not install or launch the CLI.
+    platforms:
+      - id: "macos"
+        label: "macOS"
+        status: "available"
+        detail: "Universal Apple silicon and Intel build for macOS 14 or later."
+      - id: "windows"
+        label: "Windows Desktop"
+        status: "coming-soon"
+        detail: "Desktop application package is not available yet."
+      - id: "linux"
+        label: "Linux Desktop"
+        status: "coming-soon"
+        detail: "Desktop application package is not available yet."
+  - id: "connect-desktop"
+    kind: "desktop-connect"
+    title: "Connect Desktop to the workspace"
+    description: >-
+      Desktop uses the local computer by default. Enter the same port used
+      when starting the CLI runtime.
+    methods:
+      - title: "Enter the port"
+        description: "The host defaults to 127.0.0.1. For the command above, enter port 9000."
+        code: "9000"
+  - id: "get-mobile"
+    kind: "mobile-download"
+    title: "Get the mobile app"
+    description: >-
+      Public App Store and Google Play distribution are planned. The working
+      waitlist form will be added only after its AWS service is deployed and
+      reviewed.
+    platforms:
+      - id: "ios"
+        label: "App Store"
+        status: "coming-soon"
+        detail: "Public iOS distribution is not available yet."
+      - id: "android"
+        label: "Google Play"
+        status: "coming-soon"
+        detail: "Public Android distribution is not available yet."
+    waitlist:
+      label: "Join the mobile release waitlist"
+      status: "disabled-prototype"
+      note: "No email is collected in this production version."
+  - id: "connect-mobile"
+    kind: "mobile-connect"
+    title: "Connect from mobile"
+    description: >-
+      Use the same runtime sessions from a phone through a manual address,
+      automatic local discovery, or a self-hosted bridge.
+    methods:
+      - title: "Manual address"
+        description: "Enter the runtime's local HTTP address when you already know it."
+        code: "http://192.168.1.42:9000"
+      - title: "Automatic discovery"
+        description: "Find the runtime automatically while both devices are on the same network."
+        code: "crystal-lattice ... --enable-bonjour"
+      - title: "Bridge pairing"
+        description: "Use a reachable self-hosted bridge when the phone is outside the local network."
+        code: "crystal-lattice ... --bridge-url wss://<bridge>/ws/websocket"

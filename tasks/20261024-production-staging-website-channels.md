@@ -8,71 +8,71 @@ work. Build and deploy both variants independently on every relevant push.
 
 ## Requirements checklist
 
-- [ ] Production uses commit `d3fe28a62ccdf82451e8273dc30245ca9075f0dd`
+- [x] Production uses commit `d3fe28a62ccdf82451e8273dc30245ca9075f0dd`
       as its exact homepage baseline. This is the parent immediately before
       `89883b925dee2ef071526ef37eef1ae062e863f6` added the new feature showcase
       and the six-step Getting Started structure containing **Download Crystal
       Lattice Desktop**.
-- [ ] The production homepage preserves the `d3fe28a6` sections, order, copy,
+- [x] The production homepage preserves the `d3fe28a6` sections, order, copy,
       links, and image-backed content except for changes explicitly required
       to add the current Getting Started section or separately approved during
       contextual review.
-- [ ] Production adds the current six-step Getting Started section with current
+- [x] Production adds the current six-step Getting Started section with current
       installer commands, maintained Desktop release metadata/download, current
       platform availability, mobile availability, and connection methods.
-- [ ] Production Getting Started omits `media` and other empty visual
+- [x] Production Getting Started omits `media` and other empty visual
       placeholder fields. It renders no **Planned visual** panel, missing-image
       box, review-status label, or staging-only placeholder.
-- [ ] Adding Getting Started does not silently remove or rewrite the historical
+- [x] Adding Getting Started does not silently remove or rewrite the historical
       hero installer, **Computer to phone**, bridge, compatibility, provider,
       plugin, SDK, workbench, or other `d3fe28a6` sections. Any duplicate or
       contradictory path is shown in the first local production candidate and
       changed only after explicit human review.
-- [ ] The in-progress current homepage and later task `019`/`030` work live in
+- [x] The in-progress current homepage and later task `019`/`030` work live in
       a separate staging content location and do not overwrite the maintained
       production homepage source.
-- [ ] Production and staging share maintained components, layouts, styles,
+- [x] Production and staging share maintained components, layouts, styles,
       common pages, and release metadata where practical, but have explicit
       variant-owned homepage content and build outputs.
-- [ ] The default manual/CI landing build is the production variant. Staging
+- [x] The default manual/CI landing build is the production variant. Staging
       requires an explicit variant selection.
-- [ ] Production and staging build to separate directories and can be previewed
+- [x] Production and staging build to separate directories and can be previewed
       simultaneously without copying or renaming one variant over the other.
-- [ ] Staging is public at `staging.crystallattice.dev`, has a visible staging
+- [x] Staging is public at `staging.crystallattice.dev`, has a visible staging
       identity, and includes HTML `noindex, nofollow`, a disallowing
       `robots.txt`, and a CloudFront `X-Robots-Tag` response header.
-- [ ] Staging does not run production analytics or pollute production website
+- [x] Staging does not run production analytics or pollute production website
       metrics.
-- [ ] No staging-only candidate image, fixture, review marker, or draft content
+- [x] No staging-only candidate image, fixture, review marker, or draft content
       is included in the production build.
-- [ ] Both variants reject broken image references. Staging may render explicit
+- [x] Both variants reject broken image references. Staging may render explicit
       work-in-progress placeholders, but it may not render missing image files.
-- [ ] Production retains ordinary indexable robot behavior and contains no
+- [x] Production retains ordinary indexable robot behavior and contains no
       staging marker or staging response header.
-- [ ] A separate private S3 bucket, CloudFront distribution, Origin Access
+- [x] A separate private S3 bucket, CloudFront distribution, Origin Access
       Control, ACM certificate, Route 53 records, response-header policy, and
       scoped deployment role serve the staging site.
-- [ ] Staging infrastructure is isolated from the production static-site stack
+- [x] Staging infrastructure is isolated from the production static-site stack
       so staging creation, update, invalidation, or teardown cannot delete or
       replace production resources.
-- [ ] The existing Ireland EC2 server is not used for static staging hosting
+- [x] The existing Ireland EC2 server is not used for static staging hosting
       unless read-only AWS/DNS discovery proves an approved existing ownership
       constraint that requires a new decision.
-- [ ] Every relevant push to `main` independently builds and attempts to deploy
+- [x] Every relevant push to `main` independently builds and attempts to deploy
       both landing variants. A staging build/deploy failure is reported but
       does not cause staging output to be deployed to production or invalidate
       the production distribution.
-- [ ] Production and staging deployment jobs use separate artifact paths,
+- [x] Production and staging deployment jobs use separate artifact paths,
       buckets, distributions, GitHub environments, and least-privilege OIDC
       roles.
-- [ ] Production deployment continues to deploy the documentation site through
+- [x] Production deployment continues to deploy the documentation site through
       its current production path; this task does not create a staging docs
       site.
-- [ ] Local and public verification covers content selection, placeholders,
+- [x] Local and public verification covers content selection, placeholders,
       image integrity, download links, robots behavior, analytics exclusion,
       responsive layout, accessibility, CloudFront headers, DNS/TLS, cache
       invalidation, and artifact separation.
-- [ ] AWS, Route 53, ACM, IAM, GitHub-environment, workflow publication, and
+- [x] AWS, Route 53, ACM, IAM, GitHub-environment, workflow publication, and
       production deployment changes require their explicit human checkpoints.
 - [x] Tasks `018`, `019`, `030`, and waitlist task `020` record their
       historical/paused ownership behind this task and identify exact
@@ -462,18 +462,18 @@ After authorization:
 - [x] Record task `018` historical ownership and paused task `019`, `030`, and
       `020` state and resumption intent in this plan and the owning files.
 - [x] Obtain approval of this execution plan.
-- [ ] Add production/staging variant source and build boundaries.
-- [ ] Build the literal historical-plus-Getting-Started production candidate.
-- [ ] Obtain Production Content approval.
-- [ ] Complete local production/staging isolation and tests.
-- [ ] Obtain Local Channels approval.
-- [ ] Prepare staging AWS/IAM/GitHub/workflow changes.
-- [ ] Obtain AWS Change Summary approval.
-- [ ] Obtain explicit remote-mutation authorization.
-- [ ] Provision/configure staging and run the first dual deployment.
-- [ ] Verify both public channels and rollback data.
+- [x] Add production/staging variant source and build boundaries.
+- [x] Build the literal historical-plus-Getting-Started production candidate.
+- [x] Obtain Production Content approval.
+- [x] Complete local production/staging isolation and tests.
+- [x] Obtain Local Channels approval.
+- [x] Prepare staging AWS/IAM/GitHub/workflow changes.
+- [x] Obtain AWS Change Summary approval.
+- [x] Obtain explicit remote-mutation authorization.
+- [x] Provision/configure staging and run the first dual deployment.
+- [x] Verify both public channels and rollback data.
 - [ ] Obtain Public Channels approval.
-- [ ] Record task `019`, `030`, and `020` resumption status.
+- [x] Record task `019`, `030`, and `020` resumption status.
 
 ### Requirement verification
 
@@ -530,3 +530,79 @@ After authorization:
   section, omitting only its empty media/placeholder and review-only fields.
   Stop at the Production Content human checkpoint before resolving duplicated
   installer or **Computer to phone** guidance.
+- 2026-10-24: Committed the complete pre-implementation planning and evidence
+  state as `3470baf0` (`Plan website release channels`).
+- 2026-10-24: Added explicit production/staging sources and builds. Production
+  defaults to the exact `d3fe28a6` homepage, validated byte-for-byte, with a
+  separate current six-step Getting Started section inserted after the hero.
+  The addition contains current installer/Desktop/mobile content but no
+  `reviewStatus`, `media`, proof placeholder, or planned-visual fields. The
+  former current homepage now lives under staging ownership.
+- 2026-10-24: Production and staging build successfully to
+  `dist/production/` and `dist/staging/`. Production emits ordinary
+  `robots.txt`; staging has a visible banner, no-index/no-follow metadata,
+  no production analytics, and disallowing `robots.txt`. Shared navigation
+  preserves historical production anchors and current staging anchors.
+- 2026-10-24: Verification passed 11 content tests, 5 focused production
+  Playwright tests, and the 28 active staging browser tests; 68 opt-in preview
+  tests were correctly skipped. Both variants passed broken-image and
+  overflow checks. Direct image inspection covered production desktop/light,
+  phone/light, and phone/dark.
+- 2026-10-24: The literal production candidate intentionally displays both the
+  historical hero installation chooser and Getting Started installation step,
+  and both the historical **Computer to phone** guide and new workspace/mobile
+  steps. No duplicate cleanup has been made. Local previews are running at
+  `http://192.168.8.10:4180/` (production) and
+  `http://192.168.8.10:4181/` (staging). Stop at the Production Content human
+  checkpoint.
+- 2026-10-24: The implementation is intentionally not ready to push. The
+  existing GitHub deployment workflow still synchronizes `landing_page/dist/`
+  as one site, while the new builds write `dist/production/` and
+  `dist/staging/`. Workflow/AWS changes belong after Production Content and
+  Local Channels approval; pushing this intermediate state could deploy the
+  wrong object layout.
+- 2026-10-24: The user approved production with one narrow deviation from the
+  historical baseline: remove the redundant CLI installation chooser from the
+  hero and point its first action to Getting Started. The historical source
+  remains byte-for-byte intact; `sites/production/content/home-adjustments.yaml`
+  records and applies the approved override. The user approved proceeding
+  through workflow implementation and deployment, which also approves the
+  completed local-channel checkpoint and authorizes AWS/GitHub remote
+  mutations and the first dual publication.
+- 2026-11-04: Created and inspected the staging hosting change set before
+  execution. It contained eleven additions and no updates, replacements, or
+  deletions: retained private S3 bucket, bucket policy, OAC, ACM certificate,
+  CloudFront distribution, directory-routing function, two cache policies,
+  no-index/security response policy, and Route 53 A/AAAA records. Stack
+  `crystal-lattice-static-site-staging` completed successfully.
+- 2026-11-04: Created and inspected the staging IAM change set before
+  execution. It contained one `AWS::IAM::Role` addition and no update,
+  replacement, or deletion. The role trusts only the `staging-sites` GitHub
+  environment and can write only the staging bucket and invalidate only
+  distribution `E3M0P86O9DHUDP`.
+- 2026-11-04: Created GitHub environment `staging-sites`, restricted its
+  custom deployment branch policy to `main`, and configured environment-scoped
+  AWS region, staging bucket/distribution, site/docs URLs, and OIDC role
+  secret. Production remains under `production-sites`.
+- 2026-11-04: Saved the pre-deployment production bucket locally under ignored
+  artifacts at
+  `landing_page/artifacts/site-variants/deployment-backups/20261104-232856/production`
+  with a SHA-256 manifest. S3 versioning was not enabled.
+- 2026-11-04: Published the production artifact to
+  `crystal-lattice-prod-site-874087778966` and staging to
+  `crystal-lattice-staging-site-874087778966`, then completed invalidations
+  `I6XB5DQ7T6PXOW4FXPWTKTLWWK` and
+  `I43ZDFUFQJSGOZIN4V68QGJ7HH`.
+- 2026-11-04: Public browser verification passed. Production has one
+  installation chooser, no hero installer, a hero action targeting
+  `#getting-started`, the six-step Getting Started section, the retained
+  historical **Computer to phone** section, production analytics, ordinary
+  robots behavior, no staging banner/draft assets, and no broken images.
+  Staging has its visible banner, meta robots and Googlebot no-index policy,
+  CloudFront `X-Robots-Tag`, disallowing robots.txt, no analytics, staging
+  draft assets, and no broken images. Both DNS A/AAAA aliases and TLS
+  certificates are valid; the Desktop DMG returned HTTP 200.
+- 2026-11-04: Task `019` and compatibility task `030` are unblocked at their
+  recorded H2 and Canonical Tables checkpoints. Waitlist task `020` has cleared
+  this channel dependency but remains gated by its own decisions and task
+  `019` integration handoff.

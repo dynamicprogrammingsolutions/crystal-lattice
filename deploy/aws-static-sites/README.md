@@ -17,7 +17,7 @@ Later launch domains:
 
 ## What The Stack Creates
 
-- One private S3 bucket for `landing_page/dist`.
+- One private S3 bucket for `landing_page/dist/production`.
 - One private S3 bucket for `docs_site/dist`.
 - S3 public access blocks and bucket-owner-enforced object ownership.
 - CloudFront Origin Access Control for both S3 origins.
@@ -84,7 +84,7 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
   --bucket-name-prefix crystal-lattice-static-test
 
 yarn --cwd landing_page install --frozen-lockfile
-yarn --cwd landing_page build
+yarn --cwd landing_page build:production
 python -m pip install -r docs_site/requirements.txt
 python docs_site/scripts/build_mkdocs_site.py
 
@@ -119,7 +119,7 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
   --bucket-name-prefix crystal-lattice-prod
 
 yarn --cwd landing_page install --frozen-lockfile
-yarn --cwd landing_page build
+yarn --cwd landing_page build:production
 python -m pip install -r docs_site/requirements.txt
 python docs_site/scripts/build_mkdocs_site.py
 
@@ -143,16 +143,76 @@ export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
 export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 ```
 
+## Staging Website
+
+The staging website is an isolated stack, not another alias or origin in the
+production landing/docs stack:
+
+```text
+staging.crystallattice.dev
+  -> Route 53 A/AAAA
+  -> staging-only CloudFront distribution
+  -> staging-only Origin Access Control
+  -> staging-only private S3 bucket
+```
+
+The staging response-header policy adds:
+
+```text
+X-Robots-Tag: noindex, nofollow, noarchive, nosnippet
+```
+
+The generated site also contains matching HTML robots metadata, a disallowing
+`robots.txt`, a visible staging banner, and no production analytics.
+
+Create or update the staging stack:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up-staging.sh
+```
+
+Build and publish staging locally:
+
+```bash
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://staging.crystallattice.dev \
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev \
+yarn --cwd landing_page build:staging
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync-staging.sh
+```
+
+Create the staging-only GitHub OIDC role:
+
+```bash
+ALLOW_AWS_DEPLOY=1 \
+  deploy/aws-static-sites/create-github-staging-oidc-role.sh
+```
+
+Configure the `staging-sites` GitHub environment, restrict it to `main`, and
+set its environment-scoped variables and role secret:
+
+```bash
+deploy/aws-static-sites/configure-github-staging.sh --dry-run
+deploy/aws-static-sites/configure-github-staging.sh
+```
+
+The staging role can write only the staging bucket and invalidate only the
+staging distribution. It has no production landing or docs permissions.
+
 ## GitHub Actions Setup
 
 The deploy workflow uses GitHub Actions OIDC to assume a narrow AWS role. Do not
 create long-lived AWS access keys for this deployment path.
 
-The workflow is bound to GitHub environment `production-sites`. The IAM role
-trusts that environment subject, and the GitHub environment must restrict
-deployment to `main`. The branch restriction belongs to GitHub because an OIDC
-token for a job that references an environment identifies the environment
-rather than the branch in its subject.
+The workflow uses separate GitHub environments:
+
+- `production-sites` for the production landing site and documentation;
+- `staging-sites` for the staging landing site.
+
+Each IAM role trusts only its matching environment subject. Both environments
+must restrict deployment to `main`. The branch restriction belongs to GitHub
+because an OIDC token for a job that references an environment identifies the
+environment rather than the branch in its subject.
 
 The helper scripts read CloudFormation stack outputs automatically. You do not
 need to copy values from `up.sh` into GitHub by hand.
@@ -425,7 +485,7 @@ For final production builds, omit the variables or set them explicitly:
 ```bash
 PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev \
 PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev \
-yarn --cwd landing_page build
+yarn --cwd landing_page build:production
 ```
 
 ```bash
@@ -454,7 +514,8 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
 
 The sync script:
 
-- uploads `landing_page/dist/` to the landing bucket with `--delete`;
+- uploads `landing_page/dist/production/` to the landing bucket with
+  `--delete`;
 - uploads `docs_site/dist/` to the docs bucket with `--delete`;
 - re-uploads generated `docs_site/dist/**/*.md`,
   `docs_site/dist/llms.txt`, and `docs_site/dist/llms-full.txt` as

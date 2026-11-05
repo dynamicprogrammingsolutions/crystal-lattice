@@ -25,6 +25,18 @@ the package-owned specification, research findings belong under
 under `research/`, and disposable output belongs under the ignored
 `artifacts/` directory.
 
+The landing package now has explicit production and staging homepage sources:
+
+- `sites/production/content/pages/home.yaml` — exact historical production
+  baseline;
+- `sites/production/content/sections/getting-started.yaml` — current
+  production Getting Started addition without visual placeholders;
+- `sites/production/content/home-adjustments.yaml` — approved production-only
+  removal of the redundant hero installer and the hero action target;
+- `sites/staging/content/pages/home.yaml` — in-progress homepage work.
+
+Shared pages still fall back to `src/content/pages/`.
+
 The accepted public desktop release metadata used by the shared header
 download link is maintained in
 `src/content/releases/desktop.yaml`. Update its version, build number,
@@ -99,13 +111,22 @@ The active theme is stored in `localStorage` under `cl-theme` and applied by an 
 ## Dev
 
 ```bash
-yarn dev        # dev server at localhost:4321
-yarn build      # outputs to dist/
-yarn preview    # serves dist/ locally (same as production)
+yarn dev                    # production variant at localhost:4321
+yarn dev:production
+yarn dev:staging
+yarn build                  # production variant
+yarn build:production       # outputs to dist/production/
+yarn build:staging          # outputs to dist/staging/
+yarn preview:production
+yarn preview:staging
 yarn visual-assets:list
 yarn visual-assets:check
 yarn test:visual
 ```
+
+`CRYSTAL_LATTICE_SITE_VARIANT` accepts `production` or `staging`. Production
+is the default. Staging is visibly marked, omits production analytics, and
+emits `noindex, nofollow` metadata plus a disallowing `robots.txt`.
 
 `yarn visual-assets:update` regenerates approved public image derivatives from
 the reviewed source masters and executable asset catalog.
@@ -128,10 +149,10 @@ The preview removes the unfinished six-highlight block and places the retained
 Vibe story after Getting Started for comparison. It does not update public
 assets or normal homepage content.
 
-The homepage structural prototype keeps draft feature copy and missing proof
-explicit through review-status metadata and placeholder panels. Those states
-exist for local contextual review only; copy, proof, ordering, and visual
-layout must be approved before publication.
+The staging homepage structural prototype keeps draft feature copy and missing
+proof explicit through review-status metadata and placeholder panels. Those
+states are staging-only. Production uses the maintained historical baseline,
+the approved Getting Started addition, and the explicit hero cleanup.
 
 ## Public URL Configuration
 

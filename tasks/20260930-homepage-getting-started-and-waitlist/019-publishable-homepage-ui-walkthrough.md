@@ -10,8 +10,9 @@ Parent Task:
 Depends On:
 `tasks/20260930-homepage-getting-started-and-waitlist/015-homepage-content-assets-layout.md`
 
-Paused By:
-`tasks/20261024-production-staging-website-channels.md`
+Previously Paused By:
+`tasks/20261024-production-staging-website-channels.md` — the production and
+staging channels are now public and verified; this task is unblocked.
 
 ## Requirements checklist
 
@@ -456,3 +457,10 @@ to subtask `020` without pushing, deploying, or publishing.
   checkpoint and the staging deployment path is available or explicitly
   deferred. Resume at H2 Complete Opening Copy; H1 decisions and the durable
   review package remain authoritative.
+- 2026-11-04: The channel blocker is cleared. Production is restored at
+  `crystallattice.dev`; the current in-progress homepage is public with
+  no-index/no-follow controls at `staging.crystallattice.dev`; and future
+  `main` pushes have separate production/docs and staging deployment jobs.
+  Resume at H2 Complete Opening Copy. Do not modify the restored production
+  homepage while developing the staging candidate unless a later publication
+  checkpoint explicitly approves that promotion.

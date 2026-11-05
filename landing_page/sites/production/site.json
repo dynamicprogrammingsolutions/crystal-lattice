@@ -1,0 +1,7 @@
+{
+  "variant": "production",
+  "label": "Production",
+  "indexable": true,
+  "analytics": true,
+  "defaultSiteUrl": "https://crystallattice.dev"
+}

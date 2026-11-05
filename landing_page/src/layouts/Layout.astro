@@ -1,6 +1,7 @@
 ---
 import { ViewTransitions } from 'astro:transitions';
 import UmamiAnalytics from '../components/UmamiAnalytics.astro';
+import { isStagingSite } from '../../site-variant.mjs';
 import '../styles/global.css';
 
 interface Props {
@@ -19,10 +20,16 @@ const {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content={description} />
+  {isStagingSite && (
+    <>
+      <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+      <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet" />
+    </>
+  )}
   <link rel="icon" type="image/svg+xml" href="/icon.svg" />
   <title>{title}</title>
   <ViewTransitions />
-  <UmamiAnalytics />
+  {!isStagingSite && <UmamiAnalytics />}
   <!-- Prevent flash of wrong theme -->
   <script is:inline>
     function applyThemeImages(root = document) {
@@ -62,6 +69,14 @@ const {
   </script>
 </head>
 <body>
+  {isStagingSite && (
+    <div
+      class="bg-amber-400 px-4 py-2 text-center text-xs font-semibold uppercase tracking-[0.08em] text-slate-950"
+      data-staging-banner
+    >
+      Staging preview · Work in progress
+    </div>
+  )}
   <slot />
 </body>
 </html>

@@ -1,0 +1,5 @@
+hero:
+  removeInstall: true
+  primaryAction:
+    label: "Get started"
+    href: "#getting-started"

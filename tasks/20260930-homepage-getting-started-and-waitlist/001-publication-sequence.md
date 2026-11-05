@@ -60,10 +60,10 @@ requirements already owned by those subtasks.
 | Foundation structure | `010` | Complete | None |
 | Content/layout baseline | `015` | Complete | None |
 | Existing visual/product evidence | `018` | Historical evidence retained; older layout/image plan paused | Task `019` consumes selected evidence after channel split |
-| Production/staging channels | `tasks/20261024-production-staging-website-channels.md` | Draft plan; highest priority | Approve plan, then review literal historical-plus-Getting-Started production candidate |
-| Publishable homepage | `019` | H1 approved; paused before H2 | Resume after production/staging local channel checkpoint |
-| Compatibility catalogue | website `030` | Focused source refresh accepted; full projection internal; paused before canonical tables | Resume after production/staging channel checkpoint |
-| Waitlist and publication | `020` | Plan retained; all execution paused | Resume after channel target approval, then integrate after later H8 handoff |
+| Production/staging channels | `tasks/20261024-production-staging-website-channels.md` | Public and verified; awaiting final human public-channel confirmation | Confirm public channels |
+| Publishable homepage | `019` | H1 approved; channel blocker cleared | Resume at H2 Complete Opening Copy |
+| Compatibility catalogue | website `030` | Focused source refresh accepted; full projection internal; channel blocker cleared | Resume at Canonical Tables checkpoint |
+| Waitlist and publication | `020` | Channel dependency satisfied; own decisions and task `019` integration handoff remain | Resolve its own gates, then integrate after later H8 handoff |
 
 ## Execution plan
 
@@ -89,6 +89,11 @@ Owning task:
 
 Tasks `019`, compatibility UI work in website `030`, and waitlist website
 integration remain paused during this phase.
+
+As of November 4, 2026, this priority phase is implemented and publicly
+verified. Tasks `019` and `030` are unblocked at their recorded checkpoints.
+Task `020` has cleared only this channel dependency and remains gated by its
+own decisions and task `019` handoff.
 
 ### Phase A — Reconcile the completed foundation
 
@@ -439,3 +444,8 @@ Agent work after approval:
   `staging.crystallattice.dev`. Task `019` is paused before H2, website `030`
   is paused before canonical public tables, and waitlist task `020` retains
   its approved plan but pauses all execution.
+- 2026-11-04: Production and staging are public and verified with separate
+  source roots, artifacts, buckets, distributions, GitHub environments, and
+  deployment jobs. Task `019` is unblocked at H2, website `030` is unblocked
+  at the Canonical Tables checkpoint, and task `020` has cleared only the
+  channel dependency while retaining its own gates.

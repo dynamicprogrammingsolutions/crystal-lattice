@@ -12,6 +12,27 @@ Current page content is authored under:
 src/content/pages/
 ```
 
+Variant-owned homepage content is authored under:
+
+```text
+sites/production/content/pages/home.yaml
+sites/staging/content/pages/home.yaml
+```
+
+The page loader checks the active variant first and falls back to
+`src/content/pages/` for shared pages. Production is the default variant.
+
+The production homepage source is the exact `d3fe28a6` historical baseline.
+`sites/production/content/sections/getting-started.yaml` is inserted after its
+hero at load time. Keeping the addition separate lets validation compare the
+baseline file byte-for-byte with Git history while reviewing the added section
+independently.
+
+`sites/production/content/home-adjustments.yaml` records the one approved
+historical deviation: remove the now-redundant hero installation chooser and
+retarget the hero primary action to `#getting-started`. The historical
+**Computer to phone** section and all other baseline content remain unchanged.
+
 Accepted public release metadata used by shared website controls is authored
 under:
 
@@ -306,9 +327,15 @@ that belongs in content.
 From `landing_page/`:
 
 ```bash
-yarn build
-yarn preview
+yarn build:production
+yarn build:staging
+yarn preview:production
+yarn preview:staging
 ```
+
+The builds write to `dist/production/` and `dist/staging/`. Staging includes a
+visible preview marker, no-index/no-follow metadata, no production analytics,
+and a disallowing `robots.txt`; production remains indexable.
 
 The package README documents public URL variables and the combined
 landing/documentation-site smoke path.

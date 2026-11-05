@@ -1,8 +1,21 @@
 ---
 import { docsUrl } from "../config/publicUrls";
 import { loadDesktopRelease } from "../content/loadDesktopRelease";
+import { isStagingSite } from "../../site-variant.mjs";
 
 const desktopRelease = loadDesktopRelease();
+const homeLinks = isStagingSite
+  ? [
+      { href: "/#getting-started", section: "getting-started", label: "Get started" },
+      { href: "/#model-native-harnesses", section: "model-native-harnesses", label: "Harnesses" },
+      { href: "/#feature-plugins", section: "feature-plugins", label: "Plugins" },
+    ]
+  : [
+      { href: "/#computer-to-phone", section: "computer-to-phone", label: "Connect" },
+      { href: "/#model-native-harnesses", section: "model-native-harnesses", label: "Harnesses" },
+      { href: "/#everything-replaceable", section: "everything-replaceable", label: "Plugins" },
+    ];
+const startHref = isStagingSite ? "/#getting-started" : "/#computer-to-phone";
 ---
 
 <header
@@ -33,21 +46,15 @@ const desktopRelease = loadDesktopRelease();
     </a>
 
     <nav class="flex items-center gap-7 max-[900px]:hidden">
-      <a
-        href="/#getting-started"
-        class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
-        data-section="getting-started">Get started</a
-      >
-      <a
-        href="/#model-native-harnesses"
-        class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
-        data-section="model-native-harnesses">Harnesses</a
-      >
-      <a
-        href="/#feature-plugins"
-        class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
-        data-section="feature-plugins">Plugins</a
-      >
+      {homeLinks.map((link) => (
+        <a
+          href={link.href}
+          class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
+          data-section={link.section}
+        >
+          {link.label}
+        </a>
+      ))}
       <a
         href="/mobile"
         class="nav-link text-sm text-fg-3 transition-colors hover:text-fg aria-[current=true]:font-medium aria-[current=true]:text-accent"
@@ -152,7 +159,7 @@ const desktopRelease = loadDesktopRelease();
         GitHub
       </a>
       <a
-        href="/#getting-started"
+        href={startHref}
         class="inline-flex items-center rounded-md bg-accent px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover max-[360px]:px-2"
         >Start</a
       >
@@ -193,7 +200,7 @@ const desktopRelease = loadDesktopRelease();
     };
     const sections = Array.from(
       document.querySelectorAll(
-        '[id="getting-started"], [id="feature-plugins"], [id="model-native-harnesses"]',
+        '[id="getting-started"], [id="computer-to-phone"], [id="feature-plugins"], [id="everything-replaceable"], [id="model-native-harnesses"]',
       ),
     );
     let ticking = false;
