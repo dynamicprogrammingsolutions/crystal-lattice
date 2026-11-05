@@ -611,3 +611,9 @@ After authorization:
   provenance test. Replaced the CI requirement on deep Git history with the
   approved baseline file's fixed SHA-256, while retaining the byte-for-byte
   `git show` comparison whenever the historical object is locally available.
+- 2026-11-05: The corrected dual deployment completed successfully for both
+  independent jobs. The repository security check then identified its own
+  stale one-job allowlist. Updated that maintained validator to authorize only
+  the two named deployment jobs/environments, require both isolated artifact
+  paths and deployment sequences, validate both OIDC templates, and reject
+  production resource parameters from the staging role.

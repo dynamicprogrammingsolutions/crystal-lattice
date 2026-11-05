@@ -15,6 +15,12 @@ STATIC_SITE_DEPLOY = WORKFLOWS_DIR / "deploy-static-sites.yml"
 STATIC_SITE_OIDC_ROLE = (
     REPO_ROOT / "deploy" / "aws-static-sites" / "github-oidc-role.yaml"
 )
+STAGING_SITE_OIDC_ROLE = (
+    REPO_ROOT
+    / "deploy"
+    / "aws-static-sites"
+    / "staging-github-oidc-role.yaml"
+)
 
 EXTERNAL_ACTION_RE = re.compile(r"^\s*uses:\s*([^#\s]+)")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -26,14 +32,16 @@ PRIVILEGED_TRIGGER_RE = re.compile(
 )
 
 ALLOWED_WRITE_PERMISSIONS = {
-    ("deploy-static-sites.yml", "deploy", "id-token"),
+    ("deploy-static-sites.yml", "deploy-production", "id-token"),
+    ("deploy-static-sites.yml", "deploy-staging", "id-token"),
     ("desktop-release.yml", "publish", "id-token"),
     ("release-crystal-lattice-cli.yml", "publish", "contents"),
     ("release-crystal-lattice-cli.yml", "publish-downloads", "id-token"),
 }
 
 ALLOWED_ENVIRONMENTS = {
-    ("deploy-static-sites.yml", "deploy", "production-sites"),
+    ("deploy-static-sites.yml", "deploy-production", "production-sites"),
+    ("deploy-static-sites.yml", "deploy-staging", "staging-sites"),
     ("ios-testflight.yml", "release", "testflight"),
     ("release-crystal-lattice-cli.yml", "publish", "cli-release"),
     ("release-crystal-lattice-cli.yml", "publish-downloads", "cli-release"),
@@ -208,55 +216,93 @@ def validate_static_site_deploy(errors: list[str]) -> None:
 
     if re.search(r"^    AWS_ROLE_TO_ASSUME:", text, flags=re.MULTILINE):
         errors.append(f"{STATIC_SITE_DEPLOY}: AWS role secret must not be job-scoped")
-    if "role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}" not in text:
+    if text.count("role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}") != 2:
         errors.append(
-            f"{STATIC_SITE_DEPLOY}: AWS role must be passed directly to the "
-            "credentials step"
+            f"{STATIC_SITE_DEPLOY}: each deployment job must pass its "
+            "environment-scoped AWS role directly to the credentials step"
         )
-    if "environment: production-sites" not in text:
-        errors.append(
-            f"{STATIC_SITE_DEPLOY}: deployment job must use environment "
-            "'production-sites'"
-        )
+    for environment in ("production-sites", "staging-sites"):
+        if f"environment: {environment}" not in text:
+            errors.append(
+                f"{STATIC_SITE_DEPLOY}: deployment workflow must use "
+                f"environment {environment!r}"
+            )
 
-    required_steps = [
-        "- name: Build Landing Site",
+    production_steps = [
+        "- name: Build Production Landing Site",
         "- name: Build Docs Site",
-        "- name: Configure AWS Credentials",
-        "- name: Deploy Landing Site",
+        "- name: Configure Production AWS Credentials",
+        "- name: Deploy Production Landing Site",
         "- name: Deploy Docs Site",
     ]
-    positions = []
-    for step in required_steps:
-        position = text.find(step)
-        if position < 0:
-            errors.append(f"{STATIC_SITE_DEPLOY}: missing required step: {step}")
-        positions.append(position)
-    if all(position >= 0 for position in positions) and positions != sorted(positions):
-        errors.append(
-            f"{STATIC_SITE_DEPLOY}: sites must be built before AWS credentials "
-            "are configured and deployment begins"
-        )
+    staging_steps = [
+        "- name: Build Staging Landing Site",
+        "- name: Configure Staging AWS Credentials",
+        "- name: Deploy Staging Landing Site",
+    ]
+    for required_steps, label in (
+        (production_steps, "production"),
+        (staging_steps, "staging"),
+    ):
+        positions = []
+        for step in required_steps:
+            position = text.find(step)
+            if position < 0:
+                errors.append(f"{STATIC_SITE_DEPLOY}: missing required step: {step}")
+            positions.append(position)
+        if all(position >= 0 for position in positions) and positions != sorted(
+            positions
+        ):
+            errors.append(
+                f"{STATIC_SITE_DEPLOY}: {label} site must be built before AWS "
+                "credentials are configured and deployment begins"
+            )
 
-    if not STATIC_SITE_OIDC_ROLE.is_file():
-        errors.append(f"{STATIC_SITE_OIDC_ROLE}: required IAM template is missing")
-        return
+    required_fragments = (
+        "aws s3 sync landing_page/dist/production/",
+        "aws s3 sync landing_page/dist/staging/",
+        "STAGING_CLOUDFRONT_DISTRIBUTION_ID",
+    )
+    for fragment in required_fragments:
+        if fragment not in text:
+            errors.append(
+                f"{STATIC_SITE_DEPLOY}: missing production/staging isolation "
+                f"fragment: {fragment}"
+            )
 
-    oidc_text = STATIC_SITE_OIDC_ROLE.read_text(encoding="utf-8")
     environment_subject = (
         "token.actions.githubusercontent.com:sub: !Sub "
         '"repo:${GitHubOwner}/${GitHubRepo}:environment:${GitHubEnvironment}"'
     )
-    if environment_subject not in oidc_text:
-        errors.append(
-            f"{STATIC_SITE_OIDC_ROLE}: IAM trust must match the "
-            "production-sites environment subject"
-        )
-    if "ref:refs/heads/${GitHubBranch}" in oidc_text:
-        errors.append(
-            f"{STATIC_SITE_OIDC_ROLE}: branch OIDC subject is incompatible with "
-            "the environment-bound deployment job"
-        )
+    for template, label in (
+        (STATIC_SITE_OIDC_ROLE, "production"),
+        (STAGING_SITE_OIDC_ROLE, "staging"),
+    ):
+        if not template.is_file():
+            errors.append(f"{template}: required IAM template is missing")
+            continue
+        oidc_text = template.read_text(encoding="utf-8")
+        if environment_subject not in oidc_text:
+            errors.append(
+                f"{template}: IAM trust must match the {label} environment subject"
+            )
+        if "ref:refs/heads/${GitHubBranch}" in oidc_text:
+            errors.append(
+                f"{template}: branch OIDC subject is incompatible with the "
+                "environment-bound deployment job"
+            )
+
+    staging_oidc_text = (
+        STAGING_SITE_OIDC_ROLE.read_text(encoding="utf-8")
+        if STAGING_SITE_OIDC_ROLE.is_file()
+        else ""
+    )
+    for forbidden in ("LandingBucket", "DocsBucket", "DocsDistributionId"):
+        if forbidden in staging_oidc_text:
+            errors.append(
+                f"{STAGING_SITE_OIDC_ROLE}: staging role must not reference "
+                f"production resource parameter {forbidden}"
+            )
 
 
 def validate() -> list[str]:
