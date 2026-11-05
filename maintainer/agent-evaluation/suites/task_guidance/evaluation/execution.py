@@ -939,13 +939,24 @@ def execute_handoff_assessment(
             samples=samples,
         )
         for run in runs:
-            value = _require_assessment_value(run)
-            parsed = parse_handoff_semantic(value.response)
-            validate_handoff_semantic(
-                parsed,
-                scenario=scenario,
-                stage=subject.stage,
-                variant=subject.variant,
+            parsed, run = _parse_judge_response(
+                run,
+                lambda text: _parse_handoff_semantic_contract(
+                    text,
+                    scenario=scenario,
+                    stage=subject.stage,
+                    variant=subject.variant,
+                ),
+                lambda: harness.run_assessment(
+                    test_id=(
+                        f"task-guidance-handoff-semantic-{scenario.scenario_id}-"
+                        f"{subject.variant}-{subject.profile}-{subject.effort}-"
+                        f"s{subject.sample_index}"
+                    ),
+                    prompt=prompt,
+                    reasoning_effort=judge_effort,
+                    fresh=True,
+                ),
             )
             record = handoff_assessment_record(scenario, subject, parsed["assessment"])
             run.record(STAGES["handoff-assessment"].record, record)
@@ -997,12 +1008,20 @@ def execute_plan_content_assessment(
             samples=samples,
         )
         for run in runs:
-            value = _require_assessment_value(run)
-            assessment = normalize_plan_content_assessment(
-                parse_plan_content_response(value.response),
-                scenario=scenario,
+            assessment, run = _parse_judge_response(
+                run,
+                lambda text: _parse_plan_content_contract(text, scenario=scenario),
+                lambda: harness.run_assessment(
+                    test_id=(
+                        f"task-guidance-plan-content-{scenario.scenario_id}-"
+                        f"{subject.variant}-{subject.profile}-{subject.effort}-"
+                        f"s{subject.sample_index}"
+                    ),
+                    prompt=prompt,
+                    reasoning_effort=judge_effort,
+                    fresh=True,
+                ),
             )
-            validate_plan_content_assessment(assessment, scenario=scenario)
             record = plan_content_record(scenario, subject, assessment)
             run.record(STAGES["plan-content-assessment"].record, record)
             run.record(
@@ -1017,6 +1036,25 @@ def execute_plan_content_assessment(
 
 
 JUDGE_JSON_RETRIES = 2
+
+
+def _parse_handoff_semantic_contract(text, *, scenario, stage, variant):
+    """Full handoff judge contract: JSON, normalization, validation."""
+
+    parsed = parse_handoff_semantic(text)
+    validate_handoff_semantic(parsed, scenario=scenario, stage=stage, variant=variant)
+    return parsed
+
+
+def _parse_plan_content_contract(text, *, scenario):
+    """Full plan-content judge contract: JSON, normalization, validation."""
+
+    assessment = normalize_plan_content_assessment(
+        parse_plan_content_response(text),
+        scenario=scenario,
+    )
+    validate_plan_content_assessment(assessment, scenario=scenario)
+    return assessment
 
 
 def _parse_fidelity_contract(text, *, scenario):
