@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "task-creation-assessment-glm-max-s0",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261102T113904.639417Z-task-guidance-semantic-tg01-eleventy-archive-handoff-glm-max-s0-a2d2543b",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "c440c4f661a7e152828b596813b34a9a65b90b560b31793cc7f756593f5fab32",
+    "original_sha256": "f4961517a67a2fe94f9c9a1be4a72653077d8973e13f3a3abe43706678e6e859",
+    "path": "shared/system-messages/glm-assessor-c440c4f661a7.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

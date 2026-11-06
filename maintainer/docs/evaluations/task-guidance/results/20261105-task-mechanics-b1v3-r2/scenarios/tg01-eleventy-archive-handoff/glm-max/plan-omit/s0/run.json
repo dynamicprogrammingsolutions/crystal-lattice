@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "plan-omit",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261029T130157.736010Z-task-guidance-handoff-tg01-eleventy-archive-handoff-omit-84efd144",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b2ee1cb55f526a44ba5f7779ae09481b056713f3b1ce77aed99a6cf846f11d77",
+    "original_sha256": "8287ca1e91ab7b4c46cd5941812a9adf2c455794bd8a9dc247533f268b3006db",
+    "path": "shared/system-messages/glm-b2ee1cb55f52.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg01-eleventy-archive-handoff.md"
+  ],
+  "valid": true
+}

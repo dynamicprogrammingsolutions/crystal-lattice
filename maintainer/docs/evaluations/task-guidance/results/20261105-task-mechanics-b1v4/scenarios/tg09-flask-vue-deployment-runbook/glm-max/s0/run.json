@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261101T235747.697590Z-task-guidance-tg09-flask-vue-deployment-runbook-max-a23d4638",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "bffa2064d5d35d2b944a3d6c22d0255e332f9a1a9f632ad61371cd9aa7f40152",
+    "original_sha256": "82f0942df24a29366b15c50e140d58984bab9c61d13eb4ed458290f35f7968d9",
+    "path": "shared/system-messages/glm-bffa2064d5d3.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261101-books-deployment-runbook.md"
+  ],
+  "valid": true
+}

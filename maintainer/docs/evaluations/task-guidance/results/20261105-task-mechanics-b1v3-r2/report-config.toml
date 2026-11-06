@@ -1,0 +1,23 @@
+[cost]
+currency = "USD"
+
+[cost.prices."gpt-5.6-luna"]
+input_per_1m = 1.0
+cached_input_per_1m = 0.1
+cache_write_per_1m = 1.25
+output_per_1m = 6.0
+
+# gpt-6-luna reuses the pinned gpt-5.6-luna table until its
+# provider-reported rates are published.
+[cost.prices."gpt-6-luna"]
+input_per_1m = 1.0
+cached_input_per_1m = 0.1
+cache_write_per_1m = 1.25
+output_per_1m = 6.0
+
+[cost.price_provenance]
+source = "https://developers.openai.com/api/docs/pricing"
+fetched_at = "2026-07-18"
+snapshot = "plugins/openai_responses/src/openai_responses_plugins/data/openai_model_pricing.json"
+service_tier = "standard"
+note = "Historical GLM runs saved no usage metadata; their usage and cost remain unknown."

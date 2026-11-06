@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261101T235747.697781Z-task-guidance-tg09-flask-vue-deployment-runbook-high-be6ff570",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "69bb0711b62326a2f1c6d3d659341bdf8facde2fb1e1d8ef36f6e660219c43d8",
+    "original_sha256": "197f435e040bd71bd5021134df8167115c398a56084764c9f150372814349de9",
+    "path": "shared/system-messages/gpt-69bb0711b623.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-books-deployment-runbook.md"
+  ],
+  "valid": true
+}

@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "task-creation-assessment-glm-max-s0",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261029T183458.302819Z-task-guidance-semantic-tg02-fastapi-pagination-handoff-glm-max-s0-1ed25949",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "c440c4f661a7e152828b596813b34a9a65b90b560b31793cc7f756593f5fab32",
+    "original_sha256": "d4d5da9cb53f97a036e73723f9ab38c4c80ced96b8bbaa1bb9e65f95a179ce35",
+    "path": "shared/system-messages/glm-assessor-c440c4f661a7.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

@@ -1,0 +1,19 @@
+{
+  "config": "shared/configs/glm-assessor-max.json",
+  "kind": "file-fidelity-assessment-glm-max-s0",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261029T212931.387781Z-task-guidance-file-fidelity-tg02-fastapi-pagination-handoff-glm-max-s0-86c929f6",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "c440c4f661a7e152828b596813b34a9a65b90b560b31793cc7f756593f5fab32",
+    "original_sha256": "070dd0f51d59d80511b084328f259197a862eacf9544fea565012112a3668ec7",
+    "path": "shared/system-messages/glm-assessor-c440c4f661a7.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": []
+}

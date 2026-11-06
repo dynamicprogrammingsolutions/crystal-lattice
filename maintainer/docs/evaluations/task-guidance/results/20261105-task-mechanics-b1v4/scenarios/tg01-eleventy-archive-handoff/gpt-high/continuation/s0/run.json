@@ -1,0 +1,33 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "continuation",
+  "lineage": {
+    "inherited_prefix": {
+      "availability": {
+        "detail": "bounded by the parent run's saved session",
+        "state": "captured"
+      },
+      "length": 15
+    },
+    "parent_run_id": "20261102T040510.439412Z-task-guidance-tg01-eleventy-archive-handoff-high-5753423b"
+  },
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261102T040513.350996Z-task-guidance-same-agent-tg01-eleventy-archive-handoff-0f0be738",
+  "system_message": {
+    "availability": {
+      "detail": "inherited from the cell's producer run, whose delivered instructions are reconstructed",
+      "state": "inherited"
+    },
+    "normalized_sha256": "8288c6a72e6565ea53f81a40ae7025c2f4b56543c701badeb21de845342d4a65",
+    "original_sha256": "f68a9c9ca87b0cc60027a32b9efeb19fbc9055d6311f53273690b197e624aee9",
+    "path": "shared/system-messages/gpt-8288c6a72e65.md",
+    "source": "inherited-from-producer-run"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

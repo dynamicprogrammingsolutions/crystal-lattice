@@ -1,0 +1,20 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "generated-plan",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261102T040844.512924Z-task-guidance-generated-tg02-fastapi-pagination-handoff-high-3d0eaec4",
+  "system_message": {
+    "availability": {
+      "detail": "saved session retains no system message and no delivery hash was recorded",
+      "state": "unavailable"
+    },
+    "source": null
+  },
+  "task_files": [
+    "task-files/tasks/20261102-notes-list-pagination/000-main.md"
+  ],
+  "valid": true
+}

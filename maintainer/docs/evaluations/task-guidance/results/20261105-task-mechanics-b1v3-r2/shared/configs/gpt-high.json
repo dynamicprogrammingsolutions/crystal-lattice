@@ -1,0 +1,221 @@
+{
+  "agent_id": "codex-openai",
+  "model": "gpt-6-luna",
+  "reasoning_effort": "high",
+  "request_overrides": {
+    "allowed_paths": [
+      "<workspace>"
+    ],
+    "include_tasks": true,
+    "mcp_enabled": false,
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "reasoning_summary": "detailed",
+    "skills_enabled": false,
+    "web_search_enabled": false,
+    "working_directory": "<workspace>"
+  },
+  "runtime_config": {
+    "agents": {
+      "codex-openai": {
+        "auth_mode": "<redacted>",
+        "chatgpt_credentials_path": "<redacted>",
+        "mcp_enabled": false,
+        "mcp_fail_on_startup_error": false,
+        "mcp_reuse_runtime": true,
+        "mixin_refs": [
+          "codex_developer_message"
+        ],
+        "model": "gpt-6-luna",
+        "plugins": [
+          "path:${env:BUILTIN_PLUGINS}/codex-tools"
+        ],
+        "provider": "openai",
+        "shell_tool_mode": "auto"
+      }
+    },
+    "application": {
+      "application_config": {
+        "env_file": "${env:CONFIG_DIR}/.env",
+        "provider_env_keys": {
+          "openai": "OPENAI_API_KEY"
+        }
+      },
+      "cached_background_session_list": {
+        "persistent_cache_enabled": false
+      }
+    },
+    "mixins": {
+      "codex_developer_message": {
+        "codex_developer_messages": [
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-sol$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-terra$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.6-luna$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-6-luna/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.5$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.4$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.3-codex$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "default",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "friendly",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_friendly.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2-codex$",
+            "personality": "pragmatic",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_pragmatic.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.1-codex$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1-codex/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.2$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5\\.1$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1/instructions_default.md}"
+          },
+          {
+            "model_regex": "^(openai/)?gpt-5$",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
+          },
+          {
+            "model_regex": ".*",
+            "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
+          }
+        ],
+        "codex_personality": "default",
+        "skills_enabled": true,
+        "skills_follow_symlinks": false,
+        "skills_max_dirs_per_root": 2000,
+        "skills_max_scan_depth": 6,
+        "skills_roots": [
+          ".agents/skills"
+        ],
+        "system_message": {
+          "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+          "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
+          "variables": {
+            "CODEX_DEVELOPER_MESSAGE": {
+              "inline_code": "select_codex_developer_message()"
+            },
+            "CODEX_ENVIRONMENT_CONTEXT": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "CODEX_PROJECT_INSTRUCTIONS": {
+              "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+            },
+            "CODEX_SKILLS_SECTION": {
+              "text": ""
+            },
+            "TASKS": {
+              "condition": {
+                "inline_code": "include_tasks()"
+              },
+              "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+              "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}"
+            }
+          }
+        },
+        "system_message_enabled": true
+      },
+      "provider_defaults": {
+        "allowed_paths": [
+          ".",
+          ".."
+        ],
+        "enable_reasoning": true,
+        "max_file_size": 5242880,
+        "max_output_chars": 10000,
+        "reasoning_effort": "medium",
+        "timeout": 300,
+        "working_directory": "."
+      }
+    },
+    "plugin_cache_dir": "~/Dev/Mine/ai-agent-platform-worktrees/20260728-documentation-guide-rewrite/tmp/agent-evaluation/task-guidance/plugin-cache/gpt/v1",
+    "plugins": [
+      "plugins.tool_gating_feature.ToolGatingFeature",
+      "path:${env:BUILTIN_PLUGINS}/feature-request-options",
+      "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+      "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
+      "path:${env:BUILTIN_PLUGINS}/openai_responses",
+      "path:${env:BUILTIN_PLUGINS}/codex-tools"
+    ],
+    "providers": {
+      "openai": {
+        "api_key": "<redacted>",
+        "auth_mode": "<redacted>",
+        "base_url": "https://api.openai.com/v1",
+        "enable_fast_mode": false,
+        "enable_flex_processing": true,
+        "enable_prompt_cache_retention_24h": true,
+        "mixin_refs": [
+          "provider_defaults"
+        ],
+        "provider": "openai_responses",
+        "reasoning_summary": "detailed",
+        "strip_leading_system_or_developer_message": true,
+        "system_message_as_instructions": true
+      }
+    }
+  }
+}

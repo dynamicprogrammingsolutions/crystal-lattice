@@ -1,0 +1,102 @@
+# Assessment — tg01-eleventy-archive-handoff · glm-max · continuation · s0
+
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **95**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task file is fully self-contained: outcomes, project facts (Eleventy 3 layout, npm scripts, 2 committed posts, stub test, stale docs line), source pointers, protected surfaces, and an explicit Draft plan. The resulting plan covers every ARCHIVE-1..6 outcome and every PLAN-1..7 item: `/blog/page-<N>/` is presented with its approval status stated (takes effect on approval, not silently chosen), `size: 20` pagination with the explained reversal chain covers per-page caps, exactly-once partitioning, and newest-first ordering, conditional nav is grounded in `href.previous`/`href.next` existence with accessibility details, untouched-template scope explains preserved home/tags/feed/sitemap/post surfaces, and static zero-JS output is both preserved by approach and asserted via a `<script` scan. The decisive check is the real production Eleventy build over a 25-post temp-copy fixture, with justified exclusions (no third-page build, no screen-reader claims). The one unverified assumption (ascending default collection sort) is flagged in the task with a fail-loud test mitigation, and the 'each post exactly once' property is verified transitively via unambiguous ordering plus 20/5 count assertions rather than an explicit uniqueness check — the only minor softness. A later agent could execute from this task file alone without rediscovery.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j1/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **95**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task file is self-contained and the plan built from it is complete. All six approved outcomes map to plan content: PLAN-1 is satisfied with the `/blog/` + `/blog/page-<N>/` design explicitly presented as a user-visible decision awaiting approval (approval status stated, not silently chosen); PLAN-2/3 via `size: 20` chunking with `pagination.reverse` and the reverse-and-reinclude chain protecting the shared postslist include; PLAN-4 via href-existence-conditional anchors in a labelled nav landmark with rel attributes and a page indicator; PLAN-5 via an explicit untouched-file list with the sitemap's intended growth by new `collections.all` pages called out as the only output change beyond the archive; PLAN-6 via the no-config-change, static-build approach plus a `<script` scan; PLAN-7 via the real production Eleventy build over a 25-post temporary copy as the decisive check, with honest deliberate gaps (no third-page case, no screen-reader verification). The faithful disambiguation of 'individual-post navigation' (post pages, URLs, archive links intact, since the layout has no post-to-post nav) is recorded rather than invented. Documentation is correctly confined to replacing the stale `docs/development/index.md` line in the same change with README verified unchanged, exclusions are explicit including 'no implementation now', and plan status is Draft pending approval. Two minor nuances keep it from a perfect score: 'each post appears exactly once' is verified implicitly through the full cross-page order assertion rather than named as a distinct invariant, and navigation presentation is framed as user-visible in the task file but summarized as implementation-level in the response — both remain behind the plan-approval gate, so no decision takes effect silently. A later agent could execute from these files alone without broad rediscovery.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j2/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **95**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task file is a genuinely self-contained handoff: all six approved outcomes appear in an 11-item requirements checklist (including the two standing repo-policy requirements for test evidence and docs), verified facts carry file-level pointers (blog.njk → postslist.njk reversal chain, collections.all sitemap propagation, two committed posts, stub test, docs placeholder, uninstalled node_modules), the ascending-sort assumption is flagged with a fail-loudly mitigation and a re-check note, and the later-page URL scheme is explicitly presented for approval per the allowed alternative. The presented Draft plan, reused unchanged, covers all seven required content items: URL design with stated approval status, 20-post slice mechanism for size and once-only coverage, the reversal chain preserving newest-first order, conditional accessible prev/next nav (href existence = destination exists), per-surface scoping rationale (sitemap growth noted as intended), static zero-JavaScript preservation, and the production build over a 25-post temp fixture as the decisive check. Exclusions (no 45-post case, no screen-reader coverage) are reasoned. Only minor nit: 'exactly once across pages' is verified implicitly via page counts plus cross-page order rather than a named assertion. Nothing material was lost or invented; execution correctly waits for approval with no files modified.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j3/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **100%**
+- GENERIC-1: **conveyed**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **conveyed**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **conveyed**
+- GENERIC-5: **conveyed**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **conveyed**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **self-contained**
+- PLAN-1: **conveyed**
+- PLAN-2: **conveyed**
+- PLAN-3: **conveyed**
+- PLAN-4: **conveyed**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Summary: A reader gets the full picture from the text alone. The Outcome paragraph states the public result first (/blog/ unchanged as page one, newest-first, later pages at most 20 posts at stable URLs, accessible prev/next, all other surfaces and zero-JS static output preserved), so direction is judgeable before the pagination mechanics. PLAN-1 is met with the approval status explicit: the URL scheme /blog/page-<N>/ for N>=2 is named 'The one user-visible decision' under 'Material decisions (take effect on approval)' and the closing line invites adjusting it — recommended, not silently decided. PLAN-2/3: the mechanism is stated (size: 20 slices of collections.posts, page 1 the twenty newest, later pages 'the next oldest slice' — disjoint slices, so each post once), and the newest-first preservation is explained as a concrete chain (pagination.reverse makes pagination.items newest-first; items | reverse passed ascending into the include, which reverses on render) with the rationale that the include's contract and home/tag consumers stay untouched — this also answers PLAN-5's why alongside the untouched-file list and behavioral tests of home/tag/feed/sitemap/post pages. PLAN-4: nav is a labelled <nav> with Page X of Y and rel prev/next anchors from pagination.href.previous/href.next, 'rendered only when the target page exists — a single-page archive emits no nav links', with per-page presence/absence asserted. PLAN-6/7: output is build-time static with a 'no <script anywhere' assertion, and verification runs 'the real production build' on a 25-post copy (20/5 split, cross-page order, nav, preserved surfaces) as the decisive check, with explicit non-coverage (archives beyond two pages, screen-reader experience). GENERIC layers are served too: decisions are surfaced in a dedicated block with the URL scheme flagged for approval and 'Open questions: none'; constraints and the ascending-collection assumption are given with cheap confirmation ('same assertions catch it'); blast radius, rollback (revert blog.njk, no existing URL affected), sequencing logic and the green-npm-test milestone, and the explicit approval request are all present. All facts appear as values in the text; no external resource is needed to evaluate. Depth tracks decisions — the one dense mechanism (double reversal) is justified by being the named correctness risk.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j1/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **100%**
+- GENERIC-1: **conveyed**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **conveyed**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **conveyed**
+- GENERIC-5: **conveyed**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **conveyed**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **self-contained**
+- PLAN-1: **conveyed**
+- PLAN-2: **conveyed**
+- PLAN-3: **conveyed**
+- PLAN-4: **conveyed**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Missed requirement: Neither layer asks about the task's documentation deliverable (replacing the stale docs/development/index.md placeholder in the same reviewed change per repo policy); the plan commits to it anyway, and a human judging the change's full scope needs that commitment.
+- Missed requirement: Neither layer anticipates that ARCHIVE-5's 'sitemap retains current behavior' has an intended exception — the sitemap gains the new /blog/page-N/ URLs — a nuance adjacent to PLAN-5 that the plan surfaces honestly ('the only output change beyond the archive itself').
+- Summary: Read as its intended audience (an approver) would read it, the plan is complete in the text itself. Direction and construction are separable: the Outcome states the public surface (page 1 at /blog/, later pages of at most 20 posts at /blog/page-N/, accessible prev/next), while the Approach gives the mechanism — Eleventy pagination over collections.posts with size: 20, reverse: true making page 1 the twenty newest, and items re-reversed before the shared postslist include so home/tag contracts are untouched; the chain is re-explained under Risks as the main correctness hazard, and the ascending-collection assumption is named with its cheap confirmation (the build's order assertions fail on any mistake). Scope is explicit both ways: an untouched-file list with the include-contract rationale and the honest note that only the sitemap output changes beyond the archive, plus an Exclusions section. Verification names the real production build run twice in a temp copy as the decisive boundary (20/5 sizes, per-page and across-boundary order, nav presence/absence, home's latest three, feed/sitemap/post checks, no <script), and states what it deliberately omits (>2 pages, screen-reader experience). Blast radius, rollback by reverting one template, and the green-npm-test stopping milestone cover reversibility and sequence logic; the single open approval question — the /blog/page-<N>/ scheme — is presented as recommended-pending-approval rather than silently chosen. All facts needed to evaluate are stated as values in the text (file and task-file references carry no load-bearing content), and detail stays at decision level throughout, so every generic and task-specific requirement is conveyed at top grade; the only residual notes are blind spots in the requirement layers themselves, which the plan already covers.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j2/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **100%**
+- GENERIC-1: **conveyed**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **conveyed**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **conveyed**
+- GENERIC-5: **conveyed**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **conveyed**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **self-contained**
+- PLAN-1: **conveyed**
+- PLAN-2: **conveyed**
+- PLAN-3: **conveyed**
+- PLAN-4: **conveyed**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Summary: A reader gets the full picture from the text alone. The outcome section states the public boundary up front (/blog/ stays page one newest-first, later pages at stable URLs, adjacent-page navigation, other surfaces and the zero-JS static build preserved). The URL scheme /blog/page-<N>/ is explicitly pulled out as the one material decision needing approval rather than silently chosen, with 'Open questions: none' and an explicit approval ask at the close. The mechanism is concrete: pagination front matter with size: 20 chunking collections.posts into disjoint slices (page 1 the twenty newest, later pages next-oldest), which conveys the at-most-20/exactly-once behavior; newest-first is preserved by passing pre-reversed slices into the untouched include whose own reverse renders them, and the identified ascending-sort assumption comes with its cheap confirmation (order assertions fail the build if wrong). Navigation is conditional on href.previous/next existing, single-page archives emit none, with aria-label and rel attributes for accessibility. Scope is explicit: an untouched-file list with why (include contract keeps home/tags behavior), sitemap pickup via collections.all noted as intended, and an exclusions list. Verification runs the real production Eleventy build on a 25-post temp copy plus committed content, asserting URL set, 20/5 split, cross-page order, nav presence, per-surface behavior, and a no-script scan, with a stated deliberately-not-covered list (beyond two pages, screen-reader experience). Risks name the reversal-chain failure mode and blast radius (one template, revert as rollback, no persisted data), the sequence logic is given (template, then pinning tests, then docs describing verified output, green npm test as the milestone), and test/docs detail is decision-relevant rather than specification-grade. No evaluation-relevant fact is outsourced to a link or external file.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j3/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+
+- Evidence: [session.md](session.md) · [run.json](run.json)

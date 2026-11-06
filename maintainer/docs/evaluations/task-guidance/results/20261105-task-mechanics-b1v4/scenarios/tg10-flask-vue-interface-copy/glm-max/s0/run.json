@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261102T000121.479487Z-task-guidance-tg10-flask-vue-interface-copy-max-13773b1f",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "bffa2064d5d35d2b944a3d6c22d0255e332f9a1a9f632ad61371cd9aa7f40152",
+    "original_sha256": "a3d4cbfbe781200bd81f6eb07165445720a0b9be61f299e62b0a1291df297fb0",
+    "path": "shared/system-messages/glm-bffa2064d5d3.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-books-user-facing-copy.md"
+  ],
+  "valid": true
+}

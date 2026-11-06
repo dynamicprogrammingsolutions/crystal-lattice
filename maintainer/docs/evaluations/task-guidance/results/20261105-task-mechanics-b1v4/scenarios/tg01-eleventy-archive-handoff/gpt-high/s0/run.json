@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261101T230015.938373Z-task-guidance-tg01-eleventy-archive-handoff-high-94bfcc86",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "8288c6a72e6565ea53f81a40ae7025c2f4b56543c701badeb21de845342d4a65",
+    "original_sha256": "f68a9c9ca87b0cc60027a32b9efeb19fbc9055d6311f53273690b197e624aee9",
+    "path": "shared/system-messages/gpt-8288c6a72e65.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

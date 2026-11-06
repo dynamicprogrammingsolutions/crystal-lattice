@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261101T235227.365333Z-task-guidance-tg08-eleventy-contributor-docs-high-79c24ed4",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "8288c6a72e6565ea53f81a40ae7025c2f4b56543c701badeb21de845342d4a65",
+    "original_sha256": "72d9baaf69c3f578904beb830706117f3f4771f617a680828449cf11738c56eb",
+    "path": "shared/system-messages/gpt-8288c6a72e65.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261101-add-post-contributor-guide.md"
+  ],
+  "valid": true
+}

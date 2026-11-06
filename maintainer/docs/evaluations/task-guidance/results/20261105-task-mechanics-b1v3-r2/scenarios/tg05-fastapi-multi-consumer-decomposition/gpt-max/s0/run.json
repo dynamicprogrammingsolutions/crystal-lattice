@@ -1,0 +1,27 @@
+{
+  "config": "shared/configs/gpt-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "max",
+  "run_id": "20261029T113554.726433Z-task-guidance-tg05-fastapi-multi-consumer-decomposition-max-309196b9",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "0e1dcf2af29a2f30090252c7e22ef63b7bc77396c7b8f48680a7a7ffe013cf05",
+    "original_sha256": "606f0839c2f1c943fad5240687bbee652b7ba07ec813bc27716e9e5b04d37305",
+    "path": "shared/system-messages/gpt-0e1dcf2af29a.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261029-notes-query/000-main.md",
+    "task-files/tasks/20261029-notes-query/010-public-api.md",
+    "task-files/tasks/20261029-notes-query/020-python-client.md",
+    "task-files/tasks/20261029-notes-query/030-cli.md"
+  ],
+  "valid": true
+}

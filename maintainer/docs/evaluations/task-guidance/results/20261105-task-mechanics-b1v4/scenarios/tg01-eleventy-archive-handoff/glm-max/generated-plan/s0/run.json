@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "generated-plan",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261102T040706.242986Z-task-guidance-generated-tg01-eleventy-archive-handoff-max-7d049ee5",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "8b4fac5728ee9c5293150a63fac5b802bc518cfda1961f704c1cf338a5d1c03d",
+    "original_sha256": "ecaed4eedaf31017a7278112c95dcb096704cd4e4fa53c480ac44c8306e552c0",
+    "path": "shared/system-messages/glm-8b4fac5728ee.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261101T235100.429365Z-task-guidance-tg07-eleventy-decided-work-tracking-high-96d1c1ee",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "8288c6a72e6565ea53f81a40ae7025c2f4b56543c701badeb21de845342d4a65",
+    "original_sha256": "924bb0f46d50eace20404fce980644a789bfc50ee25ed0f50b5ace6702253974",
+    "path": "shared/system-messages/gpt-8288c6a72e65.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261101-blog-archive-pagination.md"
+  ],
+  "valid": true
+}

@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261101T235100.429481Z-task-guidance-tg07-eleventy-decided-work-tracking-max-cd312a94",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "8b4fac5728ee9c5293150a63fac5b802bc518cfda1961f704c1cf338a5d1c03d",
+    "original_sha256": "0eaf10b7d52481fe592342bfe01cb9c04af71f95f586afeab015effc34b31eeb",
+    "path": "shared/system-messages/glm-8b4fac5728ee.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-blog-archive-fifteen-per-page.md"
+  ],
+  "valid": true
+}

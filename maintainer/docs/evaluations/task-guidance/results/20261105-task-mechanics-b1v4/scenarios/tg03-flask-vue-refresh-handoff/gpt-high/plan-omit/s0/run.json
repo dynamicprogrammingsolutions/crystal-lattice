@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "plan-omit",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261102T010043.028858Z-task-guidance-handoff-tg03-flask-vue-refresh-handoff-omit-c12cea31",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "69bb0711b62326a2f1c6d3d659341bdf8facde2fb1e1d8ef36f6e660219c43d8",
+    "original_sha256": "121b6cbdad88fcdf6b3bdc9d8d30df035cf7e34d9cae009aa29ab8bcfeeeeaf3",
+    "path": "shared/system-messages/gpt-69bb0711b623.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg03-flask-vue-refresh-handoff.md"
+  ],
+  "valid": true
+}

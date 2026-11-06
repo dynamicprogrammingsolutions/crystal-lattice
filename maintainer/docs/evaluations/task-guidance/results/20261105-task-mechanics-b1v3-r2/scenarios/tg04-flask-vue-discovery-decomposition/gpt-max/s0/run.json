@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "max",
+  "run_id": "20261029T112501.598708Z-task-guidance-tg04-flask-vue-discovery-decomposition-max-b28ee36c",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "1fe25bbfd1862e6ae9bef8306f82118b1e3099fa04b80e6b1ec967b39cf3111b",
+    "original_sha256": "a6841974521b0b389090ff9779d7d2c19299442361171699ffb1ded46166136b",
+    "path": "shared/system-messages/gpt-1fe25bbfd186.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261029-books-discovery/000-main.md"
+  ],
+  "valid": true
+}

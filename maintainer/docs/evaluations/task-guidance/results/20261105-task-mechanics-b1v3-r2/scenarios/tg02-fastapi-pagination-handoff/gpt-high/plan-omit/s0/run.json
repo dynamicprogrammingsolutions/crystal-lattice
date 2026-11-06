@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "plan-omit",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261029T130914.893250Z-task-guidance-handoff-tg02-fastapi-pagination-handoff-omit-bbc559a5",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "0e1dcf2af29a2f30090252c7e22ef63b7bc77396c7b8f48680a7a7ffe013cf05",
+    "original_sha256": "9c4020fa899ef86fef6862f21e1edc2514c021fa79c7eb01e2c65350589f91b3",
+    "path": "shared/system-messages/gpt-0e1dcf2af29a.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20260919-tg02-fastapi-pagination-handoff.md"
+  ],
+  "valid": true
+}

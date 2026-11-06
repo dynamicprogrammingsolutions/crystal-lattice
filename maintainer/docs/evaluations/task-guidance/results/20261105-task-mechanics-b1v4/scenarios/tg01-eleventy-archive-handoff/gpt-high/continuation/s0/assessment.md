@@ -1,0 +1,100 @@
+# Assessment — tg01-eleventy-archive-handoff · gpt-high · continuation · s0
+
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **94**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task file is a faithful, self-contained retain-style handoff: all six ARCHIVE outcomes appear in the checklist, verified facts carry concrete source pointers, the later-page URL pattern is preserved as an explicit open recommendation ('numbered directories such as /blog/2/') rather than a silent choice, and the Draft implementation and verification approach is retained for direct reuse. The plan response covers PLAN-1 through PLAN-7: URL design with stated approval status, Eleventy build-time pagination as the ≤20-posts/exactly-once mechanism, order preservation by reusing the shared include, boundary-aware accessible prev/next links, scoped preservation of home/tags/feed/sitemap/post surfaces with the shared-include rationale, statically generated zero-JavaScript output, and the production Eleventy build over more than twenty posts as the decisive check, with explicit non-goals (no styling or assistive-technology claims beyond semantic links, no byte-for-byte template claim). Minor: the collections.all/sitemap-inclusion nuance lives only in the task file and the response's exactly-once mechanism is implicit, but the durable handoff retains both. No invented scope; the conditional README update tied to verified behavior is an appropriate documentation boundary.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j1/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **92**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task file alone was sufficient for a complete plan: all six approved outcomes are represented, and all seven plan targets are addressed — URL design with approval status explicitly framed as recommended-not-decided (PLAN-1), pagination mechanism with per-page cap and non-duplicated coverage (PLAN-2), order preservation via the shared reversed include (PLAN-3), boundary-aware accessible prev/next (PLAN-4), scope confinement to the archive (PLAN-5), static zero-JS output (PLAN-6), and a real Eleventy production build over >20 posts named as the decisive check (PLAN-7). Verified facts and source pointers (content/blog.njk, _includes/postslist.njk, shared usage in index/tag pages, feed reversal, sitemap via collections.all, two-post repo, placeholder test) let the planner set correct testing boundaries — explicitly excluding visual/AT behavior and byte-for-byte claims — without broad rediscovery. Documentation work is appropriately minimal and conditional (README only if verified behavior changes). Only minor compressions: the exactly-once constraint lives in the plan rather than the durable checklist, and the navigation-presentation open question was not carried forward.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j2/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## handoff assessment
+- Scope: generated-task · same-agent
+- Handoff quality score: **95**
+- plan_coverage: complete
+- broad_rediscovery: False
+- task_self_contained: True
+- Summary: The generated task retains the reviewed plan as Draft and covers all six outcomes with the permitted grouping of protected surfaces and ordering/static preservation. Every required plan element is present: URL design with `/blog/` first and the `/blog/2/`, `/blog/3/` pattern correctly flagged as a recommendation requiring confirmation rather than silently chosen; build-time pagination as the ≤20/once-each mechanism; ordering via the shared reversed post-list include; boundary-aware accessible prev/next; scoped preservation of home, tags, feed, sitemap (including the collections.all sitemap-entry nuance), and post links; static no-JS output; and the production Eleventy build over >20 representative posts as the decisive check, explicitly refusing to bypass production templates. Testing limits are honestly stated (no visual/AT claims, no byte-for-byte claim), documentation is conditional and verification-aligned, and the Draft/no-files-modified status is preserved. Only minor gap: navigation presentation was decided in-draft rather than preserved as an open approval question; Draft status keeps it revisable.
+- Assessor session: [`session.md`](../../assessment/handoff/generated-task/s0/j3/session.md)
+- Full results: [`results.md`](../../../assessment/handoff/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **88%**
+- GENERIC-1: **conveyed**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **conveyed**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **partial**
+- GENERIC-5: **conveyed**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **conveyed**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **self-contained**
+- PLAN-1: **conveyed**
+- PLAN-2: **conveyed**
+- PLAN-3: **conveyed**
+- PLAN-4: **partial**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Summary: The plan leads with the public boundary — `/blog/` as page one, stable later pages capped at twenty posts, accessible previous/next navigation, preserved order, static zero-JavaScript output — then surfaces exactly one open decision (the later-page URL pattern, with the recommended `/blog/2/`, `/blog/3/` values stated inline and never silently chosen). The mechanism is named (Eleventy build-time pagination) with its guarantees asserted and verified ('page size, full non-duplicated coverage in the existing order'), which also carries order preservation and the archive-only scoping that protects home, tags, feed, sitemap, and post pages. Verification is anchored to the real production build output with explicit non-coverage (visual styling, assistive-technology behavior), and risks come with a rollback ('revert the pagination changes and retain the current single archive'). Needed feedback is explicit in the closing ('Execution awaits approval, and the later-page URL pattern needs confirmation'). Two gaps: the plan never states that previous/next navigation is conditional on its destination existing (PLAN-4), and it lists constraints without the assumptions the approach relies on or cheap confirmations for them (GENERIC-4). Otherwise self-contained — the file header is provenance, not an evaluation dependency — and proportionate.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j1/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **76%**
+- GENERIC-1: **conveyed**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **conveyed**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **partial**
+- GENERIC-5: **partial**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **missing**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **self-contained**
+- PLAN-1: **conveyed**
+- PLAN-2: **conveyed**
+- PLAN-3: **conveyed**
+- PLAN-4: **partial**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Summary: A terse, decision-first summary that a reader can evaluate on its own: the /blog/ first page and /blog/2/… pattern are stated with the URL decision explicitly flagged open and recommended; the ≤20-post cap is tied to Eleventy build-time pagination with coverage/order checks; preserved surfaces (home, tags, feed, sitemap, posts, static zero-JS output) and scope limits are enumerated; risks, blast radius, and a rollback (revert pagination, retain the single archive) are given; and the decisive check is named as a real Eleventy build with more than twenty posts. It falls short on four points: no constraint/assumption reasoning (why build-time pagination, what alternatives were ruled out, what is assumed about the shared include), no stated limit of what verification does not cover, no sequenced steps or verifiable milestones at all, and conditional previous/next behavior left implicit in a verification phrase rather than stated as a promise.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j2/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+## plan-content assessment
+- Scope: generated-task · same-agent
+- Top-grade coverage: **59%**
+- GENERIC-1: **partial**
+- GENERIC-10: **proportionate**
+- GENERIC-2: **partial**
+- GENERIC-3: **conveyed**
+- GENERIC-4: **partial**
+- GENERIC-5: **partial**
+- GENERIC-6: **conveyed**
+- GENERIC-7: **missing**
+- GENERIC-8: **conveyed**
+- GENERIC-9: **partial**
+- PLAN-1: **conveyed**
+- PLAN-2: **partial**
+- PLAN-3: **conveyed**
+- PLAN-4: **conveyed**
+- PLAN-5: **conveyed**
+- PLAN-6: **conveyed**
+- PLAN-7: **conveyed**
+- Summary: A compact plan that is strong where it counts for approval: the URL design is presented with its approval status explicit (open, with the task's /blog/2/, /blog/3/ recommendation restated as values), static no-JS output is asserted and checked, verification is anchored to a real Eleventy build with more than twenty posts covering URLs, sizes, coverage, ordering, boundary navigation, untouched surfaces, and absence of scripts, and risks, a revert path, and the draft/awaiting-confirmation status are all stated. The gaps a reader hits: the twenty-post page limit — the change's defining parameter — never appears as a value, weakening the outcome description, the pagination mechanism, and self-contained evaluation; settled decisions lack decided labels or rationale; no assumptions or ruled-out alternatives are surfaced; verification exclusions go unstated; and the plan offers no sequence or milestones whatsoever.
+- Assessor session: [`session.md`](../../assessment/plan-content/generated-task/s0/j3/session.md)
+- Full results: [`results.md`](../../../assessment/plan-content/results.md)
+
+- Evidence: [session.md](session.md) · [run.json](run.json)

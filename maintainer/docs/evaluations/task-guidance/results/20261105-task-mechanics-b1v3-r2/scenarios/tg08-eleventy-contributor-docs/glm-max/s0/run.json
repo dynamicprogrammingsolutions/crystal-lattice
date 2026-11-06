@@ -1,0 +1,23 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261029T115441.336784Z-task-guidance-tg08-eleventy-contributor-docs-max-c93058f6",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b2ee1cb55f526a44ba5f7779ae09481b056713f3b1ce77aed99a6cf846f11d77",
+    "original_sha256": "11563045ada75d1c97de1bc2776dcfe6a993ba91ecdd2ce8d1276ed5d39a5091",
+    "path": "shared/system-messages/glm-b2ee1cb55f52.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261029-contributing-post-authoring-guide.md"
+  ],
+  "valid": true
+}

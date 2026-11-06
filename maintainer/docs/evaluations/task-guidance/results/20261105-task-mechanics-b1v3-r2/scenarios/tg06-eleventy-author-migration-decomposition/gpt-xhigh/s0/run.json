@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-xhigh.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "xhigh",
+  "run_id": "20261029T114210.241143Z-task-guidance-tg06-eleventy-author-migration-decomposition-xhigh-ee3624bd",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "c419e5877d274d5a5769db08c255b4472559d8653982415b0baff21d60bd2eab",
+    "original_sha256": "14d239782fa68dd392b8c86e64bdd9f2b4f865dd5e3d2ff9385b1d2f56309a78",
+    "path": "shared/system-messages/gpt-c419e5877d27.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261029-multi-author-post-metadata.md"
+  ],
+  "valid": true
+}

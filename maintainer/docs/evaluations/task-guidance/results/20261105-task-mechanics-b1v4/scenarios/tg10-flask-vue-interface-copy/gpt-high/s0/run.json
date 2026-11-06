@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261102T000121.479265Z-task-guidance-tg10-flask-vue-interface-copy-high-e0048cde",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "69bb0711b62326a2f1c6d3d659341bdf8facde2fb1e1d8ef36f6e660219c43d8",
+    "original_sha256": "e8b5230d5c32b570b4aa0585469b896f9cae9b925e80a84e257387d71af45ba6",
+    "path": "shared/system-messages/gpt-69bb0711b623.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [
+    "task-files/tasks/20261102-books-interface-copy.md"
+  ],
+  "valid": true
+}

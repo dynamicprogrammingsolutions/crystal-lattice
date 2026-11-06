@@ -1,0 +1,24 @@
+{
+  "config": "shared/configs/gpt-high.json",
+  "invalid_reasons": [
+    "no task files were produced"
+  ],
+  "kind": "task-creation",
+  "model": "gpt-6-luna",
+  "provider": "gpt",
+  "reasoning_effort": "high",
+  "run_id": "20261029T120515.464265Z-task-guidance-tg10-flask-vue-interface-copy-high-21d507db",
+  "system_message": {
+    "availability": {
+      "detail": "recompiled from the preserved runtime-config sources; SHA-256 matches the recorded delivery hash",
+      "state": "reconstructed",
+      "verified": true
+    },
+    "normalized_sha256": "1fe25bbfd1862e6ae9bef8306f82118b1e3099fa04b80e6b1ec967b39cf3111b",
+    "original_sha256": "50ac340603e3c39f1ba49eafd1f212662c4773b308ecc3e24f0147381541844b",
+    "path": "shared/system-messages/gpt-1fe25bbfd186.md",
+    "source": "recompiled-from-preserved-sources"
+  },
+  "task_files": [],
+  "valid": false
+}

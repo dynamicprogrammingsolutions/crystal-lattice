@@ -1,0 +1,26 @@
+{
+  "config": "shared/configs/glm-max.json",
+  "invalid_reasons": [],
+  "kind": "task-creation",
+  "model": "glm-5.3-flash",
+  "provider": "glm",
+  "reasoning_effort": "max",
+  "run_id": "20261029T114033.615244Z-task-guidance-tg06-eleventy-author-migration-decomposition-max-3205682e",
+  "system_message": {
+    "availability": {
+      "detail": "retained by the saved session",
+      "state": "captured"
+    },
+    "normalized_sha256": "b2ee1cb55f526a44ba5f7779ae09481b056713f3b1ce77aed99a6cf846f11d77",
+    "original_sha256": "adbb38aa14e06d78dfeb05fe8aae82b61b31137851c57a5a4823327fe5d7a8db",
+    "path": "shared/system-messages/glm-b2ee1cb55f52.md",
+    "source": "session.compiled_content"
+  },
+  "task_files": [
+    "task-files/tasks/20261029-post-author-migration/000-main.md",
+    "task-files/tasks/20261029-post-author-migration/010-introduce-multi-author-model.md",
+    "task-files/tasks/20261029-post-author-migration/020-migrate-existing-posts.md",
+    "task-files/tasks/20261029-post-author-migration/030-retire-legacy-author.md"
+  ],
+  "valid": true
+}
