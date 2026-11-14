@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
-    "astro": "^5.8.0",
+    "astro": "^7.4.7",
     "hast-util-to-html": "^9.0.5",
     "highlight.js": "^11.11.1",
     "js-yaml": "^4.1.1",
